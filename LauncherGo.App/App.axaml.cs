@@ -35,7 +35,9 @@ public partial class App : Application
             ApplyCulture(preferences.Language);
             ApplyTheme(preferences.ThemeMode);
 
-            desktop.MainWindow = ServiceLocator.GetRequiredService<FirstLaunchGuideWindow>();
+            desktop.MainWindow = preferences.IsOnboardingCompleted
+                ? ServiceLocator.GetRequiredService<LauncherMainWindow>()
+                : ServiceLocator.GetRequiredService<FirstLaunchGuideWindow>();
         }
 
         base.OnFrameworkInitializationCompleted();

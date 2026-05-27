@@ -580,7 +580,10 @@ public partial class FirstLaunchGuideWindow : Window
 
         if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.Shutdown();
+            var mainWindow = ServiceLocator.GetRequiredService<LauncherMainWindow>();
+            desktop.MainWindow = mainWindow;
+            mainWindow.Show();
+            Close();
             return;
         }
 
