@@ -9,6 +9,9 @@ public static class ServiceCollectionExtension
     {
         services.AddSingleton<ILauncherPreferencesService, LauncherPreferencesService>();
         services.AddSingleton<IServerPackageService, ServerPackageService>();
+        services.AddSingleton<IInstanceProfileService, InstanceProfileService>();
+        services.AddSingleton<IInstanceSaveService, InstanceSaveService>();
+        services.AddSingleton<IServerProcessService, ServerProcessService>();
         return services;
     }
 }

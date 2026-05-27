@@ -1,13 +1,18 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media.Transformation;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using LauncherGo.Abstractions.Services;
+using LauncherGo.Domains.Models;
+using LauncherGo.Ui;
 
 namespace LauncherGo.Ui.Views;
 
@@ -19,56 +24,89 @@ public partial class LauncherMainWindow : Window
     private const double ChartHeight = 248;
     private const double ThumbnailWidth = 76;
     private const double ThumbnailHeight = 50;
-    private const double HostMemoryGb = 8.0;
-    private const double RobotMemoryGb = 2.0;
 
-    private readonly Random _random = new();
+    private readonly ILauncherPreferencesService _preferencesService;
+    private readonly IServerPackageService _serverPackageService;
+    private readonly IInstanceProfileService _profileService;
+    private readonly IInstanceSaveService _saveService;
+    private readonly IServerProcessService _serverProcessService;
     private readonly DispatcherTimer _dataTimer;
     private readonly DispatcherTimer _tickerTimer;
 
     private readonly List<double> _serverCpuSamples = [];
-    private readonly List<double> _serverMemPercentSamples = [];
+    private readonly List<double> _serverMemoryMbSamples = [];
     private readonly List<double> _robotCpuSamples = [];
-    private readonly List<double> _robotMemPercentSamples = [];
+    private readonly List<double> _robotMemoryMbSamples = [];
     private readonly List<double> _playersSamples = [];
     private readonly List<double> _networkLatencySamples = [];
-
     private readonly List<string> _playerEvents = [];
 
-    private readonly DateTime _serverStartUtc = DateTime.UtcNow;
-    private readonly DateTime _robotStartUtc = DateTime.UtcNow;
+    private readonly ObservableCollection<string> _consoleLines = [];
+    private readonly ObservableCollection<ProfileListItem> _profileItems = [];
+    private readonly ObservableCollection<SaveListItem> _saveItems = [];
+    private readonly ObservableCollection<DownloadVersionListItem> _downloadVersionItems = [];
+    private readonly List<ServerDownloadEntry> _catalogEntries = [];
 
     private MainTab _selectedTab = MainTab.Home;
     private HomeMetric _selectedMetric = HomeMetric.Server;
+    private InstanceManageTab _selectedInstanceManageTab = InstanceManageTab.Profiles;
+    private SettingsTab _selectedSettingsTab = SettingsTab.Server;
     private int _tickerIndex;
     private bool _tickerAnimating;
     private bool _isChinese;
+    private bool _downloadCatalogLoaded;
+    private bool _isStoppingOrStarting;
+    private bool _isRefreshingSaves;
 
     public LauncherMainWindow()
+        : this(
+            ServiceLocator.GetRequiredService<ILauncherPreferencesService>(),
+            ServiceLocator.GetRequiredService<IServerPackageService>(),
+            ServiceLocator.GetRequiredService<IInstanceProfileService>(),
+            ServiceLocator.GetRequiredService<IInstanceSaveService>(),
+            ServiceLocator.GetRequiredService<IServerProcessService>())
     {
+    }
+
+    public LauncherMainWindow(
+        ILauncherPreferencesService preferencesService,
+        IServerPackageService serverPackageService,
+        IInstanceProfileService profileService,
+        IInstanceSaveService saveService,
+        IServerProcessService serverProcessService)
+    {
+        _preferencesService = preferencesService;
+        _serverPackageService = serverPackageService;
+        _profileService = profileService;
+        _saveService = saveService;
+        _serverProcessService = serverProcessService;
+
         InitializeComponent();
         AddHandler(InputElement.PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
 
         _isChinese = CultureInfo.CurrentUICulture.Name.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
 
-        _dataTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromSeconds(1)
-        };
+        _dataTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _dataTimer.Tick += OnDataTimerTick;
 
-        _tickerTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromSeconds(2.3)
-        };
+        _tickerTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.3) };
         _tickerTimer.Tick += OnTickerTimerTick;
 
+        _serverProcessService.OutputReceived += OnServerOutputReceived;
+        _serverProcessService.StatusChanged += OnServerStatusChanged;
+        InstanceComboBox.SelectionChanged += OnLaunchInstanceSelectionChanged;
+
         InitializeStaticTexts();
-        InitializeLaunchOptions();
-        InitializeMockSeries();
+        InitializeSeries();
+        InitializeCollections();
+        RefreshProfiles();
+        _ = RefreshSavesAsync();
+        _ = RefreshDownloadVersionsAsync(forceReload: false);
 
         SelectTab(MainTab.Home);
         SelectMetric(HomeMetric.Server);
+        SelectInstanceManageTab(InstanceManageTab.Profiles);
+        SelectSettingsTab(SettingsTab.Server);
 
         _dataTimer.Start();
         _tickerTimer.Start();
@@ -77,6 +115,8 @@ public partial class LauncherMainWindow : Window
         {
             _dataTimer.Stop();
             _tickerTimer.Stop();
+            _serverProcessService.OutputReceived -= OnServerOutputReceived;
+            _serverProcessService.StatusChanged -= OnServerStatusChanged;
         };
     }
 
@@ -84,21 +124,43 @@ public partial class LauncherMainWindow : Window
     {
         HomeNavButton.Content = T("主页", "Home");
         ConsoleNavButton.Content = T("控制台", "Console");
-        ProfileNavButton.Content = T("档案列表", "Profiles");
-        DownloadNavButton.Content = T("下载", "Download");
+        InstanceManageNavButton.Content = T("实例管理", "Instances");
         SettingsNavButton.Content = T("设置", "Settings");
+        RobotNavButton.Content = T("机器人", "Robot");
+        ConnectionNavButton.Content = T("连接", "Connection");
 
         LaunchServerButton.Content = T("启动服务器", "Start Server");
+        CommandTextBox.PlaceholderText = T("输入服务器命令，回车发送", "Enter server command, press Enter to send");
+        SendCommandButton.Content = T("发送", "Send");
 
         ServerStatusCardTitleText.Text = T("服务器状态", "Server Status");
         RobotStatusCardTitleText.Text = T("机器人状态", "Robot Status");
         OnlinePlayersCardTitleText.Text = T("在线玩家", "Online Players");
         NetworkStatusCardTitleText.Text = T("网络状态", "Network Status");
 
-        ConsolePlaceholderText.Text = T("控制台页面占位", "Console page placeholder");
-        ProfilePlaceholderText.Text = T("档案列表页面占位", "Profile list page placeholder");
-        DownloadPlaceholderText.Text = T("下载页面占位", "Download page placeholder");
-        SettingsPlaceholderText.Text = T("设置页面占位", "Settings page placeholder");
+        ProfilesTabButton.Content = T("档案列表", "Profiles");
+        SavesTabButton.Content = T("存档管理", "Saves");
+        DownloadVersionsTabButton.Content = T("下载版本", "Downloads");
+        ProfileNameTextBox.PlaceholderText = T("档案名称", "Profile name");
+        CreateProfileButton.Content = T("创建", "Create");
+        ImportProfileButton.Content = T("导入", "Import");
+        DeleteProfileButton.Content = T("删除", "Delete");
+        RefreshProfilesButton.Content = T("刷新", "Refresh");
+        ImportSaveButton.Content = T("导入", "Import");
+        DeleteSaveButton.Content = T("删除", "Delete");
+        RefreshSavesButton.Content = T("刷新", "Refresh");
+        DownloadVersionsTitleText.Text = T("下载版本", "Download Versions");
+        DownloadVersionsHintText.Text = T("下载或导入 Vintage Story Windows 服务端压缩包。", "Download or import Vintage Story Windows server packages.");
+        ImportServerPackageButton.Content = T("导入", "Import");
+        RefreshDownloadVersionsButton.Content = T("刷新", "Refresh");
+
+        ServerSettingsTabButton.Content = T("服务器设置", "Server");
+        AppearanceSettingsTabButton.Content = T("外观", "Appearance");
+        NetworkSettingsTabButton.Content = T("网络", "Network");
+        AdvancedSettingsTabButton.Content = T("高级", "Advanced");
+        AboutSettingsTabButton.Content = T("关于", "About");
+        SponsorsSettingsTabButton.Content = T("赞助者", "Sponsors");
+        ContributorsSettingsTabButton.Content = T("贡献者", "Contributors");
 
         Title = T("LauncherGo 主窗口", "LauncherGo Main Window");
         ToolTip.SetTip(RepositoryButton, T("仓库", "Repository"));
@@ -106,79 +168,53 @@ public partial class LauncherMainWindow : Window
         ToolTip.SetTip(SponsorButton, T("赞助", "Sponsor"));
     }
 
-    private void InitializeLaunchOptions()
+    private void InitializeSeries()
     {
-        InstanceComboBox.ItemsSource = _isChinese
-            ? new List<string> { "实例 A", "实例 B", "实例 C" }
-            : new List<string> { "Instance A", "Instance B", "Instance C" };
-        SaveComboBox.ItemsSource = _isChinese
-            ? new List<string> { "存档 世界-1", "存档 世界-2", "存档 世界-3" }
-            : new List<string> { "Save World-1", "Save World-2", "Save World-3" };
+        FillWithZero(_serverCpuSamples, RealtimeRangeSeconds);
+        FillWithZero(_serverMemoryMbSamples, RealtimeRangeSeconds);
+        FillWithZero(_robotCpuSamples, RealtimeRangeSeconds);
+        FillWithZero(_robotMemoryMbSamples, RealtimeRangeSeconds);
+        FillWithZero(_playersSamples, RealtimeRangeSeconds);
+        FillWithZero(_networkLatencySamples, NetworkRangeCount);
 
-        InstanceComboBox.SelectedIndex = 0;
-        SaveComboBox.SelectedIndex = 0;
+        EventTickerCurrentText.Text = T("暂无玩家事件", "No player events");
+        EventTickerNextText.Text = EventTickerCurrentText.Text;
+        UpdateCardValues(_serverProcessService.GetCurrentStatus());
     }
 
-    private void InitializeMockSeries()
+    private void InitializeCollections()
     {
-        FillSeries(_serverCpuSamples, RealtimeRangeSeconds, 20, 72);
-        FillSeries(_serverMemPercentSamples, RealtimeRangeSeconds, 33, 70);
-        FillSeries(_robotCpuSamples, RealtimeRangeSeconds, 6, 38);
-        FillSeries(_robotMemPercentSamples, RealtimeRangeSeconds, 22, 58);
-        FillSeries(_playersSamples, RealtimeRangeSeconds, 2, 26, integerOnly: true);
-        FillSeries(_networkLatencySamples, NetworkRangeCount, 11, 58);
-
-        _playerEvents.Add(T("[12:00:05] HansJack 玩家进入服务器", "[12:00:05] HansJack joined the server"));
-        _playerEvents.Add(T("[12:00:31] VSCN 玩家离开服务器", "[12:00:31] VSCN left the server"));
-        _playerEvents.Add(T("[12:01:12] NightFox 玩家进入服务器", "[12:01:12] NightFox joined the server"));
-
-        EventTickerCurrentText.Text = _playerEvents[0];
-        EventTickerNextText.Text = _playerEvents.Count > 1 ? _playerEvents[1] : _playerEvents[0];
-
-        UpdateCardValues();
+        ConsoleOutputListBox.ItemsSource = _consoleLines;
+        ProfilesListBox.ItemsSource = _profileItems;
+        SavesListBox.ItemsSource = _saveItems;
+        DownloadVersionsListBox.ItemsSource = _downloadVersionItems;
     }
 
-    private void FillSeries(List<double> target, int count, double min, double max, bool integerOnly = false)
+    private static void FillWithZero(List<double> target, int count)
     {
         target.Clear();
         for (var i = 0; i < count; i++)
         {
-            var value = min + _random.NextDouble() * (max - min);
-            target.Add(integerOnly ? Math.Round(value) : value);
+            target.Add(0);
         }
     }
 
     private void OnDataTimerTick(object? sender, EventArgs e)
     {
-        PushNextSample(_serverCpuSamples, NextWithDrift(_serverCpuSamples[^1], 5.2, 10, 90));
-        PushNextSample(_serverMemPercentSamples, NextWithDrift(_serverMemPercentSamples[^1], 2.8, 26, 86));
-        PushNextSample(_robotCpuSamples, NextWithDrift(_robotCpuSamples[^1], 3.7, 3, 65));
-        PushNextSample(_robotMemPercentSamples, NextWithDrift(_robotMemPercentSamples[^1], 2.2, 18, 70));
+        var status = _serverProcessService.GetCurrentStatus();
+        PushNextSample(_serverCpuSamples, status.IsRunning ? status.CpuPercent : 0);
+        PushNextSample(_serverMemoryMbSamples, status.IsRunning ? BytesToMb(status.MemoryBytes) : 0);
+        PushNextSample(_playersSamples, status.IsRunning ? status.OnlinePlayers : 0);
 
-        var playerDelta = _random.Next(-1, 2);
-        var currentPlayers = Math.Max(0, _playersSamples[^1] + playerDelta);
-        PushNextSample(_playersSamples, currentPlayers);
-
-        var shouldPushNetwork = DateTime.UtcNow.Second % 5 == 0;
-        if (shouldPushNetwork)
+        // 机器人和连接服务尚未接入，保持 0，避免展示假数据。
+        PushNextSample(_robotCpuSamples, 0);
+        PushNextSample(_robotMemoryMbSamples, 0);
+        if (DateTime.UtcNow.Second % 5 == 0)
         {
-            PushNextSample(_networkLatencySamples, NextWithDrift(_networkLatencySamples[^1], 6.5, 8, 170), NetworkRangeCount);
+            PushNextSample(_networkLatencySamples, 0, NetworkRangeCount);
         }
 
-        if (playerDelta != 0)
-        {
-            var userName = PickRandomName();
-            var eventText = playerDelta > 0
-                ? T($"[{DateTime.Now:HH:mm:ss}] {userName} 玩家进入服务器", $"[{DateTime.Now:HH:mm:ss}] {userName} joined the server")
-                : T($"[{DateTime.Now:HH:mm:ss}] {userName} 玩家离开服务器", $"[{DateTime.Now:HH:mm:ss}] {userName} left the server");
-            _playerEvents.Insert(0, eventText);
-            if (_playerEvents.Count > 24)
-            {
-                _playerEvents.RemoveAt(_playerEvents.Count - 1);
-            }
-        }
-
-        UpdateCardValues();
+        UpdateCardValues(status);
 
         if (_selectedTab == MainTab.Home)
         {
@@ -188,13 +224,12 @@ public partial class LauncherMainWindow : Window
 
     private async void OnTickerTimerTick(object? sender, EventArgs e)
     {
-        if (_selectedMetric != HomeMetric.Players || !_playerEvents.Any() || _tickerAnimating)
+        if (_selectedMetric != HomeMetric.Players || _playerEvents.Count == 0 || _tickerAnimating)
         {
             return;
         }
 
         _tickerAnimating = true;
-
         _tickerIndex = (_tickerIndex + 1) % _playerEvents.Count;
         var nextText = _playerEvents[_tickerIndex];
 
@@ -211,129 +246,139 @@ public partial class LauncherMainWindow : Window
         _tickerAnimating = false;
     }
 
-    private void UpdateCardValues()
+    private void UpdateCardValues(ServerRuntimeStatus status)
     {
         var serverCpu = _serverCpuSamples[^1];
-        var serverMemGb = HostMemoryGb * _serverMemPercentSamples[^1] / 100.0;
-        ServerStatusCardValueText.Text = T(
-            $"CPU {serverCpu:F1}%  内存 {serverMemGb:F2}/{HostMemoryGb:F1}GB",
-            $"CPU {serverCpu:F1}%  Mem {serverMemGb:F2}/{HostMemoryGb:F1}GB");
+        var serverMemMb = _serverMemoryMbSamples[^1];
+        ServerStatusCardValueText.Text = status.IsRunning
+            ? T($"CPU {serverCpu:F1}%  内存 {serverMemMb:F0} MB", $"CPU {serverCpu:F1}%  Mem {serverMemMb:F0} MB")
+            : T("未启动", "Stopped");
 
-        var robotCpu = _robotCpuSamples[^1];
-        var robotMemGb = RobotMemoryGb * _robotMemPercentSamples[^1] / 100.0;
-        RobotStatusCardValueText.Text = T(
-            $"CPU {robotCpu:F1}%  内存 {robotMemGb:F2}/{RobotMemoryGb:F1}GB",
-            $"CPU {robotCpu:F1}%  Mem {robotMemGb:F2}/{RobotMemoryGb:F1}GB");
+        RobotStatusCardValueText.Text = T("未接入  CPU 0%  内存 0 MB", "Not connected  CPU 0%  Mem 0 MB");
 
         var currentPlayers = (int)Math.Round(_playersSamples[^1]);
-        var peakPlayers = (int)Math.Round(_playersSamples.Max());
+        var peakPlayers = Math.Max(status.PeakOnlinePlayers, (int)Math.Round(_playersSamples.Max()));
         OnlinePlayersCardValueText.Text = T(
             $"在线 {currentPlayers}  最高 {peakPlayers}",
             $"Online {currentPlayers}  Peak {peakPlayers}");
 
-        var latency = _networkLatencySamples[^1];
-        var packetLoss = Math.Clamp((int)Math.Round(latency / 90.0), 0, 4);
-        NetworkStatusCardValueText.Text = T(
-            $"延迟 {latency:F0}ms  丢包 {packetLoss}/4",
-            $"Latency {latency:F0}ms  Loss {packetLoss}/4");
+        NetworkStatusCardValueText.Text = T("未配置连接监控", "Connection monitor not configured");
+        LaunchServerButton.Content = status.IsRunning ? T("停止服务器", "Stop Server") : T("启动服务器", "Start Server");
 
         RenderThumbnailCharts();
     }
 
     private void RenderSelectedMetricChart()
     {
+        var status = _serverProcessService.GetCurrentStatus();
         switch (_selectedMetric)
         {
             case HomeMetric.Server:
-                var serverCpu = _serverCpuSamples[^1];
-                var serverMemGb = HostMemoryGb * _serverMemPercentSamples[^1] / 100.0;
-                var hostFreeGb = HostMemoryGb - serverMemGb;
-                RenderDualLineChart(
-                    title: T("服务器状态", "Server Status"),
-                    topValue: $"{serverCpu:F1}% / {serverMemGb:F2} GB",
-                    summary: T(
-                        "60 秒区间，蓝线为 CPU，绿线为内存",
-                        "60-second range. Blue is CPU, green is memory."),
-                    primary: _serverCpuSamples,
-                    secondary: _serverMemPercentSamples,
-                    xHint: T("60 秒", "60 seconds"),
-                    details:
-                    [
-                        (T("CPU", "CPU"), $"{serverCpu:F1}%"),
-                        (T("内存占用", "Memory"), $"{serverMemGb:F2}/{HostMemoryGb:F1} GB"),
-                        (T("本机可用", "Host free"), $"{hostFreeGb:F2} GB"),
-                        (T("运行时间", "Uptime"), FormatDuration(DateTime.UtcNow - _serverStartUtc))
-                    ]);
+                RenderServerChart(status);
                 break;
-
             case HomeMetric.Robot:
-                var robotCpu = _robotCpuSamples[^1];
-                var robotMemGb = RobotMemoryGb * _robotMemPercentSamples[^1] / 100.0;
-                var robotFreeGb = RobotMemoryGb - robotMemGb;
-                RenderDualLineChart(
-                    title: T("机器人状态", "Robot Status"),
-                    topValue: $"{robotCpu:F1}% / {robotMemGb:F2} GB",
-                    summary: T(
-                        "60 秒区间，蓝线为 CPU，绿线为内存",
-                        "60-second range. Blue is CPU, green is memory."),
-                    primary: _robotCpuSamples,
-                    secondary: _robotMemPercentSamples,
-                    xHint: T("60 秒", "60 seconds"),
-                    details:
-                    [
-                        (T("CPU", "CPU"), $"{robotCpu:F1}%"),
-                        (T("内存占用", "Memory"), $"{robotMemGb:F2}/{RobotMemoryGb:F1} GB"),
-                        (T("本机可用", "Host free"), $"{robotFreeGb:F2} GB"),
-                        (T("运行时间", "Uptime"), FormatDuration(DateTime.UtcNow - _robotStartUtc))
-                    ]);
+                RenderRobotChart();
                 break;
-
             case HomeMetric.Players:
-                var currentPlayers = (int)Math.Round(_playersSamples[^1]);
-                var peakPlayers = (int)Math.Round(_playersSamples.Max());
-                RenderSingleLineChart(
-                    title: T("在线玩家", "Online Players"),
-                    topValue: T($"{currentPlayers} 人", $"{currentPlayers} players"),
-                    summary: T(
-                        "60 秒区间，显示在线玩家数量变化",
-                        "60-second range for online player count."),
-                    primary: _playersSamples,
-                    yMin: 0,
-                    yMax: Math.Max(20, _playersSamples.Max() + 3),
-                    xHint: T("60 秒", "60 seconds"),
-                    showTicker: true,
-                    details:
-                    [
-                        (T("当前人数", "Current"), currentPlayers.ToString(CultureInfo.InvariantCulture)),
-                        (T("最高人数", "Peak"), peakPlayers.ToString(CultureInfo.InvariantCulture)),
-                        (T("事件数量", "Events"), _playerEvents.Count.ToString(CultureInfo.InvariantCulture)),
-                        (T("采样区间", "Range"), T("60 秒", "60 seconds"))
-                    ]);
+                RenderPlayersChart(status);
                 break;
-
             case HomeMetric.Network:
-                var latency = _networkLatencySamples[^1];
-                var packetLoss = Math.Clamp((int)Math.Round(latency / 90.0), 0, 4);
-                RenderSingleLineChart(
-                    title: T("网络状态", "Network Status"),
-                    topValue: $"{latency:F0} ms",
-                    summary: T(
-                        "12 小时区间，5 分钟测试一次，每次发送 4 包",
-                        "12-hour range. Tested every 5 minutes with 4 packets."),
-                    primary: _networkLatencySamples,
-                    yMin: 0,
-                    yMax: Math.Max(180, _networkLatencySamples.Max() + 20),
-                    xHint: T("最近 12 小时", "Last 12 hours"),
-                    showTicker: false,
-                    details:
-                    [
-                        (T("当前延迟", "Latency"), $"{latency:F0} ms"),
-                        (T("丢包", "Packet loss"), $"{packetLoss}/4"),
-                        (T("测试频率", "Frequency"), T("5 分钟", "5 min")),
-                        (T("采样区间", "Range"), T("12 小时", "12 hours"))
-                    ]);
+                RenderNetworkChart();
                 break;
         }
+    }
+
+    private void RenderServerChart(ServerRuntimeStatus status)
+    {
+        var cpu = _serverCpuSamples[^1];
+        var memoryMb = _serverMemoryMbSamples[^1];
+        var yMax = NiceCeiling(Math.Max(100, Math.Max(_serverMemoryMbSamples.Max(), _serverCpuSamples.Max())));
+        var uptime = status.StartedAtUtc.HasValue
+            ? FormatDuration(DateTimeOffset.UtcNow - status.StartedAtUtc.Value)
+            : "--";
+
+        RenderDualLineChart(
+            title: T("服务器状态", "Server Status"),
+            topValue: status.IsRunning ? $"{cpu:F1}% / {memoryMb:F0} MB" : T("未启动", "Stopped"),
+            summary: T("60 秒区间，蓝线为服务端进程 CPU%，绿线为服务端进程内存 MB", "60-second range. Blue is server process CPU%, green is memory MB."),
+            primary: _serverCpuSamples,
+            secondary: _serverMemoryMbSamples,
+            yMin: 0,
+            yMax: yMax,
+            yAxisFormatter: value => $"{value:F0}",
+            xHint: T("60 秒", "60 seconds"),
+            details:
+            [
+                (T("CPU", "CPU"), $"{cpu:F1}%"),
+                (T("内存", "Memory"), $"{memoryMb:F0} MB"),
+                (T("PID", "PID"), status.ProcessId?.ToString(CultureInfo.InvariantCulture) ?? "--"),
+                (T("运行时间", "Uptime"), uptime)
+            ]);
+    }
+
+    private void RenderRobotChart()
+    {
+        RenderDualLineChart(
+            title: T("机器人状态", "Robot Status"),
+            topValue: T("未接入", "Not connected"),
+            summary: T("机器人进程尚未接入，当前不展示模拟数据。", "Robot process is not connected; no simulated data is shown."),
+            primary: _robotCpuSamples,
+            secondary: _robotMemoryMbSamples,
+            yMin: 0,
+            yMax: 100,
+            yAxisFormatter: value => $"{value:F0}",
+            xHint: T("60 秒", "60 seconds"),
+            details:
+            [
+                (T("CPU", "CPU"), "0%"),
+                (T("内存", "Memory"), "0 MB"),
+                (T("状态", "Status"), T("未接入", "Not connected")),
+                (T("运行时间", "Uptime"), "--")
+            ]);
+    }
+
+    private void RenderPlayersChart(ServerRuntimeStatus status)
+    {
+        var currentPlayers = (int)Math.Round(_playersSamples[^1]);
+        var peakPlayers = Math.Max(status.PeakOnlinePlayers, (int)Math.Round(_playersSamples.Max()));
+        RenderSingleLineChart(
+            title: T("在线玩家", "Online Players"),
+            topValue: T($"{currentPlayers} 人", $"{currentPlayers} players"),
+            summary: T("60 秒区间，数据来自服务端输出解析。", "60-second range parsed from server output."),
+            primary: _playersSamples,
+            yMin: 0,
+            yMax: NiceCeiling(Math.Max(4, _playersSamples.Max() + 1)),
+            yAxisFormatter: value => $"{Math.Round(value):F0}",
+            xHint: T("60 秒", "60 seconds"),
+            showTicker: true,
+            details:
+            [
+                (T("当前人数", "Current"), currentPlayers.ToString(CultureInfo.InvariantCulture)),
+                (T("最高人数", "Peak"), peakPlayers.ToString(CultureInfo.InvariantCulture)),
+                (T("事件数量", "Events"), _playerEvents.Count.ToString(CultureInfo.InvariantCulture)),
+                (T("来源", "Source"), T("服务端输出", "Server output"))
+            ]);
+    }
+
+    private void RenderNetworkChart()
+    {
+        RenderSingleLineChart(
+            title: T("网络状态", "Network Status"),
+            topValue: T("未配置", "Not configured"),
+            summary: T("连接监控尚未配置，当前不展示模拟延迟。", "Connection monitor is not configured; no simulated latency is shown."),
+            primary: _networkLatencySamples,
+            yMin: 0,
+            yMax: 100,
+            yAxisFormatter: value => $"{value:F0}ms",
+            xHint: T("最近 12 小时", "Last 12 hours"),
+            showTicker: false,
+            details:
+            [
+                (T("当前延迟", "Latency"), "--"),
+                (T("丢包", "Packet loss"), "--"),
+                (T("测试频率", "Frequency"), T("未启动", "Stopped")),
+                (T("采样区间", "Range"), T("12 小时", "12 hours"))
+            ]);
     }
 
     private void RenderDualLineChart(
@@ -342,6 +387,9 @@ public partial class LauncherMainWindow : Window
         string summary,
         IReadOnlyList<double> primary,
         IReadOnlyList<double> secondary,
+        double yMin,
+        double yMax,
+        Func<double, string> yAxisFormatter,
         string xHint,
         IReadOnlyList<(string Label, string Value)> details)
     {
@@ -350,11 +398,11 @@ public partial class LauncherMainWindow : Window
         ChartSummaryText.Text = summary;
         ChartXAxisText.Text = xHint;
 
-        ChartLinePrimary.Points = BuildPolylinePoints(primary, yMin: 0, yMax: 100);
-        ChartLineSecondary.Points = BuildPolylinePoints(secondary, yMin: 0, yMax: 100);
+        ChartLinePrimary.Points = BuildPolylinePoints(primary, yMin, yMax);
+        ChartLineSecondary.Points = BuildPolylinePoints(secondary, yMin, yMax);
         ChartLineSecondary.IsVisible = true;
 
-        SetYAxisLabels(0, 100, value => $"{value:F0}%");
+        SetYAxisLabels(yMin, yMax, yAxisFormatter);
         SetChartDetails(details);
         EventTickerContainer.IsVisible = false;
     }
@@ -366,6 +414,7 @@ public partial class LauncherMainWindow : Window
         IReadOnlyList<double> primary,
         double yMin,
         double yMax,
+        Func<double, string> yAxisFormatter,
         string xHint,
         bool showTicker,
         IReadOnlyList<(string Label, string Value)> details)
@@ -379,13 +428,7 @@ public partial class LauncherMainWindow : Window
         ChartLineSecondary.IsVisible = false;
         ChartLineSecondary.Points = [];
 
-        Func<double, string> formatter = _selectedMetric switch
-        {
-            HomeMetric.Players => value => $"{Math.Round(value):F0}",
-            HomeMetric.Network => value => $"{Math.Round(value):F0}ms",
-            _ => value => $"{value:F0}"
-        };
-        SetYAxisLabels(yMin, yMax, formatter);
+        SetYAxisLabels(yMin, yMax, yAxisFormatter);
         SetChartDetails(details);
         EventTickerContainer.IsVisible = showTicker;
     }
@@ -393,19 +436,22 @@ public partial class LauncherMainWindow : Window
     private void SetYAxisLabels(double yMin, double yMax, Func<double, string> formatter)
     {
         var span = Math.Max(0.0001, yMax - yMin);
-        var v0 = yMax;
-        var v1 = yMin + span * 0.8;
-        var v2 = yMin + span * 0.6;
-        var v3 = yMin + span * 0.4;
-        var v4 = yMin + span * 0.2;
-        var v5 = yMin;
+        var labels = new[]
+        {
+            yMax,
+            yMin + span * 0.8,
+            yMin + span * 0.6,
+            yMin + span * 0.4,
+            yMin + span * 0.2,
+            yMin
+        };
 
-        YAxisLabelTop.Text = formatter(v0);
-        YAxisLabel2.Text = formatter(v1);
-        YAxisLabel3.Text = formatter(v2);
-        YAxisLabel4.Text = formatter(v3);
-        YAxisLabel5.Text = formatter(v4);
-        YAxisLabelBottom.Text = formatter(v5);
+        YAxisLabelTop.Text = formatter(labels[0]);
+        YAxisLabel2.Text = formatter(labels[1]);
+        YAxisLabel3.Text = formatter(labels[2]);
+        YAxisLabel4.Text = formatter(labels[3]);
+        YAxisLabel5.Text = formatter(labels[4]);
+        YAxisLabelBottom.Text = formatter(labels[5]);
     }
 
     private void SetChartDetails(IReadOnlyList<(string Label, string Value)> details)
@@ -428,12 +474,13 @@ public partial class LauncherMainWindow : Window
 
     private void RenderThumbnailCharts()
     {
-        ServerStatusThumbLinePrimary.Points = BuildPolylinePoints(_serverCpuSamples, 0, 100, ThumbnailWidth, ThumbnailHeight);
-        ServerStatusThumbLineSecondary.Points = BuildPolylinePoints(_serverMemPercentSamples, 0, 100, ThumbnailWidth, ThumbnailHeight);
+        var serverYMax = NiceCeiling(Math.Max(100, Math.Max(_serverMemoryMbSamples.Max(), _serverCpuSamples.Max())));
+        ServerStatusThumbLinePrimary.Points = BuildPolylinePoints(_serverCpuSamples, 0, serverYMax, ThumbnailWidth, ThumbnailHeight);
+        ServerStatusThumbLineSecondary.Points = BuildPolylinePoints(_serverMemoryMbSamples, 0, serverYMax, ThumbnailWidth, ThumbnailHeight);
         RobotStatusThumbLinePrimary.Points = BuildPolylinePoints(_robotCpuSamples, 0, 100, ThumbnailWidth, ThumbnailHeight);
-        RobotStatusThumbLineSecondary.Points = BuildPolylinePoints(_robotMemPercentSamples, 0, 100, ThumbnailWidth, ThumbnailHeight);
-        OnlinePlayersThumbLinePrimary.Points = BuildPolylinePoints(_playersSamples, 0, Math.Max(20, _playersSamples.Max() + 3), ThumbnailWidth, ThumbnailHeight);
-        NetworkStatusThumbLinePrimary.Points = BuildPolylinePoints(_networkLatencySamples, 0, Math.Max(180, _networkLatencySamples.Max() + 20), ThumbnailWidth, ThumbnailHeight);
+        RobotStatusThumbLineSecondary.Points = BuildPolylinePoints(_robotMemoryMbSamples, 0, 100, ThumbnailWidth, ThumbnailHeight);
+        OnlinePlayersThumbLinePrimary.Points = BuildPolylinePoints(_playersSamples, 0, NiceCeiling(Math.Max(4, _playersSamples.Max() + 1)), ThumbnailWidth, ThumbnailHeight);
+        NetworkStatusThumbLinePrimary.Points = BuildPolylinePoints(_networkLatencySamples, 0, 100, ThumbnailWidth, ThumbnailHeight);
     }
 
     private static IList<Point> BuildPolylinePoints(
@@ -450,7 +497,6 @@ public partial class LauncherMainWindow : Window
 
         var points = new List<Point>(values.Count);
         var denominator = Math.Max(0.0001, yMax - yMin);
-
         for (var i = 0; i < values.Count; i++)
         {
             var x = i * (width / (values.Count - 1));
@@ -462,21 +508,166 @@ public partial class LauncherMainWindow : Window
         return new Points(points);
     }
 
+    private void RefreshProfiles()
+    {
+        var profiles = _profileService.GetProfiles();
+        _profileItems.Clear();
+        foreach (var profile in profiles)
+        {
+            _profileItems.Add(ProfileListItem.FromProfile(profile));
+        }
+
+        var versions = _profileService.GetInstalledVersions();
+        CreateVersionComboBox.ItemsSource = versions;
+        if (CreateVersionComboBox.SelectedIndex < 0 && versions.Count > 0)
+        {
+            CreateVersionComboBox.SelectedIndex = 0;
+        }
+
+        RefreshLaunchOptions(profiles);
+        _ = RefreshSavesAsync();
+    }
+
+    private void RefreshLaunchOptions(IReadOnlyList<InstanceProfile>? profiles = null)
+    {
+        profiles ??= _profileService.GetProfiles();
+        var selectedProfileId = (InstanceComboBox.SelectedItem as InstanceProfile)?.Id;
+        InstanceComboBox.ItemsSource = profiles;
+        InstanceComboBox.SelectedItem = profiles.FirstOrDefault(profile => profile.Id == selectedProfileId) ?? profiles.FirstOrDefault();
+        RefreshLaunchSaveOptions();
+    }
+
+    private async void OnLaunchInstanceSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        await RefreshLaunchSaveOptionsAsync();
+    }
+
+    private void RefreshLaunchSaveOptions()
+    {
+        _ = RefreshLaunchSaveOptionsAsync();
+    }
+
+    private async Task RefreshLaunchSaveOptionsAsync()
+    {
+        if (InstanceComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            SaveComboBox.ItemsSource = Array.Empty<SaveFileEntry>();
+            return;
+        }
+
+        var saves = await _saveService.GetSavesAsync(profile);
+        SaveComboBox.ItemsSource = saves;
+        SaveComboBox.SelectedItem = saves.FirstOrDefault(save =>
+            save.FullPath.Equals(profile.ActiveSaveFile, StringComparison.OrdinalIgnoreCase)) ?? saves.FirstOrDefault();
+    }
+
+    private async Task RefreshSavesAsync()
+    {
+        if (_isRefreshingSaves)
+        {
+            return;
+        }
+
+        _isRefreshingSaves = true;
+        try
+        {
+        var selectedProfile = SaveProfileComboBox.SelectedItem;
+        var profiles = _profileService.GetProfiles();
+        var saveProfileItems = new List<object> { T("全部档案", "All profiles") };
+        saveProfileItems.AddRange(profiles);
+        SaveProfileComboBox.ItemsSource = saveProfileItems;
+
+        if (selectedProfile is InstanceProfile selectedInstance)
+        {
+            SaveProfileComboBox.SelectedItem = profiles.FirstOrDefault(profile => profile.Id == selectedInstance.Id) ?? saveProfileItems[0];
+        }
+        else if (SaveProfileComboBox.SelectedIndex < 0)
+        {
+            SaveProfileComboBox.SelectedIndex = 0;
+        }
+
+        InstanceProfile? filter = SaveProfileComboBox.SelectedItem as InstanceProfile;
+        var saves = await _saveService.GetSavesAsync(filter);
+        _saveItems.Clear();
+        foreach (var save in saves)
+        {
+            _saveItems.Add(SaveListItem.FromSave(save));
+        }
+
+        await RefreshLaunchSaveOptionsAsync();
+        }
+        finally
+        {
+            _isRefreshingSaves = false;
+        }
+    }
+
+    private async Task RefreshDownloadVersionsAsync(bool forceReload)
+    {
+        if (_downloadCatalogLoaded && !forceReload)
+        {
+            RebuildDownloadVersionItems();
+            return;
+        }
+
+        SetDownloadStatus(T("正在加载服务端版本列表...", "Loading server versions..."));
+        try
+        {
+            _catalogEntries.Clear();
+            _catalogEntries.AddRange(await _serverPackageService.GetServerDownloadEntriesAsync());
+            _downloadCatalogLoaded = true;
+            RebuildDownloadVersionItems();
+            SetDownloadStatus(T($"已加载 {_catalogEntries.Count} 个服务端版本。", $"Loaded {_catalogEntries.Count} server versions."));
+        }
+        catch (Exception ex)
+        {
+            _downloadCatalogLoaded = false;
+            _catalogEntries.Clear();
+            _downloadVersionItems.Clear();
+            SetDownloadStatus(T($"加载失败：{ex.Message}", $"Load failed: {ex.Message}"));
+        }
+    }
+
+    private void RebuildDownloadVersionItems()
+    {
+        var preferences = _preferencesService.Load();
+        var installedVersions = _profileService.GetInstalledVersions().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _downloadVersionItems.Clear();
+
+        foreach (var entry in _catalogEntries)
+        {
+            var isDownloaded = installedVersions.Contains(entry.Version) ||
+                               File.Exists(Path.Combine(preferences.ServerDirectory, entry.FileName));
+            _downloadVersionItems.Add(new DownloadVersionListItem(
+                entry,
+                entry.Version,
+                isDownloaded ? T("已下载", "Downloaded") : T("下载", "Download"),
+                !isDownloaded));
+        }
+    }
+
+    private void SetDownloadStatus(string message)
+    {
+        DownloadStatusTextBlock.Text = message;
+    }
+
     private void SelectTab(MainTab tab)
     {
         _selectedTab = tab;
 
         HomePanel.IsVisible = tab == MainTab.Home;
         ConsolePanel.IsVisible = tab == MainTab.Console;
-        ProfilePanel.IsVisible = tab == MainTab.ProfileList;
-        DownloadPanel.IsVisible = tab == MainTab.Download;
+        InstanceManagePanel.IsVisible = tab == MainTab.InstanceManage;
         SettingsPanel.IsVisible = tab == MainTab.Settings;
+        RobotPanel.IsVisible = tab == MainTab.Robot;
+        ConnectionPanel.IsVisible = tab == MainTab.Connection;
 
         SetSelectedClass(HomeNavButton, tab == MainTab.Home);
         SetSelectedClass(ConsoleNavButton, tab == MainTab.Console);
-        SetSelectedClass(ProfileNavButton, tab == MainTab.ProfileList);
-        SetSelectedClass(DownloadNavButton, tab == MainTab.Download);
+        SetSelectedClass(InstanceManageNavButton, tab == MainTab.InstanceManage);
         SetSelectedClass(SettingsNavButton, tab == MainTab.Settings);
+        SetSelectedClass(RobotNavButton, tab == MainTab.Robot);
+        SetSelectedClass(ConnectionNavButton, tab == MainTab.Connection);
 
         if (tab == MainTab.Home)
         {
@@ -487,18 +678,125 @@ public partial class LauncherMainWindow : Window
     private void SelectMetric(HomeMetric metric)
     {
         _selectedMetric = metric;
-
         SetSelectedClass(ServerStatusCard, metric == HomeMetric.Server);
         SetSelectedClass(RobotStatusCard, metric == HomeMetric.Robot);
         SetSelectedClass(OnlinePlayersCard, metric == HomeMetric.Players);
         SetSelectedClass(NetworkStatusCard, metric == HomeMetric.Network);
-
         RenderSelectedMetricChart();
+    }
+
+    private void SelectInstanceManageTab(InstanceManageTab tab)
+    {
+        _selectedInstanceManageTab = tab;
+        ProfilesPanel.IsVisible = tab == InstanceManageTab.Profiles;
+        SavesPanel.IsVisible = tab == InstanceManageTab.Saves;
+        DownloadVersionsPanel.IsVisible = tab == InstanceManageTab.DownloadVersions;
+        SetSelectedClass(ProfilesTabButton, tab == InstanceManageTab.Profiles);
+        SetSelectedClass(SavesTabButton, tab == InstanceManageTab.Saves);
+        SetSelectedClass(DownloadVersionsTabButton, tab == InstanceManageTab.DownloadVersions);
+    }
+
+    private void SelectSettingsTab(SettingsTab tab)
+    {
+        _selectedSettingsTab = tab;
+        SetSelectedClass(ServerSettingsTabButton, tab == SettingsTab.Server);
+        SetSelectedClass(AppearanceSettingsTabButton, tab == SettingsTab.Appearance);
+        SetSelectedClass(NetworkSettingsTabButton, tab == SettingsTab.Network);
+        SetSelectedClass(AdvancedSettingsTabButton, tab == SettingsTab.Advanced);
+        SetSelectedClass(AboutSettingsTabButton, tab == SettingsTab.About);
+        SetSelectedClass(SponsorsSettingsTabButton, tab == SettingsTab.Sponsors);
+        SetSelectedClass(ContributorsSettingsTabButton, tab == SettingsTab.Contributors);
+
+        var preferences = _preferencesService.Load();
+        (SettingsSectionTitleText.Text, SettingsSectionDescriptionText.Text, SettingsSectionDetailText.Text) = tab switch
+        {
+            SettingsTab.Server => (
+                T("服务器设置", "Server Settings"),
+                T("后续会在这里编辑 serverconfig.json。当前基础启动使用已生成的服务端配置。", "Server config editing will be added here. Basic startup uses the generated serverconfig.json."),
+                T($"服务端目录：{preferences.ServerDirectory}", $"Server directory: {preferences.ServerDirectory}")),
+            SettingsTab.Appearance => (
+                T("外观", "Appearance"),
+                T("当前外观来自首次引导设置。", "Current appearance comes from first-launch settings."),
+                T($"主题模式：{preferences.ThemeMode}", $"Theme mode: {preferences.ThemeMode}")),
+            SettingsTab.Network => (
+                T("网络", "Network"),
+                T("内网穿透连接配置入口已预留。", "Tunnel connection configuration entry is reserved."),
+                T("主页网络图表只展示真实连接监控数据，不再生成随机延迟。", "The home network chart only shows real connection metrics, no random latency.")),
+            SettingsTab.Advanced => (
+                T("高级", "Advanced"),
+                T("高级运行参数和维护操作入口。", "Advanced runtime options and maintenance actions."),
+                T($"档案目录：{preferences.ProfileDirectory}\n存档目录：{preferences.SaveDirectory}", $"Profile directory: {preferences.ProfileDirectory}\nSave directory: {preferences.SaveDirectory}")),
+            SettingsTab.About => (
+                T("关于", "About"),
+                "LauncherGo",
+                T("复古物语服务器启动器。", "Vintage Story server launcher.")),
+            SettingsTab.Sponsors => (
+                T("赞助者", "Sponsors"),
+                T("赞助者列表入口。", "Sponsors list entry."),
+                T("暂无本地赞助者数据。", "No local sponsor data.")),
+            _ => (
+                T("贡献者", "Contributors"),
+                T("贡献者列表入口。", "Contributors list entry."),
+                T("暂无本地贡献者数据。", "No local contributor data."))
+        };
     }
 
     private static void SetSelectedClass(StyledElement element, bool selected)
     {
         element.Classes.Set("selected", selected);
+    }
+
+    private void OnServerOutputReceived(object? sender, string line)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            AppendConsoleLine(line);
+            TrackPlayerEventText(line);
+        });
+    }
+
+    private void OnServerStatusChanged(object? sender, ServerRuntimeStatus status)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            UpdateCardValues(status);
+            if (_selectedTab == MainTab.Home)
+            {
+                RenderSelectedMetricChart();
+            }
+        });
+    }
+
+    private void AppendConsoleLine(string line)
+    {
+        _consoleLines.Add(line);
+        while (_consoleLines.Count > 500)
+        {
+            _consoleLines.RemoveAt(0);
+        }
+
+        if (_consoleLines.LastOrDefault() is { } lastLine)
+        {
+            ConsoleOutputListBox.ScrollIntoView(lastLine);
+        }
+    }
+
+    private void TrackPlayerEventText(string line)
+    {
+        if (!PlayerEventHintRegex().IsMatch(line))
+        {
+            return;
+        }
+
+        var text = $"[{DateTime.Now:HH:mm:ss}] {line}";
+        _playerEvents.Insert(0, text);
+        if (_playerEvents.Count > 24)
+        {
+            _playerEvents.RemoveAt(_playerEvents.Count - 1);
+        }
+
+        EventTickerCurrentText.Text = _playerEvents[0];
+        EventTickerNextText.Text = _playerEvents.Count > 1 ? _playerEvents[1] : _playerEvents[0];
     }
 
     private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -520,6 +818,8 @@ public partial class LauncherMainWindow : Window
                 or ComboBox
                 or ComboBoxItem
                 or TextBox
+                or ListBox
+                or ListBoxItem
                 or ScrollBar
                 or Thumb)
             {
@@ -536,12 +836,7 @@ public partial class LauncherMainWindow : Window
     {
         try
         {
-            var psi = new ProcessStartInfo
-            {
-                FileName = url,
-                UseShellExecute = true
-            };
-            Process.Start(psi);
+            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
         }
         catch
         {
@@ -550,38 +845,6 @@ public partial class LauncherMainWindow : Window
                 ChartSummaryText.Text = T("无法打开链接。", "Unable to open the link.");
             });
         }
-    }
-
-    private static string FormatDuration(TimeSpan duration)
-    {
-        if (duration.TotalDays >= 1)
-        {
-            return $"{(int)duration.TotalDays}d {duration:hh\\:mm\\:ss}";
-        }
-
-        return duration.ToString("hh\\:mm\\:ss");
-    }
-
-    private static double NextWithDrift(double current, double maxDelta, double min, double max)
-    {
-        var next = current + (Random.Shared.NextDouble() * 2 - 1) * maxDelta;
-        return Math.Clamp(next, min, max);
-    }
-
-    private static void PushNextSample(List<double> samples, double value, int maxCount = RealtimeRangeSeconds)
-    {
-        if (samples.Count >= maxCount)
-        {
-            samples.RemoveAt(0);
-        }
-
-        samples.Add(value);
-    }
-
-    private string PickRandomName()
-    {
-        string[] names = ["HansJack", "VSCN", "NightFox", "Aster", "Maple", "Sora"];
-        return names[_random.Next(names.Length)];
     }
 
     private string T(string zh, string en) => _isChinese ? zh : en;
@@ -605,11 +868,13 @@ public partial class LauncherMainWindow : Window
 
     private void OnConsoleNavClick(object? sender, RoutedEventArgs e) => SelectTab(MainTab.Console);
 
-    private void OnProfileNavClick(object? sender, RoutedEventArgs e) => SelectTab(MainTab.ProfileList);
-
-    private void OnDownloadNavClick(object? sender, RoutedEventArgs e) => SelectTab(MainTab.Download);
+    private void OnInstanceManageNavClick(object? sender, RoutedEventArgs e) => SelectTab(MainTab.InstanceManage);
 
     private void OnSettingsNavClick(object? sender, RoutedEventArgs e) => SelectTab(MainTab.Settings);
+
+    private void OnRobotNavClick(object? sender, RoutedEventArgs e) => SelectTab(MainTab.Robot);
+
+    private void OnConnectionNavClick(object? sender, RoutedEventArgs e) => SelectTab(MainTab.Connection);
 
     private void OnServerStatusCardClick(object? sender, RoutedEventArgs e) => SelectMetric(HomeMetric.Server);
 
@@ -618,6 +883,26 @@ public partial class LauncherMainWindow : Window
     private void OnOnlinePlayersCardClick(object? sender, RoutedEventArgs e) => SelectMetric(HomeMetric.Players);
 
     private void OnNetworkStatusCardClick(object? sender, RoutedEventArgs e) => SelectMetric(HomeMetric.Network);
+
+    private void OnProfilesSubTabClick(object? sender, RoutedEventArgs e) => SelectInstanceManageTab(InstanceManageTab.Profiles);
+
+    private void OnSavesSubTabClick(object? sender, RoutedEventArgs e) => SelectInstanceManageTab(InstanceManageTab.Saves);
+
+    private void OnDownloadVersionsSubTabClick(object? sender, RoutedEventArgs e) => SelectInstanceManageTab(InstanceManageTab.DownloadVersions);
+
+    private void OnServerSettingsTabClick(object? sender, RoutedEventArgs e) => SelectSettingsTab(SettingsTab.Server);
+
+    private void OnAppearanceSettingsTabClick(object? sender, RoutedEventArgs e) => SelectSettingsTab(SettingsTab.Appearance);
+
+    private void OnNetworkSettingsTabClick(object? sender, RoutedEventArgs e) => SelectSettingsTab(SettingsTab.Network);
+
+    private void OnAdvancedSettingsTabClick(object? sender, RoutedEventArgs e) => SelectSettingsTab(SettingsTab.Advanced);
+
+    private void OnAboutSettingsTabClick(object? sender, RoutedEventArgs e) => SelectSettingsTab(SettingsTab.About);
+
+    private void OnSponsorsSettingsTabClick(object? sender, RoutedEventArgs e) => SelectSettingsTab(SettingsTab.Sponsors);
+
+    private void OnContributorsSettingsTabClick(object? sender, RoutedEventArgs e) => SelectSettingsTab(SettingsTab.Contributors);
 
     private void OnLaunchHoverAreaPointerEntered(object? sender, PointerEventArgs e)
     {
@@ -629,34 +914,396 @@ public partial class LauncherMainWindow : Window
         LaunchOptionsContainer.Classes.Set("expanded", false);
     }
 
-    private void OnLaunchServerClick(object? sender, RoutedEventArgs e)
+    private async void OnLaunchServerClick(object? sender, RoutedEventArgs e)
     {
-        var instance = InstanceComboBox.SelectedItem?.ToString() ?? T("实例 A", "Instance A");
-        var save = SaveComboBox.SelectedItem?.ToString() ?? T("存档 世界-1", "Save World-1");
-        _playerEvents.Insert(0, T(
-            $"[{DateTime.Now:HH:mm:ss}] 启动请求：{instance} + {save}",
-            $"[{DateTime.Now:HH:mm:ss}] Launch requested: {instance} + {save}"));
-
-        if (_playerEvents.Count > 24)
+        if (_isStoppingOrStarting)
         {
-            _playerEvents.RemoveAt(_playerEvents.Count - 1);
+            return;
         }
 
-        if (_selectedTab != MainTab.Home)
+        _isStoppingOrStarting = true;
+        LaunchServerButton.IsEnabled = false;
+        try
         {
-            SelectTab(MainTab.Home);
-        }
+            var status = _serverProcessService.GetCurrentStatus();
+            if (status.IsRunning)
+            {
+                AppendConsoleLine("[system] 正在停止服务器...");
+                await _serverProcessService.StopAsync(TimeSpan.FromSeconds(20));
+                return;
+            }
 
-        SelectMetric(HomeMetric.Players);
+            var profile = InstanceComboBox.SelectedItem as InstanceProfile
+                          ?? _profileService.GetProfiles().FirstOrDefault();
+            if (profile is null)
+            {
+                AppendConsoleLine("[system] 请先在实例管理中创建档案。");
+                SelectTab(MainTab.InstanceManage);
+                SelectInstanceManageTab(InstanceManageTab.Profiles);
+                return;
+            }
+
+            if (SaveComboBox.SelectedItem is SaveFileEntry save)
+            {
+                profile.ActiveSaveFile = save.FullPath;
+            }
+
+            SelectTab(MainTab.Console);
+            await _serverProcessService.StartAsync(profile);
+        }
+        catch (Exception ex)
+        {
+            AppendConsoleLine($"[system] 启动/停止失败：{ex.Message}");
+        }
+        finally
+        {
+            LaunchServerButton.IsEnabled = true;
+            _isStoppingOrStarting = false;
+        }
     }
+
+    private async void OnSendCommandClick(object? sender, RoutedEventArgs e)
+    {
+        await SendCommandFromInputAsync();
+    }
+
+    private async void OnCommandTextBoxKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await SendCommandFromInputAsync();
+    }
+
+    private async void OnQuickCommandClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Content: not null } button)
+        {
+            await SendCommandAsync(button.Content.ToString() ?? string.Empty);
+        }
+    }
+
+    private async Task SendCommandFromInputAsync()
+    {
+        var command = CommandTextBox.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(command))
+        {
+            return;
+        }
+
+        CommandTextBox.Text = string.Empty;
+        await SendCommandAsync(command);
+    }
+
+    private async Task SendCommandAsync(string command)
+    {
+        try
+        {
+            await _serverProcessService.SendCommandAsync(command);
+        }
+        catch (Exception ex)
+        {
+            AppendConsoleLine($"[system] 命令发送失败：{ex.Message}");
+        }
+    }
+
+    private async void OnCreateProfileClick(object? sender, RoutedEventArgs e)
+    {
+        var version = CreateVersionComboBox.SelectedItem?.ToString() ?? string.Empty;
+        var name = ProfileNameTextBox.Text?.Trim() ?? string.Empty;
+        try
+        {
+            await Task.Run(() => _profileService.CreateProfile(name, version));
+            ProfileNameTextBox.Text = string.Empty;
+            RefreshProfiles();
+            AppendConsoleLine($"[system] 已创建档案：{name}");
+        }
+        catch (Exception ex)
+        {
+            AppendConsoleLine($"[system] 创建档案失败：{ex.Message}");
+        }
+    }
+
+    private async void OnImportProfileClick(object? sender, RoutedEventArgs e)
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = T("选择服务端档案目录", "Select server profile directory"),
+            AllowMultiple = false
+        });
+
+        var path = TryGetLocalPath(folders.FirstOrDefault());
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        try
+        {
+            var profile = _profileService.ImportProfile(path);
+            RefreshProfiles();
+            AppendConsoleLine($"[system] 已导入档案：{profile.Name}");
+        }
+        catch (Exception ex)
+        {
+            AppendConsoleLine($"[system] 导入档案失败：{ex.Message}");
+        }
+    }
+
+    private void OnDeleteProfilesClick(object? sender, RoutedEventArgs e)
+    {
+        var selectedIds = ProfilesListBox.SelectedItems?
+            .OfType<ProfileListItem>()
+            .Select(item => item.Id)
+            .ToArray() ?? [];
+        if (selectedIds.Length == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var count = _profileService.DeleteProfiles(selectedIds, deleteData: true);
+            RefreshProfiles();
+            AppendConsoleLine($"[system] 已删除 {count} 个档案。");
+        }
+        catch (Exception ex)
+        {
+            AppendConsoleLine($"[system] 删除档案失败：{ex.Message}");
+        }
+    }
+
+    private void OnRefreshProfilesClick(object? sender, RoutedEventArgs e)
+    {
+        RefreshProfiles();
+    }
+
+    private async void OnSaveProfileSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_isRefreshingSaves)
+        {
+            return;
+        }
+
+        await RefreshSavesAsync();
+    }
+
+    private async void OnImportSaveClick(object? sender, RoutedEventArgs e)
+    {
+        if (SaveProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            AppendConsoleLine("[system] 导入存档前请先选择一个档案，不能选择全部。");
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = T("选择存档文件", "Select save file"),
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Vintage Story Save")
+                {
+                    Patterns = ["*.vcdbs"]
+                }
+            ]
+        });
+
+        var path = TryGetLocalPath(files.FirstOrDefault());
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        try
+        {
+            var target = await _saveService.ImportSaveAsync(profile, path);
+            await RefreshSavesAsync();
+            AppendConsoleLine($"[system] 已导入存档：{Path.GetFileName(target)}");
+        }
+        catch (Exception ex)
+        {
+            AppendConsoleLine($"[system] 导入存档失败：{ex.Message}");
+        }
+    }
+
+    private async void OnDeleteSavesClick(object? sender, RoutedEventArgs e)
+    {
+        var selectedPaths = SavesListBox.SelectedItems?
+            .OfType<SaveListItem>()
+            .Select(item => item.FullPath)
+            .ToArray() ?? [];
+        if (selectedPaths.Length == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var count = await _saveService.DeleteSavesAsync(selectedPaths);
+            await RefreshSavesAsync();
+            AppendConsoleLine($"[system] 已删除 {count} 个存档。");
+        }
+        catch (Exception ex)
+        {
+            AppendConsoleLine($"[system] 删除存档失败：{ex.Message}");
+        }
+    }
+
+    private async void OnRefreshSavesClick(object? sender, RoutedEventArgs e)
+    {
+        await RefreshSavesAsync();
+    }
+
+    private async void OnImportServerPackageClick(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = T("选择服务端压缩包", "Select server package"),
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("ZIP")
+                {
+                    Patterns = ["*.zip"]
+                }
+            ]
+        });
+
+        var sourcePath = TryGetLocalPath(files.FirstOrDefault());
+        if (string.IsNullOrWhiteSpace(sourcePath))
+        {
+            return;
+        }
+
+        try
+        {
+            var preferences = _preferencesService.Load();
+            var importedPath = await _serverPackageService.ImportServerPackageAsync(sourcePath, preferences.ServerDirectory);
+            SetDownloadStatus(T($"导入完成：{Path.GetFileName(importedPath)}", $"Imported: {Path.GetFileName(importedPath)}"));
+            RefreshProfiles();
+            await RefreshDownloadVersionsAsync(forceReload: true);
+        }
+        catch (Exception ex)
+        {
+            SetDownloadStatus(T($"导入失败：{ex.Message}", $"Import failed: {ex.Message}"));
+        }
+    }
+
+    private async void OnRefreshDownloadVersionsClick(object? sender, RoutedEventArgs e)
+    {
+        await RefreshDownloadVersionsAsync(forceReload: true);
+        RefreshProfiles();
+    }
+
+    private async void OnDownloadVersionClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: DownloadVersionListItem item } || !item.CanDownload)
+        {
+            return;
+        }
+
+        var preferences = _preferencesService.Load();
+        var targetPath = Path.Combine(preferences.ServerDirectory, item.Entry.FileName);
+        try
+        {
+            DownloadVersionsListBox.IsEnabled = false;
+            var progress = new Progress<double>(value =>
+            {
+                SetDownloadStatus(T($"正在下载 {item.Entry.Version} {value:P0}", $"Downloading {item.Entry.Version} {value:P0}"));
+            });
+            await _serverPackageService.DownloadByCdnAsync(item.Entry.CdnUrl, targetPath, progress);
+            SetDownloadStatus(T($"下载完成：{item.Entry.Version}", $"Download completed: {item.Entry.Version}"));
+            RefreshProfiles();
+            await RefreshDownloadVersionsAsync(forceReload: false);
+        }
+        catch (Exception ex)
+        {
+            SetDownloadStatus(T($"下载失败：{ex.Message}", $"Download failed: {ex.Message}"));
+        }
+        finally
+        {
+            DownloadVersionsListBox.IsEnabled = true;
+        }
+    }
+
+    private static string? TryGetLocalPath(IStorageItem? item)
+    {
+        if (item is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return item.TryGetLocalPath();
+        }
+        catch
+        {
+            return item.Path.LocalPath;
+        }
+    }
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalDays >= 1)
+        {
+            return $"{(int)duration.TotalDays}d {duration:hh\\:mm\\:ss}";
+        }
+
+        return duration.ToString("hh\\:mm\\:ss", CultureInfo.InvariantCulture);
+    }
+
+    private static void PushNextSample(List<double> samples, double value, int maxCount = RealtimeRangeSeconds)
+    {
+        if (samples.Count >= maxCount)
+        {
+            samples.RemoveAt(0);
+        }
+
+        samples.Add(value);
+    }
+
+    private static double BytesToMb(long bytes)
+    {
+        return bytes <= 0 ? 0 : bytes / 1024.0 / 1024.0;
+    }
+
+    private static double NiceCeiling(double value)
+    {
+        if (value <= 0)
+        {
+            return 1;
+        }
+
+        var exponent = Math.Floor(Math.Log10(value));
+        var magnitude = Math.Pow(10, exponent);
+        var normalized = value / magnitude;
+        var nice = normalized switch
+        {
+            <= 1 => 1,
+            <= 2 => 2,
+            <= 5 => 5,
+            _ => 10
+        };
+
+        return nice * magnitude;
+    }
+
+    [GeneratedRegex(@"joins\.|left\.|leaves\.|离开|进入|加入|玩家", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex PlayerEventHintRegex();
 
     private enum MainTab
     {
         Home,
         Console,
-        ProfileList,
-        Download,
-        Settings
+        InstanceManage,
+        Settings,
+        Robot,
+        Connection
     }
 
     private enum HomeMetric
@@ -665,5 +1312,105 @@ public partial class LauncherMainWindow : Window
         Robot,
         Players,
         Network
+    }
+
+    private enum InstanceManageTab
+    {
+        Profiles,
+        Saves,
+        DownloadVersions
+    }
+
+    private enum SettingsTab
+    {
+        Server,
+        Appearance,
+        Network,
+        Advanced,
+        About,
+        Sponsors,
+        Contributors
+    }
+
+    public sealed class ProfileListItem
+    {
+        public required string Id { get; init; }
+
+        public required string Name { get; init; }
+
+        public required string Version { get; init; }
+
+        public required string DirectoryPath { get; init; }
+
+        public required string ActiveSaveFile { get; init; }
+
+        public static ProfileListItem FromProfile(InstanceProfile profile)
+        {
+            return new ProfileListItem
+            {
+                Id = profile.Id,
+                Name = profile.Name,
+                Version = profile.Version,
+                DirectoryPath = profile.DirectoryPath,
+                ActiveSaveFile = profile.ActiveSaveFile
+            };
+        }
+    }
+
+    public sealed class SaveListItem
+    {
+        public required string FullPath { get; init; }
+
+        public required string FileName { get; init; }
+
+        public required string ProfileName { get; init; }
+
+        public required string Description { get; init; }
+
+        public static SaveListItem FromSave(SaveFileEntry save)
+        {
+            return new SaveListItem
+            {
+                FullPath = save.FullPath,
+                FileName = save.FileName,
+                ProfileName = save.ProfileName,
+                Description = $"{FormatFileSize(save.SizeBytes)}  {save.LastWriteTimeUtc.LocalDateTime:yyyy-MM-dd HH:mm}  {save.FullPath}"
+            };
+        }
+
+        private static string FormatFileSize(long bytes)
+        {
+            if (bytes >= 1024L * 1024 * 1024)
+            {
+                return $"{bytes / 1024d / 1024d / 1024d:F2} GB";
+            }
+
+            if (bytes >= 1024L * 1024)
+            {
+                return $"{bytes / 1024d / 1024d:F1} MB";
+            }
+
+            if (bytes >= 1024)
+            {
+                return $"{bytes / 1024d:F1} KB";
+            }
+
+            return $"{bytes} B";
+        }
+    }
+
+    public sealed class DownloadVersionListItem(
+        ServerDownloadEntry entry,
+        string version,
+        string actionText,
+        bool canDownload)
+    {
+        public ServerDownloadEntry Entry { get; } = entry;
+
+        public string Version { get; } = version;
+
+        public string ActionText { get; } = actionText;
+
+        public bool CanDownload { get; } = canDownload;
     }
 }
