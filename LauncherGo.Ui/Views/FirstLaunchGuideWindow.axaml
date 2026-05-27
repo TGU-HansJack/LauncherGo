@@ -1,0 +1,487 @@
+<Window
+    x:Class="LauncherGo.Ui.Views.FirstLaunchGuideWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="Transparent"
+    Title="LauncherGo Guide"
+    Width="784"
+    Height="464"
+    MinWidth="784"
+    MinHeight="464"
+    MaxWidth="784"
+    MaxHeight="464"
+    CanResize="False"
+    WindowDecorations="None"
+    TransparencyLevelHint="Transparent"
+    TransparencyBackgroundFallback="#FFFFFF"
+    WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="WindowSurfaceBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="WindowBorderBrush" Color="#A9B0B8" />
+                    <SolidColorBrush x:Key="HeaderBackgroundBrush" Color="#F6F6F7" />
+                    <SolidColorBrush x:Key="HeaderBorderBrush" Color="#E5E5E7" />
+                    <SolidColorBrush x:Key="StepTextBrush" Color="#101010" />
+                    <SolidColorBrush x:Key="StepUnderlineBrush" Color="#101010" />
+                    <SolidColorBrush x:Key="CloseDefaultBrush" Color="#7D8793" />
+                    <SolidColorBrush x:Key="StatusTextBrush" Color="#0F766E" />
+                    <SolidColorBrush x:Key="NavActiveBrush" Color="#111111" />
+                    <SolidColorBrush x:Key="NavPressedBrush" Color="#222222" />
+                    <SolidColorBrush x:Key="NavDisabledBrush" Color="#8A8A8A" />
+                    <SolidColorBrush x:Key="DropdownHoverBrush" Color="#F1F2F4" />
+                    <SolidColorBrush x:Key="DropdownSelectedBrush" Color="#DDEBFF" />
+                    <SolidColorBrush x:Key="DropdownSelectedTextBrush" Color="#0F2D62" />
+                    <SolidColorBrush x:Key="DownloadActionTextBrush" Color="#111111" />
+                    <SolidColorBrush x:Key="DownloadedBadgeBrush" Color="#E7F5F1" />
+                    <SolidColorBrush x:Key="DownloadedBadgeHoverBrush" Color="#D5EEE7" />
+                    <SolidColorBrush x:Key="DownloadedBadgeTextBrush" Color="#15803D" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="WindowSurfaceBrush" Color="#1A1F25" />
+                    <SolidColorBrush x:Key="WindowBorderBrush" Color="#4E5865" />
+                    <SolidColorBrush x:Key="HeaderBackgroundBrush" Color="#242B33" />
+                    <SolidColorBrush x:Key="HeaderBorderBrush" Color="#3A434F" />
+                    <SolidColorBrush x:Key="StepTextBrush" Color="#E6EBF3" />
+                    <SolidColorBrush x:Key="StepUnderlineBrush" Color="#E6EBF3" />
+                    <SolidColorBrush x:Key="CloseDefaultBrush" Color="#B4BDCA" />
+                    <SolidColorBrush x:Key="StatusTextBrush" Color="#66D1C3" />
+                    <SolidColorBrush x:Key="NavActiveBrush" Color="#E5EBF4" />
+                    <SolidColorBrush x:Key="NavPressedBrush" Color="#C9D2DF" />
+                    <SolidColorBrush x:Key="NavDisabledBrush" Color="#6F7886" />
+                    <SolidColorBrush x:Key="DropdownHoverBrush" Color="#303944" />
+                    <SolidColorBrush x:Key="DropdownSelectedBrush" Color="#2D4E7A" />
+                    <SolidColorBrush x:Key="DropdownSelectedTextBrush" Color="#EAF2FF" />
+                    <SolidColorBrush x:Key="DownloadActionTextBrush" Color="#E6EBF3" />
+                    <SolidColorBrush x:Key="DownloadedBadgeBrush" Color="#173B36" />
+                    <SolidColorBrush x:Key="DownloadedBadgeHoverBrush" Color="#23524C" />
+                    <SolidColorBrush x:Key="DownloadedBadgeTextBrush" Color="#6EE7B7" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+    <Window.Styles>
+        <Style Selector="ComboBoxItem">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Margin" Value="4,3" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="ClipToBounds" Value="False" />
+        </Style>
+        <Style Selector="ComboBoxItem:pointerover">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource DropdownHoverBrush}" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style Selector="ComboBoxItem:selected">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource DropdownSelectedTextBrush}" />
+        </Style>
+        <Style Selector="ComboBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource DropdownSelectedBrush}" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style Selector="ComboBox.CompactCombo">
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="MaxHeight" Value="34" />
+            <Setter Property="MinWidth" Value="168" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="ComboBox.CompactCombo:focus-within">
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
+        <Style Selector="TextBox.Bordered.Large">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="MaxHeight" Value="34" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="ListBoxItem">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="MinHeight" Value="32" />
+        </Style>
+        <Style Selector="ListBox#ServerVersionsListBox ListBoxItem">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Margin" Value="0,2" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="ClipToBounds" Value="False" />
+        </Style>
+        <Style Selector="ListBox#ServerVersionsListBox ListBoxItem /template/ ContentPresenter">
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox#ServerVersionsListBox ListBoxItem:pointerover">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox#ServerVersionsListBox ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource DropdownHoverBrush}" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="ListBox#ServerVersionsListBox ListBoxItem:selected">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource DropdownSelectedTextBrush}" />
+        </Style>
+        <Style Selector="ListBox#ServerVersionsListBox ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource DropdownSelectedBrush}" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="Button.DownloadTextButton">
+            <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource DownloadActionTextBrush}" />
+        </Style>
+        <Style Selector="Button.DownloadTextButton:pointerover">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource DownloadActionTextBrush}" />
+        </Style>
+        <Style Selector="Button.DownloadTextButton:pressed">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource DownloadActionTextBrush}" />
+        </Style>
+        <Style Selector="TextBlock#WelcomeBlinkTextBlock">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.18" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Canvas.LogoLayer">
+            <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+        </Style>
+        <Style Selector="Canvas#LogoHighlightCanvas">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.16" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button#PreviousButton">
+            <Setter Property="Foreground" Value="{DynamicResource NavActiveBrush}" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.16" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button#PreviousButton:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource NavActiveBrush}" />
+            <Setter Property="RenderTransform" Value="translate(-3px, 0px)" />
+        </Style>
+        <Style Selector="Button#PreviousButton:pressed">
+            <Setter Property="Foreground" Value="{DynamicResource NavPressedBrush}" />
+            <Setter Property="RenderTransform" Value="translate(-1px, 0px)" />
+        </Style>
+        <Style Selector="Button#PreviousButton:disabled">
+            <Setter Property="Foreground" Value="{DynamicResource NavDisabledBrush}" />
+            <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
+        </Style>
+        <Style Selector="Button#PreviousButton Path#PreviousArrowIcon">
+            <Setter Property="Stroke" Value="{DynamicResource NavActiveBrush}" />
+            <Setter Property="StrokeThickness" Value="1.8" />
+            <Setter Property="StrokeJoin" Value="Round" />
+            <Setter Property="StrokeLineCap" Value="Round" />
+        </Style>
+        <Style Selector="Button#PreviousButton:pressed Path#PreviousArrowIcon">
+            <Setter Property="Stroke" Value="{DynamicResource NavPressedBrush}" />
+        </Style>
+        <Style Selector="Button#PreviousButton:disabled Path#PreviousArrowIcon">
+            <Setter Property="Stroke" Value="{DynamicResource NavDisabledBrush}" />
+        </Style>
+        <Style Selector="Button#NextButton">
+            <Setter Property="Foreground" Value="{DynamicResource NavActiveBrush}" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.16" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button#NextButton:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource NavActiveBrush}" />
+            <Setter Property="RenderTransform" Value="translate(3px, 0px)" />
+        </Style>
+        <Style Selector="Button#NextButton:pressed">
+            <Setter Property="Foreground" Value="{DynamicResource NavPressedBrush}" />
+            <Setter Property="RenderTransform" Value="translate(1px, 0px)" />
+        </Style>
+        <Style Selector="Button#NextButton Path#NextArrowIcon">
+            <Setter Property="Stroke" Value="{DynamicResource NavActiveBrush}" />
+            <Setter Property="StrokeThickness" Value="1.8" />
+            <Setter Property="StrokeJoin" Value="Round" />
+            <Setter Property="StrokeLineCap" Value="Round" />
+        </Style>
+        <Style Selector="Button#NextButton:pressed Path#NextArrowIcon">
+            <Setter Property="Stroke" Value="{DynamicResource NavPressedBrush}" />
+        </Style>
+        <Style Selector="Button#CloseButton">
+            <Setter Property="Foreground" Value="{DynamicResource CloseDefaultBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontWeight" Value="Normal" />
+        </Style>
+        <Style Selector="Button#CloseButton:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource CloseDefaultBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button#CloseButton:pressed">
+            <Setter Property="Foreground" Value="{DynamicResource CloseDefaultBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+    </Window.Styles>
+    <Grid Background="Transparent">
+        <Border
+            CornerRadius="8"
+            Background="{DynamicResource WindowBorderBrush}">
+            <Border Margin="1" CornerRadius="7" ClipToBounds="True" Background="{DynamicResource WindowSurfaceBrush}">
+            <Grid RowDefinitions="62,*,58">
+        <Border
+            Grid.Row="0"
+            Background="{DynamicResource HeaderBackgroundBrush}"
+            BorderBrush="{DynamicResource HeaderBorderBrush}"
+            BorderThickness="0,0,0,1">
+            <Grid Margin="26,0,12,0" ColumnDefinitions="*,Auto">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal" Spacing="20">
+                    <Border x:Name="StepWelcomeBorder" BorderBrush="Transparent" BorderThickness="0,0,0,2" Padding="10,7,10,7">
+                        <TextBlock x:Name="StepWelcomeText" FontSize="15" FontWeight="Regular" />
+                    </Border>
+                    <Border x:Name="StepAppearanceBorder" BorderBrush="Transparent" BorderThickness="0,0,0,2" Padding="10,7,10,7">
+                        <TextBlock x:Name="StepAppearanceText" FontSize="15" FontWeight="Regular" />
+                    </Border>
+                    <Border x:Name="StepDirectoryBorder" BorderBrush="Transparent" BorderThickness="0,0,0,2" Padding="10,7,10,7">
+                        <TextBlock x:Name="StepDirectoryText" FontSize="15" FontWeight="Regular" />
+                    </Border>
+                    <Border x:Name="StepDownloadBorder" BorderBrush="Transparent" BorderThickness="0,0,0,2" Padding="10,7,10,7">
+                        <TextBlock x:Name="StepDownloadText" FontSize="15" FontWeight="Regular" />
+                    </Border>
+                    <Border x:Name="StepCompleteBorder" BorderBrush="Transparent" BorderThickness="0,0,0,2" Padding="10,7,10,7">
+                        <TextBlock x:Name="StepCompleteText" FontSize="15" FontWeight="Regular" />
+                    </Border>
+                </StackPanel>
+
+                <Button
+                    x:Name="CloseButton"
+                    Grid.Column="1"
+                    Theme="{DynamicResource BorderlessButton}"
+                    Width="34"
+                    Height="34"
+                    Padding="0"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    VerticalAlignment="Center"
+                    Click="OnCloseClick"
+                    Content="×"
+                    FontSize="17" />
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="36,14,36,12" ColumnDefinitions="3*,2*" ColumnSpacing="26">
+            <Grid Grid.Column="0">
+                <StackPanel x:Name="WelcomePanel" VerticalAlignment="Center" Spacing="14">
+                    <TextBlock x:Name="WelcomeBlinkTextBlock" FontSize="26" />
+                    <ComboBox x:Name="LanguageComboBox" Classes="Bordered Large CompactCombo" Height="34" FontSize="14" SelectionChanged="OnLanguageSelectionChanged" />
+                </StackPanel>
+
+                <StackPanel x:Name="AppearancePanel" IsVisible="False" VerticalAlignment="Center" Spacing="14">
+                    <TextBlock x:Name="AppearanceTitleTextBlock" FontSize="22" FontWeight="SemiBold" Text="选择适合你的外观" />
+                    <TextBlock x:Name="AppearanceHintTextBlock" FontSize="14" Opacity="0.8" TextWrapping="Wrap" />
+                    <ComboBox x:Name="AppearanceComboBox" Classes="Bordered Large CompactCombo" Height="34" FontSize="14" SelectionChanged="OnAppearanceSelectionChanged" />
+                </StackPanel>
+
+                <StackPanel x:Name="DirectoryPanel" IsVisible="False" VerticalAlignment="Center" Spacing="10">
+                    <TextBlock x:Name="DirectoryTitleTextBlock" FontSize="22" FontWeight="SemiBold" />
+                    <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto" RowSpacing="10" ColumnSpacing="10">
+                        <TextBlock x:Name="ServerDirectoryLabelTextBlock" Grid.Row="0" VerticalAlignment="Center" FontSize="15" />
+                        <TextBox x:Name="ServerDirectoryTextBox" Grid.Row="0" Grid.Column="1" Classes="Bordered Large" Height="34" FontSize="14" />
+                        <Button x:Name="BrowseServerDirectoryButton" Grid.Row="0" Grid.Column="2" Theme="{DynamicResource SolidButton}" Classes="Secondary" Height="34" MinWidth="70" FontSize="13" Click="OnBrowseServerDirectoryClick" />
+
+                        <TextBlock x:Name="ProfileDirectoryLabelTextBlock" Grid.Row="1" VerticalAlignment="Center" FontSize="15" />
+                        <TextBox x:Name="ProfileDirectoryTextBox" Grid.Row="1" Grid.Column="1" Classes="Bordered Large" Height="34" FontSize="14" />
+                        <Button x:Name="BrowseProfileDirectoryButton" Grid.Row="1" Grid.Column="2" Theme="{DynamicResource SolidButton}" Classes="Secondary" Height="34" MinWidth="70" FontSize="13" Click="OnBrowseProfileDirectoryClick" />
+
+                        <TextBlock x:Name="SaveDirectoryLabelTextBlock" Grid.Row="2" VerticalAlignment="Center" FontSize="15" />
+                        <TextBox x:Name="SaveDirectoryTextBox" Grid.Row="2" Grid.Column="1" Classes="Bordered Large" Height="34" FontSize="14" />
+                        <Button x:Name="BrowseSaveDirectoryButton" Grid.Row="2" Grid.Column="2" Theme="{DynamicResource SolidButton}" Classes="Secondary" Height="34" MinWidth="70" FontSize="13" Click="OnBrowseSaveDirectoryClick" />
+
+                        <TextBlock x:Name="QqBotDirectoryLabelTextBlock" Grid.Row="3" VerticalAlignment="Center" FontSize="15" />
+                        <TextBox x:Name="QqBotDirectoryTextBox" Grid.Row="3" Grid.Column="1" Classes="Bordered Large" Height="34" FontSize="14" />
+                        <Button x:Name="BrowseQqBotDirectoryButton" Grid.Row="3" Grid.Column="2" Theme="{DynamicResource SolidButton}" Classes="Secondary" Height="34" MinWidth="70" FontSize="13" Click="OnBrowseQqBotDirectoryClick" />
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel x:Name="DownloadPanel" IsVisible="False" VerticalAlignment="Center" Spacing="8">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                        <TextBlock x:Name="DownloadTitleTextBlock" Grid.Column="0" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <Button x:Name="ImportPackageButton" Grid.Column="1" Theme="{DynamicResource SolidButton}" Classes="Secondary" Height="34" MinWidth="92" FontSize="13" Click="OnImportPackageClick" />
+                    </Grid>
+                    <TextBlock x:Name="DownloadHintTextBlock" FontSize="14" Opacity="0.8" TextWrapping="Wrap" />
+                    <ListBox x:Name="ServerVersionsListBox" Classes="Large" Height="178" ScrollViewer.VerticalScrollBarVisibility="Hidden" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" MinHeight="34" Margin="0,2">
+                                    <TextBlock Text="{ReflectionBinding DisplayText}" VerticalAlignment="Center" FontSize="14" TextTrimming="CharacterEllipsis" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                        <Button
+                                            Classes="DownloadTextButton"
+                                            Tag="{Binding}"
+                                            Content="{ReflectionBinding ActionText}"
+                                            IsVisible="{ReflectionBinding CanDownload}"
+                                            Click="OnDownloadVersionClick" />
+                                        <TextBlock
+                                            Classes="DownloadedTextLabel"
+                                            Text="{ReflectionBinding DownloadedText}"
+                                            VerticalAlignment="Center"
+                                            HorizontalAlignment="Right"
+                                            FontSize="13"
+                                            FontWeight="Bold"
+                                            Foreground="{DynamicResource DownloadedBadgeTextBrush}"
+                                            IsVisible="{ReflectionBinding IsDownloaded}" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <TextBlock x:Name="DownloadStatusTextBlock" FontSize="14" Foreground="{DynamicResource StatusTextBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+
+                <StackPanel x:Name="CompletePanel" IsVisible="False" VerticalAlignment="Center" Spacing="14">
+                    <TextBlock x:Name="CompleteTitleTextBlock" FontSize="22" FontWeight="SemiBold" />
+                    <TextBlock x:Name="CompleteHintTextBlock" FontSize="17" TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+
+            <Grid Grid.Column="1">
+                <Grid
+                    x:Name="LogoTiltHost"
+                    Width="232"
+                    Height="232"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="Transparent">
+                    <Viewbox Width="220" Height="220" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Grid Width="800" Height="800" ClipToBounds="False">
+                            <Canvas x:Name="LogoDepthCanvas" Classes="LogoLayer" Width="800" Height="800" Opacity="0.78">
+                                <Rectangle Width="200" Height="200" Canvas.Left="126" Canvas.Top="259" Fill="#3C000000" RadiusX="12" RadiusY="12" />
+                                <Rectangle Width="200" Height="200" Canvas.Left="526" Canvas.Top="259" Fill="#3C000000" RadiusX="12" RadiusY="12" />
+                                <Rectangle Width="200" Height="200" Canvas.Left="326" Canvas.Top="459" Fill="#3C000000" RadiusX="12" RadiusY="12" />
+                            </Canvas>
+                            <Canvas x:Name="LogoIconCanvas" Classes="LogoLayer" Width="800" Height="800">
+                                <Rectangle Width="200" Height="200" Canvas.Left="100" Canvas.Top="233" Fill="#6b8e23" RadiusX="12" RadiusY="12" />
+                                <Rectangle Width="200" Height="200" Canvas.Left="500" Canvas.Top="233" Fill="#8b5a2b" RadiusX="12" RadiusY="12" />
+                                <Rectangle Width="200" Height="200" Canvas.Left="300" Canvas.Top="433" Fill="#555555" RadiusX="12" RadiusY="12" />
+                                <Rectangle Width="176" Height="18" Canvas.Left="112" Canvas.Top="245" Fill="#22FFFFFF" RadiusX="8" RadiusY="8" />
+                                <Rectangle Width="176" Height="18" Canvas.Left="512" Canvas.Top="245" Fill="#20FFFFFF" RadiusX="8" RadiusY="8" />
+                                <Rectangle Width="176" Height="18" Canvas.Left="312" Canvas.Top="445" Fill="#1EFFFFFF" RadiusX="8" RadiusY="8" />
+                            </Canvas>
+                            <Canvas x:Name="LogoHighlightCanvas" Classes="LogoLayer" Width="800" Height="800">
+                                <Rectangle Width="200" Height="200" Canvas.Left="100" Canvas.Top="233" RadiusX="12" RadiusY="12">
+                                    <Rectangle.Fill>
+                                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                                            <GradientStop Color="#00FFFFFF" Offset="0" />
+                                            <GradientStop Color="#66FFFFFF" Offset="0.48" />
+                                            <GradientStop Color="#00FFFFFF" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                                <Rectangle Width="200" Height="200" Canvas.Left="500" Canvas.Top="233" RadiusX="12" RadiusY="12">
+                                    <Rectangle.Fill>
+                                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                                            <GradientStop Color="#00FFFFFF" Offset="0" />
+                                            <GradientStop Color="#5CFFFFFF" Offset="0.48" />
+                                            <GradientStop Color="#00FFFFFF" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                                <Rectangle Width="200" Height="200" Canvas.Left="300" Canvas.Top="433" RadiusX="12" RadiusY="12">
+                                    <Rectangle.Fill>
+                                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                                            <GradientStop Color="#00FFFFFF" Offset="0" />
+                                            <GradientStop Color="#55FFFFFF" Offset="0.48" />
+                                            <GradientStop Color="#00FFFFFF" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                            </Canvas>
+                        </Grid>
+                    </Viewbox>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <Grid Grid.Row="2" Margin="36,0,36,10" ColumnDefinitions="Auto,*,Auto">
+            <Button
+                x:Name="PreviousButton"
+                Width="128"
+                Height="36"
+                HorizontalAlignment="Left"
+                Theme="{DynamicResource BorderlessButton}"
+                Click="OnPreviousClick"
+                FontSize="16"
+                FontWeight="Normal">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <Path
+                        x:Name="PreviousArrowIcon"
+                        Width="12"
+                        Height="12"
+                        Stretch="Uniform"
+                        Data="M14 4 L6 12 L14 20"
+                        Fill="Transparent" />
+                    <TextBlock x:Name="PreviousButtonLabelTextBlock" VerticalAlignment="Center" FontSize="14" FontWeight="SemiBold" />
+                </StackPanel>
+            </Button>
+            <Button
+                x:Name="NextButton"
+                Grid.Column="2"
+                Width="128"
+                Height="36"
+                HorizontalAlignment="Right"
+                Theme="{DynamicResource BorderlessButton}"
+                Click="OnNextClick"
+                FontSize="16"
+                FontWeight="Normal">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBlock x:Name="NextButtonLabelTextBlock" VerticalAlignment="Center" FontSize="14" FontWeight="SemiBold" />
+                    <Path
+                        x:Name="NextArrowIcon"
+                        Width="12"
+                        Height="12"
+                        Stretch="Uniform"
+                        Data="M10 4 L18 12 L10 20"
+                        Fill="Transparent" />
+                </StackPanel>
+            </Button>
+        </Grid>
+            </Grid>
+            </Border>
+        </Border>
+    </Grid>
+</Window>
