@@ -107,6 +107,25 @@
             <Setter Property="Padding" Value="10,0" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
+        <Style Selector="Button.Secondary">
+            <Setter Property="Background" Value="#555555" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#555555" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.Secondary /template/ ContentPresenter">
+            <Setter Property="Background" Value="#555555" />
+            <Setter Property="BorderBrush" Value="#555555" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.Secondary:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#666666" />
+            <Setter Property="BorderBrush" Value="#666666" />
+        </Style>
+        <Style Selector="Button.Secondary:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="#4D4D4D" />
+            <Setter Property="BorderBrush" Value="#4D4D4D" />
+        </Style>
         <Style Selector="ListBoxItem">
             <Setter Property="FontSize" Value="14" />
             <Setter Property="MinHeight" Value="32" />
