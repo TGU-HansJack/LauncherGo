@@ -191,8 +191,7 @@ public partial class LauncherMainWindow : Window
         ImportSaveButton.Content = T("导入", "Import");
         DeleteSaveButton.Content = T("删除", "Delete");
         RefreshSavesButton.Content = T("刷新", "Refresh");
-        DownloadVersionsTitleText.Text = T("下载版本", "Download Versions");
-        DownloadVersionsHintText.Text = T("下载或导入 Vintage Story Windows 服务端压缩包。", "Download or import Vintage Story Windows server packages.");
+        DownloadVersionSearchTextBox.PlaceholderText = T("搜索版本号", "Search version");
         ImportServerPackageButton.Content = T("导入", "Import");
         RefreshDownloadVersionsButton.Content = T("刷新", "Refresh");
 
@@ -728,17 +727,30 @@ public partial class LauncherMainWindow : Window
         var preferences = _preferencesService.Load();
         var installedVersions = _profileService.GetInstalledVersions().ToHashSet(StringComparer.OrdinalIgnoreCase);
         _downloadVersionItems.Clear();
+        var searchKeyword = DownloadVersionSearchTextBox.Text?.Trim() ?? string.Empty;
 
         foreach (var entry in _catalogEntries)
         {
+            if (!string.IsNullOrWhiteSpace(searchKeyword)
+                && !entry.Version.Contains(searchKeyword, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             var isDownloaded = installedVersions.Contains(entry.Version) ||
                                File.Exists(Path.Combine(preferences.ServerDirectory, entry.FileName));
             _downloadVersionItems.Add(new DownloadVersionListItem(
                 entry,
                 entry.Version,
-                isDownloaded ? T("已下载", "Downloaded") : T("下载", "Download"),
-                !isDownloaded));
+                isDownloaded,
+                T("已下载", "Downloaded"),
+                T("下载", "Download")));
         }
+    }
+
+    private void OnDownloadVersionSearchTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        RebuildDownloadVersionItems();
     }
 
     private void SetDownloadStatus(string message)
@@ -1633,16 +1645,21 @@ public partial class LauncherMainWindow : Window
 
     public sealed class DownloadVersionListItem(
         ServerDownloadEntry entry,
-        string version,
-        string actionText,
-        bool canDownload)
+        string displayText,
+        bool isDownloaded,
+        string downloadedText,
+        string actionText)
     {
         public ServerDownloadEntry Entry { get; } = entry;
 
-        public string Version { get; } = version;
+        public string DisplayText { get; } = displayText;
+
+        public bool IsDownloaded { get; } = isDownloaded;
+
+        public bool CanDownload => !IsDownloaded;
+
+        public string DownloadedText { get; } = downloadedText;
 
         public string ActionText { get; } = actionText;
-
-        public bool CanDownload { get; } = canDownload;
     }
 }
