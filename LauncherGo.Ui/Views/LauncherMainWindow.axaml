@@ -372,11 +372,18 @@
             <Setter Property="FontSize" Value="13" />
         </Style>
         <Style Selector="ComboBox.CompactCombo">
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Height" Value="30" />
             <Setter Property="MinHeight" Value="30" />
             <Setter Property="MinWidth" Value="150" />
             <Setter Property="CornerRadius" Value="8" />
             <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="ComboBox.CompactCombo:focus-within">
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
+        <Style Selector="ComboBox.CompactCombo:dropdownopen">
+            <Setter Property="BorderThickness" Value="2" />
         </Style>
         <Style Selector="ComboBoxItem">
             <Setter Property="FontSize" Value="14" />
@@ -414,6 +421,9 @@
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <Style Selector="ComboBox.SettingsGuideCombo:focus-within">
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
+        <Style Selector="ComboBox.SettingsGuideCombo:dropdownopen">
             <Setter Property="BorderThickness" Value="2" />
         </Style>
         <Style Selector="Border.SectionPanel">
