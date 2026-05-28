@@ -27,8 +27,9 @@ public sealed class InstanceSaveService(
                 continue;
             }
 
-            Directory.CreateDirectory(item.SaveDirectory);
-            foreach (var path in Directory.EnumerateFiles(item.SaveDirectory, "*.vcdbs", SearchOption.TopDirectoryOnly))
+            var saveDirectory = Path.GetFullPath(item.SaveDirectory);
+            Directory.CreateDirectory(saveDirectory);
+            foreach (var path in Directory.EnumerateFiles(saveDirectory, "*.vcdbs", SearchOption.TopDirectoryOnly))
             {
                 var info = new FileInfo(path);
                 entries.Add(new SaveFileEntry
@@ -41,6 +42,48 @@ public sealed class InstanceSaveService(
                     LastWriteTimeUtc = info.LastWriteTimeUtc
                 });
             }
+
+            if (string.IsNullOrWhiteSpace(item.ActiveSaveFile) ||
+                !item.ActiveSaveFile.EndsWith(".vcdbs", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string activePath;
+            try
+            {
+                activePath = Path.GetFullPath(item.ActiveSaveFile.Trim());
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (entries.Any(entry =>
+                    entry.ProfileId.Equals(item.Id, StringComparison.OrdinalIgnoreCase) &&
+                    entry.FullPath.Equals(activePath, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            var activeDirectory = Path.GetDirectoryName(activePath);
+            if (string.IsNullOrWhiteSpace(activeDirectory) ||
+                !activeDirectory.Equals(saveDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var activeExists = File.Exists(activePath);
+            var activeInfo = activeExists ? new FileInfo(activePath) : null;
+            entries.Add(new SaveFileEntry
+            {
+                FullPath = activePath,
+                FileName = Path.GetFileName(activePath),
+                ProfileId = item.Id,
+                ProfileName = item.Name,
+                SizeBytes = activeInfo?.Length ?? 0,
+                LastWriteTimeUtc = activeInfo?.LastWriteTimeUtc ?? item.LastUpdatedUtc
+            });
         }
 
         return Task.FromResult<IReadOnlyList<SaveFileEntry>>(

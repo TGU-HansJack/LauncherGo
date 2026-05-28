@@ -9,6 +9,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Media.Transformation;
 using Avalonia.Platform.Storage;
 using Avalonia.Styling;
@@ -28,6 +29,10 @@ public partial class LauncherMainWindow : Window
     private const double ChartHeight = 248;
     private const double ThumbnailWidth = 76;
     private const double ThumbnailHeight = 50;
+    private const string LaunchStartIconData =
+        "M187.2 100.9C174.8 94.1 159.8 94.4 147.6 101.6C135.4 108.8 128 121.9 128 136L128 504C128 518.1 135.5 531.2 147.6 538.4C159.7 545.6 174.8 545.9 187.2 539.1L523.2 355.1C536 348.1 544 334.6 544 320C544 305.4 536 291.9 523.2 284.9L187.2 100.9z";
+    private const string LaunchStopIconData =
+        "M160 96L480 96C515.3 96 544 124.7 544 160L544 480C544 515.3 515.3 544 480 544L160 544C124.7 544 96 515.3 96 480L96 160C96 124.7 124.7 96 160 96z";
     private static readonly string[] QuickCommands = ["/stop", "/autosavenow", "/list"];
 
     private static readonly (string Zh, string En)[] HomeSlogans =
@@ -247,6 +252,7 @@ public partial class LauncherMainWindow : Window
         HomeSloganTextBlock.Text = T(HomeSlogans[0].Zh, HomeSlogans[0].En);
 
         LaunchActionTextBlock.Text = T("启动服务器", "Start Server");
+        LaunchActionIconPath.Data = Geometry.Parse(LaunchStartIconData);
         CommandTextBox.PlaceholderText = T("输入服务器命令，回车发送", "Enter server command, press Enter to send");
         QuickCommandComboBox.PlaceholderText = T("快捷命令", "Quick command");
         SendCommandButton.Content = T("发送", "Send");
@@ -485,6 +491,7 @@ public partial class LauncherMainWindow : Window
 
         NetworkStatusCardValueText.Text = T("未配置连接监控", "Connection monitor not configured");
         LaunchActionTextBlock.Text = status.IsRunning ? T("停止服务器", "Stop Server") : T("启动服务器", "Start Server");
+        LaunchActionIconPath.Data = Geometry.Parse(status.IsRunning ? LaunchStopIconData : LaunchStartIconData);
         LaunchServerButton.Classes.Set("running", status.IsRunning);
         RefreshLaunchButtonSummary(status.IsRunning);
 
@@ -762,12 +769,14 @@ public partial class LauncherMainWindow : Window
         if (isRunning ?? _serverProcessService.GetCurrentStatus().IsRunning)
         {
             LaunchSelectionSummaryTextBlock.Text = T("运行中 | 点击停止", "Running | Click to stop");
+            LaunchSelectionPillHost.Classes.Set("expanded", false);
             return;
         }
 
         if (!TryGetLockedLaunchTarget(out var profile, out var lockedSavePath))
         {
             LaunchSelectionSummaryTextBlock.Text = T("未锁定默认存档", "No default save locked");
+            LaunchSelectionPillHost.Classes.Set("expanded", true);
             return;
         }
 
@@ -777,6 +786,7 @@ public partial class LauncherMainWindow : Window
             ? (string.IsNullOrWhiteSpace(lockedSavePath) ? T("未固定存档", "No fixed save") : lockedSavePath)
             : fileName;
         LaunchSelectionSummaryTextBlock.Text = $"{profileName} | {saveName}";
+        LaunchSelectionPillHost.Classes.Set("expanded", false);
     }
 
     private async Task RefreshSavesAsync()
@@ -1262,12 +1272,24 @@ public partial class LauncherMainWindow : Window
 
     private void OnLaunchServerPointerEntered(object? sender, PointerEventArgs e)
     {
+        if (_serverProcessService.GetCurrentStatus().IsRunning || TryGetLockedLaunchTarget(out _, out _))
+        {
+            LaunchSelectionPillHost.Classes.Set("expanded", false);
+            return;
+        }
+
         LaunchSelectionPillHost.Classes.Set("expanded", true);
     }
 
     private void OnLaunchServerPointerExited(object? sender, PointerEventArgs e)
     {
-        LaunchSelectionPillHost.Classes.Set("expanded", false);
+        if (_serverProcessService.GetCurrentStatus().IsRunning || TryGetLockedLaunchTarget(out _, out _))
+        {
+            LaunchSelectionPillHost.Classes.Set("expanded", false);
+            return;
+        }
+
+        LaunchSelectionPillHost.Classes.Set("expanded", true);
     }
 
     private async Task StopServerFromLaunchButtonAsync()
@@ -1321,6 +1343,16 @@ public partial class LauncherMainWindow : Window
                 "[system] 默认锁定存档不存在，请重新锁定默认存档。",
                 "[system] Locked default save does not exist. Lock a default save again."));
             return;
+        }
+
+        var normalizedLockedSavePath = NormalizeFullPath(lockedSave.FullPath);
+        if (!string.IsNullOrWhiteSpace(normalizedLockedSavePath) && File.Exists(normalizedLockedSavePath))
+        {
+            var fileInfo = new FileInfo(normalizedLockedSavePath);
+            if (fileInfo.Length == 0)
+            {
+                File.Delete(normalizedLockedSavePath);
+            }
         }
 
         _isStoppingOrStarting = true;
