@@ -25,6 +25,14 @@ public partial class LauncherMainWindow : Window
     private const double ThumbnailWidth = 76;
     private const double ThumbnailHeight = 50;
 
+    private static readonly (string Zh, string En)[] HomeSlogans =
+    [
+        ("Launcher Go !", "Launcher Go !"),
+        ("极速启动服务，高自定义功能", "Fast startup, highly customizable"),
+        ("24*7小时测试环境，追求0漏洞", "24*7 tested, aiming for zero defects"),
+        ("极致开服体验，从Launcher Go开始", "Start the best server experience with Launcher Go")
+    ];
+
     private readonly ILauncherPreferencesService _preferencesService;
     private readonly IServerPackageService _serverPackageService;
     private readonly IInstanceProfileService _profileService;
@@ -32,6 +40,7 @@ public partial class LauncherMainWindow : Window
     private readonly IServerProcessService _serverProcessService;
     private readonly DispatcherTimer _dataTimer;
     private readonly DispatcherTimer _tickerTimer;
+    private readonly DispatcherTimer _homeSloganTimer;
 
     private readonly List<double> _serverCpuSamples = [];
     private readonly List<double> _serverMemoryMbSamples = [];
@@ -52,7 +61,9 @@ public partial class LauncherMainWindow : Window
     private InstanceManageTab _selectedInstanceManageTab = InstanceManageTab.Profiles;
     private SettingsTab _selectedSettingsTab = SettingsTab.Server;
     private int _tickerIndex;
+    private int _homeSloganIndex;
     private bool _tickerAnimating;
+    private bool _homeSloganVisible = true;
     private bool _isChinese;
     private bool _downloadCatalogLoaded;
     private bool _isStoppingOrStarting;
@@ -92,9 +103,11 @@ public partial class LauncherMainWindow : Window
         _tickerTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.3) };
         _tickerTimer.Tick += OnTickerTimerTick;
 
+        _homeSloganTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.1) };
+        _homeSloganTimer.Tick += OnHomeSloganTimerTick;
+
         _serverProcessService.OutputReceived += OnServerOutputReceived;
         _serverProcessService.StatusChanged += OnServerStatusChanged;
-        InstanceComboBox.SelectionChanged += OnLaunchInstanceSelectionChanged;
 
         InitializeStaticTexts();
         InitializeSeries();
@@ -110,11 +123,13 @@ public partial class LauncherMainWindow : Window
 
         _dataTimer.Start();
         _tickerTimer.Start();
+        _homeSloganTimer.Start();
 
         Closed += (_, _) =>
         {
             _dataTimer.Stop();
             _tickerTimer.Stop();
+            _homeSloganTimer.Stop();
             _serverProcessService.OutputReceived -= OnServerOutputReceived;
             _serverProcessService.StatusChanged -= OnServerStatusChanged;
         };
@@ -123,13 +138,21 @@ public partial class LauncherMainWindow : Window
     private void InitializeStaticTexts()
     {
         HomeNavButton.Content = T("主页", "Home");
+        MonitorNavButton.Content = T("监控", "Monitor");
         ConsoleNavButton.Content = T("控制台", "Console");
-        InstanceManageNavButton.Content = T("实例管理", "Instances");
-        SettingsNavButton.Content = T("设置", "Settings");
+        InstanceManageNavButton.Content = T("实例", "Instance");
         RobotNavButton.Content = T("机器人", "Robot");
         ConnectionNavButton.Content = T("连接", "Connection");
+        SettingsNavButton.Content = T("设置", "Settings");
+        HomeSloganTextBlock.Text = T(HomeSlogans[0].Zh, HomeSlogans[0].En);
 
-        LaunchServerButton.Content = T("启动服务器", "Start Server");
+        LaunchActionTextBlock.Text = T("启动服务器", "Start Server");
+        LaunchPickerTitleTextBlock.Text = T("选择启动目标", "Select launch target");
+        LaunchProfileTitleTextBlock.Text = T("档案", "Profile");
+        LaunchSaveTitleTextBlock.Text = T("存档", "Save");
+        LaunchPickerHintTextBlock.Text = T("未选择存档时使用档案默认存档。", "If no save is selected, the profile default save is used.");
+        LaunchCancelButton.Content = T("取消", "Cancel");
+        LaunchConfirmButton.Content = T("启动", "Start");
         CommandTextBox.PlaceholderText = T("输入服务器命令，回车发送", "Enter server command, press Enter to send");
         SendCommandButton.Content = T("发送", "Send");
 
@@ -216,7 +239,7 @@ public partial class LauncherMainWindow : Window
 
         UpdateCardValues(status);
 
-        if (_selectedTab == MainTab.Home)
+        if (_selectedTab == MainTab.Monitor)
         {
             RenderSelectedMetricChart();
         }
@@ -224,7 +247,7 @@ public partial class LauncherMainWindow : Window
 
     private async void OnTickerTimerTick(object? sender, EventArgs e)
     {
-        if (_selectedMetric != HomeMetric.Players || _playerEvents.Count == 0 || _tickerAnimating)
+        if (_selectedTab != MainTab.Monitor || _selectedMetric != HomeMetric.Players || _playerEvents.Count == 0 || _tickerAnimating)
         {
             return;
         }
@@ -246,6 +269,26 @@ public partial class LauncherMainWindow : Window
         _tickerAnimating = false;
     }
 
+    private void OnHomeSloganTimerTick(object? sender, EventArgs e)
+    {
+        if (!HomePanel.IsVisible)
+        {
+            return;
+        }
+
+        if (_homeSloganVisible)
+        {
+            HomeSloganTextBlock.Opacity = 0;
+            _homeSloganVisible = false;
+            return;
+        }
+
+        _homeSloganIndex = (_homeSloganIndex + 1) % HomeSlogans.Length;
+        HomeSloganTextBlock.Text = T(HomeSlogans[_homeSloganIndex].Zh, HomeSlogans[_homeSloganIndex].En);
+        HomeSloganTextBlock.Opacity = 1;
+        _homeSloganVisible = true;
+    }
+
     private void UpdateCardValues(ServerRuntimeStatus status)
     {
         var serverCpu = _serverCpuSamples[^1];
@@ -263,7 +306,8 @@ public partial class LauncherMainWindow : Window
             $"Online {currentPlayers}  Peak {peakPlayers}");
 
         NetworkStatusCardValueText.Text = T("未配置连接监控", "Connection monitor not configured");
-        LaunchServerButton.Content = status.IsRunning ? T("停止服务器", "Stop Server") : T("启动服务器", "Start Server");
+        LaunchActionTextBlock.Text = status.IsRunning ? T("停止服务器", "Stop Server") : T("启动服务器", "Start Server");
+        RefreshLaunchButtonSummary(status.IsRunning);
 
         RenderThumbnailCharts();
     }
@@ -531,15 +575,21 @@ public partial class LauncherMainWindow : Window
     private void RefreshLaunchOptions(IReadOnlyList<InstanceProfile>? profiles = null)
     {
         profiles ??= _profileService.GetProfiles();
-        var selectedProfileId = (InstanceComboBox.SelectedItem as InstanceProfile)?.Id;
-        InstanceComboBox.ItemsSource = profiles;
-        InstanceComboBox.SelectedItem = profiles.FirstOrDefault(profile => profile.Id == selectedProfileId) ?? profiles.FirstOrDefault();
+        var selectedProfileId = (LaunchProfileListBox.SelectedItem as InstanceProfile)?.Id;
+        LaunchProfileListBox.ItemsSource = profiles;
+        LaunchProfileListBox.SelectedItem = profiles.FirstOrDefault(profile => profile.Id == selectedProfileId) ?? profiles.FirstOrDefault();
         RefreshLaunchSaveOptions();
+        RefreshLaunchButtonSummary();
     }
 
-    private async void OnLaunchInstanceSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    private async void OnLaunchProfileSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         await RefreshLaunchSaveOptionsAsync();
+    }
+
+    private void OnLaunchSaveSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        RefreshLaunchButtonSummary();
     }
 
     private void RefreshLaunchSaveOptions()
@@ -549,16 +599,38 @@ public partial class LauncherMainWindow : Window
 
     private async Task RefreshLaunchSaveOptionsAsync()
     {
-        if (InstanceComboBox.SelectedItem is not InstanceProfile profile)
+        if (LaunchProfileListBox.SelectedItem is not InstanceProfile profile)
         {
-            SaveComboBox.ItemsSource = Array.Empty<SaveFileEntry>();
+            LaunchSaveListBox.ItemsSource = Array.Empty<SaveFileEntry>();
+            RefreshLaunchButtonSummary();
             return;
         }
 
+        var selectedSavePath = (LaunchSaveListBox.SelectedItem as SaveFileEntry)?.FullPath;
         var saves = await _saveService.GetSavesAsync(profile);
-        SaveComboBox.ItemsSource = saves;
-        SaveComboBox.SelectedItem = saves.FirstOrDefault(save =>
-            save.FullPath.Equals(profile.ActiveSaveFile, StringComparison.OrdinalIgnoreCase)) ?? saves.FirstOrDefault();
+        LaunchSaveListBox.ItemsSource = saves;
+        LaunchSaveListBox.SelectedItem =
+            saves.FirstOrDefault(save => save.FullPath.Equals(selectedSavePath, StringComparison.OrdinalIgnoreCase))
+            ?? saves.FirstOrDefault(save => save.FullPath.Equals(profile.ActiveSaveFile, StringComparison.OrdinalIgnoreCase))
+            ?? saves.FirstOrDefault();
+        RefreshLaunchButtonSummary();
+    }
+
+    private void RefreshLaunchButtonSummary(bool? isRunning = null)
+    {
+        if (isRunning ?? _serverProcessService.GetCurrentStatus().IsRunning)
+        {
+            LaunchSelectionSummaryTextBlock.Text = T("运行中 | 点击停止", "Running | Click to stop");
+            LaunchConfirmButton.IsEnabled = false;
+            return;
+        }
+
+        var profile = LaunchProfileListBox.SelectedItem as InstanceProfile;
+        var save = LaunchSaveListBox.SelectedItem as SaveFileEntry;
+        var profileName = string.IsNullOrWhiteSpace(profile?.Name) ? T("未选择档案", "No profile") : profile.Name;
+        var saveName = string.IsNullOrWhiteSpace(save?.FileName) ? T("未固定存档", "No fixed save") : save.FileName;
+        LaunchSelectionSummaryTextBlock.Text = $"{profileName} | {saveName}";
+        LaunchConfirmButton.IsEnabled = profile is not null;
     }
 
     private async Task RefreshSavesAsync()
@@ -656,6 +728,7 @@ public partial class LauncherMainWindow : Window
         _selectedTab = tab;
 
         HomePanel.IsVisible = tab == MainTab.Home;
+        MonitorPanel.IsVisible = tab == MainTab.Monitor;
         ConsolePanel.IsVisible = tab == MainTab.Console;
         InstanceManagePanel.IsVisible = tab == MainTab.InstanceManage;
         SettingsPanel.IsVisible = tab == MainTab.Settings;
@@ -663,13 +736,14 @@ public partial class LauncherMainWindow : Window
         ConnectionPanel.IsVisible = tab == MainTab.Connection;
 
         SetSelectedClass(HomeNavButton, tab == MainTab.Home);
+        SetSelectedClass(MonitorNavButton, tab == MainTab.Monitor);
         SetSelectedClass(ConsoleNavButton, tab == MainTab.Console);
         SetSelectedClass(InstanceManageNavButton, tab == MainTab.InstanceManage);
         SetSelectedClass(SettingsNavButton, tab == MainTab.Settings);
         SetSelectedClass(RobotNavButton, tab == MainTab.Robot);
         SetSelectedClass(ConnectionNavButton, tab == MainTab.Connection);
 
-        if (tab == MainTab.Home)
+        if (tab == MainTab.Monitor)
         {
             RenderSelectedMetricChart();
         }
@@ -760,7 +834,7 @@ public partial class LauncherMainWindow : Window
         Dispatcher.UIThread.Post(() =>
         {
             UpdateCardValues(status);
-            if (_selectedTab == MainTab.Home)
+            if (_selectedTab == MainTab.Monitor)
             {
                 RenderSelectedMetricChart();
             }
@@ -866,6 +940,8 @@ public partial class LauncherMainWindow : Window
 
     private void OnHomeNavClick(object? sender, RoutedEventArgs e) => SelectTab(MainTab.Home);
 
+    private void OnMonitorNavClick(object? sender, RoutedEventArgs e) => SelectTab(MainTab.Monitor);
+
     private void OnConsoleNavClick(object? sender, RoutedEventArgs e) => SelectTab(MainTab.Console);
 
     private void OnInstanceManageNavClick(object? sender, RoutedEventArgs e) => SelectTab(MainTab.InstanceManage);
@@ -904,16 +980,6 @@ public partial class LauncherMainWindow : Window
 
     private void OnContributorsSettingsTabClick(object? sender, RoutedEventArgs e) => SelectSettingsTab(SettingsTab.Contributors);
 
-    private void OnLaunchHoverAreaPointerEntered(object? sender, PointerEventArgs e)
-    {
-        LaunchOptionsContainer.Classes.Set("expanded", true);
-    }
-
-    private void OnLaunchHoverAreaPointerExited(object? sender, PointerEventArgs e)
-    {
-        LaunchOptionsContainer.Classes.Set("expanded", false);
-    }
-
     private async void OnLaunchServerClick(object? sender, RoutedEventArgs e)
     {
         if (_isStoppingOrStarting)
@@ -921,33 +987,87 @@ public partial class LauncherMainWindow : Window
             return;
         }
 
+        var status = _serverProcessService.GetCurrentStatus();
+        if (!status.IsRunning)
+        {
+            RefreshLaunchOptions();
+            LaunchSelectionPopup.IsOpen = true;
+            return;
+        }
+
+        await StopServerFromLaunchButtonAsync();
+    }
+
+    private void OnLaunchServerPointerEntered(object? sender, PointerEventArgs e)
+    {
+        LaunchSelectionPillHost.Classes.Set("expanded", true);
+    }
+
+    private void OnLaunchServerPointerExited(object? sender, PointerEventArgs e)
+    {
+        LaunchSelectionPillHost.Classes.Set("expanded", false);
+    }
+
+    private void OnLaunchCancelClick(object? sender, RoutedEventArgs e)
+    {
+        LaunchSelectionPopup.IsOpen = false;
+    }
+
+    private async void OnLaunchConfirmClick(object? sender, RoutedEventArgs e)
+    {
+        await StartSelectedServerAsync();
+    }
+
+    private async Task StopServerFromLaunchButtonAsync()
+    {
         _isStoppingOrStarting = true;
         LaunchServerButton.IsEnabled = false;
         try
         {
-            var status = _serverProcessService.GetCurrentStatus();
-            if (status.IsRunning)
-            {
-                AppendConsoleLine("[system] 正在停止服务器...");
-                await _serverProcessService.StopAsync(TimeSpan.FromSeconds(20));
-                return;
-            }
+            AppendConsoleLine("[system] 正在停止服务器...");
+            await _serverProcessService.StopAsync(TimeSpan.FromSeconds(20));
+        }
+        catch (Exception ex)
+        {
+            AppendConsoleLine($"[system] 启动/停止失败：{ex.Message}");
+        }
+        finally
+        {
+            LaunchServerButton.IsEnabled = true;
+            _isStoppingOrStarting = false;
+            RefreshLaunchButtonSummary();
+        }
+    }
 
-            var profile = InstanceComboBox.SelectedItem as InstanceProfile
-                          ?? _profileService.GetProfiles().FirstOrDefault();
-            if (profile is null)
-            {
-                AppendConsoleLine("[system] 请先在实例管理中创建档案。");
-                SelectTab(MainTab.InstanceManage);
-                SelectInstanceManageTab(InstanceManageTab.Profiles);
-                return;
-            }
+    private async Task StartSelectedServerAsync()
+    {
+        if (_isStoppingOrStarting)
+        {
+            return;
+        }
 
-            if (SaveComboBox.SelectedItem is SaveFileEntry save)
-            {
-                profile.ActiveSaveFile = save.FullPath;
-            }
+        var profile = LaunchProfileListBox.SelectedItem as InstanceProfile
+                      ?? _profileService.GetProfiles().FirstOrDefault();
+        if (profile is null)
+        {
+            LaunchSelectionPopup.IsOpen = false;
+            AppendConsoleLine("[system] 请先在实例中创建档案。");
+            SelectTab(MainTab.InstanceManage);
+            SelectInstanceManageTab(InstanceManageTab.Profiles);
+            return;
+        }
 
+        if (LaunchSaveListBox.SelectedItem is SaveFileEntry save)
+        {
+            profile.ActiveSaveFile = save.FullPath;
+        }
+
+        _isStoppingOrStarting = true;
+        LaunchServerButton.IsEnabled = false;
+        LaunchConfirmButton.IsEnabled = false;
+        try
+        {
+            LaunchSelectionPopup.IsOpen = false;
             SelectTab(MainTab.Console);
             await _serverProcessService.StartAsync(profile);
         }
@@ -959,6 +1079,7 @@ public partial class LauncherMainWindow : Window
         {
             LaunchServerButton.IsEnabled = true;
             _isStoppingOrStarting = false;
+            RefreshLaunchButtonSummary();
         }
     }
 
@@ -1299,6 +1420,7 @@ public partial class LauncherMainWindow : Window
     private enum MainTab
     {
         Home,
+        Monitor,
         Console,
         InstanceManage,
         Settings,
