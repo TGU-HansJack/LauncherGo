@@ -491,6 +491,7 @@ public partial class LauncherMainWindow : Window
 
         NetworkStatusCardValueText.Text = T("未配置连接监控", "Connection monitor not configured");
         LaunchActionTextBlock.Text = status.IsRunning ? T("停止服务器", "Stop Server") : T("启动服务器", "Start Server");
+        LaunchServerButton.Classes.Set("running", status.IsRunning);
         RefreshLaunchButtonSummary(status.IsRunning);
 
         RenderThumbnailCharts();
