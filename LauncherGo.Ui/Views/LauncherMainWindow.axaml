@@ -55,6 +55,10 @@
                     <SolidColorBrush x:Key="DropdownSelectedTextBrush" Color="#0F2D62" />
                     <SolidColorBrush x:Key="DownloadActionTextBrush" Color="#111111" />
                     <SolidColorBrush x:Key="DownloadedBadgeTextBrush" Color="#15803D" />
+                    <SolidColorBrush x:Key="ConsoleBackgroundBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="ConsoleTextBrush" Color="#000000" />
+                    <SolidColorBrush x:Key="ConsoleSelectionBrush" Color="#000000" />
+                    <SolidColorBrush x:Key="ConsoleSelectionTextBrush" Color="#FFFFFF" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
                     <SolidColorBrush x:Key="WindowSurfaceBrush" Color="#171C22" />
@@ -91,6 +95,10 @@
                     <SolidColorBrush x:Key="DropdownSelectedTextBrush" Color="#EAF2FF" />
                     <SolidColorBrush x:Key="DownloadActionTextBrush" Color="#E6EBF3" />
                     <SolidColorBrush x:Key="DownloadedBadgeTextBrush" Color="#6EE7B7" />
+                    <SolidColorBrush x:Key="ConsoleBackgroundBrush" Color="#000000" />
+                    <SolidColorBrush x:Key="ConsoleTextBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="ConsoleSelectionBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="ConsoleSelectionTextBrush" Color="#000000" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
@@ -495,13 +503,13 @@
         </Style>
         <Style Selector="SelectableTextBlock#ConsoleOutputTextBlock">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="Foreground" Value="{DynamicResource ConsoleTextBrush}" />
             <Setter Property="Padding" Value="3,6,3,2" />
             <Setter Property="TextWrapping" Value="NoWrap" />
             <Setter Property="HorizontalAlignment" Value="Left" />
             <Setter Property="VerticalAlignment" Value="Top" />
-            <Setter Property="SelectionBrush" Value="#FFFFFF" />
-            <Setter Property="SelectionForegroundBrush" Value="#000000" />
+            <Setter Property="SelectionBrush" Value="{DynamicResource ConsoleSelectionBrush}" />
+            <Setter Property="SelectionForegroundBrush" Value="{DynamicResource ConsoleSelectionTextBrush}" />
         </Style>
         <Style Selector="ScrollViewer#ConsoleOutputScrollViewer">
             <Setter Property="Background" Value="Transparent" />
@@ -884,7 +892,7 @@
                             </Grid>
 
                             <Grid x:Name="ConsolePanel" RowDefinitions="*,Auto" RowSpacing="8" IsVisible="False" Margin="-24,-6,-24,0">
-                                <Border Classes="SectionPanel" Background="#000000">
+                                <Border Classes="SectionPanel" Background="{DynamicResource ConsoleBackgroundBrush}">
                                     <ScrollViewer
                                         x:Name="ConsoleOutputScrollViewer"
                                         Margin="12,0,12,0"
@@ -894,10 +902,7 @@
                                             x:Name="ConsoleOutputTextBlock"
                                             FontFamily="Consolas"
                                             FontSize="12"
-                                            Foreground="#FFFFFF"
-                                            TextWrapping="NoWrap"
-                                            SelectionBrush="#FFFFFF"
-                                            SelectionForegroundBrush="#000000" />
+                                            TextWrapping="NoWrap" />
                                     </ScrollViewer>
                                 </Border>
                                 <Grid Grid.Row="1" Margin="24,0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
