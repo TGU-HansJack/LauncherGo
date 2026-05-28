@@ -4,12 +4,12 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Background="Transparent"
     Title="LauncherGo Guide"
-    Width="784"
-    Height="464"
-    MinWidth="784"
-    MinHeight="464"
-    MaxWidth="784"
-    MaxHeight="464"
+    Width="812"
+    Height="492"
+    MinWidth="812"
+    MinHeight="492"
+    MaxWidth="812"
+    MaxHeight="492"
     CanResize="False"
     WindowDecorations="None"
     TransparencyLevelHint="Transparent"
@@ -40,21 +40,21 @@
                     <SolidColorBrush x:Key="DownloadedBadgeTextBrush" Color="#15803D" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
-                    <SolidColorBrush x:Key="WindowSurfaceBrush" Color="#1A1F25" />
-                    <SolidColorBrush x:Key="WindowBorderBrush" Color="#4E5865" />
-                    <SolidColorBrush x:Key="HeaderBackgroundBrush" Color="#242B33" />
-                    <SolidColorBrush x:Key="HeaderBorderBrush" Color="#3A434F" />
-                    <SolidColorBrush x:Key="StepTextBrush" Color="#E6EBF3" />
-                    <SolidColorBrush x:Key="StepUnderlineBrush" Color="#E6EBF3" />
-                    <SolidColorBrush x:Key="CloseDefaultBrush" Color="#B4BDCA" />
+                    <SolidColorBrush x:Key="WindowSurfaceBrush" Color="#000000" />
+                    <SolidColorBrush x:Key="WindowBorderBrush" Color="#3C3C3C" />
+                    <SolidColorBrush x:Key="HeaderBackgroundBrush" Color="#1B1B1B" />
+                    <SolidColorBrush x:Key="HeaderBorderBrush" Color="#3C3C3C" />
+                    <SolidColorBrush x:Key="StepTextBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="StepUnderlineBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="CloseDefaultBrush" Color="#C8C8C8" />
                     <SolidColorBrush x:Key="StatusTextBrush" Color="#66D1C3" />
-                    <SolidColorBrush x:Key="NavActiveBrush" Color="#E5EBF4" />
-                    <SolidColorBrush x:Key="NavPressedBrush" Color="#C9D2DF" />
-                    <SolidColorBrush x:Key="NavDisabledBrush" Color="#6F7886" />
-                    <SolidColorBrush x:Key="DropdownHoverBrush" Color="#303944" />
-                    <SolidColorBrush x:Key="DropdownSelectedBrush" Color="#2D4E7A" />
-                    <SolidColorBrush x:Key="DropdownSelectedTextBrush" Color="#EAF2FF" />
-                    <SolidColorBrush x:Key="DownloadActionTextBrush" Color="#E6EBF3" />
+                    <SolidColorBrush x:Key="NavActiveBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="NavPressedBrush" Color="#CFCFCF" />
+                    <SolidColorBrush x:Key="NavDisabledBrush" Color="#7A7A7A" />
+                    <SolidColorBrush x:Key="DropdownHoverBrush" Color="#1B1B1B" />
+                    <SolidColorBrush x:Key="DropdownSelectedBrush" Color="#3C3C3C" />
+                    <SolidColorBrush x:Key="DropdownSelectedTextBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="DownloadActionTextBrush" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="DownloadedBadgeBrush" Color="#173B36" />
                     <SolidColorBrush x:Key="DownloadedBadgeHoverBrush" Color="#23524C" />
                     <SolidColorBrush x:Key="DownloadedBadgeTextBrush" Color="#6EE7B7" />
@@ -280,9 +280,14 @@
     </Window.Styles>
     <Grid Background="Transparent">
         <Border
+            Width="784"
+            Height="464"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
             CornerRadius="8"
-            Background="{DynamicResource WindowBorderBrush}">
-            <Border Margin="1" CornerRadius="7" ClipToBounds="True" Background="{DynamicResource WindowSurfaceBrush}">
+            Background="{DynamicResource WindowSurfaceBrush}"
+            BoxShadow="0 8 28 0 #66000000">
+            <Border CornerRadius="8" ClipToBounds="True" Background="{DynamicResource WindowSurfaceBrush}">
             <Grid RowDefinitions="62,*,58">
         <Border
             Grid.Row="0"

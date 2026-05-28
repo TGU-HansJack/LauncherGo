@@ -776,7 +776,7 @@ public partial class LauncherMainWindow : Window
         if (!TryGetLockedLaunchTarget(out var profile, out var lockedSavePath))
         {
             LaunchSelectionSummaryTextBlock.Text = T("未锁定默认存档", "No default save locked");
-            LaunchSelectionPillHost.Classes.Set("expanded", true);
+            LaunchSelectionPillHost.Classes.Set("expanded", false);
             return;
         }
 
@@ -907,9 +907,12 @@ public partial class LauncherMainWindow : Window
 
     private void SelectTab(MainTab tab)
     {
+        var previousTab = _selectedTab;
         _selectedTab = tab;
+        var isHome = tab == MainTab.Home;
 
-        HomePanel.IsVisible = tab == MainTab.Home;
+        HomePanel.IsVisible = isHome;
+        NonHomePanelHost.IsVisible = !isHome;
         MonitorPanel.IsVisible = tab == MainTab.Monitor;
         ConsolePanel.IsVisible = tab == MainTab.Console;
         InstanceManagePanel.IsVisible = tab == MainTab.InstanceManage;
@@ -929,6 +932,40 @@ public partial class LauncherMainWindow : Window
         {
             RenderSelectedMetricChart();
         }
+
+        if (isHome)
+        {
+            NonHomePanelHost.RenderTransform = TransformOperations.Parse("translate(0px,0px)");
+        }
+        else
+        {
+            ShowNonHomePanel(previousTab == MainTab.Home);
+        }
+    }
+
+    private void ShowNonHomePanel(bool animate)
+    {
+        if (!animate)
+        {
+            NonHomePanelHost.RenderTransform = TransformOperations.Parse("translate(0px,0px)");
+            return;
+        }
+
+        var offset = Math.Max(MainContentHost.Bounds.Height, NonHomePanelHost.Bounds.Height);
+        if (offset < 1)
+        {
+            offset = 480;
+        }
+
+        var offsetText = offset.ToString(CultureInfo.InvariantCulture);
+        NonHomePanelHost.RenderTransform = TransformOperations.Parse($"translate(0px,{offsetText}px)");
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_selectedTab != MainTab.Home)
+            {
+                NonHomePanelHost.RenderTransform = TransformOperations.Parse("translate(0px,0px)");
+            }
+        }, DispatcherPriority.Render);
     }
 
     private void SelectMetric(HomeMetric metric)
@@ -1094,6 +1131,11 @@ public partial class LauncherMainWindow : Window
     {
         Dispatcher.UIThread.Post(() =>
         {
+            if (IsSystemConsoleLine(line))
+            {
+                return;
+            }
+
             AppendConsoleLine(line);
             TrackPlayerEventText(line);
         });
@@ -1113,6 +1155,11 @@ public partial class LauncherMainWindow : Window
 
     private void AppendConsoleLine(string line)
     {
+        if (IsSystemConsoleLine(line))
+        {
+            return;
+        }
+
         _consoleLines.Add(line);
         while (_consoleLines.Count > 500)
         {
@@ -1122,6 +1169,12 @@ public partial class LauncherMainWindow : Window
         var text = string.Join(Environment.NewLine, _consoleLines);
         ConsoleOutputTextBlock.Text = text;
         ConsoleOutputScrollViewer.ScrollToEnd();
+    }
+
+    private static bool IsSystemConsoleLine(string? line)
+    {
+        return !string.IsNullOrWhiteSpace(line) &&
+               line.TrimStart().StartsWith("[system]", StringComparison.OrdinalIgnoreCase);
     }
 
     private void TrackPlayerEventText(string line)
@@ -1283,13 +1336,7 @@ public partial class LauncherMainWindow : Window
 
     private void OnLaunchServerPointerExited(object? sender, PointerEventArgs e)
     {
-        if (_serverProcessService.GetCurrentStatus().IsRunning || TryGetLockedLaunchTarget(out _, out _))
-        {
-            LaunchSelectionPillHost.Classes.Set("expanded", false);
-            return;
-        }
-
-        LaunchSelectionPillHost.Classes.Set("expanded", true);
+        LaunchSelectionPillHost.Classes.Set("expanded", false);
     }
 
     private async Task StopServerFromLaunchButtonAsync()
@@ -1325,9 +1372,6 @@ public partial class LauncherMainWindow : Window
             SelectTab(MainTab.InstanceManage);
             SelectInstanceManageTab(InstanceManageTab.Saves);
             LaunchSelectionSummaryTextBlock.Text = T("请先锁定默认存档", "Set default save first");
-            AppendConsoleLine(T(
-                "[system] 未锁定默认存档。请在“存档管理”中点击右侧“锁定默认”。",
-                "[system] No default save is locked. Go to Saves and click 'Set default'."));
             return;
         }
 
@@ -1339,9 +1383,6 @@ public partial class LauncherMainWindow : Window
             SelectTab(MainTab.InstanceManage);
             SelectInstanceManageTab(InstanceManageTab.Saves);
             LaunchSelectionSummaryTextBlock.Text = T("请先锁定默认存档", "Set default save first");
-            AppendConsoleLine(T(
-                "[system] 默认锁定存档不存在，请重新锁定默认存档。",
-                "[system] Locked default save does not exist. Lock a default save again."));
             return;
         }
 
@@ -2355,13 +2396,49 @@ public partial class LauncherMainWindow : Window
             Children = { editor, buttonPanel }
         };
 
+        var contentFrame = new Border
+        {
+            Width = 760,
+            Height = 500,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            CornerRadius = new CornerRadius(8),
+            ClipToBounds = true,
+            Background = ActualThemeVariant == ThemeVariant.Dark ? Brushes.Black : Brushes.White,
+            BoxShadow = BoxShadows.Parse("0 8 28 0 #66000000"),
+            Child = content
+        };
+
+        var dialogRoot = new Grid
+        {
+            Background = Brushes.Transparent,
+            Children = { contentFrame }
+        };
+
         var dialog = new Window
         {
             Title = title,
-            Width = 760,
-            Height = 500,
+            Width = 788,
+            Height = 528,
+            MinWidth = 788,
+            MinHeight = 528,
+            MaxWidth = 788,
+            MaxHeight = 528,
+            CanResize = false,
+            WindowDecorations = WindowDecorations.None,
+            Background = Brushes.Transparent,
+            TransparencyLevelHint = [WindowTransparencyLevel.Transparent],
+            TransparencyBackgroundFallback = Brushes.Transparent,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Content = content
+            Content = dialogRoot
+        };
+
+        contentFrame.PointerPressed += (_, e) =>
+        {
+            if (e.GetCurrentPoint(dialog).Properties.IsLeftButtonPressed && e.Source is not TextBox)
+            {
+                dialog.BeginMoveDrag(e);
+            }
         };
 
         saveButton.Click += (_, _) =>

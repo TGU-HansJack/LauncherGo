@@ -2,12 +2,12 @@
     x:Class="LauncherGo.Ui.Views.LauncherMainWindow"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Width="980"
-    Height="580"
-    MinWidth="980"
-    MinHeight="580"
-    MaxWidth="980"
-    MaxHeight="580"
+    Width="1008"
+    Height="608"
+    MinWidth="1008"
+    MinHeight="608"
+    MaxWidth="1008"
+    MaxHeight="608"
     CanResize="False"
     WindowDecorations="None"
     Background="Transparent"
@@ -46,8 +46,8 @@
                     <SolidColorBrush x:Key="LaunchSelectionPillBrush" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="LaunchSelectionPillTextBrush" Color="#111111" />
                     <SolidColorBrush x:Key="ControlHoverBrush" Color="#ECEFF2" />
-                    <SolidColorBrush x:Key="HeaderIconBrush" Color="#7D8793" />
-                    <SolidColorBrush x:Key="HeaderIconHoverBrush" Color="#111111" />
+                    <SolidColorBrush x:Key="HeaderIconBrush" Color="#000000" />
+                    <SolidColorBrush x:Key="HeaderIconHoverBrush" Color="#000000" />
                     <SolidColorBrush x:Key="ToolTipBackgroundBrush" Color="#E5E7EB" />
                     <SolidColorBrush x:Key="ToolTipForegroundBrush" Color="#111111" />
                     <SolidColorBrush x:Key="DropdownHoverBrush" Color="#F1F2F4" />
@@ -61,39 +61,39 @@
                     <SolidColorBrush x:Key="ConsoleSelectionTextBrush" Color="#FFFFFF" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
-                    <SolidColorBrush x:Key="WindowSurfaceBrush" Color="#171C22" />
-                    <SolidColorBrush x:Key="WindowBorderBrush" Color="#485361" />
-                    <SolidColorBrush x:Key="HeaderBackgroundBrush" Color="#1E252D" />
-                    <SolidColorBrush x:Key="FooterBackgroundBrush" Color="#1D242C" />
-                    <SolidColorBrush x:Key="SplitLineBrush" Color="#2E3945" />
-                    <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#1A2027" />
-                    <SolidColorBrush x:Key="CardBackgroundBrush" Color="#232C35" />
-                    <SolidColorBrush x:Key="CardHoverBrush" Color="#2B3642" />
-                    <SolidColorBrush x:Key="CardSelectedBrush" Color="#2A3F5A" />
-                    <SolidColorBrush x:Key="MainTextBrush" Color="#E6EDF6" />
-                    <SolidColorBrush x:Key="SubTextBrush" Color="#A0ADBC" />
+                    <SolidColorBrush x:Key="WindowSurfaceBrush" Color="#000000" />
+                    <SolidColorBrush x:Key="WindowBorderBrush" Color="#3C3C3C" />
+                    <SolidColorBrush x:Key="HeaderBackgroundBrush" Color="#1B1B1B" />
+                    <SolidColorBrush x:Key="FooterBackgroundBrush" Color="#1B1B1B" />
+                    <SolidColorBrush x:Key="SplitLineBrush" Color="#3C3C3C" />
+                    <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#000000" />
+                    <SolidColorBrush x:Key="CardBackgroundBrush" Color="#1B1B1B" />
+                    <SolidColorBrush x:Key="CardHoverBrush" Color="#2A2A2A" />
+                    <SolidColorBrush x:Key="CardSelectedBrush" Color="#3C3C3C" />
+                    <SolidColorBrush x:Key="MainTextBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="SubTextBrush" Color="#BFBFBF" />
                     <SolidColorBrush x:Key="PrimaryLineBrush" Color="#7CB3FF" />
                     <SolidColorBrush x:Key="SecondaryLineBrush" Color="#60D394" />
                     <SolidColorBrush x:Key="GridLineBrush" Color="#334050" />
                     <SolidColorBrush x:Key="NavSelectedBrush" Color="#555555" />
                     <SolidColorBrush x:Key="NavSelectedTextBrush" Color="#FFFFFF" />
-                    <SolidColorBrush x:Key="NavNormalTextBrush" Color="#E6EDF6" />
-                    <SolidColorBrush x:Key="NavDisabledTextBrush" Color="#6F7886" />
+                    <SolidColorBrush x:Key="NavNormalTextBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="NavDisabledTextBrush" Color="#7A7A7A" />
                     <SolidColorBrush x:Key="LaunchButtonBrush" Color="#6B8E23" />
                     <SolidColorBrush x:Key="LaunchButtonHoverBrush" Color="#789E2C" />
                     <SolidColorBrush x:Key="LaunchButtonPressedBrush" Color="#5D7C1F" />
                     <SolidColorBrush x:Key="LaunchButtonTextBrush" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="LaunchSelectionPillBrush" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="LaunchSelectionPillTextBrush" Color="#111111" />
-                    <SolidColorBrush x:Key="ControlHoverBrush" Color="#2D3743" />
-                    <SolidColorBrush x:Key="HeaderIconBrush" Color="#B4BDCA" />
-                    <SolidColorBrush x:Key="HeaderIconHoverBrush" Color="#E6EDF6" />
+                    <SolidColorBrush x:Key="ControlHoverBrush" Color="#3C3C3C" />
+                    <SolidColorBrush x:Key="HeaderIconBrush" Color="#000000" />
+                    <SolidColorBrush x:Key="HeaderIconHoverBrush" Color="#000000" />
                     <SolidColorBrush x:Key="ToolTipBackgroundBrush" Color="#000000" />
-                    <SolidColorBrush x:Key="ToolTipForegroundBrush" Color="#F5F5F5" />
-                    <SolidColorBrush x:Key="DropdownHoverBrush" Color="#303944" />
-                    <SolidColorBrush x:Key="DropdownSelectedBrush" Color="#2D4E7A" />
-                    <SolidColorBrush x:Key="DropdownSelectedTextBrush" Color="#EAF2FF" />
-                    <SolidColorBrush x:Key="DownloadActionTextBrush" Color="#E6EBF3" />
+                    <SolidColorBrush x:Key="ToolTipForegroundBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="DropdownHoverBrush" Color="#1B1B1B" />
+                    <SolidColorBrush x:Key="DropdownSelectedBrush" Color="#3C3C3C" />
+                    <SolidColorBrush x:Key="DropdownSelectedTextBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="DownloadActionTextBrush" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="DownloadedBadgeTextBrush" Color="#6EE7B7" />
                     <SolidColorBrush x:Key="ConsoleBackgroundBrush" Color="#000000" />
                     <SolidColorBrush x:Key="ConsoleTextBrush" Color="#FFFFFF" />
@@ -129,21 +129,59 @@
             <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="12,6" />
             <Setter Property="FontSize" Value="16" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource MainTextBrush}" />
+            <Setter Property="Foreground" Value="#000000" />
             <Setter Property="CornerRadius" Value="8" />
         </Style>
         <Style Selector="Button.TitleButton /template/ ContentPresenter">
             <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style Selector="Button.TitleButton:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#30FFFFFF" Offset="0" />
+                        <GradientStop Color="#12000000" Offset="0.52" />
+                        <GradientStop Color="#18FFFFFF" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderBrush">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#55FFFFFF" Offset="0" />
+                        <GradientStop Color="#18000000" Offset="0.55" />
+                        <GradientStop Color="#28FFFFFF" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
             <Setter Property="CornerRadius" Value="4" />
         </Style>
         <Style Selector="Button.TitleButton:pressed /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="100%,0%" EndPoint="0%,100%">
+                        <GradientStop Color="#22000000" Offset="0" />
+                        <GradientStop Color="#30FFFFFF" Offset="0.46" />
+                        <GradientStop Color="#10000000" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderBrush">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="100%,0%" EndPoint="0%,100%">
+                        <GradientStop Color="#44000000" Offset="0" />
+                        <GradientStop Color="#55FFFFFF" Offset="0.45" />
+                        <GradientStop Color="#26000000" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
             <Setter Property="CornerRadius" Value="4" />
         </Style>
 
@@ -154,17 +192,55 @@
             <Setter Property="Padding" Value="0" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="8" />
         </Style>
         <Style Selector="Button.HeaderIconButton /template/ ContentPresenter">
             <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style Selector="Button.HeaderIconButton:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#30FFFFFF" Offset="0" />
+                        <GradientStop Color="#12000000" Offset="0.52" />
+                        <GradientStop Color="#18FFFFFF" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderBrush">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#55FFFFFF" Offset="0" />
+                        <GradientStop Color="#18000000" Offset="0.55" />
+                        <GradientStop Color="#28FFFFFF" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
             <Setter Property="CornerRadius" Value="4" />
         </Style>
         <Style Selector="Button.HeaderIconButton:pressed /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="100%,0%" EndPoint="0%,100%">
+                        <GradientStop Color="#22000000" Offset="0" />
+                        <GradientStop Color="#30FFFFFF" Offset="0.46" />
+                        <GradientStop Color="#10000000" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderBrush">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="100%,0%" EndPoint="0%,100%">
+                        <GradientStop Color="#44000000" Offset="0" />
+                        <GradientStop Color="#55FFFFFF" Offset="0.45" />
+                        <GradientStop Color="#26000000" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
             <Setter Property="CornerRadius" Value="4" />
         </Style>
         <Style Selector="Button.HeaderIconButton:pointerover Path.IconPath">
@@ -196,13 +272,55 @@
             <Setter Property="FontSize" Value="13" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Foreground" Value="{DynamicResource NavNormalTextBrush}" />
         </Style>
         <Style Selector="Button.FooterNavButton /template/ ContentPresenter">
             <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style Selector="Button.FooterNavButton:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#30FFFFFF" Offset="0" />
+                        <GradientStop Color="#12000000" Offset="0.52" />
+                        <GradientStop Color="#18FFFFFF" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderBrush">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#55FFFFFF" Offset="0" />
+                        <GradientStop Color="#18000000" Offset="0.55" />
+                        <GradientStop Color="#28FFFFFF" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style Selector="Button.FooterNavButton:pressed /template/ ContentPresenter">
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="100%,0%" EndPoint="0%,100%">
+                        <GradientStop Color="#22000000" Offset="0" />
+                        <GradientStop Color="#30FFFFFF" Offset="0.46" />
+                        <GradientStop Color="#10000000" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderBrush">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="100%,0%" EndPoint="0%,100%">
+                        <GradientStop Color="#44000000" Offset="0" />
+                        <GradientStop Color="#55FFFFFF" Offset="0.45" />
+                        <GradientStop Color="#26000000" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style Selector="Button.FooterNavButton.selected">
             <Setter Property="Background" Value="{DynamicResource NavSelectedBrush}" />
@@ -210,6 +328,31 @@
         </Style>
         <Style Selector="Button.FooterNavButton.selected /template/ ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource NavSelectedBrush}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.FooterNavButton.selected:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource NavSelectedBrush}" />
+            <Setter Property="BorderBrush">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#55FFFFFF" Offset="0" />
+                        <GradientStop Color="#18000000" Offset="0.55" />
+                        <GradientStop Color="#28FFFFFF" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style Selector="Button.FooterNavButton.selected:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource NavSelectedBrush}" />
+            <Setter Property="BorderBrush">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="100%,0%" EndPoint="0%,100%">
+                        <GradientStop Color="#44000000" Offset="0" />
+                        <GradientStop Color="#55FFFFFF" Offset="0.45" />
+                        <GradientStop Color="#26000000" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style Selector="Button.FooterNavButton:disabled">
             <Setter Property="Foreground" Value="{DynamicResource NavDisabledTextBrush}" />
@@ -257,6 +400,8 @@
             <Setter Property="MinWidth" Value="146" />
             <Setter Property="Padding" Value="10,0" />
             <Setter Property="Background" Value="{DynamicResource LaunchButtonBrush}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Foreground" Value="{DynamicResource LaunchButtonTextBrush}" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="FontWeight" Value="Bold" />
@@ -265,12 +410,32 @@
         <Style Selector="Button#LaunchServerButton /template/ ContentPresenter">
             <Setter Property="CornerRadius" Value="17" />
             <Setter Property="Background" Value="{DynamicResource LaunchButtonBrush}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style Selector="Button#LaunchServerButton:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource LaunchButtonHoverBrush}" />
+            <Setter Property="Background" Value="{DynamicResource LaunchButtonBrush}" />
+            <Setter Property="BorderBrush">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#55FFFFFF" Offset="0" />
+                        <GradientStop Color="#18000000" Offset="0.55" />
+                        <GradientStop Color="#28FFFFFF" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style Selector="Button#LaunchServerButton:pressed /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource LaunchButtonPressedBrush}" />
+            <Setter Property="Background" Value="{DynamicResource LaunchButtonBrush}" />
+            <Setter Property="BorderBrush">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="100%,0%" EndPoint="0%,100%">
+                        <GradientStop Color="#44000000" Offset="0" />
+                        <GradientStop Color="#55FFFFFF" Offset="0.45" />
+                        <GradientStop Color="#26000000" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style Selector="Button#LaunchServerButton.running">
             <Setter Property="Background" Value="#C62828" />
@@ -279,10 +444,28 @@
             <Setter Property="Background" Value="#C62828" />
         </Style>
         <Style Selector="Button#LaunchServerButton.running:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="#B71C1C" />
+            <Setter Property="Background" Value="#C62828" />
+            <Setter Property="BorderBrush">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#55FFFFFF" Offset="0" />
+                        <GradientStop Color="#18000000" Offset="0.55" />
+                        <GradientStop Color="#28FFFFFF" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style Selector="Button#LaunchServerButton.running:pressed /template/ ContentPresenter">
-            <Setter Property="Background" Value="#A31616" />
+            <Setter Property="Background" Value="#C62828" />
+            <Setter Property="BorderBrush">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="100%,0%" EndPoint="0%,100%">
+                        <GradientStop Color="#44000000" Offset="0" />
+                        <GradientStop Color="#55FFFFFF" Offset="0.45" />
+                        <GradientStop Color="#26000000" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style Selector="Border#LaunchSelectionPillHost">
             <Setter Property="Width" Value="0" />
@@ -662,11 +845,18 @@
         </Style>
     </Window.Styles>
 
-    <Grid Background="Transparent">
-        <Border CornerRadius="8" Background="{DynamicResource WindowBorderBrush}">
-            <Border Margin="1" CornerRadius="7" ClipToBounds="True" Background="{DynamicResource WindowSurfaceBrush}">
-                <Grid RowDefinitions="58,*,46">
-                    <Border Grid.Row="0" Background="{DynamicResource HeaderBackgroundBrush}" BorderBrush="Transparent" BorderThickness="0">
+    <Grid x:Name="WindowFrameContent" Background="Transparent">
+        <Border
+            Width="980"
+            Height="580"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            CornerRadius="8"
+            Background="{DynamicResource WindowSurfaceBrush}"
+            BoxShadow="0 8 28 0 #66000000">
+            <Border CornerRadius="8" ClipToBounds="True" Background="{DynamicResource WindowSurfaceBrush}">
+                <Grid RowDefinitions="58,*,52">
+                    <Border Grid.Row="0" Background="#6B8E23" BorderBrush="Transparent" BorderThickness="0">
                         <Grid Margin="14,0,10,0" ColumnDefinitions="Auto,*,Auto">
                             <Button x:Name="TitleHomeButton" Classes="TitleButton" Content="LauncherGo" Click="OnHomeNavClick" VerticalAlignment="Center" />
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
@@ -694,8 +884,8 @@
                         </Grid>
                     </Border>
 
-                    <Grid Grid.Row="1" Background="{DynamicResource WindowSurfaceBrush}" Margin="24,6,24,8">
-                        <Grid Margin="0">
+                    <Grid x:Name="MainContentHost" Grid.Row="1" Background="#6B8E23" ClipToBounds="True">
+                        <Grid Margin="24,6,24,8">
                             <Grid x:Name="HomePanel" ColumnDefinitions="*,360" ColumnSpacing="30">
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="10">
                                     <TextBlock
@@ -756,6 +946,21 @@
                                     </Viewbox>
                                 </Grid>
                             </Grid>
+                        </Grid>
+
+                        <Border
+                            x:Name="NonHomePanelHost"
+                            Background="{DynamicResource WindowSurfaceBrush}"
+                            ClipToBounds="True"
+                            IsVisible="False"
+                            RenderTransform="translate(0px,0px)">
+                            <Border.Transitions>
+                                <Transitions>
+                                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.22" />
+                                </Transitions>
+                            </Border.Transitions>
+                            <Grid Margin="24,6,24,8">
+                                <Grid Margin="0">
 
                             <Grid x:Name="MonitorPanel" ColumnDefinitions="330,*" ColumnSpacing="12" IsVisible="False">
                                 <Grid Grid.Column="0" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8" VerticalAlignment="Top">
@@ -891,11 +1096,12 @@
                                 </Border>
                             </Grid>
 
-                            <Grid x:Name="ConsolePanel" RowDefinitions="*,Auto" RowSpacing="8" IsVisible="False" Margin="-24,-6,-24,0">
-                                <Border Classes="SectionPanel" Background="{DynamicResource ConsoleBackgroundBrush}">
+                            <Grid x:Name="ConsolePanel" RowDefinitions="*,Auto" RowSpacing="8" IsVisible="False" Margin="-24,-6,-24,0" ClipToBounds="True">
+                                <Border Classes="SectionPanel" Background="{DynamicResource ConsoleBackgroundBrush}" ClipToBounds="True">
                                     <ScrollViewer
                                         x:Name="ConsoleOutputScrollViewer"
                                         Margin="12,0,12,0"
+                                        ClipToBounds="True"
                                         HorizontalScrollBarVisibility="Hidden"
                                         VerticalScrollBarVisibility="Hidden">
                                         <SelectableTextBlock
@@ -1328,10 +1534,12 @@
                                     </StackPanel>
                                 </Border>
                             </Grid>
-                        </Grid>
+                                </Grid>
+                            </Grid>
+                        </Border>
                     </Grid>
 
-                    <Border Grid.Row="2" Background="{DynamicResource FooterBackgroundBrush}" BorderBrush="Transparent" BorderThickness="0">
+                    <Border Grid.Row="2" MinHeight="52" Background="{DynamicResource FooterBackgroundBrush}" BorderBrush="Transparent" BorderThickness="0">
                         <Grid Margin="14,0,14,0" ColumnDefinitions="Auto,*,Auto">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <Button x:Name="HomeNavButton" Classes="FooterNavButton" Click="OnHomeNavClick" />
