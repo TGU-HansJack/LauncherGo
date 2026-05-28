@@ -26,6 +26,7 @@ public partial class LauncherMainWindow : Window
     private const double ChartHeight = 248;
     private const double ThumbnailWidth = 76;
     private const double ThumbnailHeight = 50;
+    private static readonly string[] QuickCommands = ["/stop", "/autosavenow", "/list"];
 
     private static readonly (string Zh, string En)[] HomeSlogans =
     [
@@ -65,7 +66,7 @@ public partial class LauncherMainWindow : Window
     private readonly List<double> _networkLatencySamples = [];
     private readonly List<string> _playerEvents = [];
 
-    private readonly ObservableCollection<string> _consoleLines = [];
+    private readonly List<string> _consoleLines = [];
     private readonly ObservableCollection<ProfileListItem> _profileItems = [];
     private readonly ObservableCollection<SaveListItem> _saveItems = [];
     private readonly ObservableCollection<DownloadVersionListItem> _downloadVersionItems = [];
@@ -171,6 +172,7 @@ public partial class LauncherMainWindow : Window
         LaunchCancelButton.Content = T("取消", "Cancel");
         LaunchConfirmButton.Content = T("启动", "Start");
         CommandTextBox.PlaceholderText = T("输入服务器命令，回车发送", "Enter server command, press Enter to send");
+        QuickCommandComboBox.PlaceholderText = T("快捷命令", "Quick command");
         SendCommandButton.Content = T("发送", "Send");
 
         ServerStatusCardTitleText.Text = T("服务器状态", "Server Status");
@@ -226,7 +228,9 @@ public partial class LauncherMainWindow : Window
 
     private void InitializeCollections()
     {
-        ConsoleOutputListBox.ItemsSource = _consoleLines;
+        ConsoleOutputTextBlock.Text = string.Empty;
+        QuickCommandComboBox.ItemsSource = QuickCommands;
+        QuickCommandComboBox.SelectedIndex = -1;
         ProfilesListBox.ItemsSource = _profileItems;
         SavesListBox.ItemsSource = _saveItems;
         DownloadVersionsListBox.ItemsSource = _downloadVersionItems;
@@ -949,10 +953,9 @@ public partial class LauncherMainWindow : Window
             _consoleLines.RemoveAt(0);
         }
 
-        if (_consoleLines.LastOrDefault() is { } lastLine)
-        {
-            ConsoleOutputListBox.ScrollIntoView(lastLine);
-        }
+        var text = string.Join(Environment.NewLine, _consoleLines);
+        ConsoleOutputTextBlock.Text = text;
+        ConsoleOutputScrollViewer.ScrollToEnd();
     }
 
     private void TrackPlayerEventText(string line)
@@ -992,8 +995,10 @@ public partial class LauncherMainWindow : Window
                 or ComboBox
                 or ComboBoxItem
                 or TextBox
+                or SelectableTextBlock
                 or ListBox
                 or ListBoxItem
+                or ScrollViewer
                 or ScrollBar
                 or Thumb)
             {
@@ -1199,12 +1204,17 @@ public partial class LauncherMainWindow : Window
         await SendCommandFromInputAsync();
     }
 
-    private async void OnQuickCommandClick(object? sender, RoutedEventArgs e)
+    private void OnQuickCommandSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (sender is Button { Content: not null } button)
+        if (QuickCommandComboBox.SelectedItem is not string command || string.IsNullOrWhiteSpace(command))
         {
-            await SendCommandAsync(button.Content.ToString() ?? string.Empty);
+            return;
         }
+
+        CommandTextBox.Text = command;
+        CommandTextBox.CaretIndex = command.Length;
+        CommandTextBox.Focus();
+        QuickCommandComboBox.SelectedIndex = -1;
     }
 
     private async Task SendCommandFromInputAsync()

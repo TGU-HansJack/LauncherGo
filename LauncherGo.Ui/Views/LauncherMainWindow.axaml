@@ -422,6 +422,31 @@
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
         </Style>
+        <Style Selector="SelectableTextBlock#ConsoleOutputTextBlock">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="Padding" Value="3,6,3,2" />
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="SelectionBrush" Value="#FFFFFF" />
+            <Setter Property="SelectionForegroundBrush" Value="#000000" />
+        </Style>
+        <Style Selector="ScrollViewer#ConsoleOutputScrollViewer">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="ScrollViewer#ConsoleOutputScrollViewer:pointerover">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="ScrollViewer#ConsoleOutputScrollViewer:focus-within">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
         <Style Selector="ListBoxItem">
             <Setter Property="CornerRadius" Value="4" />
         </Style>
@@ -656,18 +681,33 @@
                                 </Border>
                             </Grid>
 
-                            <Grid x:Name="ConsolePanel" RowDefinitions="*,Auto,Auto" RowSpacing="8" IsVisible="False">
-                                <Border Classes="SectionPanel" Background="#111820">
-                                    <ListBox x:Name="ConsoleOutputListBox" Classes="FlatList" Foreground="#D7E1EA" FontFamily="Consolas" FontSize="12" />
+                            <Grid x:Name="ConsolePanel" RowDefinitions="*,Auto" RowSpacing="8" IsVisible="False" Margin="-24,-6,-24,0">
+                                <Border Classes="SectionPanel" Background="#000000">
+                                    <ScrollViewer
+                                        x:Name="ConsoleOutputScrollViewer"
+                                        Margin="12,0,12,0"
+                                        HorizontalScrollBarVisibility="Hidden"
+                                        VerticalScrollBarVisibility="Hidden">
+                                        <SelectableTextBlock
+                                            x:Name="ConsoleOutputTextBlock"
+                                            FontFamily="Consolas"
+                                            FontSize="12"
+                                            Foreground="#FFFFFF"
+                                            TextWrapping="NoWrap"
+                                            SelectionBrush="#FFFFFF"
+                                            SelectionForegroundBrush="#000000" />
+                                    </ScrollViewer>
                                 </Border>
-                                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
-                                    <Button x:Name="QuickStopCommandButton" Classes="SecondaryActionButton" Content="/stop" Click="OnQuickCommandClick" />
-                                    <Button x:Name="QuickSaveCommandButton" Classes="SecondaryActionButton" Content="/autosavenow" Click="OnQuickCommandClick" />
-                                    <Button x:Name="QuickPlayersCommandButton" Classes="SecondaryActionButton" Content="/list" Click="OnQuickCommandClick" />
-                                </StackPanel>
-                                <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <Grid Grid.Row="1" Margin="24,0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                                     <TextBox x:Name="CommandTextBox" Classes="CompactInput" PlaceholderText="输入服务器命令，回车发送" KeyDown="OnCommandTextBoxKeyDown" />
-                                    <Button x:Name="SendCommandButton" Grid.Column="1" Classes="ActionButton" Content="发送" Click="OnSendCommandClick" />
+                                    <ComboBox
+                                        x:Name="QuickCommandComboBox"
+                                        Grid.Column="1"
+                                        Width="170"
+                                        Classes="CompactCombo"
+                                        PlaceholderText="快捷命令"
+                                        SelectionChanged="OnQuickCommandSelectionChanged" />
+                                    <Button x:Name="SendCommandButton" Grid.Column="2" Classes="ActionButton" Content="发送" Click="OnSendCommandClick" />
                                 </Grid>
                             </Grid>
 
