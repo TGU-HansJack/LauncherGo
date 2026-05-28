@@ -923,11 +923,11 @@ public partial class LauncherMainWindow : Window
 
     private string T(string zh, string en) => _isChinese ? zh : en;
 
-    private void OnRepositoryClick(object? sender, RoutedEventArgs e) => OpenUrl("https://github.com");
+    private void OnRepositoryClick(object? sender, RoutedEventArgs e) => OpenUrl("https://github.com/TGU-HansJack/LauncherGo");
 
-    private void OnFeedbackClick(object? sender, RoutedEventArgs e) => OpenUrl("https://github.com/issues");
+    private void OnFeedbackClick(object? sender, RoutedEventArgs e) => OpenUrl("https://github.com/TGU-HansJack/LauncherGo/issues");
 
-    private void OnSponsorClick(object? sender, RoutedEventArgs e) => OpenUrl("https://github.com/sponsors");
+    private void OnSponsorClick(object? sender, RoutedEventArgs e) => OpenUrl("https://afdian.com/a/hansjack");
 
     private void OnMinimizeClick(object? sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
