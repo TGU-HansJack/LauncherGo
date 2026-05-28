@@ -7,6 +7,7 @@ namespace LauncherGo.Services;
 
 public sealed partial class ServerProcessService(IInstanceProfileService profileService) : IServerProcessService
 {
+    private const int MinCpuSampleIntervalMs = 700;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly object _statusGate = new();
     private readonly HashSet<string> _onlinePlayers = new(StringComparer.OrdinalIgnoreCase);
@@ -40,22 +41,7 @@ public sealed partial class ServerProcessService(IInstanceProfileService profile
                 return _cachedStatus;
             }
 
-            var memoryBytes = SafeRead(() => _process.WorkingSet64, 0L);
-            var cpuPercent = CalculateCpuPercent(_process);
-            _cachedStatus = new ServerRuntimeStatus
-            {
-                IsRunning = true,
-                ProcessId = SafeRead(() => _process.Id, (int?)null),
-                StartedAtUtc = _startedAtUtc,
-                ProfileId = _currentProfile?.Id,
-                CpuPercent = cpuPercent,
-                MemoryBytes = memoryBytes,
-                OnlinePlayers = _onlinePlayers.Count,
-                PeakOnlinePlayers = _peakOnlinePlayers,
-                CanSendCommands = true,
-                Message = "运行中"
-            };
-
+            _cachedStatus = BuildRunningStatus(sampleResources: true);
             return _cachedStatus;
         }
     }
@@ -218,7 +204,27 @@ public sealed partial class ServerProcessService(IInstanceProfileService profile
 
         TrackPlayers(line);
         OutputReceived?.Invoke(this, line);
-        StatusChanged?.Invoke(this, GetCurrentStatus());
+
+        ServerRuntimeStatus status;
+        lock (_statusGate)
+        {
+            if (_process is null || HasExited(_process))
+            {
+                status = _cachedStatus = new ServerRuntimeStatus
+                {
+                    IsRunning = false,
+                    ProfileId = _currentProfile?.Id,
+                    PeakOnlinePlayers = _peakOnlinePlayers,
+                    Message = "已停止"
+                };
+            }
+            else
+            {
+                status = _cachedStatus = BuildRunningStatus(sampleResources: false);
+            }
+        }
+
+        StatusChanged?.Invoke(this, status);
     }
 
     private void TrackPlayers(string line)
@@ -282,8 +288,13 @@ public sealed partial class ServerProcessService(IInstanceProfileService profile
     private double CalculateCpuPercent(Process process)
     {
         var now = DateTimeOffset.UtcNow;
-        var totalProcessorTime = SafeRead(() => process.TotalProcessorTime, _lastProcessorTime);
         var elapsedMs = Math.Max(1, (now - _lastCpuSampleUtc).TotalMilliseconds);
+        if (elapsedMs < MinCpuSampleIntervalMs)
+        {
+            return _lastCpuPercent;
+        }
+
+        var totalProcessorTime = SafeRead(() => process.TotalProcessorTime, _lastProcessorTime);
         var processorElapsedMs = Math.Max(0, (totalProcessorTime - _lastProcessorTime).TotalMilliseconds);
         var cpu = processorElapsedMs / (elapsedMs * Environment.ProcessorCount) * 100.0;
 
@@ -291,6 +302,74 @@ public sealed partial class ServerProcessService(IInstanceProfileService profile
         _lastCpuSampleUtc = now;
         _lastCpuPercent = Math.Clamp(cpu, 0, 100);
         return _lastCpuPercent;
+    }
+
+    private ServerRuntimeStatus BuildRunningStatus(bool sampleResources)
+    {
+        var process = _process;
+        if (process is null)
+        {
+            return new ServerRuntimeStatus
+            {
+                IsRunning = false,
+                ProfileId = _currentProfile?.Id,
+                PeakOnlinePlayers = _peakOnlinePlayers,
+                Message = "未启动"
+            };
+        }
+
+        if (sampleResources)
+        {
+            TryRefreshProcess(process);
+        }
+
+        var memoryBytes = sampleResources
+            ? ReadWorkingSetBytes(process, _cachedStatus.MemoryBytes)
+            : _cachedStatus.MemoryBytes;
+        var cpuPercent = sampleResources
+            ? CalculateCpuPercent(process)
+            : _cachedStatus.CpuPercent;
+
+        return new ServerRuntimeStatus
+        {
+            IsRunning = true,
+            ProcessId = SafeRead(() => process.Id, (int?)null),
+            StartedAtUtc = _startedAtUtc,
+            ProfileId = _currentProfile?.Id,
+            CpuPercent = cpuPercent,
+            MemoryBytes = memoryBytes,
+            OnlinePlayers = _onlinePlayers.Count,
+            PeakOnlinePlayers = _peakOnlinePlayers,
+            CanSendCommands = true,
+            Message = "运行中"
+        };
+    }
+
+    private static void TryRefreshProcess(Process process)
+    {
+        try
+        {
+            process.Refresh();
+        }
+        catch
+        {
+            // ignore
+        }
+    }
+
+    private static long ReadWorkingSetBytes(Process process, long fallback)
+    {
+        try
+        {
+            var processId = process.Id;
+            using var current = Process.GetProcessById(processId);
+            current.Refresh();
+            return current.WorkingSet64;
+        }
+        catch
+        {
+            return SafeRead(() => process.WorkingSet64, fallback);
+        }
     }
 
     private static bool HasExited(Process process)

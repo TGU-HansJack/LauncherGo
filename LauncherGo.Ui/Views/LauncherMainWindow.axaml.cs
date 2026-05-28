@@ -425,7 +425,7 @@ public partial class LauncherMainWindow : Window
 
         if (_selectedTab == MainTab.Monitor)
         {
-            RenderSelectedMetricChart();
+            RenderSelectedMetricChart(status);
         }
     }
 
@@ -498,9 +498,9 @@ public partial class LauncherMainWindow : Window
         RenderThumbnailCharts();
     }
 
-    private void RenderSelectedMetricChart()
+    private void RenderSelectedMetricChart(ServerRuntimeStatus? statusOverride = null)
     {
-        var status = _serverProcessService.GetCurrentStatus();
+        var status = statusOverride ?? _serverProcessService.GetCurrentStatus();
         switch (_selectedMetric)
         {
             case HomeMetric.Server:
@@ -1106,7 +1106,7 @@ public partial class LauncherMainWindow : Window
             UpdateCardValues(status);
             if (_selectedTab == MainTab.Monitor)
             {
-                RenderSelectedMetricChart();
+                RenderSelectedMetricChart(status);
             }
         });
     }
