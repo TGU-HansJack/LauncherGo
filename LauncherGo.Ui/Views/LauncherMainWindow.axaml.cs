@@ -9,8 +9,10 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media.Transformation;
 using Avalonia.Platform.Storage;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using LauncherGo.Abstractions.Services;
+using LauncherGo.Domains.Enums;
 using LauncherGo.Domains.Models;
 using LauncherGo.Ui;
 
@@ -31,6 +33,19 @@ public partial class LauncherMainWindow : Window
         ("极速启动服务，高自定义功能", "Fast startup, highly customizable"),
         ("24*7小时测试环境，追求0漏洞", "24*7 tested, aiming for zero defects"),
         ("极致开服体验，从Launcher Go开始", "Start the best server experience with Launcher Go")
+    ];
+
+    private static readonly (string Code, string Zh, string En)[] AppearanceLanguageOptions =
+    [
+        ("zh-CN", "中文", "Chinese"),
+        ("en-US", "英文", "English")
+    ];
+
+    private static readonly (ThemeMode Mode, string Zh, string En)[] AppearanceThemeOptions =
+    [
+        (ThemeMode.Light, "亮色主题", "Light Theme"),
+        (ThemeMode.Dark, "暗色主题", "Dark Theme"),
+        (ThemeMode.System, "跟随系统", "Follow System")
     ];
 
     private readonly ILauncherPreferencesService _preferencesService;
@@ -65,6 +80,7 @@ public partial class LauncherMainWindow : Window
     private bool _tickerAnimating;
     private bool _homeSloganVisible = true;
     private bool _isChinese;
+    private bool _isApplyingAppearanceSettings;
     private bool _downloadCatalogLoaded;
     private bool _isStoppingOrStarting;
     private bool _isRefreshingSaves;
@@ -110,6 +126,7 @@ public partial class LauncherMainWindow : Window
         _serverProcessService.StatusChanged += OnServerStatusChanged;
 
         InitializeStaticTexts();
+        RefreshAppearanceSettingsEditor();
         InitializeSeries();
         InitializeCollections();
         RefreshProfiles();
@@ -184,6 +201,8 @@ public partial class LauncherMainWindow : Window
         AboutSettingsTabButton.Content = T("关于", "About");
         SponsorsSettingsTabButton.Content = T("赞助者", "Sponsors");
         ContributorsSettingsTabButton.Content = T("贡献者", "Contributors");
+        SettingsLanguageLabelTextBlock.Text = T("语言", "Language");
+        SettingsThemeLabelTextBlock.Text = T("主题", "Theme");
 
         Title = T("LauncherGo 主窗口", "LauncherGo Main Window");
         ToolTip.SetTip(RepositoryButton, T("仓库", "Repository"));
@@ -780,39 +799,120 @@ public partial class LauncherMainWindow : Window
         SetSelectedClass(AboutSettingsTabButton, tab == SettingsTab.About);
         SetSelectedClass(SponsorsSettingsTabButton, tab == SettingsTab.Sponsors);
         SetSelectedClass(ContributorsSettingsTabButton, tab == SettingsTab.Contributors);
+        var isAppearance = tab == SettingsTab.Appearance;
+        SettingsAppearancePanel.IsVisible = isAppearance;
+        SettingsBlankPanel.IsVisible = !isAppearance;
 
-        var preferences = _preferencesService.Load();
-        (SettingsSectionTitleText.Text, SettingsSectionDescriptionText.Text, SettingsSectionDetailText.Text) = tab switch
+        if (isAppearance)
         {
-            SettingsTab.Server => (
-                T("服务器设置", "Server Settings"),
-                T("后续会在这里编辑 serverconfig.json。当前基础启动使用已生成的服务端配置。", "Server config editing will be added here. Basic startup uses the generated serverconfig.json."),
-                T($"服务端目录：{preferences.ServerDirectory}", $"Server directory: {preferences.ServerDirectory}")),
-            SettingsTab.Appearance => (
-                T("外观", "Appearance"),
-                T("当前外观来自首次引导设置。", "Current appearance comes from first-launch settings."),
-                T($"主题模式：{preferences.ThemeMode}", $"Theme mode: {preferences.ThemeMode}")),
-            SettingsTab.Network => (
-                T("网络", "Network"),
-                T("内网穿透连接配置入口已预留。", "Tunnel connection configuration entry is reserved."),
-                T("主页网络图表只展示真实连接监控数据，不再生成随机延迟。", "The home network chart only shows real connection metrics, no random latency.")),
-            SettingsTab.Advanced => (
-                T("高级", "Advanced"),
-                T("高级运行参数和维护操作入口。", "Advanced runtime options and maintenance actions."),
-                T($"档案目录：{preferences.ProfileDirectory}\n存档目录：{preferences.SaveDirectory}", $"Profile directory: {preferences.ProfileDirectory}\nSave directory: {preferences.SaveDirectory}")),
-            SettingsTab.About => (
-                T("关于", "About"),
-                "LauncherGo",
-                T("复古物语服务器启动器。", "Vintage Story server launcher.")),
-            SettingsTab.Sponsors => (
-                T("赞助者", "Sponsors"),
-                T("赞助者列表入口。", "Sponsors list entry."),
-                T("暂无本地赞助者数据。", "No local sponsor data.")),
-            _ => (
-                T("贡献者", "Contributors"),
-                T("贡献者列表入口。", "Contributors list entry."),
-                T("暂无本地贡献者数据。", "No local contributor data."))
+            RefreshAppearanceSettingsEditor();
+        }
+    }
+
+    private void RefreshAppearanceSettingsEditor()
+    {
+        _isApplyingAppearanceSettings = true;
+        try
+        {
+            var preferences = _preferencesService.Load();
+            SettingsLanguageLabelTextBlock.Text = T("语言", "Language");
+            SettingsThemeLabelTextBlock.Text = T("主题", "Theme");
+
+            SettingsLanguageComboBox.ItemsSource = AppearanceLanguageOptions
+                .Select(option => _isChinese ? option.Zh : option.En)
+                .ToList();
+            SettingsThemeComboBox.ItemsSource = AppearanceThemeOptions
+                .Select(option => _isChinese ? option.Zh : option.En)
+                .ToList();
+
+            SettingsLanguageComboBox.SelectedIndex =
+                preferences.Language.StartsWith("zh", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+
+            var themeIndex = Array.FindIndex(AppearanceThemeOptions, option => option.Mode == preferences.ThemeMode);
+            SettingsThemeComboBox.SelectedIndex = themeIndex >= 0 ? themeIndex : 0;
+        }
+        finally
+        {
+            _isApplyingAppearanceSettings = false;
+        }
+    }
+
+    private void OnSettingsLanguageSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_isApplyingAppearanceSettings)
+        {
+            return;
+        }
+
+        var index = SettingsLanguageComboBox.SelectedIndex;
+        if (index < 0 || index >= AppearanceLanguageOptions.Length)
+        {
+            return;
+        }
+
+        var languageCode = AppearanceLanguageOptions[index].Code;
+        var preferences = _preferencesService.Load();
+        preferences.Language = languageCode;
+        _preferencesService.Save(preferences);
+
+        ApplyCulture(languageCode);
+        _isChinese = languageCode.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
+
+        InitializeStaticTexts();
+        RefreshAppearanceSettingsEditor();
+    }
+
+    private void OnSettingsThemeSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_isApplyingAppearanceSettings)
+        {
+            return;
+        }
+
+        var index = SettingsThemeComboBox.SelectedIndex;
+        if (index < 0 || index >= AppearanceThemeOptions.Length)
+        {
+            return;
+        }
+
+        var mode = AppearanceThemeOptions[index].Mode;
+        var preferences = _preferencesService.Load();
+        preferences.ThemeMode = mode;
+        _preferencesService.Save(preferences);
+
+        ApplyTheme(mode);
+        RefreshAppearanceSettingsEditor();
+    }
+
+    private static void ApplyTheme(ThemeMode mode)
+    {
+        if (Application.Current is null)
+        {
+            return;
+        }
+
+        Application.Current.RequestedThemeVariant = mode switch
+        {
+            ThemeMode.Dark => ThemeVariant.Dark,
+            ThemeMode.Light => ThemeVariant.Light,
+            _ => ThemeVariant.Default
         };
+    }
+
+    private static void ApplyCulture(string languageCode)
+    {
+        try
+        {
+            var culture = CultureInfo.GetCultureInfo(languageCode);
+            CultureInfo.CurrentCulture = culture;
+            CultureInfo.CurrentUICulture = culture;
+            CultureInfo.DefaultThreadCurrentCulture = culture;
+            CultureInfo.DefaultThreadCurrentUICulture = culture;
+        }
+        catch
+        {
+            // ignore invalid culture code
+        }
     }
 
     private static void SetSelectedClass(StyledElement element, bool selected)

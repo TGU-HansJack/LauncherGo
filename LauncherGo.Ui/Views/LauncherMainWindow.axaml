@@ -50,6 +50,9 @@
                     <SolidColorBrush x:Key="HeaderIconHoverBrush" Color="#111111" />
                     <SolidColorBrush x:Key="ToolTipBackgroundBrush" Color="#E5E7EB" />
                     <SolidColorBrush x:Key="ToolTipForegroundBrush" Color="#111111" />
+                    <SolidColorBrush x:Key="DropdownHoverBrush" Color="#F1F2F4" />
+                    <SolidColorBrush x:Key="DropdownSelectedBrush" Color="#DDEBFF" />
+                    <SolidColorBrush x:Key="DropdownSelectedTextBrush" Color="#0F2D62" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
                     <SolidColorBrush x:Key="WindowSurfaceBrush" Color="#171C22" />
@@ -81,6 +84,9 @@
                     <SolidColorBrush x:Key="HeaderIconHoverBrush" Color="#E6EDF6" />
                     <SolidColorBrush x:Key="ToolTipBackgroundBrush" Color="#000000" />
                     <SolidColorBrush x:Key="ToolTipForegroundBrush" Color="#F5F5F5" />
+                    <SolidColorBrush x:Key="DropdownHoverBrush" Color="#303944" />
+                    <SolidColorBrush x:Key="DropdownSelectedBrush" Color="#2D4E7A" />
+                    <SolidColorBrush x:Key="DropdownSelectedTextBrush" Color="#EAF2FF" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
@@ -368,10 +374,48 @@
             <Setter Property="CornerRadius" Value="8" />
             <Setter Property="FontSize" Value="13" />
         </Style>
+        <Style Selector="ComboBoxItem">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Margin" Value="4,3" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="ClipToBounds" Value="False" />
+        </Style>
+        <Style Selector="ComboBoxItem:pointerover">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource DropdownHoverBrush}" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style Selector="ComboBoxItem:selected">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource DropdownSelectedTextBrush}" />
+        </Style>
+        <Style Selector="ComboBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource DropdownSelectedBrush}" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style Selector="ComboBox.SettingsGuideCombo">
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="MaxHeight" Value="34" />
+            <Setter Property="MinWidth" Value="180" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="ComboBox.SettingsGuideCombo:focus-within">
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
         <Style Selector="Border.SectionPanel">
             <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
-            <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="12" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Padding" Value="0" />
         </Style>
         <Style Selector="ListBox.FlatList">
             <Setter Property="Background" Value="Transparent" />
@@ -415,8 +459,8 @@
                         </Grid>
                     </Border>
 
-                    <Border Grid.Row="1" Margin="14,4,14,6" Background="{DynamicResource PanelBackgroundBrush}" CornerRadius="0" BorderBrush="Transparent" BorderThickness="0" Padding="12">
-                        <Grid>
+                    <Grid Grid.Row="1" Background="{DynamicResource WindowSurfaceBrush}" Margin="24,6,24,8">
+                        <Grid Margin="0">
                             <Grid x:Name="HomePanel" ColumnDefinitions="*,360" ColumnSpacing="30">
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="10">
                                     <TextBlock
@@ -718,13 +762,19 @@
                                     <Button x:Name="SponsorsSettingsTabButton" Classes="TextTabButton" Content="赞助者" Click="OnSponsorsSettingsTabClick" />
                                     <Button x:Name="ContributorsSettingsTabButton" Classes="TextTabButton" Content="贡献者" Click="OnContributorsSettingsTabClick" />
                                 </StackPanel>
-                                <Border Grid.Row="1" Classes="SectionPanel">
-                                    <StackPanel Spacing="8">
-                                        <TextBlock x:Name="SettingsSectionTitleText" FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" />
-                                        <TextBlock x:Name="SettingsSectionDescriptionText" FontSize="13" Foreground="{DynamicResource SubTextBrush}" TextWrapping="Wrap" />
-                                        <TextBlock x:Name="SettingsSectionDetailText" Margin="0,12,0,0" FontSize="13" Foreground="{DynamicResource MainTextBrush}" TextWrapping="Wrap" />
-                                    </StackPanel>
-                                </Border>
+                                <Grid Grid.Row="1">
+                                    <Grid x:Name="SettingsBlankPanel" />
+                                    <Grid x:Name="SettingsAppearancePanel" IsVisible="False" RowDefinitions="Auto,Auto" RowSpacing="12" VerticalAlignment="Top" HorizontalAlignment="Left">
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                            <TextBlock x:Name="SettingsLanguageLabelTextBlock" VerticalAlignment="Center" FontSize="14" Foreground="{DynamicResource MainTextBrush}" />
+                                            <ComboBox x:Name="SettingsLanguageComboBox" Grid.Column="1" Classes="Bordered SettingsGuideCombo" SelectionChanged="OnSettingsLanguageSelectionChanged" />
+                                        </Grid>
+                                        <Grid Grid.Row="1" ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                            <TextBlock x:Name="SettingsThemeLabelTextBlock" VerticalAlignment="Center" FontSize="14" Foreground="{DynamicResource MainTextBrush}" />
+                                            <ComboBox x:Name="SettingsThemeComboBox" Grid.Column="1" Classes="Bordered SettingsGuideCombo" SelectionChanged="OnSettingsThemeSelectionChanged" />
+                                        </Grid>
+                                    </Grid>
+                                </Grid>
                             </Grid>
 
                             <Grid x:Name="RobotPanel" IsVisible="False">
@@ -745,7 +795,7 @@
                                 </Border>
                             </Grid>
                         </Grid>
-                    </Border>
+                    </Grid>
 
                     <Border Grid.Row="2" Background="{DynamicResource FooterBackgroundBrush}" BorderBrush="Transparent" BorderThickness="0">
                         <Grid Margin="14,0,14,0" ColumnDefinitions="Auto,*,Auto">
