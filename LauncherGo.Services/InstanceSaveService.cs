@@ -76,14 +76,58 @@ public sealed class InstanceSaveService(
         await using var output = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None);
         await input.CopyToAsync(output, cancellationToken);
 
-        var configPath = Path.Combine(profile.DirectoryPath, "serverconfig.json");
         if (!File.Exists(profile.ActiveSaveFile))
         {
-            profile.ActiveSaveFile = target;
-            ServerConfigBootstrapper.ApplySaveLocation(configPath, target);
+            await SetActiveSaveAsync(profile, target, cancellationToken);
         }
 
         return target;
+    }
+
+    public Task SetActiveSaveAsync(
+        InstanceProfile profile,
+        string saveFilePath,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (string.IsNullOrWhiteSpace(saveFilePath))
+        {
+            throw new InvalidOperationException("存档路径不能为空。");
+        }
+
+        var fullPath = Path.GetFullPath(saveFilePath.Trim());
+        var saveRoot = LauncherWorkspacePathHelper.NormalizePath(profile.SaveDirectory);
+        var requestedDirectory = LauncherWorkspacePathHelper.NormalizePath(Path.GetDirectoryName(fullPath));
+        if (!LauncherWorkspacePathHelper.IsSameOrChildPath(requestedDirectory, saveRoot))
+        {
+            var fileName = Path.GetFileName(fullPath);
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                fileName = "default.vcdbs";
+            }
+
+            fullPath = Path.Combine(saveRoot, fileName);
+        }
+
+        var saveDirectory = Path.GetDirectoryName(fullPath);
+        if (string.IsNullOrWhiteSpace(saveDirectory))
+        {
+            throw new InvalidOperationException("无效存档路径。");
+        }
+
+        Directory.CreateDirectory(saveDirectory);
+        if (File.Exists(fullPath) && new FileInfo(fullPath).Length == 0)
+        {
+            File.Delete(fullPath);
+        }
+
+        profile.ActiveSaveFile = fullPath;
+        profile.SaveDirectory = saveDirectory;
+        profile.LastUpdatedUtc = DateTimeOffset.UtcNow;
+        ServerConfigBootstrapper.ApplySaveLocation(Path.Combine(profile.DirectoryPath, "serverconfig.json"), fullPath);
+        profileService.UpdateProfile(profile);
+        return Task.CompletedTask;
     }
 
     public Task<int> DeleteSavesAsync(

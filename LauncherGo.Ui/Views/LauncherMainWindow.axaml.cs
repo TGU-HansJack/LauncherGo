@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Avalonia;
 using Avalonia.Controls;
@@ -49,10 +51,71 @@ public partial class LauncherMainWindow : Window
         (ThemeMode.System, "跟随系统", "Follow System")
     ];
 
+    private static readonly string[] ConfigServerLanguageOptions =
+    [
+        "en", "ar", "be", "cs", "da", "de", "es-es", "fr", "hu", "is", "it", "ja", "ko",
+        "nl", "no", "pl", "pt-br", "pt-pt", "ru", "sr", "zh-cn", "zh-tw"
+    ];
+
+    private static readonly (string Value, string Zh, string En)[] ConfigPlayStyleDefinitions =
+    [
+        ("surviveandbuild", "标准", "Standard"),
+        ("exploration", "探索", "Exploration"),
+        ("wildernesssurvival", "荒野求生", "Wilderness Survival"),
+        ("homosapiens", "智人", "Homo sapiens"),
+        ("creativebuilding", "超平坦创造模式", "Creative Building")
+    ];
+
+    private static readonly (string Value, string Zh, string En)[] ConfigWorldTypeDefinitions =
+    [
+        ("standard", "标准地形", "Standard"),
+        ("superflat", "超平坦", "Superflat")
+    ];
+
+    private static readonly (int Value, string Zh, string En)[] ConfigWhitelistModeDefinitions =
+    [
+        (0, "默认（专用服务器启用白名单）", "Default (on for dedicated servers)"),
+        (1, "关闭", "Off"),
+        (2, "开启", "On")
+    ];
+
+    private static readonly (string Value, string Zh, string En)[] ConfigRoleDefinitions =
+    [
+        ("suplayer", "生存玩家", "Survival Player"),
+        ("sumod", "生存管理员", "Survival Moderator"),
+        ("suadmin", "生存服主", "Survival Admin"),
+        ("crplayer", "创造玩家", "Creative Player"),
+        ("crmod", "创造管理员", "Creative Moderator"),
+        ("cradmin", "创造服主", "Creative Admin")
+    ];
+
+    private static readonly HashSet<string> ConfigOnlyDuringWorldCreateRuleKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "startingClimate",
+        "graceTimer",
+        "worldClimate",
+        "landcover",
+        "oceanscale",
+        "upheavelCommonness",
+        "geologicActivity",
+        "landformScale",
+        "worldWidth",
+        "worldLength",
+        "polarEquatorDistance",
+        "storyStructuresDistScaling",
+        "globalTemperature",
+        "globalPrecipitation",
+        "globalForestation"
+    };
+
+    private static readonly string[] ConfigImagePatterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.gif", "*.bmp"];
+
     private readonly ILauncherPreferencesService _preferencesService;
     private readonly IServerPackageService _serverPackageService;
     private readonly IInstanceProfileService _profileService;
     private readonly IInstanceSaveService _saveService;
+    private readonly IInstanceServerConfigService _instanceServerConfigService;
+    private readonly IServerImageService _serverImageService;
     private readonly IServerProcessService _serverProcessService;
     private readonly DispatcherTimer _dataTimer;
     private readonly DispatcherTimer _tickerTimer;
@@ -70,6 +133,13 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<ProfileListItem> _profileItems = [];
     private readonly ObservableCollection<SaveListItem> _saveItems = [];
     private readonly ObservableCollection<DownloadVersionListItem> _downloadVersionItems = [];
+    private readonly ObservableCollection<ConfigChoiceOption> _configWhitelistModeOptions = [];
+    private readonly ObservableCollection<ConfigChoiceOption> _configDefaultRoleOptions = [];
+    private readonly ObservableCollection<ConfigChoiceOption> _configPlayStyleOptions = [];
+    private readonly ObservableCollection<ConfigChoiceOption> _configWorldTypeOptions = [];
+    private readonly ObservableCollection<ConfigSaveFileItem> _configSaveItems = [];
+    private readonly ObservableCollection<ConfigWorldRuleItem> _configWorldRuleItems = [];
+    private readonly ObservableCollection<ConfigServerImageItem> _configShowcaseImageItems = [];
     private readonly List<ServerDownloadEntry> _catalogEntries = [];
 
     private MainTab _selectedTab = MainTab.Home;
@@ -85,6 +155,12 @@ public partial class LauncherMainWindow : Window
     private bool _downloadCatalogLoaded;
     private bool _isStoppingOrStarting;
     private bool _isRefreshingSaves;
+    private bool _isRefreshingConfigProfiles;
+    private bool _isLoadingConfig;
+    private string _configSaveFileLocation = string.Empty;
+    private string _pendingCoverImportPath = string.Empty;
+    private string _pendingShowcaseImportPath = string.Empty;
+    private ConfigServerImageItem? _configCoverImage;
 
     public LauncherMainWindow()
         : this(
@@ -92,6 +168,8 @@ public partial class LauncherMainWindow : Window
             ServiceLocator.GetRequiredService<IServerPackageService>(),
             ServiceLocator.GetRequiredService<IInstanceProfileService>(),
             ServiceLocator.GetRequiredService<IInstanceSaveService>(),
+            ServiceLocator.GetRequiredService<IInstanceServerConfigService>(),
+            ServiceLocator.GetRequiredService<IServerImageService>(),
             ServiceLocator.GetRequiredService<IServerProcessService>())
     {
     }
@@ -101,12 +179,16 @@ public partial class LauncherMainWindow : Window
         IServerPackageService serverPackageService,
         IInstanceProfileService profileService,
         IInstanceSaveService saveService,
+        IInstanceServerConfigService instanceServerConfigService,
+        IServerImageService serverImageService,
         IServerProcessService serverProcessService)
     {
         _preferencesService = preferencesService;
         _serverPackageService = serverPackageService;
         _profileService = profileService;
         _saveService = saveService;
+        _instanceServerConfigService = instanceServerConfigService;
+        _serverImageService = serverImageService;
         _serverProcessService = serverProcessService;
 
         InitializeComponent();
@@ -181,6 +263,7 @@ public partial class LauncherMainWindow : Window
         NetworkStatusCardTitleText.Text = T("网络状态", "Network Status");
 
         ProfilesTabButton.Content = T("档案列表", "Profiles");
+        ConfigTabButton.Content = T("配置", "Config");
         SavesTabButton.Content = T("存档管理", "Saves");
         DownloadVersionsTabButton.Content = T("下载版本", "Downloads");
         ProfileNameTextBox.PlaceholderText = T("档案名称", "Profile name");
@@ -194,6 +277,7 @@ public partial class LauncherMainWindow : Window
         DownloadVersionSearchTextBox.PlaceholderText = T("搜索版本号", "Search version");
         ImportServerPackageButton.Content = T("导入", "Import");
         RefreshDownloadVersionsButton.Content = T("刷新", "Refresh");
+        InitializeConfigStaticTexts();
 
         ServerSettingsTabButton.Content = T("服务器设置", "Server");
         AppearanceSettingsTabButton.Content = T("外观", "Appearance");
@@ -209,6 +293,75 @@ public partial class LauncherMainWindow : Window
         ToolTip.SetTip(RepositoryButton, T("仓库", "Repository"));
         ToolTip.SetTip(FeedbackButton, T("反馈", "Feedback"));
         ToolTip.SetTip(SponsorButton, T("赞助", "Sponsor"));
+    }
+
+    private void InitializeConfigStaticTexts()
+    {
+        ConfigRefreshButton.Content = T("刷新", "Refresh");
+        ConfigImportButton.Content = T("导入", "Import");
+        ConfigSaveButton.Content = T("保存", "Save");
+        ConfigBasicInfoTitleTextBlock.Text = T("基础信息", "Basic Info");
+        ConfigServerNameLabelTextBlock.Text = T("服务器名称", "Server Name");
+        ConfigServerLanguageLabelTextBlock.Text = T("服务器语言", "Server Language");
+        ConfigDefaultRoleCodeLabelTextBlock.Text = T("默认角色代码", "Default Role Code");
+        ConfigServerDescriptionLabelTextBlock.Text = T("服务器描述", "Server Description");
+        ConfigWelcomeMessageLabelTextBlock.Text = T("进服提示", "Welcome Message");
+        ConfigNetworkTitleTextBlock.Text = T("网络与公开", "Network & Listing");
+        ConfigIpLabelTextBlock.Text = T("IP", "IP");
+        ConfigPortLabelTextBlock.Text = T("端口", "Port");
+        ConfigMaxClientsLabelTextBlock.Text = T("最大玩家数", "Max Players");
+        ConfigMaxClientsInQueueLabelTextBlock.Text = T("排队人数上限", "Queue Limit");
+        ConfigServerUrlLabelTextBlock.Text = T("服务器网址", "Server URL");
+        ConfigAdvertiseServerCheckBox.Content = T("公开到服务器列表", "List on Public Server Browser");
+        ConfigUpnpCheckBox.Content = T("启用 UPnP 自动端口映射", "Enable UPnP Port Mapping");
+        ConfigSecurityTitleTextBlock.Text = T("安全与维护", "Security & Maintenance");
+        ConfigPasswordLabelTextBlock.Text = T("加入密码", "Join Password");
+        ConfigPasswordHintTextBlock.Text = T("留空表示不设置密码。", "Leave empty to disable password.");
+        ConfigWhitelistModeLabelTextBlock.Text = T("白名单模式", "Whitelist Mode");
+        ConfigWarnAfkSecondsLabelTextBlock.Text = T("AFK 警告秒数", "AFK Warning Seconds");
+        ConfigKickAfkSecondsLabelTextBlock.Text = T("AFK 踢出秒数", "AFK Kick Seconds");
+        ConfigClientConnectionTimeoutLabelTextBlock.Text = T("连接超时秒数", "Connection Timeout Seconds");
+        ConfigMaxChunkRadiusLabelTextBlock.Text = T("最大区块视距半径", "Max Chunk View Radius");
+        ConfigDieBelowDiskSpaceMbLabelTextBlock.Text = T("低于磁盘空间时关闭（MB）", "Shutdown Below Disk Space (MB)");
+        ConfigVerifyPlayerAuthCheckBox.Content = T("启用官方账号验证", "Enable Official Auth");
+        ConfigAllowPvPCheckBox.Content = T("允许PvP", "Allow PvP");
+        ConfigAllowFireSpreadCheckBox.Content = T("允许火势蔓延", "Allow Fire Spread");
+        ConfigAllowFallingBlocksCheckBox.Content = T("允许方块掉落", "Allow Falling Blocks");
+        ConfigPassTimeWhenEmptyCheckBox.Content = T("无人在线时继续流逝时间", "Pass Time When Empty");
+        ConfigCorruptionProtectionCheckBox.Content = T("启用存档损坏保护", "Enable Corruption Protection");
+        ConfigRegenerateCorruptChunksCheckBox.Content = T("重新生成损坏区块", "Regenerate Corrupt Chunks");
+        ConfigStartupCommandsLabelTextBlock.Text = T("启动后执行命令", "Startup Commands");
+        ConfigWorldTitleTextBlock.Text = T("世界", "World");
+        ConfigSeedLabelTextBlock.Text = T("种子", "Seed");
+        ConfigWorldNameLabelTextBlock.Text = T("世界名称", "World Name");
+        ConfigSaveFileLabelTextBlock.Text = T("存档文件", "Save File");
+        ConfigPlayStyleLabelTextBlock.Text = T("游玩风格", "Play Style");
+        ConfigWorldTypeLabelTextBlock.Text = T("世界类型", "World Type");
+        ConfigWorldHeightLabelTextBlock.Text = T("世界高度", "World Height");
+        ConfigWorldGeneratedNoticeTextBlock.Text = T(
+            "当前存档已生成世界：种子、游玩风格、世界类型、世界高度，以及仅限建档阶段的世界规则（如世界宽度/长度）已锁定。",
+            "This save already has a generated world: seed, play style, world type, world height, and world-creation-only rules are locked.");
+        ConfigServerImagesTitleTextBlock.Text = T("服务器图片", "Server Images");
+        ConfigServerImagesRootLabelTextBlock.Text = T("图片目录", "Image Folder");
+        ConfigCoverTitleTextBlock.Text = T("封面图（cover）", "Cover Image");
+        ConfigShowcaseTitleTextBlock.Text = T("展示图（showcase）", "Showcase Images");
+        ConfigShowcaseHintTextBlock.Text = T("选择列表项后可预览。", "Click an item to preview it.");
+        ConfigCoverBrowseButton.Content = T("浏览", "Browse");
+        ConfigCoverImportButton.Content = T("导入", "Import");
+        ConfigCoverPreviewButton.Content = T("预览", "Preview");
+        ConfigCoverDeleteButton.Content = T("删除", "Delete");
+        ConfigShowcaseBrowseButton.Content = T("浏览", "Browse");
+        ConfigShowcaseAddButton.Content = T("添加", "Add");
+        ConfigShowcaseImportFolderButton.Content = T("导入", "Import");
+        ConfigShowcasePreviewButton.Content = T("预览", "Preview");
+        ConfigShowcaseDeleteButton.Content = T("删除", "Delete");
+        ConfigWorldRulesTitleTextBlock.Text = T("世界规则", "World Rules");
+        ConfigAdvancedJsonTitleTextBlock.Text = T("高级 JSON", "Advanced JSON");
+        ConfigAdvancedJsonButton.Content = T("编辑高级 JSON", "Edit Advanced JSON");
+        ConfigNoProfileTextBlock.Text = T("暂无档案，请先创建档案。", "No profile found. Create a profile first.");
+        RebuildConfigChoiceOptions();
+        RefreshConfigWorldRuleLabels();
+        RefreshConfigImageTexts();
     }
 
     private void InitializeSeries()
@@ -233,6 +386,15 @@ public partial class LauncherMainWindow : Window
         ProfilesListBox.ItemsSource = _profileItems;
         SavesListBox.ItemsSource = _saveItems;
         DownloadVersionsListBox.ItemsSource = _downloadVersionItems;
+        ConfigServerLanguageComboBox.ItemsSource = ConfigServerLanguageOptions;
+        ConfigWhitelistModeComboBox.ItemsSource = _configWhitelistModeOptions;
+        ConfigDefaultRoleComboBox.ItemsSource = _configDefaultRoleOptions;
+        ConfigPlayStyleComboBox.ItemsSource = _configPlayStyleOptions;
+        ConfigWorldTypeComboBox.ItemsSource = _configWorldTypeOptions;
+        ConfigSaveFileComboBox.ItemsSource = _configSaveItems;
+        ConfigWorldRulesItemsControl.ItemsSource = _configWorldRuleItems;
+        ConfigShowcaseImagesListBox.ItemsSource = _configShowcaseImageItems;
+        RebuildConfigChoiceOptions();
     }
 
     private static void FillWithZero(List<double> target, int count)
@@ -592,6 +754,7 @@ public partial class LauncherMainWindow : Window
 
         RefreshLaunchOptions(profiles);
         _ = RefreshSavesAsync();
+        _ = RefreshConfigProfilesAsync();
     }
 
     private void RefreshLaunchOptions(IReadOnlyList<InstanceProfile>? profiles = null)
@@ -798,11 +961,18 @@ public partial class LauncherMainWindow : Window
     {
         _selectedInstanceManageTab = tab;
         ProfilesPanel.IsVisible = tab == InstanceManageTab.Profiles;
+        ConfigPanel.IsVisible = tab == InstanceManageTab.Config;
         SavesPanel.IsVisible = tab == InstanceManageTab.Saves;
         DownloadVersionsPanel.IsVisible = tab == InstanceManageTab.DownloadVersions;
         SetSelectedClass(ProfilesTabButton, tab == InstanceManageTab.Profiles);
+        SetSelectedClass(ConfigTabButton, tab == InstanceManageTab.Config);
         SetSelectedClass(SavesTabButton, tab == InstanceManageTab.Saves);
         SetSelectedClass(DownloadVersionsTabButton, tab == InstanceManageTab.DownloadVersions);
+
+        if (tab == InstanceManageTab.Config)
+        {
+            _ = RefreshConfigProfilesAsync();
+        }
     }
 
     private void SelectSettingsTab(SettingsTab tab)
@@ -1079,6 +1249,8 @@ public partial class LauncherMainWindow : Window
 
     private void OnProfilesSubTabClick(object? sender, RoutedEventArgs e) => SelectInstanceManageTab(InstanceManageTab.Profiles);
 
+    private void OnConfigSubTabClick(object? sender, RoutedEventArgs e) => SelectInstanceManageTab(InstanceManageTab.Config);
+
     private void OnSavesSubTabClick(object? sender, RoutedEventArgs e) => SelectInstanceManageTab(InstanceManageTab.Saves);
 
     private void OnDownloadVersionsSubTabClick(object? sender, RoutedEventArgs e) => SelectInstanceManageTab(InstanceManageTab.DownloadVersions);
@@ -1251,6 +1423,1120 @@ public partial class LauncherMainWindow : Window
         {
             AppendConsoleLine($"[system] 命令发送失败：{ex.Message}");
         }
+    }
+
+    private async Task RefreshConfigProfilesAsync()
+    {
+        if (_isRefreshingConfigProfiles)
+        {
+            return;
+        }
+
+        InstanceProfile? targetProfile = null;
+        _isRefreshingConfigProfiles = true;
+        try
+        {
+            var selectedProfileId = (ConfigProfileComboBox.SelectedItem as InstanceProfile)?.Id;
+            var profiles = _profileService.GetProfiles();
+            ConfigProfileComboBox.ItemsSource = profiles;
+            targetProfile = profiles.FirstOrDefault(profile =>
+                                !string.IsNullOrWhiteSpace(selectedProfileId) &&
+                                profile.Id.Equals(selectedProfileId, StringComparison.OrdinalIgnoreCase))
+                            ?? profiles.FirstOrDefault();
+            ConfigProfileComboBox.SelectedItem = targetProfile;
+            SetConfigHasProfiles(profiles.Count > 0);
+        }
+        finally
+        {
+            _isRefreshingConfigProfiles = false;
+        }
+
+        if (targetProfile is null)
+        {
+            ClearConfigForm();
+            SetConfigStatus(T("暂无档案，请先创建档案。", "No profile found. Create a profile first."));
+            return;
+        }
+
+        await LoadConfigForProfileAsync(targetProfile);
+    }
+
+    private void SetConfigHasProfiles(bool hasProfiles)
+    {
+        ConfigScrollViewer.IsVisible = hasProfiles;
+        ConfigEmptyPanel.IsVisible = !hasProfiles;
+        ConfigRefreshButton.IsEnabled = true;
+        ConfigImportButton.IsEnabled = hasProfiles;
+        ConfigSaveButton.IsEnabled = hasProfiles;
+    }
+
+    private async Task LoadConfigForProfileAsync(InstanceProfile selectedProfile)
+    {
+        if (_isLoadingConfig)
+        {
+            return;
+        }
+
+        var profile = _profileService.GetProfileById(selectedProfile.Id) ?? selectedProfile;
+        _isLoadingConfig = true;
+        ConfigContentHost.IsEnabled = false;
+        try
+        {
+            var serverSettings = await _instanceServerConfigService.LoadServerSettingsAsync(profile);
+            var worldSettings = await _instanceServerConfigService.LoadWorldSettingsAsync(profile);
+            var worldRules = await _instanceServerConfigService.LoadWorldRulesAsync(profile);
+
+            ApplyConfigServerSettings(serverSettings);
+            await LoadConfigSavesAsync(profile, worldSettings.SaveFileLocation);
+            ApplyConfigWorldSettings(worldSettings);
+            RebuildConfigWorldRules(worldRules);
+            UpdateConfigWorldGeneratedState();
+            await LoadConfigImagesAsync(profile);
+            SetConfigStatus(T($"已加载配置：{profile.Name}", $"Loaded configuration: {profile.Name}"));
+        }
+        catch (Exception ex)
+        {
+            SetConfigStatus(T($"加载配置失败：{ex.Message}", $"Failed to load configuration: {ex.Message}"));
+        }
+        finally
+        {
+            ConfigContentHost.IsEnabled = true;
+            _isLoadingConfig = false;
+        }
+    }
+
+    private void ApplyConfigServerSettings(ServerCommonSettings settings)
+    {
+        ConfigServerNameTextBox.Text = settings.ServerName;
+        ConfigServerDescriptionTextBox.Text = settings.ServerDescription ?? string.Empty;
+        ConfigServerUrlTextBox.Text = settings.ServerUrl ?? string.Empty;
+        ConfigIpTextBox.Text = settings.Ip ?? string.Empty;
+        SetNumericValue(ConfigPortNumericUpDown, settings.Port);
+        SetNumericValue(ConfigMaxClientsNumericUpDown, settings.MaxClients);
+        SetNumericValue(ConfigMaxClientsInQueueNumericUpDown, settings.MaxClientsInQueue);
+        ConfigPasswordTextBox.Text = settings.Password ?? string.Empty;
+        ConfigAdvertiseServerCheckBox.IsChecked = settings.AdvertiseServer;
+        SelectConfigChoiceByValue(ConfigWhitelistModeComboBox, _configWhitelistModeOptions, settings.WhitelistMode.ToString(CultureInfo.InvariantCulture));
+        ConfigUpnpCheckBox.IsChecked = settings.Upnp;
+        ConfigAllowPvPCheckBox.IsChecked = settings.AllowPvP;
+        ConfigAllowFireSpreadCheckBox.IsChecked = settings.AllowFireSpread;
+        ConfigAllowFallingBlocksCheckBox.IsChecked = settings.AllowFallingBlocks;
+        ConfigPassTimeWhenEmptyCheckBox.IsChecked = settings.PassTimeWhenEmpty;
+        SetNumericValue(ConfigWarnAfkSecondsNumericUpDown, settings.WarnClientsAfterAfkSeconds);
+        SetNumericValue(ConfigKickAfkSecondsNumericUpDown, settings.KickClientsAfterAfkSeconds);
+        SetNumericValue(ConfigClientConnectionTimeoutNumericUpDown, settings.ClientConnectionTimeout);
+        SetNumericValue(ConfigMaxChunkRadiusNumericUpDown, settings.MaxChunkRadius);
+        SetNumericValue(ConfigDieBelowDiskSpaceMbNumericUpDown, settings.DieBelowDiskSpaceMb);
+        ConfigCorruptionProtectionCheckBox.IsChecked = settings.CorruptionProtection;
+        ConfigRegenerateCorruptChunksCheckBox.IsChecked = settings.RegenerateCorruptChunks;
+        ConfigStartupCommandsTextBox.Text = settings.StartupCommands;
+        ConfigVerifyPlayerAuthCheckBox.IsChecked = settings.VerifyPlayerAuth;
+        EnsureComboItem(ConfigServerLanguageComboBox, settings.ServerLanguage);
+        ConfigServerLanguageComboBox.SelectedItem = settings.ServerLanguage;
+        EnsureConfigChoiceOptionExists(_configDefaultRoleOptions, settings.DefaultRoleCode);
+        SelectConfigChoiceByValue(ConfigDefaultRoleComboBox, _configDefaultRoleOptions, settings.DefaultRoleCode);
+        ConfigDefaultRoleCodeTextBox.Text = settings.DefaultRoleCode;
+        ConfigWelcomeMessageTextBox.Text = settings.WelcomeMessage;
+    }
+
+    private async Task LoadConfigSavesAsync(InstanceProfile profile, string preferredSavePath)
+    {
+        _configSaveItems.Clear();
+        var saves = await _saveService.GetSavesAsync(profile);
+        foreach (var save in saves)
+        {
+            _configSaveItems.Add(ConfigSaveFileItem.FromSave(save));
+        }
+
+        var normalizedPreferred = NormalizeFullPath(preferredSavePath);
+        if (string.IsNullOrWhiteSpace(normalizedPreferred))
+        {
+            normalizedPreferred = NormalizeFullPath(profile.ActiveSaveFile);
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalizedPreferred) &&
+            _configSaveItems.All(item => !item.FullPath.Equals(normalizedPreferred, StringComparison.OrdinalIgnoreCase)))
+        {
+            _configSaveItems.Insert(0, ConfigSaveFileItem.FromPath(normalizedPreferred));
+        }
+
+        ConfigSaveFileComboBox.SelectedItem =
+            _configSaveItems.FirstOrDefault(item => item.FullPath.Equals(normalizedPreferred, StringComparison.OrdinalIgnoreCase))
+            ?? _configSaveItems.FirstOrDefault();
+    }
+
+    private void ApplyConfigWorldSettings(WorldSettings settings)
+    {
+        _configSaveFileLocation = settings.SaveFileLocation;
+        ConfigSeedTextBox.Text = settings.Seed;
+        ConfigWorldNameTextBox.Text = settings.WorldName;
+        EnsureConfigChoiceOptionExists(_configPlayStyleOptions, settings.PlayStyle);
+        EnsureConfigChoiceOptionExists(_configWorldTypeOptions, settings.WorldType);
+        SelectConfigChoiceByValue(ConfigPlayStyleComboBox, _configPlayStyleOptions, settings.PlayStyle);
+        SelectConfigChoiceByValue(ConfigWorldTypeComboBox, _configWorldTypeOptions, settings.WorldType);
+        SetNumericValue(ConfigWorldHeightNumericUpDown, settings.WorldHeight ?? 256);
+    }
+
+    private async Task LoadConfigImagesAsync(InstanceProfile profile)
+    {
+        ConfigImageRootPathTextBlock.Text = _serverImageService.GetImageRootPath(profile);
+        var images = await _serverImageService.LoadServerImagesAsync(profile);
+        _configCoverImage = images
+            .Where(image => image.Kind == ServerImageKind.Cover)
+            .Select(ConfigServerImageItem.FromImage)
+            .FirstOrDefault();
+
+        var selectedShowcasePath = (ConfigShowcaseImagesListBox.SelectedItem as ConfigServerImageItem)?.FullPath;
+        _configShowcaseImageItems.Clear();
+        foreach (var image in images.Where(image => image.Kind == ServerImageKind.Showcase))
+        {
+            _configShowcaseImageItems.Add(ConfigServerImageItem.FromImage(image));
+        }
+
+        ConfigShowcaseImagesListBox.SelectedItem = _configShowcaseImageItems.FirstOrDefault(item =>
+            !string.IsNullOrWhiteSpace(selectedShowcasePath) &&
+            item.FullPath.Equals(selectedShowcasePath, StringComparison.OrdinalIgnoreCase));
+        RefreshConfigImageTexts();
+    }
+
+    private void ClearConfigForm()
+    {
+        ConfigServerNameTextBox.Text = "Vintage Story Server";
+        ConfigServerDescriptionTextBox.Text = string.Empty;
+        ConfigServerUrlTextBox.Text = string.Empty;
+        ConfigIpTextBox.Text = string.Empty;
+        SetNumericValue(ConfigPortNumericUpDown, 42420);
+        SetNumericValue(ConfigMaxClientsNumericUpDown, 16);
+        SetNumericValue(ConfigMaxClientsInQueueNumericUpDown, 0);
+        ConfigPasswordTextBox.Text = string.Empty;
+        ConfigAdvertiseServerCheckBox.IsChecked = false;
+        SelectConfigChoiceByValue(ConfigWhitelistModeComboBox, _configWhitelistModeOptions, "0");
+        ConfigUpnpCheckBox.IsChecked = false;
+        ConfigAllowPvPCheckBox.IsChecked = true;
+        ConfigAllowFireSpreadCheckBox.IsChecked = true;
+        ConfigAllowFallingBlocksCheckBox.IsChecked = true;
+        ConfigPassTimeWhenEmptyCheckBox.IsChecked = false;
+        SetNumericValue(ConfigWarnAfkSecondsNumericUpDown, 0);
+        SetNumericValue(ConfigKickAfkSecondsNumericUpDown, 0);
+        SetNumericValue(ConfigClientConnectionTimeoutNumericUpDown, 150);
+        SetNumericValue(ConfigMaxChunkRadiusNumericUpDown, 12);
+        SetNumericValue(ConfigDieBelowDiskSpaceMbNumericUpDown, 400);
+        ConfigCorruptionProtectionCheckBox.IsChecked = true;
+        ConfigRegenerateCorruptChunksCheckBox.IsChecked = false;
+        ConfigStartupCommandsTextBox.Text = string.Empty;
+        ConfigVerifyPlayerAuthCheckBox.IsChecked = true;
+        ConfigServerLanguageComboBox.SelectedItem = CultureInfo.CurrentUICulture.Name.StartsWith("zh", StringComparison.OrdinalIgnoreCase) ? "zh-cn" : "en";
+        SelectConfigChoiceByValue(ConfigDefaultRoleComboBox, _configDefaultRoleOptions, "suplayer");
+        ConfigDefaultRoleCodeTextBox.Text = "suplayer";
+        ConfigWelcomeMessageTextBox.Text = string.Empty;
+        ConfigSeedTextBox.Text = "123456789";
+        ConfigWorldNameTextBox.Text = "A new world";
+        _configSaveFileLocation = string.Empty;
+        _configSaveItems.Clear();
+        SelectConfigChoiceByValue(ConfigPlayStyleComboBox, _configPlayStyleOptions, "surviveandbuild");
+        SelectConfigChoiceByValue(ConfigWorldTypeComboBox, _configWorldTypeOptions, "standard");
+        SetNumericValue(ConfigWorldHeightNumericUpDown, 256);
+        _configWorldRuleItems.Clear();
+        _configCoverImage = null;
+        _configShowcaseImageItems.Clear();
+        _pendingCoverImportPath = string.Empty;
+        _pendingShowcaseImportPath = string.Empty;
+        ConfigImageRootPathTextBlock.Text = string.Empty;
+        RefreshConfigImageTexts();
+        UpdateConfigWorldGeneratedState();
+    }
+
+    private async void OnConfigProfileSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_isRefreshingConfigProfiles || ConfigProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            return;
+        }
+
+        await LoadConfigForProfileAsync(profile);
+    }
+
+    private async void OnConfigRefreshClick(object? sender, RoutedEventArgs e)
+    {
+        await RefreshConfigProfilesAsync();
+    }
+
+    private async void OnConfigImportClick(object? sender, RoutedEventArgs e)
+    {
+        var profile = GetSelectedConfigProfile();
+        if (profile is null)
+        {
+            SetConfigStatus(T("请先选择档案。", "Select a profile first."));
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = T("导入 serverconfig.json", "Import serverconfig.json"),
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("JSON")
+                {
+                    Patterns = ["*.json"]
+                }
+            ]
+        });
+
+        var path = TryGetLocalPath(files.FirstOrDefault());
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        try
+        {
+            await _instanceServerConfigService.ImportRawJsonAsync(profile, path);
+            await LoadConfigForProfileAsync(profile);
+            SetConfigStatus(T($"已导入配置：{Path.GetFileName(path)}", $"Configuration imported: {Path.GetFileName(path)}"));
+        }
+        catch (Exception ex)
+        {
+            SetConfigStatus(T($"导入配置失败：{ex.Message}", $"Failed to import configuration: {ex.Message}"));
+        }
+    }
+
+    private async void OnConfigSaveClick(object? sender, RoutedEventArgs e)
+    {
+        await SaveConfigAsync();
+    }
+
+    private void OnConfigDefaultRoleSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_isLoadingConfig || ConfigDefaultRoleComboBox.SelectedItem is not ConfigChoiceOption option)
+        {
+            return;
+        }
+
+        ConfigDefaultRoleCodeTextBox.Text = option.Value;
+    }
+
+    private void OnConfigSaveFileSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_isLoadingConfig)
+        {
+            return;
+        }
+
+        if (ConfigSaveFileComboBox.SelectedItem is ConfigSaveFileItem item)
+        {
+            _configSaveFileLocation = item.FullPath;
+        }
+
+        UpdateConfigWorldGeneratedState();
+    }
+
+    private async Task SaveConfigAsync()
+    {
+        var profile = GetSelectedConfigProfile();
+        if (profile is null)
+        {
+            SetConfigStatus(T("请先选择档案。", "Select a profile first."));
+            return;
+        }
+
+        ConfigSaveButton.IsEnabled = false;
+        try
+        {
+            var saveFile = ResolveConfigSavePath(profile);
+            var serverSettings = CollectConfigServerSettings();
+            var worldSettings = CollectConfigWorldSettings(saveFile);
+            var rules = _configWorldRuleItems
+                .Select(item => new WorldRuleValue
+                {
+                    Definition = item.Definition,
+                    Value = item.Value
+                })
+                .ToList();
+
+            if (IsSaveWorldGenerated(saveFile))
+            {
+                var persistedWorldSettings = await _instanceServerConfigService.LoadWorldSettingsAsync(profile);
+                var persistedRules = await _instanceServerConfigService.LoadWorldRulesAsync(profile);
+                var persistedRuleValues = persistedRules.ToDictionary(
+                    rule => rule.Definition.Key,
+                    rule => rule.Value ?? string.Empty,
+                    StringComparer.OrdinalIgnoreCase);
+
+                worldSettings.Seed = persistedWorldSettings.Seed;
+                worldSettings.PlayStyle = persistedWorldSettings.PlayStyle;
+                worldSettings.WorldType = persistedWorldSettings.WorldType;
+                worldSettings.WorldHeight = persistedWorldSettings.WorldHeight ?? worldSettings.WorldHeight;
+
+                foreach (var rule in rules)
+                {
+                    if (ConfigOnlyDuringWorldCreateRuleKeys.Contains(rule.Definition.Key) &&
+                        persistedRuleValues.TryGetValue(rule.Definition.Key, out var persistedValue))
+                    {
+                        rule.Value = persistedValue;
+                    }
+                }
+            }
+
+            await _instanceServerConfigService.SaveSettingsAsync(profile, serverSettings, worldSettings, rules);
+
+            profile.ActiveSaveFile = saveFile;
+            profile.SaveDirectory = Path.GetDirectoryName(saveFile) ?? profile.SaveDirectory;
+            profile.LastUpdatedUtc = DateTimeOffset.UtcNow;
+            _profileService.UpdateProfile(profile);
+            _configSaveFileLocation = saveFile;
+
+            await LoadConfigSavesAsync(profile, saveFile);
+            UpdateConfigWorldGeneratedState();
+            await RefreshSavesAsync();
+            RefreshLaunchOptions();
+            RefreshProfiles();
+            SetConfigStatus(T("配置已保存。", "Configuration saved."));
+        }
+        catch (Exception ex)
+        {
+            SetConfigStatus(T($"保存配置失败：{ex.Message}", $"Failed to save configuration: {ex.Message}"));
+        }
+        finally
+        {
+            ConfigSaveButton.IsEnabled = true;
+        }
+    }
+
+    private ServerCommonSettings CollectConfigServerSettings()
+    {
+        return new ServerCommonSettings
+        {
+            ServerName = ConfigServerNameTextBox.Text?.Trim() ?? string.Empty,
+            ServerDescription = NullIfWhiteSpace(ConfigServerDescriptionTextBox.Text),
+            ServerUrl = NullIfWhiteSpace(ConfigServerUrlTextBox.Text),
+            Ip = NullIfWhiteSpace(ConfigIpTextBox.Text),
+            Port = GetNumericValue(ConfigPortNumericUpDown, 42420),
+            MaxClients = GetNumericValue(ConfigMaxClientsNumericUpDown, 16),
+            MaxClientsInQueue = GetNumericValue(ConfigMaxClientsInQueueNumericUpDown, 0),
+            Password = NullIfWhiteSpace(ConfigPasswordTextBox.Text),
+            AdvertiseServer = ConfigAdvertiseServerCheckBox.IsChecked == true,
+            WhitelistMode = TryParseInt((ConfigWhitelistModeComboBox.SelectedItem as ConfigChoiceOption)?.Value, 0),
+            Upnp = ConfigUpnpCheckBox.IsChecked == true,
+            AllowPvP = ConfigAllowPvPCheckBox.IsChecked == true,
+            AllowFireSpread = ConfigAllowFireSpreadCheckBox.IsChecked == true,
+            AllowFallingBlocks = ConfigAllowFallingBlocksCheckBox.IsChecked == true,
+            PassTimeWhenEmpty = ConfigPassTimeWhenEmptyCheckBox.IsChecked == true,
+            WarnClientsAfterAfkSeconds = GetNumericValue(ConfigWarnAfkSecondsNumericUpDown, 0),
+            KickClientsAfterAfkSeconds = GetNumericValue(ConfigKickAfkSecondsNumericUpDown, 0),
+            ClientConnectionTimeout = GetNumericValue(ConfigClientConnectionTimeoutNumericUpDown, 150),
+            MaxChunkRadius = GetNumericValue(ConfigMaxChunkRadiusNumericUpDown, 12),
+            DieBelowDiskSpaceMb = GetNumericValue(ConfigDieBelowDiskSpaceMbNumericUpDown, 400),
+            CorruptionProtection = ConfigCorruptionProtectionCheckBox.IsChecked == true,
+            RegenerateCorruptChunks = ConfigRegenerateCorruptChunksCheckBox.IsChecked == true,
+            StartupCommands = ConfigStartupCommandsTextBox.Text?.Trim() ?? string.Empty,
+            VerifyPlayerAuth = ConfigVerifyPlayerAuthCheckBox.IsChecked == true,
+            ServerLanguage = ConfigServerLanguageComboBox.SelectedItem?.ToString() ?? ResolveDefaultServerLanguage(),
+            DefaultRoleCode = string.IsNullOrWhiteSpace(ConfigDefaultRoleCodeTextBox.Text)
+                ? (ConfigDefaultRoleComboBox.SelectedItem as ConfigChoiceOption)?.Value ?? "suplayer"
+                : ConfigDefaultRoleCodeTextBox.Text.Trim(),
+            WelcomeMessage = ConfigWelcomeMessageTextBox.Text?.Trim() ?? string.Empty
+        };
+    }
+
+    private WorldSettings CollectConfigWorldSettings(string saveFile)
+    {
+        return new WorldSettings
+        {
+            Seed = ConfigSeedTextBox.Text?.Trim() ?? string.Empty,
+            WorldName = ConfigWorldNameTextBox.Text?.Trim() ?? string.Empty,
+            SaveFileLocation = saveFile,
+            PlayStyle = (ConfigPlayStyleComboBox.SelectedItem as ConfigChoiceOption)?.Value ?? "surviveandbuild",
+            WorldType = (ConfigWorldTypeComboBox.SelectedItem as ConfigChoiceOption)?.Value ?? "standard",
+            WorldHeight = GetNumericValue(ConfigWorldHeightNumericUpDown, 256)
+        };
+    }
+
+    private async void OnConfigAdvancedJsonClick(object? sender, RoutedEventArgs e)
+    {
+        var profile = GetSelectedConfigProfile();
+        if (profile is null)
+        {
+            SetConfigStatus(T("请先选择档案。", "Select a profile first."));
+            return;
+        }
+
+        try
+        {
+            var rawJson = await _instanceServerConfigService.LoadRawJsonAsync(profile);
+            var editedJson = await ShowAdvancedJsonEditorAsync(T("高级 JSON", "Advanced JSON"), rawJson);
+            if (editedJson is null)
+            {
+                SetConfigStatus(T("已取消高级 JSON 编辑。", "Advanced JSON edit canceled."));
+                return;
+            }
+
+            await _instanceServerConfigService.SaveRawJsonAsync(profile, editedJson);
+            await LoadConfigForProfileAsync(profile);
+            SetConfigStatus(T("高级 JSON 已保存。", "Advanced JSON saved."));
+        }
+        catch (Exception ex)
+        {
+            SetConfigStatus(T($"保存高级 JSON 失败：{ex.Message}", $"Failed to save advanced JSON: {ex.Message}"));
+        }
+    }
+
+    private async void OnConfigCoverBrowseClick(object? sender, RoutedEventArgs e)
+    {
+        var path = await PickConfigImageFileAsync();
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        _pendingCoverImportPath = path;
+        RefreshConfigImageTexts();
+        SetConfigStatus(T($"已选择图片：{Path.GetFileName(path)}", $"Selected image: {Path.GetFileName(path)}"));
+    }
+
+    private async void OnConfigCoverImportClick(object? sender, RoutedEventArgs e)
+    {
+        var profile = GetSelectedConfigProfile();
+        if (profile is null)
+        {
+            SetConfigStatus(T("请先选择档案。", "Select a profile first."));
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_pendingCoverImportPath))
+        {
+            _pendingCoverImportPath = await PickConfigImageFileAsync() ?? string.Empty;
+        }
+
+        if (string.IsNullOrWhiteSpace(_pendingCoverImportPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var imported = await _serverImageService.ImportImageAsync(profile, _pendingCoverImportPath, ServerImageKind.Cover);
+            _pendingCoverImportPath = string.Empty;
+            await LoadConfigImagesAsync(profile);
+            SetConfigStatus(T($"封面图已导入：{imported.FileName}", $"Cover image imported: {imported.FileName}"));
+        }
+        catch (Exception ex)
+        {
+            SetConfigStatus(T($"导入封面图失败：{ex.Message}", $"Failed to import cover image: {ex.Message}"));
+        }
+    }
+
+    private void OnConfigCoverPreviewClick(object? sender, RoutedEventArgs e)
+    {
+        if (_configCoverImage is null)
+        {
+            SetConfigStatus(T("暂无封面图。", "No cover image yet."));
+            return;
+        }
+
+        OpenLocalFile(_configCoverImage.FullPath);
+    }
+
+    private async void OnConfigCoverDeleteClick(object? sender, RoutedEventArgs e)
+    {
+        var profile = GetSelectedConfigProfile();
+        if (profile is null || _configCoverImage is null)
+        {
+            SetConfigStatus(T("暂无封面图。", "No cover image yet."));
+            return;
+        }
+
+        try
+        {
+            await _serverImageService.DeleteImageAsync(profile, _configCoverImage.ToDomain(ServerImageKind.Cover));
+            await LoadConfigImagesAsync(profile);
+            SetConfigStatus(T("封面图已删除。", "Cover image deleted."));
+        }
+        catch (Exception ex)
+        {
+            SetConfigStatus(T($"删除封面图失败：{ex.Message}", $"Failed to delete cover image: {ex.Message}"));
+        }
+    }
+
+    private async void OnConfigShowcaseBrowseClick(object? sender, RoutedEventArgs e)
+    {
+        var path = await PickConfigImageFileAsync();
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        _pendingShowcaseImportPath = path;
+        RefreshConfigImageTexts();
+        SetConfigStatus(T($"已选择图片：{Path.GetFileName(path)}", $"Selected image: {Path.GetFileName(path)}"));
+    }
+
+    private async void OnConfigShowcaseAddClick(object? sender, RoutedEventArgs e)
+    {
+        var profile = GetSelectedConfigProfile();
+        if (profile is null)
+        {
+            SetConfigStatus(T("请先选择档案。", "Select a profile first."));
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_pendingShowcaseImportPath))
+        {
+            _pendingShowcaseImportPath = await PickConfigImageFileAsync() ?? string.Empty;
+        }
+
+        if (string.IsNullOrWhiteSpace(_pendingShowcaseImportPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var imported = await _serverImageService.ImportImageAsync(profile, _pendingShowcaseImportPath, ServerImageKind.Showcase);
+            _pendingShowcaseImportPath = string.Empty;
+            await LoadConfigImagesAsync(profile);
+            SetConfigStatus(T($"已添加展示图：{imported.FileName}", $"Showcase image added: {imported.FileName}"));
+        }
+        catch (Exception ex)
+        {
+            SetConfigStatus(T($"导入展示图失败：{ex.Message}", $"Failed to import showcase image: {ex.Message}"));
+        }
+    }
+
+    private async void OnConfigShowcaseImportFolderClick(object? sender, RoutedEventArgs e)
+    {
+        var profile = GetSelectedConfigProfile();
+        if (profile is null)
+        {
+            SetConfigStatus(T("请先选择档案。", "Select a profile first."));
+            return;
+        }
+
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = T("选择图片文件夹", "Select image folder"),
+            AllowMultiple = false
+        });
+
+        var path = TryGetLocalPath(folders.FirstOrDefault());
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        try
+        {
+            var count = await _serverImageService.ImportImagesFromFolderAsync(profile, path);
+            await LoadConfigImagesAsync(profile);
+            SetConfigStatus(count == 0
+                ? T("所选目录中没有可导入的图片文件。", "No image files found in the selected folder.")
+                : T($"已导入 {count} 张展示图。", $"Imported {count} showcase image(s)."));
+        }
+        catch (Exception ex)
+        {
+            SetConfigStatus(T($"导入展示图失败：{ex.Message}", $"Failed to import showcase image: {ex.Message}"));
+        }
+    }
+
+    private void OnConfigShowcasePreviewClick(object? sender, RoutedEventArgs e)
+    {
+        if (ConfigShowcaseImagesListBox.SelectedItem is not ConfigServerImageItem image)
+        {
+            SetConfigStatus(T("请先选择一张展示图。", "Please select a showcase image first."));
+            return;
+        }
+
+        OpenLocalFile(image.FullPath);
+    }
+
+    private async void OnConfigShowcaseDeleteClick(object? sender, RoutedEventArgs e)
+    {
+        var profile = GetSelectedConfigProfile();
+        if (profile is null || ConfigShowcaseImagesListBox.SelectedItem is not ConfigServerImageItem image)
+        {
+            SetConfigStatus(T("请先选择一张展示图。", "Please select a showcase image first."));
+            return;
+        }
+
+        try
+        {
+            await _serverImageService.DeleteImageAsync(profile, image.ToDomain(ServerImageKind.Showcase));
+            await LoadConfigImagesAsync(profile);
+            SetConfigStatus(T($"展示图已删除：{image.FileName}", $"Showcase image deleted: {image.FileName}"));
+        }
+        catch (Exception ex)
+        {
+            SetConfigStatus(T($"删除展示图失败：{ex.Message}", $"Failed to delete showcase image: {ex.Message}"));
+        }
+    }
+
+    private void RebuildConfigChoiceOptions()
+    {
+        var selectedWhitelist = (ConfigWhitelistModeComboBox.SelectedItem as ConfigChoiceOption)?.Value;
+        var selectedRole = (ConfigDefaultRoleComboBox.SelectedItem as ConfigChoiceOption)?.Value ?? ConfigDefaultRoleCodeTextBox.Text;
+        var selectedPlayStyle = (ConfigPlayStyleComboBox.SelectedItem as ConfigChoiceOption)?.Value;
+        var selectedWorldType = (ConfigWorldTypeComboBox.SelectedItem as ConfigChoiceOption)?.Value;
+
+        _configWhitelistModeOptions.Clear();
+        foreach (var (value, zh, en) in ConfigWhitelistModeDefinitions)
+        {
+            _configWhitelistModeOptions.Add(new ConfigChoiceOption(value.ToString(CultureInfo.InvariantCulture), T(zh, en)));
+        }
+
+        _configDefaultRoleOptions.Clear();
+        foreach (var (value, zh, en) in ConfigRoleDefinitions)
+        {
+            _configDefaultRoleOptions.Add(new ConfigChoiceOption(value, T(zh, en)));
+        }
+
+        _configPlayStyleOptions.Clear();
+        foreach (var (value, zh, en) in ConfigPlayStyleDefinitions)
+        {
+            _configPlayStyleOptions.Add(new ConfigChoiceOption(value, T(zh, en)));
+        }
+
+        _configWorldTypeOptions.Clear();
+        foreach (var (value, zh, en) in ConfigWorldTypeDefinitions)
+        {
+            _configWorldTypeOptions.Add(new ConfigChoiceOption(value, T(zh, en)));
+        }
+
+        SelectConfigChoiceByValue(ConfigWhitelistModeComboBox, _configWhitelistModeOptions, selectedWhitelist ?? "0");
+        EnsureConfigChoiceOptionExists(_configDefaultRoleOptions, selectedRole);
+        SelectConfigChoiceByValue(ConfigDefaultRoleComboBox, _configDefaultRoleOptions, selectedRole ?? "suplayer");
+        EnsureConfigChoiceOptionExists(_configPlayStyleOptions, selectedPlayStyle);
+        SelectConfigChoiceByValue(ConfigPlayStyleComboBox, _configPlayStyleOptions, selectedPlayStyle ?? "surviveandbuild");
+        EnsureConfigChoiceOptionExists(_configWorldTypeOptions, selectedWorldType);
+        SelectConfigChoiceByValue(ConfigWorldTypeComboBox, _configWorldTypeOptions, selectedWorldType ?? "standard");
+    }
+
+    private void RebuildConfigWorldRules(IReadOnlyList<WorldRuleValue> rules)
+    {
+        _configWorldRuleItems.Clear();
+        foreach (var rule in rules)
+        {
+            var value = rule.Value ?? string.Empty;
+            var item = new ConfigWorldRuleItem(rule.Definition, value, _isChinese, BuildConfigRuleChoiceOptions(rule.Definition, value))
+            {
+                IsOnlyDuringWorldCreate = ConfigOnlyDuringWorldCreateRuleKeys.Contains(rule.Definition.Key)
+            };
+            _configWorldRuleItems.Add(item);
+        }
+    }
+
+    private IReadOnlyList<ConfigChoiceOption> BuildConfigRuleChoiceOptions(WorldRuleDefinition definition, string currentValue)
+    {
+        if (definition.Choices.Count == 0)
+        {
+            return [];
+        }
+
+        var options = new List<ConfigChoiceOption>(definition.Choices.Count + 1);
+        for (var index = 0; index < definition.Choices.Count; index++)
+        {
+            var value = definition.Choices[index];
+            var choiceName = index < definition.ChoiceNames.Count ? definition.ChoiceNames[index] : value;
+            options.Add(new ConfigChoiceOption(value, ResolveConfigRuleChoiceLabel(definition.Key, value, choiceName)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(currentValue) &&
+            options.All(option => !option.Value.Equals(currentValue, StringComparison.OrdinalIgnoreCase)))
+        {
+            options.Add(new ConfigChoiceOption(currentValue, currentValue));
+        }
+
+        return options;
+    }
+
+    private string ResolveConfigRuleChoiceLabel(string key, string value, string name)
+    {
+        if (!_isChinese)
+        {
+            return name;
+        }
+
+        if (value.Equals("true", StringComparison.OrdinalIgnoreCase))
+        {
+            return "启用";
+        }
+
+        if (value.Equals("false", StringComparison.OrdinalIgnoreCase))
+        {
+            return "禁用";
+        }
+
+        return key.ToLowerInvariant() switch
+        {
+            "gamemode" when value.Equals("survival", StringComparison.OrdinalIgnoreCase) => "生存",
+            "gamemode" when value.Equals("creative", StringComparison.OrdinalIgnoreCase) => "创造",
+            "playerlives" when value == "-1" => "无限",
+            "worldedge" when value.Equals("blocked", StringComparison.OrdinalIgnoreCase) => "被阻挡",
+            "worldedge" when value.Equals("traversable", StringComparison.OrdinalIgnoreCase) => "可越过/可掉落",
+            "deathpunishment" when value.Equals("drop", StringComparison.OrdinalIgnoreCase) => "掉落背包物品",
+            "deathpunishment" when value.Equals("keep", StringComparison.OrdinalIgnoreCase) => "保留背包物品",
+            "seasons" when value.Equals("enabled", StringComparison.OrdinalIgnoreCase) => "启用",
+            "seasons" when value.Equals("spring", StringComparison.OrdinalIgnoreCase) => "关闭，永远春天",
+            "seasons" when value.Equals("summer", StringComparison.OrdinalIgnoreCase) => "关闭，永远夏天",
+            "seasons" when value.Equals("fall", StringComparison.OrdinalIgnoreCase) => "关闭，永远秋天",
+            "seasons" when value.Equals("winter", StringComparison.OrdinalIgnoreCase) => "关闭，永远冬天",
+            "temporalrifts" when value.Equals("off", StringComparison.OrdinalIgnoreCase) => "关闭",
+            "temporalrifts" when value.Equals("invisible", StringComparison.OrdinalIgnoreCase) => "不可见",
+            "temporalrifts" when value.Equals("visible", StringComparison.OrdinalIgnoreCase) => "可见",
+            _ => ResolveCommonConfigChoiceName(name)
+        };
+    }
+
+    private static string ResolveCommonConfigChoiceName(string name)
+    {
+        return name switch
+        {
+            "Enabled" => "启用",
+            "Disabled" => "禁用",
+            "Allowed" => "允许",
+            "Disallowed" => "不允许",
+            "Off" => "关",
+            "Normal" => "正常",
+            "Fast" => "快",
+            "Slightly faster" => "稍快",
+            "Slightly slower" => "稍慢",
+            "Slower" => "缓",
+            "Much slower" => "很慢",
+            "Very common" => "非常常见",
+            "Common" => "常见",
+            "Uncommon" => "不常见",
+            "Rare" => "稀有",
+            "Very Rare" => "非常稀有",
+            "Never" => "不存在",
+            _ => name
+        };
+    }
+
+    private void RefreshConfigWorldRuleLabels()
+    {
+        foreach (var item in _configWorldRuleItems)
+        {
+            item.SetLanguage(_isChinese, BuildConfigRuleChoiceOptions(item.Definition, item.Value));
+        }
+    }
+
+    private void UpdateConfigWorldGeneratedState()
+    {
+        var savePath = (ConfigSaveFileComboBox.SelectedItem as ConfigSaveFileItem)?.FullPath;
+        if (string.IsNullOrWhiteSpace(savePath))
+        {
+            savePath = _configSaveFileLocation;
+        }
+
+        var generated = IsSaveWorldGenerated(savePath);
+        ConfigWorldGeneratedNoticeTextBlock.IsVisible = generated;
+        ConfigSeedTextBox.IsEnabled = !generated;
+        ConfigPlayStyleComboBox.IsEnabled = !generated;
+        ConfigWorldTypeComboBox.IsEnabled = !generated;
+        ConfigWorldHeightNumericUpDown.IsEnabled = !generated;
+
+        foreach (var rule in _configWorldRuleItems)
+        {
+            rule.CanEdit = !(generated && rule.IsOnlyDuringWorldCreate);
+        }
+    }
+
+    private void RefreshConfigImageTexts()
+    {
+        ConfigCoverImageTextBlock.Text = _configCoverImage is null
+            ? T("暂无封面图。", "No cover image yet.")
+            : $"{_configCoverImage.RelativePath} ({_configCoverImage.SizeLabel})";
+        ConfigPendingCoverImportTextBlock.Text = string.IsNullOrWhiteSpace(_pendingCoverImportPath)
+            ? string.Empty
+            : _pendingCoverImportPath;
+        ConfigPendingShowcaseImportTextBlock.Text = string.IsNullOrWhiteSpace(_pendingShowcaseImportPath)
+            ? string.Empty
+            : _pendingShowcaseImportPath;
+        ConfigNoShowcaseTextBlock.IsVisible = _configShowcaseImageItems.Count == 0;
+        ConfigShowcaseHintTextBlock.IsVisible = _configShowcaseImageItems.Count > 0;
+    }
+
+    private InstanceProfile? GetSelectedConfigProfile()
+    {
+        if (ConfigProfileComboBox.SelectedItem is not InstanceProfile selectedProfile)
+        {
+            return null;
+        }
+
+        return _profileService.GetProfileById(selectedProfile.Id) ?? selectedProfile;
+    }
+
+    private string ResolveConfigSavePath(InstanceProfile profile)
+    {
+        var savePath = (ConfigSaveFileComboBox.SelectedItem as ConfigSaveFileItem)?.FullPath;
+        if (string.IsNullOrWhiteSpace(savePath))
+        {
+            savePath = _configSaveFileLocation;
+        }
+
+        if (string.IsNullOrWhiteSpace(savePath))
+        {
+            savePath = profile.ActiveSaveFile;
+        }
+
+        var saveRoot = profile.SaveDirectory;
+        if (string.IsNullOrWhiteSpace(saveRoot))
+        {
+            saveRoot = Path.GetDirectoryName(_profileService.GetDefaultSaveFilePath(profile.Id)) ?? profile.DirectoryPath;
+        }
+
+        saveRoot = Path.GetFullPath(saveRoot);
+        Directory.CreateDirectory(saveRoot);
+        if (string.IsNullOrWhiteSpace(savePath))
+        {
+            savePath = Path.Combine(saveRoot, "default.vcdbs");
+        }
+
+        var fullPath = Path.GetFullPath(savePath.Trim());
+        if (!IsSameOrChildPath(Path.GetDirectoryName(fullPath), saveRoot))
+        {
+            fullPath = Path.Combine(saveRoot, Path.GetFileName(fullPath));
+        }
+
+        return fullPath;
+    }
+
+    private async Task<string?> PickConfigImageFileAsync()
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = T("选择图片", "Select Image"),
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType(T("图片文件", "Image Files"))
+                {
+                    Patterns = ConfigImagePatterns
+                }
+            ]
+        });
+
+        return TryGetLocalPath(files.FirstOrDefault());
+    }
+
+    private async Task<string?> ShowAdvancedJsonEditorAsync(string title, string rawJson)
+    {
+        var editor = new TextBox
+        {
+            Text = rawJson,
+            AcceptsReturn = true,
+            TextWrapping = Avalonia.Media.TextWrapping.NoWrap,
+            FontFamily = new Avalonia.Media.FontFamily("Consolas"),
+            FontSize = 12,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch
+        };
+
+        var saveButton = new Button { Content = T("保存", "Save"), Classes = { "ActionButton" } };
+        var cancelButton = new Button { Content = T("取消", "Cancel"), Classes = { "SecondaryActionButton" } };
+        string? result = null;
+        var buttonPanel = new StackPanel
+        {
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            Spacing = 8,
+            Children = { cancelButton, saveButton }
+        };
+        Grid.SetRow(buttonPanel, 1);
+
+        var content = new Grid
+        {
+            RowDefinitions = new RowDefinitions("*,Auto"),
+            Margin = new Thickness(12),
+            RowSpacing = 10,
+            Children = { editor, buttonPanel }
+        };
+
+        var dialog = new Window
+        {
+            Title = title,
+            Width = 760,
+            Height = 500,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = content
+        };
+
+        saveButton.Click += (_, _) =>
+        {
+            result = editor.Text ?? string.Empty;
+            dialog.Close();
+        };
+        cancelButton.Click += (_, _) => dialog.Close();
+
+        await dialog.ShowDialog(this);
+        return result;
+    }
+
+    private void OpenLocalFile(string path)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            SetConfigStatus(T($"打开文件失败：{ex.Message}", $"Failed to open file: {ex.Message}"));
+        }
+    }
+
+    private void SetConfigStatus(string message)
+    {
+        ConfigStatusTextBlock.Text = message;
+    }
+
+    private static void SetNumericValue(NumericUpDown control, int value)
+    {
+        control.Value = value;
+    }
+
+    private static int GetNumericValue(NumericUpDown control, int fallback)
+    {
+        return control.Value.HasValue
+            ? decimal.ToInt32(control.Value.Value)
+            : fallback;
+    }
+
+    private static int TryParseInt(string? value, int fallback)
+    {
+        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : fallback;
+    }
+
+    private static string? NullIfWhiteSpace(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static string ResolveDefaultServerLanguage()
+    {
+        return CultureInfo.CurrentUICulture.Name.StartsWith("zh", StringComparison.OrdinalIgnoreCase) ? "zh-cn" : "en";
+    }
+
+    private static string NormalizeFullPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            return Path.GetFullPath(path.Trim());
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static bool IsSameOrChildPath(string? candidatePath, string? rootPath)
+    {
+        var candidate = NormalizeFullPath(candidatePath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var root = NormalizeFullPath(rootPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (string.IsNullOrWhiteSpace(candidate) || string.IsNullOrWhiteSpace(root))
+        {
+            return false;
+        }
+
+        return candidate.Equals(root, StringComparison.OrdinalIgnoreCase) ||
+               candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+               candidate.StartsWith(root + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSaveWorldGenerated(string? savePath)
+    {
+        if (string.IsNullOrWhiteSpace(savePath))
+        {
+            return false;
+        }
+
+        try
+        {
+            var fullPath = Path.GetFullPath(savePath.Trim());
+            return File.Exists(fullPath) && new FileInfo(fullPath).Length > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void EnsureComboItem(ComboBox comboBox, string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        if (comboBox.ItemsSource is IEnumerable<string> items &&
+            items.Any(item => item.Equals(value, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        var values = ConfigServerLanguageOptions
+            .Append(value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        comboBox.ItemsSource = values;
+    }
+
+    private static void SelectConfigChoiceByValue(
+        ComboBox comboBox,
+        IEnumerable<ConfigChoiceOption> options,
+        string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            comboBox.SelectedIndex = -1;
+            return;
+        }
+
+        comboBox.SelectedItem = options.FirstOrDefault(option =>
+            option.Value.Equals(value.Trim(), StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void EnsureConfigChoiceOptionExists(ObservableCollection<ConfigChoiceOption> options, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        var normalized = value.Trim();
+        if (options.Any(option => option.Value.Equals(normalized, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        options.Add(new ConfigChoiceOption(normalized, T($"自定义：{normalized}", $"Custom: {normalized}")));
+    }
+
+    private static string FormatConfigFileSize(long bytes)
+    {
+        if (bytes >= 1024L * 1024 * 1024)
+        {
+            return $"{bytes / 1024d / 1024d / 1024d:F2} GB";
+        }
+
+        if (bytes >= 1024L * 1024)
+        {
+            return $"{bytes / 1024d / 1024d:F1} MB";
+        }
+
+        if (bytes >= 1024)
+        {
+            return $"{bytes / 1024d:F1} KB";
+        }
+
+        return $"{bytes} B";
     }
 
     private async void OnCreateProfileClick(object? sender, RoutedEventArgs e)
@@ -1561,6 +2847,7 @@ public partial class LauncherMainWindow : Window
     private enum InstanceManageTab
     {
         Profiles,
+        Config,
         Saves,
         DownloadVersions
     }
@@ -1661,5 +2948,202 @@ public partial class LauncherMainWindow : Window
         public string DownloadedText { get; } = downloadedText;
 
         public string ActionText { get; } = actionText;
+    }
+
+    public sealed class ConfigChoiceOption(string value, string label)
+    {
+        public string Value { get; } = value;
+
+        public string Label { get; } = label;
+
+        public override string ToString() => Label;
+    }
+
+    public sealed class ConfigSaveFileItem
+    {
+        public required string FullPath { get; init; }
+
+        public required string FileName { get; init; }
+
+        public static ConfigSaveFileItem FromSave(SaveFileEntry save)
+        {
+            return new ConfigSaveFileItem
+            {
+                FullPath = save.FullPath,
+                FileName = save.FileName
+            };
+        }
+
+        public static ConfigSaveFileItem FromPath(string path)
+        {
+            return new ConfigSaveFileItem
+            {
+                FullPath = path,
+                FileName = string.IsNullOrWhiteSpace(Path.GetFileName(path)) ? path : Path.GetFileName(path)
+            };
+        }
+    }
+
+    public sealed class ConfigServerImageItem
+    {
+        public required ServerImageKind Kind { get; init; }
+
+        public required string FullPath { get; init; }
+
+        public required string RelativePath { get; init; }
+
+        public required string FileName { get; init; }
+
+        public long SizeBytes { get; init; }
+
+        public string SizeLabel => FormatConfigFileSize(SizeBytes);
+
+        public static ConfigServerImageItem FromImage(ServerImageFileInfo image)
+        {
+            return new ConfigServerImageItem
+            {
+                Kind = image.Kind,
+                FullPath = image.FullPath,
+                RelativePath = image.RelativePath,
+                FileName = image.FileName,
+                SizeBytes = image.SizeBytes
+            };
+        }
+
+        public ServerImageFileInfo ToDomain(ServerImageKind kind)
+        {
+            return new ServerImageFileInfo
+            {
+                Kind = kind,
+                FullPath = FullPath,
+                RelativePath = RelativePath,
+                FileName = FileName,
+                SizeBytes = SizeBytes,
+                LastWriteUtc = DateTimeOffset.UtcNow
+            };
+        }
+    }
+
+    public sealed class ConfigWorldRuleItem : INotifyPropertyChanged
+    {
+        private string _value;
+        private ConfigChoiceOption? _selectedChoiceOption;
+        private bool _canEdit = true;
+
+        public ConfigWorldRuleItem(
+            WorldRuleDefinition definition,
+            string value,
+            bool isChinese,
+            IReadOnlyList<ConfigChoiceOption> choiceOptions)
+        {
+            Definition = definition;
+            Key = definition.Key;
+            Type = definition.Type;
+            ChoiceOptions = choiceOptions;
+            _value = value;
+            SetLanguage(isChinese, choiceOptions);
+            _selectedChoiceOption = ChoiceOptions.FirstOrDefault(option =>
+                option.Value.Equals(value, StringComparison.OrdinalIgnoreCase));
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public WorldRuleDefinition Definition { get; }
+
+        public string Key { get; }
+
+        public WorldRuleType Type { get; }
+
+        public string Label { get; private set; } = string.Empty;
+
+        public string Description { get; private set; } = string.Empty;
+
+        public bool HasDescription => !string.IsNullOrWhiteSpace(Description);
+
+        public string BooleanLabel { get; private set; } = string.Empty;
+
+        public IReadOnlyList<ConfigChoiceOption> ChoiceOptions { get; private set; }
+
+        public bool IsOnlyDuringWorldCreate { get; init; }
+
+        public bool IsBoolean => Type == WorldRuleType.Boolean;
+
+        public bool IsChoice => Type == WorldRuleType.Choice;
+
+        public bool IsText => Type is WorldRuleType.Text or WorldRuleType.Number;
+
+        public bool CanEdit
+        {
+            get => _canEdit;
+            set => SetField(ref _canEdit, value);
+        }
+
+        public string Value
+        {
+            get => _value;
+            set
+            {
+                if (!SetField(ref _value, value))
+                {
+                    return;
+                }
+
+                OnPropertyChanged(nameof(BoolValue));
+            }
+        }
+
+        public bool BoolValue
+        {
+            get => bool.TryParse(Value, out var parsed) && parsed;
+            set => Value = value ? bool.TrueString.ToLowerInvariant() : bool.FalseString.ToLowerInvariant();
+        }
+
+        public ConfigChoiceOption? SelectedChoiceOption
+        {
+            get => _selectedChoiceOption;
+            set
+            {
+                if (!SetField(ref _selectedChoiceOption, value) || value is null)
+                {
+                    return;
+                }
+
+                Value = value.Value;
+            }
+        }
+
+        public void SetLanguage(bool isChinese, IReadOnlyList<ConfigChoiceOption> choiceOptions)
+        {
+            var selectedValue = SelectedChoiceOption?.Value ?? Value;
+            ChoiceOptions = choiceOptions;
+            Label = isChinese ? Definition.LabelZh : Definition.LabelEn;
+            Description = isChinese ? Definition.DescriptionZh ?? string.Empty : Definition.DescriptionEn ?? string.Empty;
+            BooleanLabel = isChinese ? "启用" : "Enabled";
+            _selectedChoiceOption = ChoiceOptions.FirstOrDefault(option =>
+                option.Value.Equals(selectedValue, StringComparison.OrdinalIgnoreCase));
+            OnPropertyChanged(nameof(ChoiceOptions));
+            OnPropertyChanged(nameof(Label));
+            OnPropertyChanged(nameof(Description));
+            OnPropertyChanged(nameof(HasDescription));
+            OnPropertyChanged(nameof(BooleanLabel));
+            OnPropertyChanged(nameof(SelectedChoiceOption));
+        }
+
+        private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+            {
+                return false;
+            }
+
+            field = value;
+            OnPropertyChanged(propertyName);
+            return true;
+        }
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 }

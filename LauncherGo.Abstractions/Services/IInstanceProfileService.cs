@@ -14,6 +14,8 @@ public interface IInstanceProfileService
 
     InstanceProfile ImportProfile(string directoryPath);
 
+    void UpdateProfile(InstanceProfile profile);
+
     int DeleteProfiles(IReadOnlyCollection<string> profileIds, bool deleteData);
 
     string GetDefaultSaveFilePath(string profileId);

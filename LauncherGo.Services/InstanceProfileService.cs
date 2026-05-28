@@ -182,6 +182,35 @@ public sealed class InstanceProfileService(ILauncherPreferencesService preferenc
         }
     }
 
+    public void UpdateProfile(InstanceProfile profile)
+    {
+        if (string.IsNullOrWhiteSpace(profile.Id))
+        {
+            throw new InvalidOperationException("档案 ID 不能为空。");
+        }
+
+        var preferences = LoadPreferences();
+        lock (_gate)
+        {
+            var index = ReadIndex(preferences);
+            var existing = index.Profiles.FirstOrDefault(item =>
+                item.Id.Equals(profile.Id, StringComparison.OrdinalIgnoreCase));
+            if (existing is null)
+            {
+                throw new InvalidOperationException("未找到要更新的档案。");
+            }
+
+            existing.Name = string.IsNullOrWhiteSpace(profile.Name) ? existing.Name : profile.Name.Trim();
+            existing.Version = profile.Version;
+            existing.DirectoryPath = profile.DirectoryPath;
+            existing.SaveDirectory = profile.SaveDirectory;
+            existing.ActiveSaveFile = profile.ActiveSaveFile;
+            existing.LastUpdatedUtc = profile.LastUpdatedUtc == default ? DateTimeOffset.UtcNow : profile.LastUpdatedUtc;
+            NormalizeProfile(preferences, existing);
+            WriteIndex(preferences, index);
+        }
+    }
+
     public int DeleteProfiles(IReadOnlyCollection<string> profileIds, bool deleteData)
     {
         if (profileIds.Count == 0)
