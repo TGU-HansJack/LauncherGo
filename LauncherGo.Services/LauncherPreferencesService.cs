@@ -68,7 +68,28 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             ServerDirectory = LauncherPathHelper.NormalizeDirectoryOrDefault(source.ServerDirectory, defaults.ServerDirectory),
             ProfileDirectory = LauncherPathHelper.NormalizeDirectoryOrDefault(source.ProfileDirectory, defaults.ProfileDirectory),
             SaveDirectory = LauncherPathHelper.NormalizeDirectoryOrDefault(source.SaveDirectory, defaults.SaveDirectory),
-            QqBotDirectory = LauncherPathHelper.NormalizeDirectoryOrDefault(source.QqBotDirectory, defaults.QqBotDirectory)
+            QqBotDirectory = LauncherPathHelper.NormalizeDirectoryOrDefault(source.QqBotDirectory, defaults.QqBotDirectory),
+            DefaultLaunchProfileId = string.IsNullOrWhiteSpace(source.DefaultLaunchProfileId)
+                ? string.Empty
+                : source.DefaultLaunchProfileId.Trim(),
+            DefaultLaunchSaveFile = NormalizeFilePathOrEmpty(source.DefaultLaunchSaveFile)
         };
+    }
+
+    private static string NormalizeFilePathOrEmpty(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            return Path.GetFullPath(path.Trim());
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 }

@@ -27,7 +27,9 @@ public static class LauncherPathHelper
             ServerDirectory = DefaultServerDirectory,
             ProfileDirectory = DefaultProfileDirectory,
             SaveDirectory = DefaultSaveDirectory,
-            QqBotDirectory = DefaultQqBotDirectory
+            QqBotDirectory = DefaultQqBotDirectory,
+            DefaultLaunchProfileId = string.Empty,
+            DefaultLaunchSaveFile = string.Empty
         };
     }
 

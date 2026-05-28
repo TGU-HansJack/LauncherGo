@@ -247,12 +247,6 @@ public partial class LauncherMainWindow : Window
         HomeSloganTextBlock.Text = T(HomeSlogans[0].Zh, HomeSlogans[0].En);
 
         LaunchActionTextBlock.Text = T("启动服务器", "Start Server");
-        LaunchPickerTitleTextBlock.Text = T("选择启动目标", "Select launch target");
-        LaunchProfileTitleTextBlock.Text = T("档案", "Profile");
-        LaunchSaveTitleTextBlock.Text = T("存档", "Save");
-        LaunchPickerHintTextBlock.Text = T("未选择存档时使用档案默认存档。", "If no save is selected, the profile default save is used.");
-        LaunchCancelButton.Content = T("取消", "Cancel");
-        LaunchConfirmButton.Content = T("启动", "Start");
         CommandTextBox.PlaceholderText = T("输入服务器命令，回车发送", "Enter server command, press Enter to send");
         QuickCommandComboBox.PlaceholderText = T("快捷命令", "Quick command");
         SendCommandButton.Content = T("发送", "Send");
@@ -760,45 +754,6 @@ public partial class LauncherMainWindow : Window
 
     private void RefreshLaunchOptions(IReadOnlyList<InstanceProfile>? profiles = null)
     {
-        profiles ??= _profileService.GetProfiles();
-        var selectedProfileId = (LaunchProfileListBox.SelectedItem as InstanceProfile)?.Id;
-        LaunchProfileListBox.ItemsSource = profiles;
-        LaunchProfileListBox.SelectedItem = profiles.FirstOrDefault(profile => profile.Id == selectedProfileId) ?? profiles.FirstOrDefault();
-        RefreshLaunchSaveOptions();
-        RefreshLaunchButtonSummary();
-    }
-
-    private async void OnLaunchProfileSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        await RefreshLaunchSaveOptionsAsync();
-    }
-
-    private void OnLaunchSaveSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        RefreshLaunchButtonSummary();
-    }
-
-    private void RefreshLaunchSaveOptions()
-    {
-        _ = RefreshLaunchSaveOptionsAsync();
-    }
-
-    private async Task RefreshLaunchSaveOptionsAsync()
-    {
-        if (LaunchProfileListBox.SelectedItem is not InstanceProfile profile)
-        {
-            LaunchSaveListBox.ItemsSource = Array.Empty<SaveFileEntry>();
-            RefreshLaunchButtonSummary();
-            return;
-        }
-
-        var selectedSavePath = (LaunchSaveListBox.SelectedItem as SaveFileEntry)?.FullPath;
-        var saves = await _saveService.GetSavesAsync(profile);
-        LaunchSaveListBox.ItemsSource = saves;
-        LaunchSaveListBox.SelectedItem =
-            saves.FirstOrDefault(save => save.FullPath.Equals(selectedSavePath, StringComparison.OrdinalIgnoreCase))
-            ?? saves.FirstOrDefault(save => save.FullPath.Equals(profile.ActiveSaveFile, StringComparison.OrdinalIgnoreCase))
-            ?? saves.FirstOrDefault();
         RefreshLaunchButtonSummary();
     }
 
@@ -807,16 +762,21 @@ public partial class LauncherMainWindow : Window
         if (isRunning ?? _serverProcessService.GetCurrentStatus().IsRunning)
         {
             LaunchSelectionSummaryTextBlock.Text = T("运行中 | 点击停止", "Running | Click to stop");
-            LaunchConfirmButton.IsEnabled = false;
             return;
         }
 
-        var profile = LaunchProfileListBox.SelectedItem as InstanceProfile;
-        var save = LaunchSaveListBox.SelectedItem as SaveFileEntry;
-        var profileName = string.IsNullOrWhiteSpace(profile?.Name) ? T("未选择档案", "No profile") : profile.Name;
-        var saveName = string.IsNullOrWhiteSpace(save?.FileName) ? T("未固定存档", "No fixed save") : save.FileName;
+        if (!TryGetLockedLaunchTarget(out var profile, out var lockedSavePath))
+        {
+            LaunchSelectionSummaryTextBlock.Text = T("未锁定默认存档", "No default save locked");
+            return;
+        }
+
+        var profileName = string.IsNullOrWhiteSpace(profile.Name) ? T("未选择档案", "No profile") : profile.Name;
+        var fileName = Path.GetFileName(lockedSavePath);
+        var saveName = string.IsNullOrWhiteSpace(fileName)
+            ? (string.IsNullOrWhiteSpace(lockedSavePath) ? T("未固定存档", "No fixed save") : lockedSavePath)
+            : fileName;
         LaunchSelectionSummaryTextBlock.Text = $"{profileName} | {saveName}";
-        LaunchConfirmButton.IsEnabled = profile is not null;
     }
 
     private async Task RefreshSavesAsync()
@@ -829,30 +789,43 @@ public partial class LauncherMainWindow : Window
         _isRefreshingSaves = true;
         try
         {
-        var selectedProfile = SaveProfileComboBox.SelectedItem;
-        var profiles = _profileService.GetProfiles();
-        var saveProfileItems = new List<object> { T("全部档案", "All profiles") };
-        saveProfileItems.AddRange(profiles);
-        SaveProfileComboBox.ItemsSource = saveProfileItems;
+            var selectedProfile = SaveProfileComboBox.SelectedItem;
+            var profiles = _profileService.GetProfiles();
+            var preferences = _preferencesService.Load();
+            var lockedProfileId = string.IsNullOrWhiteSpace(preferences.DefaultLaunchProfileId)
+                ? string.Empty
+                : preferences.DefaultLaunchProfileId.Trim();
+            var lockedSavePath = NormalizeFullPath(preferences.DefaultLaunchSaveFile);
+            var saveProfileItems = new List<object> { T("全部档案", "All profiles") };
+            saveProfileItems.AddRange(profiles);
+            SaveProfileComboBox.ItemsSource = saveProfileItems;
 
-        if (selectedProfile is InstanceProfile selectedInstance)
-        {
-            SaveProfileComboBox.SelectedItem = profiles.FirstOrDefault(profile => profile.Id == selectedInstance.Id) ?? saveProfileItems[0];
-        }
-        else if (SaveProfileComboBox.SelectedIndex < 0)
-        {
-            SaveProfileComboBox.SelectedIndex = 0;
-        }
+            if (selectedProfile is InstanceProfile selectedInstance)
+            {
+                SaveProfileComboBox.SelectedItem = profiles.FirstOrDefault(profile => profile.Id == selectedInstance.Id) ?? saveProfileItems[0];
+            }
+            else if (SaveProfileComboBox.SelectedIndex < 0)
+            {
+                SaveProfileComboBox.SelectedIndex = 0;
+            }
 
-        InstanceProfile? filter = SaveProfileComboBox.SelectedItem as InstanceProfile;
-        var saves = await _saveService.GetSavesAsync(filter);
-        _saveItems.Clear();
-        foreach (var save in saves)
-        {
-            _saveItems.Add(SaveListItem.FromSave(save));
-        }
+            InstanceProfile? filter = SaveProfileComboBox.SelectedItem as InstanceProfile;
+            var saves = await _saveService.GetSavesAsync(filter);
+            _saveItems.Clear();
+            foreach (var save in saves)
+            {
+                var isLocked = !string.IsNullOrWhiteSpace(lockedProfileId) &&
+                               !string.IsNullOrWhiteSpace(lockedSavePath) &&
+                               save.ProfileId.Equals(lockedProfileId, StringComparison.OrdinalIgnoreCase) &&
+                               NormalizeFullPath(save.FullPath).Equals(lockedSavePath, StringComparison.OrdinalIgnoreCase);
+                _saveItems.Add(SaveListItem.FromSave(
+                    save,
+                    isLocked,
+                    T("默认启动", "Default"),
+                    T("锁定默认", "Set default")));
+            }
 
-        await RefreshLaunchSaveOptionsAsync();
+            RefreshLaunchButtonSummary();
         }
         finally
         {
@@ -1280,8 +1253,7 @@ public partial class LauncherMainWindow : Window
         var status = _serverProcessService.GetCurrentStatus();
         if (!status.IsRunning)
         {
-            RefreshLaunchOptions();
-            LaunchSelectionPopup.IsOpen = true;
+            await StartLockedServerAsync();
             return;
         }
 
@@ -1296,16 +1268,6 @@ public partial class LauncherMainWindow : Window
     private void OnLaunchServerPointerExited(object? sender, PointerEventArgs e)
     {
         LaunchSelectionPillHost.Classes.Set("expanded", false);
-    }
-
-    private void OnLaunchCancelClick(object? sender, RoutedEventArgs e)
-    {
-        LaunchSelectionPopup.IsOpen = false;
-    }
-
-    private async void OnLaunchConfirmClick(object? sender, RoutedEventArgs e)
-    {
-        await StartSelectedServerAsync();
     }
 
     private async Task StopServerFromLaunchButtonAsync()
@@ -1329,35 +1291,44 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private async Task StartSelectedServerAsync()
+    private async Task StartLockedServerAsync()
     {
         if (_isStoppingOrStarting)
         {
             return;
         }
 
-        var profile = LaunchProfileListBox.SelectedItem as InstanceProfile
-                      ?? _profileService.GetProfiles().FirstOrDefault();
-        if (profile is null)
+        if (!TryGetLockedLaunchTarget(out var profile, out var lockedSavePath))
         {
-            LaunchSelectionPopup.IsOpen = false;
-            AppendConsoleLine("[system] 请先在实例中创建档案。");
             SelectTab(MainTab.InstanceManage);
-            SelectInstanceManageTab(InstanceManageTab.Profiles);
+            SelectInstanceManageTab(InstanceManageTab.Saves);
+            LaunchSelectionSummaryTextBlock.Text = T("请先锁定默认存档", "Set default save first");
+            AppendConsoleLine(T(
+                "[system] 未锁定默认存档。请在“存档管理”中点击右侧“锁定默认”。",
+                "[system] No default save is locked. Go to Saves and click 'Set default'."));
             return;
         }
 
-        if (LaunchSaveListBox.SelectedItem is SaveFileEntry save)
+        var saves = await _saveService.GetSavesAsync(profile);
+        var lockedSave = saves.FirstOrDefault(save =>
+            NormalizeFullPath(save.FullPath).Equals(lockedSavePath, StringComparison.OrdinalIgnoreCase));
+        if (lockedSave is null)
         {
-            profile.ActiveSaveFile = save.FullPath;
+            SelectTab(MainTab.InstanceManage);
+            SelectInstanceManageTab(InstanceManageTab.Saves);
+            LaunchSelectionSummaryTextBlock.Text = T("请先锁定默认存档", "Set default save first");
+            AppendConsoleLine(T(
+                "[system] 默认锁定存档不存在，请重新锁定默认存档。",
+                "[system] Locked default save does not exist. Lock a default save again."));
+            return;
         }
 
         _isStoppingOrStarting = true;
         LaunchServerButton.IsEnabled = false;
-        LaunchConfirmButton.IsEnabled = false;
         try
         {
-            LaunchSelectionPopup.IsOpen = false;
+            profile.ActiveSaveFile = lockedSave.FullPath;
+            _profileService.UpdateProfile(profile);
             SelectTab(MainTab.Console);
             await _serverProcessService.StartAsync(profile);
         }
@@ -2688,6 +2659,65 @@ public partial class LauncherMainWindow : Window
         await RefreshSavesAsync();
     }
 
+    private async void OnToggleDefaultSaveClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: SaveListItem item })
+        {
+            return;
+        }
+
+        var profile = _profileService.GetProfileById(item.ProfileId);
+        if (profile is null)
+        {
+            AppendConsoleLine(T("[system] 锁定失败：未找到对应档案。", "[system] Lock failed: profile not found."));
+            return;
+        }
+
+        try
+        {
+            await _saveService.SetActiveSaveAsync(profile, item.FullPath);
+            var preferences = _preferencesService.Load();
+            preferences.DefaultLaunchProfileId = profile.Id;
+            preferences.DefaultLaunchSaveFile = item.FullPath;
+            _preferencesService.Save(preferences);
+            await RefreshSavesAsync();
+            RefreshLaunchOptions();
+            AppendConsoleLine(T($"[system] 已锁定默认存档：{item.FileName}", $"[system] Default save locked: {item.FileName}"));
+        }
+        catch (Exception ex)
+        {
+            AppendConsoleLine(T($"[system] 锁定默认存档失败：{ex.Message}", $"[system] Failed to lock default save: {ex.Message}"));
+        }
+    }
+
+    private bool TryGetLockedLaunchTarget(out InstanceProfile profile, out string lockedSavePath)
+    {
+        profile = null!;
+        lockedSavePath = string.Empty;
+
+        var preferences = _preferencesService.Load();
+        if (string.IsNullOrWhiteSpace(preferences.DefaultLaunchProfileId))
+        {
+            return false;
+        }
+
+        var targetProfile = _profileService.GetProfileById(preferences.DefaultLaunchProfileId.Trim());
+        if (targetProfile is null)
+        {
+            return false;
+        }
+
+        var targetSavePath = NormalizeFullPath(preferences.DefaultLaunchSaveFile);
+        if (string.IsNullOrWhiteSpace(targetSavePath))
+        {
+            return false;
+        }
+
+        profile = targetProfile;
+        lockedSavePath = targetSavePath;
+        return true;
+    }
+
     private async void OnImportServerPackageClick(object? sender, RoutedEventArgs e)
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -2891,6 +2921,13 @@ public partial class LauncherMainWindow : Window
 
     public sealed class SaveListItem
     {
+        private const string UnlockedIconPath =
+            "M528 320C528 205.1 434.9 112 320 112C205.1 112 112 205.1 112 320C112 434.9 205.1 528 320 528C434.9 528 528 434.9 528 320zM64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z";
+        private const string LockedIconPath =
+            "M320 576C178.6 576 64 461.4 64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576zM438 209.7C427.3 201.9 412.3 204.3 404.5 215L285.1 379.2L233 327.1C223.6 317.7 208.4 317.7 199.1 327.1C189.8 336.5 189.7 351.7 199.1 361L271.1 433C276.1 438 282.9 440.5 289.9 440C296.9 439.5 303.3 435.9 307.4 430.2L443.3 243.2C451.1 232.5 448.7 217.5 438 209.7z";
+
+        public required string ProfileId { get; init; }
+
         public required string FullPath { get; init; }
 
         public required string FileName { get; init; }
@@ -2899,14 +2936,29 @@ public partial class LauncherMainWindow : Window
 
         public required string Description { get; init; }
 
-        public static SaveListItem FromSave(SaveFileEntry save)
+        public bool IsLocked { get; init; }
+
+        public string LockActionText { get; init; } = string.Empty;
+
+        public string LockIconData => IsLocked ? LockedIconPath : UnlockedIconPath;
+
+        public string LockIconBrush => IsLocked ? "#6B8E23" : "#8A8A8A";
+
+        public static SaveListItem FromSave(
+            SaveFileEntry save,
+            bool isLocked,
+            string lockedActionText,
+            string unlockedActionText)
         {
             return new SaveListItem
             {
+                ProfileId = save.ProfileId,
                 FullPath = save.FullPath,
                 FileName = save.FileName,
                 ProfileName = save.ProfileName,
-                Description = $"{FormatFileSize(save.SizeBytes)}  {save.LastWriteTimeUtc.LocalDateTime:yyyy-MM-dd HH:mm}  {save.FullPath}"
+                Description = $"{FormatFileSize(save.SizeBytes)}  {save.LastWriteTimeUtc.LocalDateTime:yyyy-MM-dd HH:mm}  {save.FullPath}",
+                IsLocked = isLocked,
+                LockActionText = isLocked ? lockedActionText : unlockedActionText
             };
         }
 

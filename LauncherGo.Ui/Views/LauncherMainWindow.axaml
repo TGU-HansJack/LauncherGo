@@ -572,6 +572,55 @@
             <Setter Property="Background" Value="{DynamicResource DropdownSelectedBrush}" />
             <Setter Property="CornerRadius" Value="4" />
         </Style>
+        <Style Selector="ListBox#SavesListBox ListBoxItem">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Margin" Value="0,2" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="ClipToBounds" Value="False" />
+        </Style>
+        <Style Selector="ListBox#SavesListBox ListBoxItem /template/ ContentPresenter">
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox#SavesListBox ListBoxItem:pointerover">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox#SavesListBox ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource DropdownHoverBrush}" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="ListBox#SavesListBox ListBoxItem:selected">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource DropdownSelectedTextBrush}" />
+        </Style>
+        <Style Selector="ListBox#SavesListBox ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource DropdownSelectedBrush}" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="Button.SaveLockButton">
+            <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource DownloadActionTextBrush}" />
+        </Style>
+        <Style Selector="Button.SaveLockButton:pointerover">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource DownloadActionTextBrush}" />
+        </Style>
+        <Style Selector="Button.SaveLockButton:pressed">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource DownloadActionTextBrush}" />
+        </Style>
         <Style Selector="ListBox#ProfilesListBox TextBlock.ProfileSubText">
             <Setter Property="Opacity" Value="0.82" />
         </Style>
@@ -1188,13 +1237,21 @@
                                         <ListBox x:Name="SavesListBox" Grid.Row="1" Classes="FlatList" SelectionMode="Multiple">
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Border Margin="0,0,0,8" Padding="12" CornerRadius="8" Background="{DynamicResource CardBackgroundBrush}">
-                                                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-                                                            <TextBlock Text="{Binding FileName}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" />
-                                                            <TextBlock Grid.Column="1" Text="{Binding ProfileName}" FontSize="13" Foreground="{DynamicResource SubTextBrush}" />
-                                                            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,5,0,0" Text="{Binding Description}" FontSize="12" Foreground="{DynamicResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
-                                                        </Grid>
-                                                    </Border>
+                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" MinHeight="34" Margin="0,2">
+                                                        <StackPanel Spacing="2" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding FileName}" VerticalAlignment="Center" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Text="{Binding Description}" FontSize="12" Foreground="{DynamicResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding ProfileName}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="13" Foreground="{DynamicResource SubTextBrush}" />
+                                                            <Button Classes="SaveLockButton" Tag="{Binding}" Click="OnToggleDefaultSaveClick">
+                                                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                                                    <Path Width="14" Height="14" Stretch="Uniform" Fill="{Binding LockIconBrush}" Data="{Binding LockIconData}" />
+                                                                    <TextBlock Text="{Binding LockActionText}" VerticalAlignment="Center" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource DownloadActionTextBrush}" />
+                                                                </StackPanel>
+                                                            </Button>
+                                                        </StackPanel>
+                                                    </Grid>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
                                         </ListBox>
@@ -1330,67 +1387,6 @@
                                     </Grid>
                                 </Button>
 
-                                <Popup
-                                    x:Name="LaunchSelectionPopup"
-                                    PlacementTarget="{Binding #LaunchServerButton}"
-                                    Placement="TopEdgeAlignedRight"
-                                    VerticalOffset="-8"
-                                    IsLightDismissEnabled="True">
-                                    <Border
-                                        Width="468"
-                                        Padding="12"
-                                        CornerRadius="8"
-                                        BorderBrush="{DynamicResource WindowBorderBrush}"
-                                        BorderThickness="1"
-                                        Background="{DynamicResource WindowSurfaceBrush}">
-                                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
-                                            <TextBlock x:Name="LaunchPickerTitleTextBlock" Text="选择启动目标" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" />
-                                            <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="10">
-                                                <Grid RowDefinitions="Auto,*" RowSpacing="6">
-                                                    <TextBlock x:Name="LaunchProfileTitleTextBlock" Text="档案" FontSize="12" Foreground="{DynamicResource SubTextBrush}" />
-                                                    <ListBox
-                                                        x:Name="LaunchProfileListBox"
-                                                        Grid.Row="1"
-                                                        Classes="LaunchChoiceList"
-                                                        SelectionChanged="OnLaunchProfileSelectionChanged">
-                                                        <ListBox.ItemTemplate>
-                                                            <DataTemplate>
-                                                                <Grid RowDefinitions="Auto,Auto">
-                                                                    <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" TextTrimming="CharacterEllipsis" />
-                                                                    <TextBlock Grid.Row="1" Text="{Binding Version}" FontSize="11" Foreground="{DynamicResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
-                                                                </Grid>
-                                                            </DataTemplate>
-                                                        </ListBox.ItemTemplate>
-                                                    </ListBox>
-                                                </Grid>
-
-                                                <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="6">
-                                                    <TextBlock x:Name="LaunchSaveTitleTextBlock" Text="存档" FontSize="12" Foreground="{DynamicResource SubTextBrush}" />
-                                                    <ListBox
-                                                        x:Name="LaunchSaveListBox"
-                                                        Grid.Row="1"
-                                                        Classes="LaunchChoiceList"
-                                                        SelectionChanged="OnLaunchSaveSelectionChanged">
-                                                        <ListBox.ItemTemplate>
-                                                            <DataTemplate>
-                                                                <Grid RowDefinitions="Auto,Auto">
-                                                                    <TextBlock Text="{Binding FileName}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" TextTrimming="CharacterEllipsis" />
-                                                                    <TextBlock Grid.Row="1" Text="{Binding ProfileName}" FontSize="11" Foreground="{DynamicResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
-                                                                </Grid>
-                                                            </DataTemplate>
-                                                        </ListBox.ItemTemplate>
-                                                    </ListBox>
-                                                </Grid>
-                                            </Grid>
-
-                                            <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                                                <TextBlock x:Name="LaunchPickerHintTextBlock" Text="未选择存档时使用档案默认存档。" FontSize="12" Foreground="{DynamicResource SubTextBrush}" VerticalAlignment="Center" />
-                                                <Button x:Name="LaunchCancelButton" Grid.Column="1" Classes="SecondaryActionButton" Content="取消" Click="OnLaunchCancelClick" />
-                                                <Button x:Name="LaunchConfirmButton" Grid.Column="2" Classes="ActionButton" Content="启动" Click="OnLaunchConfirmClick" />
-                                            </Grid>
-                                        </Grid>
-                                    </Border>
-                                </Popup>
                             </Grid>
                         </Grid>
                     </Border>

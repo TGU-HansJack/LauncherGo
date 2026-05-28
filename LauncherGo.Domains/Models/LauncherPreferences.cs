@@ -18,4 +18,8 @@ public class LauncherPreferences
     public string SaveDirectory { get; set; } = string.Empty;
 
     public string QqBotDirectory { get; set; } = string.Empty;
+
+    public string DefaultLaunchProfileId { get; set; } = string.Empty;
+
+    public string DefaultLaunchSaveFile { get; set; } = string.Empty;
 }
