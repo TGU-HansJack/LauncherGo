@@ -1594,11 +1594,19 @@
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
                                                         <Border Classes="ConfigInnerCard" Width="270" Margin="0,0,10,10">
-                                                            <StackPanel Spacing="4">
-                                                                <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" TextTrimming="CharacterEllipsis" />
-                                                                <TextBlock Text="{Binding AmountText}" FontSize="13" Foreground="{DynamicResource SubTextBrush}" TextWrapping="Wrap" />
-                                                                <TextBlock Text="{Binding PlanText}" FontSize="12" Foreground="{DynamicResource SubTextBrush}" TextWrapping="Wrap" />
-                                                            </StackPanel>
+                                                            <Grid ColumnDefinitions="42,*" ColumnSpacing="10">
+                                                                <Border Width="38" Height="38" CornerRadius="4" ClipToBounds="True" Background="{DynamicResource CardHoverBrush}">
+                                                                    <Grid>
+                                                                        <Image Source="{Binding AvatarImage}" Stretch="UniformToFill" IsVisible="{Binding HasAvatar}" />
+                                                                        <TextBlock Text="{Binding Initial}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding HasNoAvatar}" />
+                                                                    </Grid>
+                                                                </Border>
+                                                                <StackPanel Grid.Column="1" Spacing="4">
+                                                                    <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" TextTrimming="CharacterEllipsis" />
+                                                                    <TextBlock Text="{Binding AmountText}" FontSize="13" Foreground="{DynamicResource SubTextBrush}" TextWrapping="Wrap" />
+                                                                    <TextBlock Text="{Binding PlanText}" FontSize="12" Foreground="{DynamicResource SubTextBrush}" TextWrapping="Wrap" />
+                                                                </StackPanel>
+                                                            </Grid>
                                                         </Border>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
@@ -1616,12 +1624,18 @@
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
                                                         <Border Classes="ConfigInnerCard" Width="270" Margin="0,0,10,10">
-                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                                <StackPanel Spacing="4">
+                                                            <Grid ColumnDefinitions="42,*,Auto" ColumnSpacing="10">
+                                                                <Border Width="38" Height="38" CornerRadius="4" ClipToBounds="True" Background="{DynamicResource CardHoverBrush}">
+                                                                    <Grid>
+                                                                        <Image Source="{Binding AvatarImage}" Stretch="UniformToFill" IsVisible="{Binding HasAvatar}" />
+                                                                        <TextBlock Text="{Binding Initial}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding HasNoAvatar}" />
+                                                                    </Grid>
+                                                                </Border>
+                                                                <StackPanel Grid.Column="1" Spacing="4">
                                                                     <TextBlock Text="{Binding Login}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" TextTrimming="CharacterEllipsis" />
                                                                     <TextBlock Text="{Binding ContributionsText}" FontSize="13" Foreground="{DynamicResource SubTextBrush}" />
                                                                 </StackPanel>
-                                                                <Button Grid.Column="1" Classes="DownloadTextButton" Content="打开" Tag="{Binding HtmlUrl}" Click="OnContributorOpenClick" />
+                                                                <Button Grid.Column="2" Classes="DownloadTextButton" Content="打开" Tag="{Binding HtmlUrl}" Click="OnContributorOpenClick" />
                                                             </Grid>
                                                         </Border>
                                                     </DataTemplate>

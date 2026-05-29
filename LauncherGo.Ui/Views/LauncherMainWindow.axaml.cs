@@ -15,6 +15,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Media.Transformation;
 using Avalonia.Platform.Storage;
 using Avalonia.Styling;
@@ -1735,6 +1736,7 @@ public partial class LauncherMainWindow : Window
                 {
                     Login = login,
                     HtmlUrl = ReadJsonString(contributor, "html_url"),
+                    AvatarImage = await LoadAvatarImageAsync(ReadJsonString(contributor, "avatar_url")),
                     ContributionsText = T($"贡献 {contributions} 次", $"{contributions} contributions")
                 });
             }
@@ -1785,7 +1787,7 @@ public partial class LauncherMainWindow : Window
             {
                 foreach (var sponsor in listNode.EnumerateArray())
                 {
-                    var item = BuildSponsorItem(sponsor);
+                    var item = await BuildSponsorItemAsync(sponsor);
                     if (!string.IsNullOrWhiteSpace(item.Name))
                     {
                         _settingsSponsorItems.Add(item);
@@ -4701,6 +4703,29 @@ public partial class LauncherMainWindow : Window
             "logs");
     }
 
+    private static async Task<Bitmap?> LoadAvatarImageAsync(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url) ||
+            !Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri) ||
+            uri.Scheme is not ("http" or "https"))
+        {
+            return null;
+        }
+
+        try
+        {
+            await using var source = await SharedHttpClient.GetStreamAsync(uri);
+            using var buffer = new MemoryStream();
+            await source.CopyToAsync(buffer);
+            buffer.Position = 0;
+            return new Bitmap(buffer);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private static string BuildAfdianSponsorRequestJson(string userId, string token)
     {
         var parameters = JsonSerializer.Serialize(new
@@ -4758,13 +4783,17 @@ public partial class LauncherMainWindow : Window
         return builder.ToString();
     }
 
-    private SettingsSponsorItem BuildSponsorItem(JsonElement sponsor)
+    private async Task<SettingsSponsorItem> BuildSponsorItemAsync(JsonElement sponsor)
     {
         var name = ReadJsonString(sponsor, "name");
+        var avatarUrl = ReadFirstJsonString(sponsor, "avatar", "avatar_url", "pic", "url");
         if (string.IsNullOrWhiteSpace(name) &&
             sponsor.TryGetProperty("user", out var userNode))
         {
             name = ReadJsonString(userNode, "name");
+            avatarUrl = string.IsNullOrWhiteSpace(avatarUrl)
+                ? ReadFirstJsonString(userNode, "avatar", "avatar_url", "pic", "url")
+                : avatarUrl;
         }
 
         if (string.IsNullOrWhiteSpace(name))
@@ -4798,6 +4827,7 @@ public partial class LauncherMainWindow : Window
         return new SettingsSponsorItem
         {
             Name = string.IsNullOrWhiteSpace(name) ? T("匿名赞助者", "Anonymous Sponsor") : name,
+            AvatarImage = await LoadAvatarImageAsync(avatarUrl),
             AmountText = string.IsNullOrWhiteSpace(amount)
                 ? T("累计赞助金额未知", "Total sponsored amount unknown")
                 : T($"累计赞助 {amount} 元", $"Total sponsored CNY {amount}"),
@@ -4805,6 +4835,20 @@ public partial class LauncherMainWindow : Window
                 ? T("未识别赞助方案", "Plan not available")
                 : plan
         };
+    }
+
+    private static string ReadFirstJsonString(JsonElement node, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            var value = ReadJsonString(node, propertyName);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return string.Empty;
     }
 
     private static string ReadJsonString(JsonElement node, string propertyName)
@@ -5049,12 +5093,28 @@ public partial class LauncherMainWindow : Window
 
         public required string HtmlUrl { get; init; }
 
+        public Bitmap? AvatarImage { get; init; }
+
+        public bool HasAvatar => AvatarImage is not null;
+
+        public bool HasNoAvatar => AvatarImage is null;
+
+        public string Initial => string.IsNullOrWhiteSpace(Login) ? "?" : Login.Trim()[..1].ToUpperInvariant();
+
         public required string ContributionsText { get; init; }
     }
 
     public sealed class SettingsSponsorItem
     {
         public required string Name { get; init; }
+
+        public Bitmap? AvatarImage { get; init; }
+
+        public bool HasAvatar => AvatarImage is not null;
+
+        public bool HasNoAvatar => AvatarImage is null;
+
+        public string Initial => string.IsNullOrWhiteSpace(Name) ? "?" : Name.Trim()[..1].ToUpperInvariant();
 
         public required string AmountText { get; init; }
 
