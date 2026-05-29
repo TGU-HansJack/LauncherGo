@@ -32,6 +32,8 @@ public partial class LauncherMainWindow : Window
     private const double ChartHeight = 248;
     private const double ThumbnailWidth = 76;
     private const double ThumbnailHeight = 50;
+    private const double OsqEndpointColumnWidth = 420;
+    private const double OsqEndpointColumnSpacing = 10;
     private const string LaunchStartIconData =
         "M187.2 100.9C174.8 94.1 159.8 94.4 147.6 101.6C135.4 108.8 128 121.9 128 136L128 504C128 518.1 135.5 531.2 147.6 538.4C159.7 545.6 174.8 545.9 187.2 539.1L523.2 355.1C536 348.1 544 334.6 544 320C544 305.4 536 291.9 523.2 284.9L187.2 100.9z";
     private const string LaunchStopIconData =
@@ -148,6 +150,7 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<ConfigWorldRuleItem> _configWorldRuleItems = [];
     private readonly ObservableCollection<ConfigChoiceOption> _thirdPartyFrpcModeOptions = [];
     private readonly List<ServerDownloadEntry> _catalogEntries = [];
+    private readonly List<OsqEndpointEditorRow> _osqEndpointEditors = [];
 
     private MainTab _selectedTab = MainTab.Home;
     private HomeMetric _selectedMetric = HomeMetric.Server;
@@ -475,8 +478,7 @@ public partial class LauncherMainWindow : Window
         ConnectionThirdPartyFrpcModeLabelTextBlock.Text = T("第三方模式", "Third-party Mode");
         ConnectionThirdPartyFrpcCommandLabelTextBlock.Text = T("第三方启动命令", "Third-party Launch Command");
 
-        OsqStartButton.Content = T("启动", "Start");
-        OsqStopButton.Content = T("停止", "Stop");
+        UpdateOsqToggleButtonText();
         OsqTitleTextBlock.Text = T("开放信息（OpenServerQuery）", "Open Info (OpenServerQuery)");
         OsqEnabledCheckBox.Content = T("启用开放信息", "Enable Open Info");
         OsqAllowInsecureHttpCheckBox.Content = T("允许 HTTP 外发", "Allow HTTP outbound");
@@ -490,9 +492,9 @@ public partial class LauncherMainWindow : Window
         OsqIncludeMapCheckBox.Content = T("地图数据", "Map Data");
         OsqEndpointHostLabelTextBlock.Text = T("上报端点", "Report Endpoint");
         OsqEndpointTokenLabelTextBlock.Text = T("端点令牌", "Endpoint Token");
+        OsqEndpointAddButton.Content = T("添加", "Add");
 
-        RobotStartButton.Content = T("启动", "Start");
-        RobotStopButton.Content = T("停止", "Stop");
+        UpdateRobotToggleButtonText();
         RobotConfigTitleTextBlock.Text = T("QQ机器人配置", "QQ Robot Configuration");
         RobotOneBotLabelTextBlock.Text = T("OneBot WebSocket", "OneBot WebSocket");
         RobotAccessTokenLabelTextBlock.Text = T("访问令牌", "Access Token");
@@ -1263,8 +1265,6 @@ public partial class LauncherMainWindow : Window
         ConnectionThirdPartyFrpcCommandTextBox.LostFocus += OnFrpAutoSaveChanged;
 
         OsqListenPrefixTextBox.LostFocus += OnOpenInfoAutoSaveChanged;
-        OsqEndpointHostTextBox.LostFocus += OnOpenInfoAutoSaveChanged;
-        OsqEndpointTokenTextBox.LostFocus += OnOpenInfoAutoSaveChanged;
         OsqRequestTimeoutNumericUpDown.LostFocus += OnOpenInfoAutoSaveChanged;
         foreach (var check in new[]
                  {
@@ -1456,8 +1456,81 @@ public partial class LauncherMainWindow : Window
         OsqIncludeChatsCheckBox.IsChecked = settings.IncludeChats;
         OsqIncludeNotificationsCheckBox.IsChecked = settings.IncludeNotifications;
         OsqIncludeMapCheckBox.IsChecked = settings.IncludeMapData;
-        OsqEndpointHostTextBox.Text = settings.EndpointHost;
-        OsqEndpointTokenTextBox.Text = settings.EndpointToken;
+        RebuildOsqEndpointEditors(GetOpenServerQueryEndpointConfigsForEditor(settings));
+    }
+
+    private static IReadOnlyList<OpenServerQueryEndpointConfig> GetOpenServerQueryEndpointConfigsForEditor(OpenServerQuerySettings settings)
+    {
+        var endpoints = (settings.Endpoints ?? [])
+            .Select(endpoint => new OpenServerQueryEndpointConfig
+            {
+                ServerHost = endpoint.ServerHost?.Trim() ?? string.Empty,
+                Token = endpoint.Token?.Trim() ?? string.Empty,
+                Enabled = endpoint.Enabled
+            })
+            .Where(endpoint => !string.IsNullOrWhiteSpace(endpoint.ServerHost) || !string.IsNullOrWhiteSpace(endpoint.Token))
+            .ToList();
+
+        if (endpoints.Count == 0 &&
+            (!string.IsNullOrWhiteSpace(settings.EndpointHost) || !string.IsNullOrWhiteSpace(settings.EndpointToken)))
+        {
+            endpoints.Add(new OpenServerQueryEndpointConfig
+            {
+                ServerHost = settings.EndpointHost?.Trim() ?? string.Empty,
+                Token = settings.EndpointToken?.Trim() ?? string.Empty,
+                Enabled = true
+            });
+        }
+
+        if (endpoints.Count == 0)
+        {
+            endpoints.Add(new OpenServerQueryEndpointConfig());
+        }
+
+        return endpoints;
+    }
+
+    private void RebuildOsqEndpointEditors(IReadOnlyList<OpenServerQueryEndpointConfig> endpoints)
+    {
+        OsqEndpointRowsHost.Children.Clear();
+        _osqEndpointEditors.Clear();
+
+        foreach (var endpoint in endpoints)
+        {
+            AddOsqEndpointEditorRow(endpoint.ServerHost, endpoint.Token, endpoint.Enabled);
+        }
+    }
+
+    private void AddOsqEndpointEditorRow(string serverHost, string token, bool enabled = true)
+    {
+        var rowWidth = OsqEndpointColumnWidth * 2 + OsqEndpointColumnSpacing;
+        var row = new Grid
+        {
+            Width = rowWidth,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            ColumnDefinitions = new ColumnDefinitions($"{OsqEndpointColumnWidth},{OsqEndpointColumnWidth}"),
+            ColumnSpacing = OsqEndpointColumnSpacing
+        };
+
+        var hostTextBox = new TextBox
+        {
+            Text = serverHost
+        };
+        hostTextBox.Classes.Add("CompactInput");
+        hostTextBox.LostFocus += OnOpenInfoAutoSaveChanged;
+        row.Children.Add(hostTextBox);
+
+        var tokenTextBox = new TextBox
+        {
+            Text = token
+        };
+        tokenTextBox.Classes.Add("CompactInput");
+        tokenTextBox.LostFocus += OnOpenInfoAutoSaveChanged;
+        Grid.SetColumn(tokenTextBox, 1);
+        row.Children.Add(tokenTextBox);
+
+        OsqEndpointRowsHost.Children.Add(row);
+        _osqEndpointEditors.Add(new OsqEndpointEditorRow(hostTextBox, tokenTextBox, enabled));
     }
 
     private void ApplyRobotSettings(RobotIntegrationSettings settings)
@@ -1543,6 +1616,8 @@ public partial class LauncherMainWindow : Window
 
     private OpenServerQuerySettings CollectOpenServerQuerySettings()
     {
+        var endpoints = CollectOpenServerQueryEndpoints();
+        var firstEndpoint = endpoints.FirstOrDefault();
         return new OpenServerQuerySettings
         {
             Enabled = OsqEnabledCheckBox.IsChecked == true,
@@ -1557,9 +1632,33 @@ public partial class LauncherMainWindow : Window
             IncludeChats = OsqIncludeChatsCheckBox.IsChecked == true,
             IncludeNotifications = OsqIncludeNotificationsCheckBox.IsChecked == true,
             IncludeMapData = OsqIncludeMapCheckBox.IsChecked == true,
-            EndpointHost = OsqEndpointHostTextBox.Text?.Trim() ?? string.Empty,
-            EndpointToken = OsqEndpointTokenTextBox.Text?.Trim() ?? string.Empty
+            Endpoints = endpoints,
+            EndpointHost = firstEndpoint?.ServerHost ?? string.Empty,
+            EndpointToken = firstEndpoint?.Token ?? string.Empty
         };
+    }
+
+    private List<OpenServerQueryEndpointConfig> CollectOpenServerQueryEndpoints()
+    {
+        var endpoints = new List<OpenServerQueryEndpointConfig>();
+        foreach (var row in _osqEndpointEditors)
+        {
+            var host = row.HostTextBox.Text?.Trim() ?? string.Empty;
+            var token = row.TokenTextBox.Text?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(host) && string.IsNullOrWhiteSpace(token))
+            {
+                continue;
+            }
+
+            endpoints.Add(new OpenServerQueryEndpointConfig
+            {
+                ServerHost = host,
+                Token = token,
+                Enabled = row.Enabled
+            });
+        }
+
+        return endpoints;
     }
 
     private RobotIntegrationSettings CollectRobotSettings()
@@ -1588,7 +1687,26 @@ public partial class LauncherMainWindow : Window
     private static OpenServerQueryRuntimeSettings ToOpenServerQueryRuntimeSettings(OpenServerQuerySettings settings)
     {
         var endpoints = new List<OpenServerQueryEndpointSettings>();
-        if (!string.IsNullOrWhiteSpace(settings.EndpointHost) && !string.IsNullOrWhiteSpace(settings.EndpointToken))
+        foreach (var endpoint in settings.Endpoints ?? [])
+        {
+            var host = endpoint.ServerHost?.Trim() ?? string.Empty;
+            var token = endpoint.Token?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(token))
+            {
+                continue;
+            }
+
+            endpoints.Add(new OpenServerQueryEndpointSettings
+            {
+                ServerHost = host,
+                Token = token,
+                Enabled = endpoint.Enabled
+            });
+        }
+
+        if (endpoints.Count == 0 &&
+            !string.IsNullOrWhiteSpace(settings.EndpointHost) &&
+            !string.IsNullOrWhiteSpace(settings.EndpointToken))
         {
             endpoints.Add(new OpenServerQueryEndpointSettings
             {
@@ -1683,10 +1801,24 @@ public partial class LauncherMainWindow : Window
             : T("启动第三方", "Start Third-party");
     }
 
+    private void UpdateOsqToggleButtonText()
+    {
+        var isRunning = _openServerQueryService.GetRuntimeStatus().IsListening;
+        OsqToggleButton.Content = isRunning ? T("停止", "Stop") : T("启动", "Start");
+    }
+
+    private void UpdateRobotToggleButtonText()
+    {
+        var isRunning = _robotService.GetCurrentStatus().IsRunning;
+        RobotToggleButton.Content = isRunning ? T("停止", "Stop") : T("启动", "Start");
+    }
+
     private void RefreshConnectionRuntimeStatus()
     {
         UpdateTrackedConnectionProcessState();
         UpdateConnectionFrpActionButtons();
+        UpdateOsqToggleButtonText();
+        UpdateRobotToggleButtonText();
         var currentStatus = _selectedConnectionTab switch
         {
             ConnectionTab.Frp => BuildFrpRuntimeStatusText(),
@@ -2638,7 +2770,24 @@ public partial class LauncherMainWindow : Window
 
     private void OnOsqSaveClick(object? sender, RoutedEventArgs e) => SaveOpenServerQuerySettings();
 
-    private async void OnOsqStartClick(object? sender, RoutedEventArgs e)
+    private void OnOsqEndpointAddClick(object? sender, RoutedEventArgs e)
+    {
+        AddOsqEndpointEditorRow(string.Empty, string.Empty);
+        _osqEndpointEditors[^1].HostTextBox.Focus();
+    }
+
+    private async void OnOsqToggleClick(object? sender, RoutedEventArgs e)
+    {
+        if (_openServerQueryService.GetRuntimeStatus().IsListening)
+        {
+            await StopOpenInfoAsync();
+            return;
+        }
+
+        await StartOpenInfoAsync();
+    }
+
+    private async Task StartOpenInfoAsync()
     {
         SaveOpenServerQuerySettings(updateStatus: false);
         try
@@ -2657,11 +2806,14 @@ public partial class LauncherMainWindow : Window
         {
             SetConnectionStatus(T($"开放信息启动失败：{ex.Message}", $"Open Info start failed: {ex.Message}"));
         }
-
-        UpdateCardValues(_serverProcessService.GetCurrentStatus());
+        finally
+        {
+            UpdateOsqToggleButtonText();
+            UpdateCardValues(_serverProcessService.GetCurrentStatus());
+        }
     }
 
-    private async void OnOsqStopClick(object? sender, RoutedEventArgs e)
+    private async Task StopOpenInfoAsync()
     {
         try
         {
@@ -2672,13 +2824,27 @@ public partial class LauncherMainWindow : Window
         {
             SetConnectionStatus(T($"开放信息停止失败：{ex.Message}", $"Open Info stop failed: {ex.Message}"));
         }
-
-        UpdateCardValues(_serverProcessService.GetCurrentStatus());
+        finally
+        {
+            UpdateOsqToggleButtonText();
+            UpdateCardValues(_serverProcessService.GetCurrentStatus());
+        }
     }
 
     private void OnRobotSaveClick(object? sender, RoutedEventArgs e) => SaveRobotSettings();
 
-    private async void OnRobotStartClick(object? sender, RoutedEventArgs e)
+    private async void OnRobotToggleClick(object? sender, RoutedEventArgs e)
+    {
+        if (_robotService.GetCurrentStatus().IsRunning)
+        {
+            await StopRobotAsync();
+            return;
+        }
+
+        await StartRobotAsync();
+    }
+
+    private async Task StartRobotAsync()
     {
         SaveRobotSettings(updateStatus: false);
         try
@@ -2691,11 +2857,14 @@ public partial class LauncherMainWindow : Window
         {
             SetConnectionStatus(T($"QQ机器人启动失败：{ex.Message}", $"QQ robot start failed: {ex.Message}"));
         }
-
-        UpdateCardValues(_serverProcessService.GetCurrentStatus());
+        finally
+        {
+            UpdateRobotToggleButtonText();
+            UpdateCardValues(_serverProcessService.GetCurrentStatus());
+        }
     }
 
-    private async void OnRobotStopClick(object? sender, RoutedEventArgs e)
+    private async Task StopRobotAsync()
     {
         try
         {
@@ -2706,8 +2875,11 @@ public partial class LauncherMainWindow : Window
         {
             SetConnectionStatus(T($"QQ机器人停止失败：{ex.Message}", $"QQ robot stop failed: {ex.Message}"));
         }
-
-        UpdateCardValues(_serverProcessService.GetCurrentStatus());
+        finally
+        {
+            UpdateRobotToggleButtonText();
+            UpdateCardValues(_serverProcessService.GetCurrentStatus());
+        }
     }
 
     private async void OnLaunchServerClick(object? sender, RoutedEventArgs e)
@@ -4043,6 +4215,15 @@ public partial class LauncherMainWindow : Window
     }
 
     private readonly record struct CommandLaunchSpec(string FileName, IReadOnlyList<string> Arguments);
+
+    private sealed class OsqEndpointEditorRow(TextBox hostTextBox, TextBox tokenTextBox, bool enabled = true)
+    {
+        public TextBox HostTextBox { get; } = hostTextBox;
+
+        public TextBox TokenTextBox { get; } = tokenTextBox;
+
+        public bool Enabled { get; set; } = enabled;
+    }
 
     public sealed class ProfileListItem
     {

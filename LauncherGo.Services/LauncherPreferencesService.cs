@@ -89,6 +89,19 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
     private static OpenServerQuerySettings NormalizeOpenServerQuery(OpenServerQuerySettings? source)
     {
         source ??= new OpenServerQuerySettings();
+        var endpoints = NormalizeOpenServerQueryEndpoints(source.Endpoints);
+        if (endpoints.Count == 0 &&
+            (!string.IsNullOrWhiteSpace(source.EndpointHost) || !string.IsNullOrWhiteSpace(source.EndpointToken)))
+        {
+            endpoints.Add(new OpenServerQueryEndpointConfig
+            {
+                ServerHost = source.EndpointHost.Trim(),
+                Token = source.EndpointToken.Trim(),
+                Enabled = true
+            });
+        }
+
+        var firstEndpoint = endpoints.FirstOrDefault();
         return new OpenServerQuerySettings
         {
             Enabled = source.Enabled,
@@ -101,9 +114,33 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             IncludeChats = source.IncludeChats,
             IncludeNotifications = source.IncludeNotifications,
             IncludeMapData = source.IncludeMapData,
-            EndpointHost = source.EndpointHost?.Trim() ?? string.Empty,
-            EndpointToken = source.EndpointToken?.Trim() ?? string.Empty
+            Endpoints = endpoints,
+            EndpointHost = firstEndpoint?.ServerHost ?? string.Empty,
+            EndpointToken = firstEndpoint?.Token ?? string.Empty
         };
+    }
+
+    private static List<OpenServerQueryEndpointConfig> NormalizeOpenServerQueryEndpoints(IEnumerable<OpenServerQueryEndpointConfig>? endpoints)
+    {
+        var result = new List<OpenServerQueryEndpointConfig>();
+        foreach (var endpoint in endpoints ?? [])
+        {
+            var host = endpoint.ServerHost?.Trim() ?? string.Empty;
+            var token = endpoint.Token?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(host) && string.IsNullOrWhiteSpace(token))
+            {
+                continue;
+            }
+
+            result.Add(new OpenServerQueryEndpointConfig
+            {
+                ServerHost = host,
+                Token = token,
+                Enabled = endpoint.Enabled
+            });
+        }
+
+        return result;
     }
 
     private static RobotIntegrationSettings NormalizeRobot(RobotIntegrationSettings? source, string defaultQqBotDirectory)

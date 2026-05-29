@@ -22,6 +22,9 @@ public sealed class OpenServerQuerySettings
 
     public bool IncludeMapData { get; set; } = true;
 
+    public List<OpenServerQueryEndpointConfig> Endpoints { get; set; } = [];
+
+    // Legacy single-endpoint fields kept for backward compatibility.
     public string EndpointHost { get; set; } = string.Empty;
 
     public string EndpointToken { get; set; } = string.Empty;

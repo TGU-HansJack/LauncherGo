@@ -1540,8 +1540,7 @@
                                             <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
                                                 <Button x:Name="OsqSaveButton" Classes="ActionButton" Content="保存" Click="OnOsqSaveClick" IsVisible="False" />
                                                 <Button x:Name="OsqRefreshButton" Grid.Column="1" Classes="SecondaryActionButton" Content="刷新" Click="OnConnectionRefreshClick" IsVisible="False" />
-                                                <Button x:Name="OsqStartButton" Classes="SecondaryActionButton" Content="启动" Click="OnOsqStartClick" />
-                                                <Button x:Name="OsqStopButton" Grid.Column="1" Classes="SecondaryActionButton" Content="停止" Click="OnOsqStopClick" />
+                                                <Button x:Name="OsqToggleButton" Classes="SecondaryActionButton" Content="启动" Click="OnOsqToggleClick" />
                                             </Grid>
                                             <Border Classes="ConfigCard">
                                                 <StackPanel Spacing="10">
@@ -1568,16 +1567,20 @@
                                                         <CheckBox x:Name="OsqIncludeNotificationsCheckBox" Classes="ConfigCheck" Content="通知" />
                                                         <CheckBox x:Name="OsqIncludeMapCheckBox" Classes="ConfigCheck" Content="地图数据" />
                                                     </WrapPanel>
-                                                    <WrapPanel Orientation="Horizontal">
-                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                    <StackPanel Spacing="8">
+                                                        <Grid ColumnDefinitions="420,420" ColumnSpacing="10">
                                                             <TextBlock x:Name="OsqEndpointHostLabelTextBlock" Classes="ConfigFieldLabel" Text="上报端点" />
-                                                            <TextBox x:Name="OsqEndpointHostTextBox" Classes="CompactInput" />
-                                                        </StackPanel>
-                                                        <StackPanel Classes="ConfigFormFieldWide">
-                                                            <TextBlock x:Name="OsqEndpointTokenLabelTextBlock" Classes="ConfigFieldLabel" Text="端点令牌" />
-                                                            <TextBox x:Name="OsqEndpointTokenTextBox" Classes="CompactInput" />
-                                                        </StackPanel>
-                                                    </WrapPanel>
+                                                            <TextBlock x:Name="OsqEndpointTokenLabelTextBlock" Grid.Column="1" Classes="ConfigFieldLabel" Text="端点令牌" />
+                                                        </Grid>
+                                                        <StackPanel x:Name="OsqEndpointRowsHost" Spacing="8" />
+                                                        <Button
+                                                            x:Name="OsqEndpointAddButton"
+                                                            Classes="SecondaryActionButton"
+                                                            Width="850"
+                                                            HorizontalAlignment="Left"
+                                                            Content="添加"
+                                                            Click="OnOsqEndpointAddClick" />
+                                                    </StackPanel>
                                                 </StackPanel>
                                             </Border>
                                         </StackPanel>
@@ -1588,8 +1591,7 @@
                                             <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
                                                 <Button x:Name="RobotSaveButton" Classes="ActionButton" Content="保存" Click="OnRobotSaveClick" IsVisible="False" />
                                                 <Button x:Name="RobotRefreshButton" Grid.Column="1" Classes="SecondaryActionButton" Content="刷新" Click="OnConnectionRefreshClick" IsVisible="False" />
-                                                <Button x:Name="RobotStartButton" Classes="SecondaryActionButton" Content="启动" Click="OnRobotStartClick" />
-                                                <Button x:Name="RobotStopButton" Grid.Column="1" Classes="SecondaryActionButton" Content="停止" Click="OnRobotStopClick" />
+                                                <Button x:Name="RobotToggleButton" Classes="SecondaryActionButton" Content="启动" Click="OnRobotToggleClick" />
                                             </Grid>
                                             <Border Classes="ConfigCard">
                                                 <StackPanel Spacing="10">
