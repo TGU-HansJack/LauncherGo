@@ -1,0 +1,16 @@
+{
+  "type": "code",
+  "modid": "serverauth",
+  "name": "ServerAuth",
+  "description": "服务器认证模组，提供注册登录、会话记住与 Discourse 社区认证能力。",
+  "authors": [
+    "HansJack"
+  ],
+  "version": "1.0.0",
+  "side": "universal",
+  "requiredOnClient": true,
+  "requiredOnServer": true,
+  "dependencies": {
+    "game": "1.22.0"
+  }
+}

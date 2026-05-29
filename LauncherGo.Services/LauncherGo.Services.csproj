@@ -1,4 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <EmbeddedAuthModProject>$(MSBuildThisFileDirectory)EmbeddedMods\VsslAuthMod\VsslAuthMod.csproj</EmbeddedAuthModProject>
+    <EmbeddedAuthModBuildOutput>$(MSBuildThisFileDirectory)EmbeddedMods\VsslAuthMod\bin\$(Configuration)\net10.0\</EmbeddedAuthModBuildOutput>
+    <EmbeddedAuthRoot>$(MSBuildThisFileDirectory)EmbeddedMods\serverauth\</EmbeddedAuthRoot>
+  </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\LauncherGo.Abstractions\LauncherGo.Abstractions.csproj" />
@@ -6,9 +12,22 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="EmbeddedMods\VsslAuthMod\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.7" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.1" />
     <PackageReference Include="protobuf-net" Version="3.2.56" />
+    <PackageReference Include="System.Management" Version="10.0.8" />
+    <PackageReference Include="ZstdSharp.Port" Version="0.8.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="EmbeddedMods\serverauth\modinfo.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="EmbeddedMods\serverauth\README.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="EmbeddedMods\serverauth\serverauth.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('EmbeddedMods\serverauth\serverauth.dll')" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -16,5 +35,27 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <Target Name="BuildEmbeddedAuthMod" BeforeTargets="BeforeBuild" Condition="'$(BuildEmbeddedAuthMod)' == 'true'">
+    <MSBuild Projects="$(EmbeddedAuthModProject)"
+             Targets="Restore"
+             Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY)" />
+    <MSBuild Projects="$(EmbeddedAuthModProject)"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY);NoRestore=true" />
+  </Target>
+
+  <Target Name="CopyBuiltEmbeddedAuthModToOutput" AfterTargets="Build" Condition="'$(BuildEmbeddedAuthMod)' == 'true' and Exists('$(EmbeddedAuthModBuildOutput)serverauth.dll')">
+    <PropertyGroup>
+      <_EmbeddedAuthOutputDir>$(TargetDir)EmbeddedMods\serverauth\</_EmbeddedAuthOutputDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(_EmbeddedAuthOutputDir)" />
+    <Copy SourceFiles="$(EmbeddedAuthModBuildOutput)serverauth.dll"
+          DestinationFiles="$(_EmbeddedAuthOutputDir)serverauth.dll"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(EmbeddedAuthRoot)modinfo.json;$(EmbeddedAuthRoot)README.txt"
+          DestinationFolder="$(_EmbeddedAuthOutputDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

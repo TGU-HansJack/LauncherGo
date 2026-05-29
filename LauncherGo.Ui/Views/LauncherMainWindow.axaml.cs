@@ -22,6 +22,7 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using LauncherGo.Abstractions.Services;
+using LauncherGo.Abstractions.Services.I18n;
 using LauncherGo.Domains.Enums;
 using LauncherGo.Domains.Models;
 using LauncherGo.Ui;
@@ -135,6 +136,13 @@ public partial class LauncherMainWindow : Window
     private readonly IServerProcessService _serverProcessService;
     private readonly IOpenServerQueryService _openServerQueryService;
     private readonly IRobotService _robotService;
+    private readonly ILogTailService _logTailService;
+    private readonly IAutomationService _automationService;
+    private readonly IAutomationSettingsService _automationSettingsService;
+    private readonly IFrpService _frpService;
+    private readonly IThirdPartyFrpcService _thirdPartyFrpcService;
+    private readonly IInstanceModService _instanceModService;
+    private readonly IServerAuthService _serverAuthService;
     private readonly DispatcherTimer _dataTimer;
     private readonly DispatcherTimer _tickerTimer;
     private readonly DispatcherTimer _homeSloganTimer;
@@ -160,6 +168,16 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<ConfigChoiceOption> _thirdPartyFrpcModeOptions = [];
     private readonly ObservableCollection<SettingsContributorItem> _settingsContributorItems = [];
     private readonly ObservableCollection<SettingsSponsorItem> _settingsSponsorItems = [];
+    private readonly ObservableCollection<InstanceProfile> _automationProfileItems = [];
+    private readonly ObservableCollection<AutomationActionWindowItem> _automationActionWindowItems = [];
+    private readonly ObservableCollection<AutomationTimeItem> _automationBackupTimeItems = [];
+    private readonly ObservableCollection<ScheduledBroadcastItem> _automationBroadcastItems = [];
+    private readonly ObservableCollection<AutomationTimeItem> _automationExportTimeItems = [];
+    private readonly ObservableCollection<string> _automationRuntimeLogItems = [];
+    private readonly ObservableCollection<InstanceProfile> _modProfileItems = [];
+    private readonly ObservableCollection<ModListItem> _modItems = [];
+    private readonly ObservableCollection<InstanceProfile> _authProfileItems = [];
+    private readonly ObservableCollection<AuthPlayerListItem> _authPlayerItems = [];
     private readonly List<ServerDownloadEntry> _catalogEntries = [];
     private readonly List<OsqEndpointEditorRow> _osqEndpointEditors = [];
 
@@ -188,14 +206,15 @@ public partial class LauncherMainWindow : Window
     private bool _isFrpRunning;
     private bool _isThirdPartyFrpcRunning;
     private bool _isExitRequested;
+    private bool _isRefreshingAutomation;
+    private bool _isRefreshingMods;
+    private bool _isRefreshingAuth;
+    private string _tailedProfileId = string.Empty;
     private TimeSpan _robotLastProcessorTime;
     private DateTimeOffset _robotLastCpuSampleUtc = DateTimeOffset.UtcNow;
     private double _robotLastCpuPercent;
-    private Process? _frpProcess;
-    private Process? _thirdPartyFrpcProcess;
-    private DateTimeOffset? _frpStartedAtUtc;
-    private DateTimeOffset? _thirdPartyFrpcStartedAtUtc;
     private string _configSaveFileLocation = string.Empty;
+    private string _lastInspectedSaveDirectory = string.Empty;
 
     public LauncherMainWindow()
         : this(
@@ -206,7 +225,14 @@ public partial class LauncherMainWindow : Window
             ServiceLocator.GetRequiredService<IInstanceServerConfigService>(),
             ServiceLocator.GetRequiredService<IServerProcessService>(),
             ServiceLocator.GetRequiredService<IOpenServerQueryService>(),
-            ServiceLocator.GetRequiredService<IRobotService>())
+            ServiceLocator.GetRequiredService<IRobotService>(),
+            ServiceLocator.GetRequiredService<ILogTailService>(),
+            ServiceLocator.GetRequiredService<IAutomationService>(),
+            ServiceLocator.GetRequiredService<IAutomationSettingsService>(),
+            ServiceLocator.GetRequiredService<IFrpService>(),
+            ServiceLocator.GetRequiredService<IThirdPartyFrpcService>(),
+            ServiceLocator.GetRequiredService<IInstanceModService>(),
+            ServiceLocator.GetRequiredService<IServerAuthService>())
     {
     }
 
@@ -218,7 +244,14 @@ public partial class LauncherMainWindow : Window
         IInstanceServerConfigService instanceServerConfigService,
         IServerProcessService serverProcessService,
         IOpenServerQueryService openServerQueryService,
-        IRobotService robotService)
+        IRobotService robotService,
+        ILogTailService logTailService,
+        IAutomationService automationService,
+        IAutomationSettingsService automationSettingsService,
+        IFrpService frpService,
+        IThirdPartyFrpcService thirdPartyFrpcService,
+        IInstanceModService instanceModService,
+        IServerAuthService serverAuthService)
     {
         _preferencesService = preferencesService;
         _serverPackageService = serverPackageService;
@@ -228,6 +261,13 @@ public partial class LauncherMainWindow : Window
         _serverProcessService = serverProcessService;
         _openServerQueryService = openServerQueryService;
         _robotService = robotService;
+        _logTailService = logTailService;
+        _automationService = automationService;
+        _automationSettingsService = automationSettingsService;
+        _frpService = frpService;
+        _thirdPartyFrpcService = thirdPartyFrpcService;
+        _instanceModService = instanceModService;
+        _serverAuthService = serverAuthService;
 
         InitializeComponent();
         AddHandler(InputElement.PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -245,6 +285,10 @@ public partial class LauncherMainWindow : Window
 
         _serverProcessService.OutputReceived += OnServerOutputReceived;
         _serverProcessService.StatusChanged += OnServerStatusChanged;
+        _logTailService.LogLineReceived += OnLogTailLineReceived;
+        _automationService.RuntimeLogReceived += OnAutomationRuntimeLogReceived;
+        _frpService.StatusChanged += OnFrpStatusChanged;
+        _thirdPartyFrpcService.StatusChanged += OnThirdPartyFrpcStatusChanged;
         _openServerQueryService.OutputReceived += OnOpenServerQueryOutputReceived;
 
         InitializeStaticTexts();
@@ -276,11 +320,16 @@ public partial class LauncherMainWindow : Window
             _homeSloganTimer.Stop();
             _serverProcessService.OutputReceived -= OnServerOutputReceived;
             _serverProcessService.StatusChanged -= OnServerStatusChanged;
+            _logTailService.LogLineReceived -= OnLogTailLineReceived;
+            _automationService.RuntimeLogReceived -= OnAutomationRuntimeLogReceived;
+            _frpService.StatusChanged -= OnFrpStatusChanged;
+            _thirdPartyFrpcService.StatusChanged -= OnThirdPartyFrpcStatusChanged;
             _openServerQueryService.OutputReceived -= OnOpenServerQueryOutputReceived;
+            _ = _logTailService.StopAsync();
             _ = _openServerQueryService.StopAsync(TimeSpan.FromSeconds(2));
             _ = _robotService.StopAsync(TimeSpan.FromSeconds(2));
-            DisposeTrackedConnectionProcess(_frpProcess);
-            DisposeTrackedConnectionProcess(_thirdPartyFrpcProcess);
+            _ = _frpService.StopAsync(TimeSpan.FromSeconds(2));
+            _ = _thirdPartyFrpcService.StopAsync(TimeSpan.FromSeconds(2));
         };
     }
 
@@ -381,15 +430,23 @@ public partial class LauncherMainWindow : Window
         ProfilesTabButton.Content = T("档案列表", "Profiles");
         ConfigTabButton.Content = T("配置", "Config");
         SavesTabButton.Content = T("存档管理", "Saves");
+        AutomationTabButton.Content = T("自动化", "Automation");
+        ModsTabButton.Content = T("模组管理", "Mods");
         DownloadVersionsTabButton.Content = T("下载版本", "Downloads");
         ProfileNameTextBox.PlaceholderText = T("档案名称", "Profile name");
         CreateProfileButton.Content = T("创建", "Create");
         ImportProfileButton.Content = T("导入", "Import");
         DeleteProfileButton.Content = T("删除", "Delete");
         RefreshProfilesButton.Content = T("刷新", "Refresh");
+        NewSaveNameTextBox.PlaceholderText = T("新存档名称", "New save name");
+        CreateSaveButton.Content = T("创建存档", "Create Save");
+        BackupSaveButton.Content = T("备份当前", "Backup Active");
+        InspectSavePathButton.Content = T("检查路径", "Inspect Path");
         ImportSaveButton.Content = T("导入", "Import");
         DeleteSaveButton.Content = T("删除", "Delete");
         RefreshSavesButton.Content = T("刷新", "Refresh");
+        InitializeAutomationStaticTexts();
+        InitializeModStaticTexts();
         DownloadVersionSearchTextBox.PlaceholderText = T("搜索版本号", "Search version");
         ImportServerPackageButton.Content = T("导入", "Import");
         RefreshDownloadVersionsButton.Content = T("刷新", "Refresh");
@@ -416,6 +473,35 @@ public partial class LauncherMainWindow : Window
         ToolTip.SetTip(RepositoryButton, T("仓库", "Repository"));
         ToolTip.SetTip(FeedbackButton, T("反馈", "Feedback"));
         ToolTip.SetTip(SponsorButton, T("赞助", "Sponsor"));
+    }
+
+    private void InitializeAutomationStaticTexts()
+    {
+        AutomationSaveButton.Content = T("保存", "Save");
+        AutomationRefreshButton.Content = T("刷新", "Refresh");
+        AutomationSyncLogsButton.Content = T("同步日志", "Sync Logs");
+        AutomationRestartEnabledCheckBox.Content = T("启用定时开关服", "Enable scheduled start/stop");
+        AutomationBackupEnabledCheckBox.Content = T("启用定时备份", "Enable scheduled backup");
+        AutomationBackupBeforeShutdownCheckBox.Content = T("关服前备份", "Backup before shutdown");
+        AutomationBroadcastEnabledCheckBox.Content = T("启用定时广播", "Enable scheduled broadcast");
+        AutomationExportEnabledCheckBox.Content = T("启用日志导出", "Enable log export");
+        AutomationExportBeforeShutdownCheckBox.Content = T("关服前导出日志", "Export before shutdown");
+        AutomationExportIncludeChatCheckBox.Content = T("导出聊天", "Export chat");
+        AutomationExportIncludeServerCheckBox.Content = T("导出服务端信息", "Export server info");
+        AutomationActionTitleTextBlock.Text = T("定时开关服", "Scheduled Start/Stop");
+        AutomationAddActionButton.Content = T("添加", "Add");
+        AutomationAddBackupTimeButton.Content = T("添加", "Add");
+        AutomationAddExportTimeButton.Content = T("添加", "Add");
+        AutomationAddBroadcastButton.Content = T("添加", "Add");
+    }
+
+    private void InitializeModStaticTexts()
+    {
+        ModZipPathTextBox.PlaceholderText = T("Mod ZIP 路径", "Mod ZIP path");
+        BrowseModZipButton.Content = T("浏览", "Browse");
+        ImportModZipButton.Content = T("导入", "Import");
+        DeleteSelectedModsButton.Content = T("删除", "Delete");
+        RefreshModsButton.Content = T("刷新", "Refresh");
     }
 
     private void InitializeConfigStaticTexts()
@@ -525,6 +611,7 @@ public partial class LauncherMainWindow : Window
         ConnectionFrpTabButton.Content = T("内网穿透", "FRP");
         ConnectionOpenInfoTabButton.Content = T("开放信息", "Open Info");
         ConnectionRobotTabButton.Content = T("QQ机器人", "QQ Robot");
+        ConnectionAuthTabButton.Content = T("认证", "Auth");
 
         ConnectionFrpImportButton.Content = T("导入frpc", "Import frpc");
         ConnectionThirdPartyFrpcImportButton.Content = T("导入第三方frpc", "Import third-party frpc");
@@ -567,6 +654,19 @@ public partial class LauncherMainWindow : Window
         RobotOsqSourceHintTextBlock.Text = T(
             "OSQ 来源由“开放信息”页面统一接收，机器人不再单独监听端口。",
             "OSQ source is received by Open Info; the robot does not listen on its own port.");
+        AuthSaveButton.Content = T("保存", "Save");
+        AuthRefreshButton.Content = T("刷新", "Refresh");
+        AuthDeployButton.Content = T("部署认证模组", "Deploy Auth Mod");
+        AuthEnabledCheckBox.Content = T("启用认证", "Enable Auth");
+        AuthLoginTimeoutLabelTextBlock.Text = T("登录超时秒数", "Login Timeout Seconds");
+        AuthRememberSessionLabelTextBlock.Text = T("会话记住分钟", "Remember Session Minutes");
+        AuthDiscourseEnabledCheckBox.Content = T("启用 Discourse 登录", "Enable Discourse Login");
+        AuthDiscourseBaseUrlLabelTextBlock.Text = T("Discourse 地址", "Discourse URL");
+        AuthDiscourseSecretLabelTextBlock.Text = T("共享密钥", "Shared Secret");
+        AuthDiscoursePublicCallbackLabelTextBlock.Text = T("公开回调地址", "Public Callback URL");
+        AuthDiscourseListenPrefixLabelTextBlock.Text = T("本地监听地址", "Local Listen Prefix");
+        AuthPlayersTitleTextBlock.Text = T("玩家认证数据", "Player Auth Data");
+        AuthRefreshPlayersButton.Content = T("刷新玩家", "Refresh Players");
         RebuildThirdPartyFrpcModeOptions();
     }
 
@@ -602,6 +702,16 @@ public partial class LauncherMainWindow : Window
         ConnectionThirdPartyFrpcModeComboBox.ItemsSource = _thirdPartyFrpcModeOptions;
         SettingsContributorsItemsControl.ItemsSource = _settingsContributorItems;
         SettingsSponsorsItemsControl.ItemsSource = _settingsSponsorItems;
+        AutomationProfileComboBox.ItemsSource = _automationProfileItems;
+        AutomationActionsItemsControl.ItemsSource = _automationActionWindowItems;
+        AutomationBackupTimesItemsControl.ItemsSource = _automationBackupTimeItems;
+        AutomationBroadcastsItemsControl.ItemsSource = _automationBroadcastItems;
+        AutomationExportTimesItemsControl.ItemsSource = _automationExportTimeItems;
+        AutomationRuntimeLogsListBox.ItemsSource = _automationRuntimeLogItems;
+        ModProfileComboBox.ItemsSource = _modProfileItems;
+        ModsListBox.ItemsSource = _modItems;
+        AuthProfileComboBox.ItemsSource = _authProfileItems;
+        AuthPlayersListBox.ItemsSource = _authPlayerItems;
         RebuildConfigChoiceOptions();
         RebuildThirdPartyFrpcModeOptions();
     }
@@ -628,7 +738,9 @@ public partial class LauncherMainWindow : Window
         PushNextSample(_robotMemoryMbSamples, robotStatus.IsRunning ? BytesToMb(robotResources.MemoryBytes) : 0);
         if (DateTime.UtcNow.Second % 5 == 0)
         {
-            var networkActive = _openServerQueryService.GetRuntimeStatus().IsListening || _isFrpRunning || _isThirdPartyFrpcRunning;
+            var networkActive = _openServerQueryService.GetRuntimeStatus().IsListening ||
+                                _frpService.GetCurrentStatus().IsRunning ||
+                                _thirdPartyFrpcService.GetCurrentStatus().IsRunning;
             PushNextSample(_networkLatencySamples, networkActive ? 1 : 0, NetworkRangeCount);
         }
 
@@ -1023,11 +1135,332 @@ public partial class LauncherMainWindow : Window
         RefreshLaunchOptions(profiles);
         _ = RefreshSavesAsync();
         _ = RefreshConfigProfilesAsync();
+        _ = RefreshAutomationAsync();
+        _ = RefreshModsAsync();
+        _ = RefreshAuthProfilesAsync();
     }
 
     private void RefreshLaunchOptions(IReadOnlyList<InstanceProfile>? profiles = null)
     {
         RefreshLaunchButtonSummary();
+    }
+
+    private async Task RefreshAutomationAsync()
+    {
+        if (_isRefreshingAutomation)
+        {
+            return;
+        }
+
+        _isRefreshingAutomation = true;
+        try
+        {
+            var preferences = _preferencesService.Load();
+            var profiles = _profileService.GetProfiles();
+            var selectedProfileId = AutomationProfileComboBox.SelectedItem is InstanceProfile selectedProfile
+                ? selectedProfile.Id
+                : string.Empty;
+            _automationProfileItems.Clear();
+            foreach (var profile in profiles)
+            {
+                _automationProfileItems.Add(profile);
+            }
+
+            AutomationProfileComboBox.ItemsSource = _automationProfileItems;
+            if (_automationProfileItems.Count > 0)
+            {
+                var target = _automationProfileItems.FirstOrDefault(profile =>
+                    !string.IsNullOrWhiteSpace(selectedProfileId) &&
+                    profile.Id.Equals(selectedProfileId, StringComparison.OrdinalIgnoreCase))
+                    ?? _automationProfileItems.FirstOrDefault(profile =>
+                        profile.Id.Equals(preferences.DefaultLaunchProfileId, StringComparison.OrdinalIgnoreCase))
+                    ?? _automationProfileItems.FirstOrDefault();
+                AutomationProfileComboBox.SelectedItem = target;
+            }
+
+            var settings = await _automationSettingsService.LoadAsync();
+            ApplyAutomationSettings(settings);
+            AutomationStatusTextBlock.Text = T("自动化配置已加载。", "Automation settings loaded.");
+            await SyncAutomationRuntimeLogsAsync();
+        }
+        catch (Exception ex)
+        {
+            AutomationStatusTextBlock.Text = T($"自动化加载失败：{ex.Message}", $"Automation load failed: {ex.Message}");
+        }
+        finally
+        {
+            _isRefreshingAutomation = false;
+        }
+    }
+
+    private void ApplyAutomationSettings(AutomationSettings settings)
+    {
+        AutomationRestartEnabledCheckBox.IsChecked = settings.RestartSchedulerEnabled;
+        AutomationBackupEnabledCheckBox.IsChecked = settings.BackupEnabled;
+        AutomationBackupBeforeShutdownCheckBox.IsChecked = settings.BackupBeforeShutdown;
+        AutomationBroadcastEnabledCheckBox.IsChecked = settings.BroadcastEnabled;
+        AutomationExportEnabledCheckBox.IsChecked = settings.ExportLogEnabled;
+        AutomationExportBeforeShutdownCheckBox.IsChecked = settings.ExportBeforeShutdown;
+        AutomationExportIncludeChatCheckBox.IsChecked = settings.ExportIncludeChat;
+        AutomationExportIncludeServerCheckBox.IsChecked = settings.ExportIncludeServerInfo;
+
+        _automationActionWindowItems.Clear();
+        foreach (var window in settings.ActionWindows ?? [])
+        {
+            _automationActionWindowItems.Add(AutomationActionWindowItem.FromModel(window));
+        }
+        if (_automationActionWindowItems.Count == 0)
+        {
+            _automationActionWindowItems.Add(new AutomationActionWindowItem());
+        }
+
+        _automationBackupTimeItems.Clear();
+        foreach (var time in settings.BackupTimes ?? [])
+        {
+            _automationBackupTimeItems.Add(new AutomationTimeItem(time));
+        }
+        if (_automationBackupTimeItems.Count == 0)
+        {
+            _automationBackupTimeItems.Add(new AutomationTimeItem("03:00"));
+        }
+
+        _automationBroadcastItems.Clear();
+        foreach (var message in settings.BroadcastMessages ?? [])
+        {
+            _automationBroadcastItems.Add(ScheduledBroadcastItem.FromModel(message));
+        }
+        if (_automationBroadcastItems.Count == 0)
+        {
+            _automationBroadcastItems.Add(new ScheduledBroadcastItem());
+        }
+
+        _automationExportTimeItems.Clear();
+        foreach (var time in settings.ExportTimes ?? [])
+        {
+            _automationExportTimeItems.Add(new AutomationTimeItem(time));
+        }
+        if (_automationExportTimeItems.Count == 0)
+        {
+            _automationExportTimeItems.Add(new AutomationTimeItem("12:00"));
+        }
+    }
+
+    private AutomationSettings CollectAutomationSettings()
+    {
+        var selectedProfile = AutomationProfileComboBox.SelectedItem as InstanceProfile;
+        return new AutomationSettings
+        {
+            TargetProfileId = selectedProfile?.Id ?? string.Empty,
+            RestartSchedulerEnabled = AutomationRestartEnabledCheckBox.IsChecked == true,
+            BackupEnabled = AutomationBackupEnabledCheckBox.IsChecked == true,
+            BackupBeforeShutdown = AutomationBackupBeforeShutdownCheckBox.IsChecked == true,
+            BroadcastEnabled = AutomationBroadcastEnabledCheckBox.IsChecked == true,
+            ExportLogEnabled = AutomationExportEnabledCheckBox.IsChecked == true,
+            ExportBeforeShutdown = AutomationExportBeforeShutdownCheckBox.IsChecked == true,
+            ExportIncludeChat = AutomationExportIncludeChatCheckBox.IsChecked == true,
+            ExportIncludeServerInfo = AutomationExportIncludeServerCheckBox.IsChecked == true,
+            ActionWindows = _automationActionWindowItems.Select(item => item.ToModel()).ToList(),
+            BackupTimes = _automationBackupTimeItems
+                .Select(item => item.Time?.Trim() ?? string.Empty)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+            BroadcastMessages = _automationBroadcastItems
+                .Select(item => item.ToModel())
+                .Where(item => !string.IsNullOrWhiteSpace(item.Message) || !string.IsNullOrWhiteSpace(item.Time))
+                .ToList(),
+            ExportTimes = _automationExportTimeItems
+                .Select(item => item.Time?.Trim() ?? string.Empty)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList()
+        };
+    }
+
+    private async Task SaveAutomationAsync()
+    {
+        try
+        {
+            var settings = CollectAutomationSettings();
+            await _automationSettingsService.SaveAsync(settings);
+            await _automationService.ReloadAsync();
+            AutomationStatusTextBlock.Text = T("自动化配置已保存。", "Automation settings saved.");
+        }
+        catch (Exception ex)
+        {
+            AutomationStatusTextBlock.Text = T($"自动化保存失败：{ex.Message}", $"Automation save failed: {ex.Message}");
+        }
+    }
+
+    private async Task SyncAutomationRuntimeLogsAsync()
+    {
+        _automationRuntimeLogItems.Clear();
+        foreach (var line in _automationService.GetRuntimeLogs())
+        {
+            _automationRuntimeLogItems.Add(line);
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private async Task RefreshModsAsync()
+    {
+        if (_isRefreshingMods)
+        {
+            return;
+        }
+
+        _isRefreshingMods = true;
+        try
+        {
+            var profiles = _profileService.GetProfiles();
+            var selectedProfileId = ModProfileComboBox.SelectedItem is InstanceProfile selectedProfile
+                ? selectedProfile.Id
+                : string.Empty;
+            _modProfileItems.Clear();
+            foreach (var profile in profiles)
+            {
+                _modProfileItems.Add(profile);
+            }
+
+            ModProfileComboBox.ItemsSource = _modProfileItems;
+            if (_modProfileItems.Count > 0)
+            {
+                ModProfileComboBox.SelectedItem = _modProfileItems.FirstOrDefault(profile =>
+                    !string.IsNullOrWhiteSpace(selectedProfileId) &&
+                    profile.Id.Equals(selectedProfileId, StringComparison.OrdinalIgnoreCase))
+                    ?? _modProfileItems.FirstOrDefault();
+            }
+
+            await LoadModsForSelectedProfileAsync();
+        }
+        catch (Exception ex)
+        {
+            ModStatusTextBlock.Text = T($"模组加载失败：{ex.Message}", $"Mod load failed: {ex.Message}");
+        }
+        finally
+        {
+            _isRefreshingMods = false;
+        }
+    }
+
+    private async Task LoadModsForSelectedProfileAsync()
+    {
+        if (ModProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            _modItems.Clear();
+            ModStatusTextBlock.Text = T("暂无档案，请先创建档案。", "No profile found. Create a profile first.");
+            return;
+        }
+
+        var mods = await _instanceModService.GetModsAsync(profile);
+        _modItems.Clear();
+        foreach (var mod in mods)
+        {
+            _modItems.Add(ModListItem.FromModel(mod));
+        }
+
+        ModStatusTextBlock.Text = T($"已加载 {mods.Count} 个模组。", $"Loaded {mods.Count} mods.");
+    }
+
+    private async Task RefreshAuthProfilesAsync()
+    {
+        if (_isRefreshingAuth)
+        {
+            return;
+        }
+
+        _isRefreshingAuth = true;
+        try
+        {
+            var profiles = _profileService.GetProfiles();
+            var selectedProfileId = AuthProfileComboBox.SelectedItem is InstanceProfile selectedProfile
+                ? selectedProfile.Id
+                : string.Empty;
+            _authProfileItems.Clear();
+            foreach (var profile in profiles)
+            {
+                _authProfileItems.Add(profile);
+            }
+
+            AuthProfileComboBox.ItemsSource = _authProfileItems;
+            if (_authProfileItems.Count == 0)
+            {
+                _authPlayerItems.Clear();
+                AuthStatusTextBlock.Text = T("暂无档案，请先创建档案。", "No profile found. Create a profile first.");
+                return;
+            }
+
+            var target = _authProfileItems.FirstOrDefault(profile =>
+                !string.IsNullOrWhiteSpace(selectedProfileId) &&
+                profile.Id.Equals(selectedProfileId, StringComparison.OrdinalIgnoreCase))
+                ?? _authProfileItems.FirstOrDefault();
+            AuthProfileComboBox.SelectedItem = target;
+            if (target is not null)
+            {
+                await LoadAuthForProfileAsync(target);
+            }
+        }
+        catch (Exception ex)
+        {
+            AuthStatusTextBlock.Text = T($"认证加载失败：{ex.Message}", $"Auth load failed: {ex.Message}");
+        }
+        finally
+        {
+            _isRefreshingAuth = false;
+        }
+    }
+
+    private async Task LoadAuthForProfileAsync(InstanceProfile profile)
+    {
+        await _serverAuthService.EnsureAuthModDeployedAsync(profile);
+        var settings = await _serverAuthService.LoadSettingsAsync(profile);
+        ApplyAuthSettings(settings);
+        await LoadAuthPlayersAsync(profile);
+        var authModEnabled = await _serverAuthService.GetAuthModEnabledAsync(profile);
+        AuthStatusTextBlock.Text = T(
+            $"已加载认证配置，模组{(authModEnabled ? "已部署" : "未部署")}。",
+            $"Auth settings loaded, mod {(authModEnabled ? "deployed" : "missing")}.");
+    }
+
+    private void ApplyAuthSettings(ServerAuthSettings settings)
+    {
+        AuthEnabledCheckBox.IsChecked = settings.Enabled;
+        AuthLoginTimeoutNumericUpDown.Value = settings.LoginTimeoutSeconds;
+        AuthRememberSessionNumericUpDown.Value = settings.RememberSessionMinutes;
+        AuthDiscourseEnabledCheckBox.IsChecked = settings.Discourse.Enabled;
+        AuthDiscourseBaseUrlTextBox.Text = settings.Discourse.BaseUrl;
+        AuthDiscourseSecretTextBox.Text = settings.Discourse.SharedSecret;
+        AuthDiscoursePublicCallbackTextBox.Text = settings.Discourse.PublicCallbackBaseUrl;
+        AuthDiscourseListenPrefixTextBox.Text = settings.Discourse.ListenPrefix;
+    }
+
+    private ServerAuthSettings CollectAuthSettings()
+    {
+        return new ServerAuthSettings
+        {
+            Enabled = AuthEnabledCheckBox.IsChecked == true,
+            LoginTimeoutSeconds = GetNumericValue(AuthLoginTimeoutNumericUpDown, 60),
+            RememberSessionMinutes = GetNumericValue(AuthRememberSessionNumericUpDown, 30),
+            Discourse = new ServerAuthDiscourseSettings
+            {
+                Enabled = AuthDiscourseEnabledCheckBox.IsChecked == true,
+                BaseUrl = AuthDiscourseBaseUrlTextBox.Text?.Trim() ?? string.Empty,
+                SharedSecret = AuthDiscourseSecretTextBox.Text?.Trim() ?? string.Empty,
+                PublicCallbackBaseUrl = AuthDiscoursePublicCallbackTextBox.Text?.Trim() ?? string.Empty,
+                ListenPrefix = AuthDiscourseListenPrefixTextBox.Text?.Trim() ?? string.Empty
+            }
+        };
+    }
+
+    private async Task LoadAuthPlayersAsync(InstanceProfile profile)
+    {
+        var players = await _serverAuthService.GetPlayersAsync(profile);
+        _authPlayerItems.Clear();
+        foreach (var player in players)
+        {
+            _authPlayerItems.Add(AuthPlayerListItem.FromModel(player));
+        }
     }
 
     private void RefreshLaunchButtonSummary(bool? isRunning = null)
@@ -1102,6 +1535,14 @@ public partial class LauncherMainWindow : Window
             }
 
             RefreshLaunchButtonSummary();
+            if (SaveProfileComboBox.SelectedItem is InstanceProfile selectedSaveProfile)
+            {
+                var inspection = await _saveService.InspectSavePathAsync(selectedSaveProfile);
+                _lastInspectedSaveDirectory = inspection.EffectiveSaveDirectory;
+                SavePathInspectionTextBlock.Text = string.IsNullOrWhiteSpace(inspection.WarningMessage)
+                    ? $"{inspection.Source} | {inspection.EffectiveSaveFile}"
+                    : $"{inspection.Source} | {inspection.EffectiveSaveFile} | {inspection.WarningMessage}";
+            }
         }
         finally
         {
@@ -1254,15 +1695,27 @@ public partial class LauncherMainWindow : Window
         ProfilesPanel.IsVisible = tab == InstanceManageTab.Profiles;
         ConfigPanel.IsVisible = tab == InstanceManageTab.Config;
         SavesPanel.IsVisible = tab == InstanceManageTab.Saves;
+        AutomationPanel.IsVisible = tab == InstanceManageTab.Automation;
+        ModsPanel.IsVisible = tab == InstanceManageTab.Mods;
         DownloadVersionsPanel.IsVisible = tab == InstanceManageTab.DownloadVersions;
         SetSelectedClass(ProfilesTabButton, tab == InstanceManageTab.Profiles);
         SetSelectedClass(ConfigTabButton, tab == InstanceManageTab.Config);
         SetSelectedClass(SavesTabButton, tab == InstanceManageTab.Saves);
+        SetSelectedClass(AutomationTabButton, tab == InstanceManageTab.Automation);
+        SetSelectedClass(ModsTabButton, tab == InstanceManageTab.Mods);
         SetSelectedClass(DownloadVersionsTabButton, tab == InstanceManageTab.DownloadVersions);
 
         if (tab == InstanceManageTab.Config)
         {
             _ = RefreshConfigProfilesAsync();
+        }
+        else if (tab == InstanceManageTab.Automation)
+        {
+            _ = RefreshAutomationAsync();
+        }
+        else if (tab == InstanceManageTab.Mods)
+        {
+            _ = RefreshModsAsync();
         }
     }
 
@@ -1333,11 +1786,17 @@ public partial class LauncherMainWindow : Window
         ConnectionFrpPanel.IsVisible = tab == ConnectionTab.Frp;
         ConnectionOpenInfoPanel.IsVisible = tab == ConnectionTab.OpenInfo;
         ConnectionRobotPanel.IsVisible = tab == ConnectionTab.Robot;
+        ConnectionAuthPanel.IsVisible = tab == ConnectionTab.Auth;
         SetSelectedClass(ConnectionFrpTabButton, tab == ConnectionTab.Frp);
         SetSelectedClass(ConnectionOpenInfoTabButton, tab == ConnectionTab.OpenInfo);
         SetSelectedClass(ConnectionRobotTabButton, tab == ConnectionTab.Robot);
+        SetSelectedClass(ConnectionAuthTabButton, tab == ConnectionTab.Auth);
         RefreshConnectionSettingsEditor();
         RefreshConnectionRuntimeStatus();
+        if (tab == ConnectionTab.Auth)
+        {
+            _ = RefreshAuthProfilesAsync();
+        }
     }
 
     private void RegisterAutoSaveHandlers()
@@ -2278,10 +2737,15 @@ public partial class LauncherMainWindow : Window
 
     private void UpdateConnectionFrpActionButtons()
     {
-        ConnectionFrpToggleButton.Content = _isFrpRunning
+        var frpStatus = _frpService.GetCurrentStatus();
+        var thirdPartyStatus = _thirdPartyFrpcService.GetCurrentStatus();
+        _isFrpRunning = frpStatus.IsRunning;
+        _isThirdPartyFrpcRunning = thirdPartyStatus.IsRunning;
+
+        ConnectionFrpToggleButton.Content = frpStatus.IsRunning
             ? T("停止常规", "Stop Regular")
             : T("启动常规", "Start Regular");
-        ConnectionThirdPartyFrpcToggleButton.Content = _isThirdPartyFrpcRunning
+        ConnectionThirdPartyFrpcToggleButton.Content = thirdPartyStatus.IsRunning
             ? T("停止第三方", "Stop Third-party")
             : T("启动第三方", "Start Third-party");
     }
@@ -2300,7 +2764,6 @@ public partial class LauncherMainWindow : Window
 
     private void RefreshConnectionRuntimeStatus()
     {
-        UpdateTrackedConnectionProcessState();
         UpdateConnectionFrpActionButtons();
         UpdateOsqToggleButtonText();
         UpdateRobotToggleButtonText();
@@ -2309,6 +2772,7 @@ public partial class LauncherMainWindow : Window
             ConnectionTab.Frp => BuildFrpRuntimeStatusText(),
             ConnectionTab.OpenInfo => BuildOpenInfoRuntimeStatusText(),
             ConnectionTab.Robot => BuildRobotRuntimeStatusText(),
+            ConnectionTab.Auth => AuthStatusTextBlock.Text ?? string.Empty,
             _ => string.Empty
         };
 
@@ -2318,15 +2782,20 @@ public partial class LauncherMainWindow : Window
 
     private string BuildFrpRuntimeStatusText()
     {
-        var regular = _isFrpRunning
+        var frpStatus = _frpService.GetCurrentStatus();
+        var thirdPartyStatus = _thirdPartyFrpcService.GetCurrentStatus();
+        _isFrpRunning = frpStatus.IsRunning;
+        _isThirdPartyFrpcRunning = thirdPartyStatus.IsRunning;
+
+        var regular = frpStatus.IsRunning
             ? T(
-                $"常规内网穿透：运行中 PID={TryGetProcessId(_frpProcess)}  {FormatConnectionUptime(_frpStartedAtUtc)}",
-                $"Regular FRP: running PID={TryGetProcessId(_frpProcess)}  {FormatConnectionUptime(_frpStartedAtUtc)}")
+                $"常规内网穿透：运行中 PID={frpStatus.ProcessId?.ToString(CultureInfo.InvariantCulture) ?? "--"}  {FormatConnectionUptime(frpStatus.StartedAtUtc)}",
+                $"Regular FRP: running PID={frpStatus.ProcessId?.ToString(CultureInfo.InvariantCulture) ?? "--"}  {FormatConnectionUptime(frpStatus.StartedAtUtc)}")
             : T("常规内网穿透：未启动", "Regular FRP: stopped");
-        var thirdParty = _isThirdPartyFrpcRunning
+        var thirdParty = thirdPartyStatus.IsRunning
             ? T(
-                $"第三方内网穿透：运行中 PID={TryGetProcessId(_thirdPartyFrpcProcess)}  {FormatConnectionUptime(_thirdPartyFrpcStartedAtUtc)}",
-                $"Third-party FRPC: running PID={TryGetProcessId(_thirdPartyFrpcProcess)}  {FormatConnectionUptime(_thirdPartyFrpcStartedAtUtc)}")
+                $"第三方内网穿透：运行中 PID={thirdPartyStatus.ProcessId?.ToString(CultureInfo.InvariantCulture) ?? "--"}  {FormatConnectionUptime(thirdPartyStatus.StartedAtUtc)}",
+                $"Third-party FRPC: running PID={thirdPartyStatus.ProcessId?.ToString(CultureInfo.InvariantCulture) ?? "--"}  {FormatConnectionUptime(thirdPartyStatus.StartedAtUtc)}")
             : T("第三方内网穿透：未启动", "Third-party FRPC: stopped");
         return $"{regular}；{thirdParty}";
     }
@@ -2395,12 +2864,14 @@ public partial class LauncherMainWindow : Window
 
         try
         {
-            var preferences = _preferencesService.Load();
-            var workingDirectory = ResolveConnectionWorkingDirectory(kind, preferences);
-            Directory.CreateDirectory(workingDirectory);
-
-            var targetExecutable = Path.Combine(workingDirectory, "frpc.exe");
-            File.Copy(sourcePath, targetExecutable, overwrite: true);
+            if (kind == ConnectionProcessKind.Frp)
+            {
+                await _frpService.ImportExecutableAsync(sourcePath);
+            }
+            else
+            {
+                await _thirdPartyFrpcService.ImportExecutableAsync(sourcePath);
+            }
 
             if (kind == ConnectionProcessKind.Frp)
             {
@@ -2432,8 +2903,7 @@ public partial class LauncherMainWindow : Window
 
     private async Task ToggleConnectionProcessAsync(ConnectionProcessKind kind)
     {
-        UpdateTrackedConnectionProcessState();
-        if (IsConnectionProcessRunning(kind))
+        if (kind == ConnectionProcessKind.Frp ? _frpService.GetCurrentStatus().IsRunning : _thirdPartyFrpcService.GetCurrentStatus().IsRunning)
         {
             await StopConnectionProcessAsync(kind);
             return;
@@ -2443,14 +2913,22 @@ public partial class LauncherMainWindow : Window
         await StartConnectionProcessAsync(kind);
     }
 
-    private void EditConnectionToml(ConnectionProcessKind kind)
+    private async Task EditConnectionTomlAsync(ConnectionProcessKind kind)
     {
         try
         {
-            var preferences = _preferencesService.Load();
-            var workingDirectory = ResolveConnectionWorkingDirectory(kind, preferences);
-            var tomlPath = Path.Combine(workingDirectory, "frpc.toml");
-            EnsureConnectionTomlExists(tomlPath);
+            string tomlPath;
+            if (kind == ConnectionProcessKind.Frp)
+            {
+                await _frpService.LoadConfigAsync();
+                tomlPath = _frpService.ConfigPath;
+            }
+            else
+            {
+                await _thirdPartyFrpcService.LoadConfigAsync();
+                tomlPath = _thirdPartyFrpcService.ConfigPath;
+            }
+
             Process.Start(new ProcessStartInfo
             {
                 FileName = tomlPath,
@@ -2468,36 +2946,12 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private static void EnsureConnectionTomlExists(string tomlPath)
-    {
-        if (File.Exists(tomlPath))
-        {
-            return;
-        }
-
-        var template = """
-                       # frpc.toml
-                       # Generated by LauncherGo.
-                       # Fill this file according to your FRP provider settings.
-                       
-                       serverAddr = "x.x.x.x"
-                       serverPort = 7000
-                       
-                       [[proxies]]
-                       name = "vs-service"
-                       type = "tcp"
-                       localIP = "127.0.0.1"
-                       localPort = 42420
-                       remotePort = 6000
-                       """;
-        Directory.CreateDirectory(Path.GetDirectoryName(tomlPath) ?? string.Empty);
-        File.WriteAllText(tomlPath, template + Environment.NewLine, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-    }
-
     private async Task StartConnectionProcessAsync(ConnectionProcessKind kind)
     {
-        UpdateTrackedConnectionProcessState();
-        if (IsConnectionProcessRunning(kind))
+        var isRunning = kind == ConnectionProcessKind.Frp
+            ? _frpService.GetCurrentStatus().IsRunning
+            : _thirdPartyFrpcService.GetCurrentStatus().IsRunning;
+        if (isRunning)
         {
             SetConnectionStatus(kind == ConnectionProcessKind.Frp
                 ? T("常规内网穿透已在运行。", "Regular FRP is already running.")
@@ -2505,59 +2959,25 @@ public partial class LauncherMainWindow : Window
             return;
         }
 
-        var preferences = _preferencesService.Load();
-        var command = kind == ConnectionProcessKind.Frp
-            ? preferences.Frp.FrpCommand
-            : preferences.Frp.ThirdPartyFrpcCommand;
         var serviceName = kind == ConnectionProcessKind.Frp
             ? T("常规内网穿透", "Regular FRP")
             : T("第三方内网穿透", "Third-party FRPC");
 
         try
         {
-            var workingDirectory = ResolveConnectionWorkingDirectory(kind, preferences);
-            var launch = BuildCommandLaunch(command, workingDirectory);
-            var process = new Process
+            if (kind == ConnectionProcessKind.Frp)
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = launch.FileName,
-                    WorkingDirectory = workingDirectory,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                },
-                EnableRaisingEvents = true
-            };
-
-            foreach (var argument in launch.Arguments)
+                await _frpService.StartAsync();
+            }
+            else
             {
-                process.StartInfo.ArgumentList.Add(argument);
+                await _thirdPartyFrpcService.StartAsync();
             }
 
-            process.OutputDataReceived += (_, args) => OnConnectionProcessOutput(serviceName, args.Data);
-            process.ErrorDataReceived += (_, args) => OnConnectionProcessOutput(serviceName, args.Data);
-            process.Exited += (_, _) => OnConnectionProcessExited(kind, process);
-
-            if (!process.Start())
-            {
-                throw new InvalidOperationException(T("进程启动失败。", "Process failed to start."));
-            }
-
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-            SetConnectionProcess(kind, process);
-            SetConnectionStatus(T($"{serviceName} 已启动，PID={process.Id}。", $"{serviceName} started, PID={process.Id}."));
-            UpdateCardValues(_serverProcessService.GetCurrentStatus());
-
-            await Task.Delay(500);
-            if (!HasProcessExited(process))
-            {
-                return;
-            }
-
-            SetConnectionStatus(T($"{serviceName} 启动后立即退出，请检查命令或配置。", $"{serviceName} exited immediately; check the command or configuration."));
+            var status = kind == ConnectionProcessKind.Frp
+                ? _frpService.GetCurrentStatus()
+                : _thirdPartyFrpcService.GetCurrentStatus();
+            SetConnectionStatus(T($"{serviceName} 已启动，PID={status.ProcessId}。", $"{serviceName} started, PID={status.ProcessId}."));
         }
         catch (Exception ex)
         {
@@ -2567,247 +2987,27 @@ public partial class LauncherMainWindow : Window
 
     private async Task StopConnectionProcessAsync(ConnectionProcessKind kind)
     {
-        UpdateTrackedConnectionProcessState();
-        var process = GetConnectionProcess(kind);
         var serviceName = kind == ConnectionProcessKind.Frp
             ? T("常规内网穿透", "Regular FRP")
             : T("第三方内网穿透", "Third-party FRPC");
-        if (process is null || HasProcessExited(process))
-        {
-            ClearConnectionProcess(kind, process);
-            SetConnectionStatus(T($"{serviceName} 未启动。", $"{serviceName} is not running."));
-            UpdateCardValues(_serverProcessService.GetCurrentStatus());
-            return;
-        }
 
         try
         {
-            process.Kill(entireProcessTree: true);
-            await process.WaitForExitAsync();
-            ClearConnectionProcess(kind, process);
+            if (kind == ConnectionProcessKind.Frp)
+            {
+                await _frpService.StopAsync(TimeSpan.FromSeconds(15));
+            }
+            else
+            {
+                await _thirdPartyFrpcService.StopAsync(TimeSpan.FromSeconds(15));
+            }
+
             SetConnectionStatus(T($"{serviceName} 已停止。", $"{serviceName} stopped."));
-            UpdateCardValues(_serverProcessService.GetCurrentStatus());
         }
         catch (Exception ex)
         {
             SetConnectionStatus(T($"{serviceName} 停止失败：{ex.Message}", $"{serviceName} stop failed: {ex.Message}"));
         }
-    }
-
-    private void OnConnectionProcessOutput(string serviceName, string? line)
-    {
-        if (string.IsNullOrWhiteSpace(line))
-        {
-            return;
-        }
-
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (_selectedTab == MainTab.Connection)
-            {
-                SetConnectionStatus($"[{serviceName}] {line}");
-            }
-        });
-    }
-
-    private void OnConnectionProcessExited(ConnectionProcessKind kind, Process process)
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            ClearConnectionProcess(kind, process);
-            if (_selectedTab == MainTab.Connection)
-            {
-                RefreshConnectionRuntimeStatus();
-            }
-        });
-    }
-
-    private void SetConnectionProcess(ConnectionProcessKind kind, Process process)
-    {
-        if (kind == ConnectionProcessKind.Frp)
-        {
-            DisposeTrackedConnectionProcess(_frpProcess);
-            _frpProcess = process;
-            _frpStartedAtUtc = DateTimeOffset.UtcNow;
-            _isFrpRunning = true;
-            return;
-        }
-
-        DisposeTrackedConnectionProcess(_thirdPartyFrpcProcess);
-        _thirdPartyFrpcProcess = process;
-        _thirdPartyFrpcStartedAtUtc = DateTimeOffset.UtcNow;
-        _isThirdPartyFrpcRunning = true;
-    }
-
-    private Process? GetConnectionProcess(ConnectionProcessKind kind)
-    {
-        return kind == ConnectionProcessKind.Frp ? _frpProcess : _thirdPartyFrpcProcess;
-    }
-
-    private bool IsConnectionProcessRunning(ConnectionProcessKind kind)
-    {
-        var process = GetConnectionProcess(kind);
-        return process is not null && !HasProcessExited(process);
-    }
-
-    private void ClearConnectionProcess(ConnectionProcessKind kind, Process? expectedProcess)
-    {
-        if (kind == ConnectionProcessKind.Frp)
-        {
-            if (expectedProcess is not null && _frpProcess is not null && !ReferenceEquals(_frpProcess, expectedProcess))
-            {
-                return;
-            }
-
-            DisposeTrackedConnectionProcess(_frpProcess);
-            _frpProcess = null;
-            _frpStartedAtUtc = null;
-            _isFrpRunning = false;
-            return;
-        }
-
-        if (expectedProcess is not null && _thirdPartyFrpcProcess is not null && !ReferenceEquals(_thirdPartyFrpcProcess, expectedProcess))
-        {
-            return;
-        }
-
-        DisposeTrackedConnectionProcess(_thirdPartyFrpcProcess);
-        _thirdPartyFrpcProcess = null;
-        _thirdPartyFrpcStartedAtUtc = null;
-        _isThirdPartyFrpcRunning = false;
-    }
-
-    private void UpdateTrackedConnectionProcessState()
-    {
-        if (_frpProcess is not null && HasProcessExited(_frpProcess))
-        {
-            ClearConnectionProcess(ConnectionProcessKind.Frp, _frpProcess);
-        }
-
-        if (_thirdPartyFrpcProcess is not null && HasProcessExited(_thirdPartyFrpcProcess))
-        {
-            ClearConnectionProcess(ConnectionProcessKind.ThirdPartyFrpc, _thirdPartyFrpcProcess);
-        }
-    }
-
-    private static void DisposeTrackedConnectionProcess(Process? process)
-    {
-        if (process is null)
-        {
-            return;
-        }
-
-        try
-        {
-            process.Dispose();
-        }
-        catch
-        {
-            // ignore process cleanup failures
-        }
-    }
-
-    private static bool HasProcessExited(Process process)
-    {
-        try
-        {
-            return process.HasExited;
-        }
-        catch
-        {
-            return true;
-        }
-    }
-
-    private static int? TryGetProcessId(Process? process)
-    {
-        if (process is null)
-        {
-            return null;
-        }
-
-        try
-        {
-            return process.Id;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static CommandLaunchSpec BuildCommandLaunch(string command, string workingDirectory)
-    {
-        var tokens = SplitCommandLine(command);
-        if (tokens.Count == 0)
-        {
-            throw new InvalidOperationException("未配置启动命令。");
-        }
-
-        var fileName = ResolveLaunchFileName(tokens[0], workingDirectory);
-        return new CommandLaunchSpec(fileName, tokens.Skip(1).ToArray());
-    }
-
-    private static string ResolveLaunchFileName(string fileNameToken, string workingDirectory)
-    {
-        var token = fileNameToken.Trim();
-        if (Path.IsPathRooted(token))
-        {
-            return Path.GetFullPath(token);
-        }
-
-        var localCandidate = Path.Combine(workingDirectory, token);
-        return File.Exists(localCandidate) ? localCandidate : token;
-    }
-
-    private static IReadOnlyList<string> SplitCommandLine(string commandLine)
-    {
-        var result = new List<string>();
-        if (string.IsNullOrWhiteSpace(commandLine))
-        {
-            return result;
-        }
-
-        var current = new StringBuilder();
-        var inQuotes = false;
-        for (var i = 0; i < commandLine.Length; i++)
-        {
-            var c = commandLine[i];
-            if (c == '"')
-            {
-                inQuotes = !inQuotes;
-                continue;
-            }
-
-            if (char.IsWhiteSpace(c) && !inQuotes)
-            {
-                if (current.Length > 0)
-                {
-                    result.Add(current.ToString());
-                    current.Clear();
-                }
-
-                continue;
-            }
-
-            current.Append(c);
-        }
-
-        if (current.Length > 0)
-        {
-            result.Add(current.ToString());
-        }
-
-        return result;
-    }
-
-    private static string ResolveConnectionWorkingDirectory(ConnectionProcessKind kind, LauncherPreferences preferences)
-    {
-        var root = kind == ConnectionProcessKind.Frp
-            ? Path.Combine(preferences.ServerDirectory, "frp")
-            : Path.Combine(preferences.ServerDirectory, "third-party-frpc");
-        Directory.CreateDirectory(root);
-        return root;
     }
 
     private void RefreshAppearanceSettingsEditor()
@@ -2857,6 +3057,15 @@ public partial class LauncherMainWindow : Window
         _preferencesService.Save(preferences);
 
         ApplyCulture(languageCode);
+        try
+        {
+            ServiceLocator.GetRequiredService<ILocalizationService>().CurrentCulture = CultureInfo.GetCultureInfo(languageCode);
+        }
+        catch
+        {
+            // ignore localization service failures
+        }
+
         _isChinese = languageCode.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
 
         _aboutMarkdownLoaded = false;
@@ -2945,6 +3154,7 @@ public partial class LauncherMainWindow : Window
         Dispatcher.UIThread.Post(() =>
         {
             UpdateCardValues(status);
+            _ = HandleServerLogTailAsync(status);
             if (_selectedTab == MainTab.Monitor)
             {
                 RenderSelectedMetricChart(status);
@@ -2964,6 +3174,101 @@ public partial class LauncherMainWindow : Window
             if (_selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.OpenInfo)
             {
                 SetConnectionStatus(line);
+            }
+        });
+    }
+
+    private async Task HandleServerLogTailAsync(ServerRuntimeStatus status)
+    {
+        try
+        {
+            if (!status.IsRunning || string.IsNullOrWhiteSpace(status.ProfileId))
+            {
+                if (!string.IsNullOrWhiteSpace(_tailedProfileId))
+                {
+                    _tailedProfileId = string.Empty;
+                    await _logTailService.StopAsync();
+                }
+
+                return;
+            }
+
+            if (_tailedProfileId.Equals(status.ProfileId, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var profile = _profileService.GetProfileById(status.ProfileId);
+            if (profile is null)
+            {
+                return;
+            }
+
+            _tailedProfileId = profile.Id;
+            await _logTailService.StartAsync(profile);
+        }
+        catch
+        {
+            // 日志跟随失败不影响主流程。
+        }
+    }
+
+    private void OnLogTailLineReceived(object? sender, string line)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (IsSystemConsoleLine(line))
+            {
+                return;
+            }
+
+            AppendConsoleLine($"[log] {line}");
+            TrackPlayerEventText(line);
+        });
+    }
+
+    private void OnAutomationRuntimeLogReceived(object? sender, string line)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            _automationRuntimeLogItems.Add(line);
+            while (_automationRuntimeLogItems.Count > 1500)
+            {
+                _automationRuntimeLogItems.RemoveAt(0);
+            }
+
+            if (_selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.Automation)
+            {
+                if (_automationRuntimeLogItems.LastOrDefault() is { } lastLog)
+                {
+                    AutomationRuntimeLogsListBox.ScrollIntoView(lastLog);
+                }
+            }
+        });
+    }
+
+    private void OnFrpStatusChanged(object? sender, FrpRuntimeStatus status)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            _isFrpRunning = status.IsRunning;
+            UpdateConnectionFrpActionButtons();
+            if (_selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Frp)
+            {
+                RefreshConnectionRuntimeStatus();
+            }
+        });
+    }
+
+    private void OnThirdPartyFrpcStatusChanged(object? sender, FrpRuntimeStatus status)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            _isThirdPartyFrpcRunning = status.IsRunning;
+            UpdateConnectionFrpActionButtons();
+            if (_selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Frp)
+            {
+                RefreshConnectionRuntimeStatus();
             }
         });
     }
@@ -3161,6 +3466,10 @@ public partial class LauncherMainWindow : Window
 
     private void OnSavesSubTabClick(object? sender, RoutedEventArgs e) => SelectInstanceManageTab(InstanceManageTab.Saves);
 
+    private void OnAutomationSubTabClick(object? sender, RoutedEventArgs e) => SelectInstanceManageTab(InstanceManageTab.Automation);
+
+    private void OnModsSubTabClick(object? sender, RoutedEventArgs e) => SelectInstanceManageTab(InstanceManageTab.Mods);
+
     private void OnDownloadVersionsSubTabClick(object? sender, RoutedEventArgs e) => SelectInstanceManageTab(InstanceManageTab.DownloadVersions);
 
     private void OnServerSettingsTabClick(object? sender, RoutedEventArgs e) => SelectSettingsTab(SettingsTab.Server);
@@ -3241,6 +3550,8 @@ public partial class LauncherMainWindow : Window
 
     private void OnConnectionRobotTabClick(object? sender, RoutedEventArgs e) => SelectConnectionTab(ConnectionTab.Robot);
 
+    private void OnConnectionAuthTabClick(object? sender, RoutedEventArgs e) => SelectConnectionTab(ConnectionTab.Auth);
+
     private async void OnConnectionFrpImportClick(object? sender, RoutedEventArgs e)
     {
         await ImportConnectionExecutableAsync(ConnectionProcessKind.Frp);
@@ -3255,6 +3566,10 @@ public partial class LauncherMainWindow : Window
     {
         RefreshConnectionSettingsEditor();
         RefreshConnectionRuntimeStatus();
+        if (_selectedConnectionTab == ConnectionTab.Auth)
+        {
+            _ = RefreshAuthProfilesAsync();
+        }
     }
 
     private void OnConnectionFrpSaveClick(object? sender, RoutedEventArgs e) => SaveFrpSettings();
@@ -3269,14 +3584,305 @@ public partial class LauncherMainWindow : Window
         await ToggleConnectionProcessAsync(ConnectionProcessKind.ThirdPartyFrpc);
     }
 
-    private void OnConnectionFrpEditTomlClick(object? sender, RoutedEventArgs e)
+    private async void OnConnectionFrpEditTomlClick(object? sender, RoutedEventArgs e)
     {
-        EditConnectionToml(ConnectionProcessKind.Frp);
+        await EditConnectionTomlAsync(ConnectionProcessKind.Frp);
     }
 
-    private void OnConnectionThirdPartyFrpcEditTomlClick(object? sender, RoutedEventArgs e)
+    private async void OnConnectionThirdPartyFrpcEditTomlClick(object? sender, RoutedEventArgs e)
     {
-        EditConnectionToml(ConnectionProcessKind.ThirdPartyFrpc);
+        await EditConnectionTomlAsync(ConnectionProcessKind.ThirdPartyFrpc);
+    }
+
+    private async void OnAutomationProfileSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_isRefreshingAutomation)
+        {
+            return;
+        }
+
+        var selected = AutomationProfileComboBox.SelectedItem as InstanceProfile;
+        if (selected is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var settings = await _automationSettingsService.LoadAsync();
+            if (string.IsNullOrWhiteSpace(settings.TargetProfileId))
+            {
+                settings.TargetProfileId = selected.Id;
+                await _automationSettingsService.SaveAsync(settings);
+            }
+        }
+        catch
+        {
+            // ignore
+        }
+    }
+
+    private async void OnAutomationRefreshClick(object? sender, RoutedEventArgs e)
+    {
+        await RefreshAutomationAsync();
+    }
+
+    private async void OnAutomationSaveClick(object? sender, RoutedEventArgs e)
+    {
+        await SaveAutomationAsync();
+    }
+
+    private async void OnAutomationSyncLogsClick(object? sender, RoutedEventArgs e)
+    {
+        await SyncAutomationRuntimeLogsAsync();
+    }
+
+    private void OnAutomationAddActionClick(object? sender, RoutedEventArgs e)
+    {
+        _automationActionWindowItems.Add(new AutomationActionWindowItem());
+    }
+
+    private void OnAutomationRemoveActionClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: AutomationActionWindowItem item })
+        {
+            _automationActionWindowItems.Remove(item);
+        }
+    }
+
+    private void OnAutomationAddBackupTimeClick(object? sender, RoutedEventArgs e)
+    {
+        _automationBackupTimeItems.Add(new AutomationTimeItem("03:00"));
+    }
+
+    private void OnAutomationRemoveBackupTimeClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: AutomationTimeItem item })
+        {
+            _automationBackupTimeItems.Remove(item);
+        }
+    }
+
+    private void OnAutomationAddBroadcastClick(object? sender, RoutedEventArgs e)
+    {
+        _automationBroadcastItems.Add(new ScheduledBroadcastItem());
+    }
+
+    private void OnAutomationRemoveBroadcastClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: ScheduledBroadcastItem item })
+        {
+            _automationBroadcastItems.Remove(item);
+        }
+    }
+
+    private void OnAutomationAddExportTimeClick(object? sender, RoutedEventArgs e)
+    {
+        _automationExportTimeItems.Add(new AutomationTimeItem("12:00"));
+    }
+
+    private void OnAutomationRemoveExportTimeClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: AutomationTimeItem item })
+        {
+            _automationExportTimeItems.Remove(item);
+        }
+    }
+
+    private async void OnModProfileSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_isRefreshingMods)
+        {
+            return;
+        }
+
+        await LoadModsForSelectedProfileAsync();
+    }
+
+    private async void OnBrowseModZipClick(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = T("选择 Mod ZIP 文件", "Select Mod ZIP file"),
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("ZIP")
+                {
+                    Patterns = ["*.zip"]
+                }
+            ]
+        });
+
+        var path = TryGetLocalPath(files.FirstOrDefault());
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            ModZipPathTextBox.Text = path;
+        }
+    }
+
+    private async void OnImportModZipClick(object? sender, RoutedEventArgs e)
+    {
+        if (ModProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            ModStatusTextBlock.Text = T("请先选择档案。", "Select a profile first.");
+            return;
+        }
+
+        var path = ModZipPathTextBox.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            ModStatusTextBlock.Text = T("请输入 Mod ZIP 路径。", "Enter a Mod ZIP path.");
+            return;
+        }
+
+        try
+        {
+            var imported = await _instanceModService.ImportModZipAsync(profile, path);
+            await LoadModsForSelectedProfileAsync();
+            ModStatusTextBlock.Text = T($"已导入：{imported.ModId}", $"Imported: {imported.ModId}");
+        }
+        catch (Exception ex)
+        {
+            ModStatusTextBlock.Text = T($"导入失败：{ex.Message}", $"Import failed: {ex.Message}");
+        }
+    }
+
+    private async void OnDeleteSelectedModsClick(object? sender, RoutedEventArgs e)
+    {
+        if (ModProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            ModStatusTextBlock.Text = T("请先选择档案。", "Select a profile first.");
+            return;
+        }
+
+        var selected = _modItems.Where(item => item.IsSelected).Select(ModListItem.ToModel).ToList();
+        if (selected.Count == 0)
+        {
+            ModStatusTextBlock.Text = T("请先选择模组。", "Select mods first.");
+            return;
+        }
+
+        try
+        {
+            var deleted = await _instanceModService.DeleteModsAsync(profile, selected);
+            await LoadModsForSelectedProfileAsync();
+            ModStatusTextBlock.Text = T($"已删除 {deleted} 个模组。", $"Deleted {deleted} mods.");
+        }
+        catch (Exception ex)
+        {
+            ModStatusTextBlock.Text = T($"删除失败：{ex.Message}", $"Delete failed: {ex.Message}");
+        }
+    }
+
+    private async void OnRefreshModsClick(object? sender, RoutedEventArgs e)
+    {
+        await RefreshModsAsync();
+    }
+
+    private async void OnToggleModEnabledClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ModListItem item } || ModProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            return;
+        }
+
+        try
+        {
+            await _instanceModService.SetModEnabledAsync(profile, item.ModId, item.Version, item.IsDisabled);
+            await LoadModsForSelectedProfileAsync();
+        }
+        catch (Exception ex)
+        {
+            ModStatusTextBlock.Text = T($"切换失败：{ex.Message}", $"Toggle failed: {ex.Message}");
+        }
+    }
+
+    private async void OnAuthProfileSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_isRefreshingAuth)
+        {
+            return;
+        }
+
+        if (AuthProfileComboBox.SelectedItem is InstanceProfile profile)
+        {
+            await LoadAuthForProfileAsync(profile);
+        }
+    }
+
+    private async void OnAuthSaveClick(object? sender, RoutedEventArgs e)
+    {
+        if (AuthProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            AuthStatusTextBlock.Text = T("请先选择档案。", "Select a profile first.");
+            return;
+        }
+
+        try
+        {
+            await _serverAuthService.SaveSettingsAsync(profile, CollectAuthSettings());
+            await LoadAuthForProfileAsync(profile);
+            AuthStatusTextBlock.Text = T("认证配置已保存。", "Auth settings saved.");
+        }
+        catch (Exception ex)
+        {
+            AuthStatusTextBlock.Text = T($"保存失败：{ex.Message}", $"Save failed: {ex.Message}");
+        }
+    }
+
+    private async void OnAuthRefreshClick(object? sender, RoutedEventArgs e)
+    {
+        await RefreshAuthProfilesAsync();
+    }
+
+    private async void OnAuthDeployClick(object? sender, RoutedEventArgs e)
+    {
+        if (AuthProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            AuthStatusTextBlock.Text = T("请先选择档案。", "Select a profile first.");
+            return;
+        }
+
+        try
+        {
+            await _serverAuthService.EnsureAuthModDeployedAsync(profile);
+            await LoadAuthForProfileAsync(profile);
+            AuthStatusTextBlock.Text = T("认证模组已部署。", "Auth mod deployed.");
+        }
+        catch (Exception ex)
+        {
+            AuthStatusTextBlock.Text = T($"部署失败：{ex.Message}", $"Deploy failed: {ex.Message}");
+        }
+    }
+
+    private async void OnAuthRefreshPlayersClick(object? sender, RoutedEventArgs e)
+    {
+        if (AuthProfileComboBox.SelectedItem is InstanceProfile profile)
+        {
+            await LoadAuthPlayersAsync(profile);
+        }
+    }
+
+    private async void OnAuthClearPlayerPasswordClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: AuthPlayerListItem item } || AuthProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            return;
+        }
+
+        try
+        {
+            var changed = await _serverAuthService.ClearPasswordAsync(profile, item.PlayerUid);
+            await LoadAuthPlayersAsync(profile);
+            AuthStatusTextBlock.Text = changed
+                ? T($"已清空 {item.PlayerName} 的密码。", $"Cleared password for {item.PlayerName}.")
+                : T($"未找到玩家：{item.PlayerName}", $"Player not found: {item.PlayerName}");
+        }
+        catch (Exception ex)
+        {
+            AuthStatusTextBlock.Text = T($"清空失败：{ex.Message}", $"Clear failed: {ex.Message}");
+        }
     }
 
     private void OnConnectionThirdPartyFrpcModeSelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -4490,7 +5096,9 @@ public partial class LauncherMainWindow : Window
 
         try
         {
-            var count = await _saveService.DeleteSavesAsync(selectedPaths);
+            var count = SaveProfileComboBox.SelectedItem is InstanceProfile profile
+                ? await _saveService.DeleteSavesAsync(profile, selectedPaths)
+                : await _saveService.DeleteSavesAsync(selectedPaths);
             await RefreshSavesAsync();
             AppendConsoleLine($"[system] 已删除 {count} 个存档。");
         }
@@ -4503,6 +5111,90 @@ public partial class LauncherMainWindow : Window
     private async void OnRefreshSavesClick(object? sender, RoutedEventArgs e)
     {
         await RefreshSavesAsync();
+    }
+
+    private async void OnCreateSaveClick(object? sender, RoutedEventArgs e)
+    {
+        if (SaveProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            AppendConsoleLine("[system] 创建存档前请先选择一个档案，不能选择全部。");
+            return;
+        }
+
+        var name = NewSaveNameTextBox.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            AppendConsoleLine("[system] 请输入新存档名称。");
+            return;
+        }
+
+        try
+        {
+            await _saveService.CreateSaveAsync(profile, name);
+            await RefreshSavesAsync();
+            AppendConsoleLine($"[system] 已创建存档：{name}");
+        }
+        catch (Exception ex)
+        {
+            AppendConsoleLine($"[system] 创建存档失败：{ex.Message}");
+        }
+    }
+
+    private async void OnBackupActiveSaveClick(object? sender, RoutedEventArgs e)
+    {
+        if (SaveProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            AppendConsoleLine("[system] 备份前请先选择一个档案，不能选择全部。");
+            return;
+        }
+
+        try
+        {
+            var backupPath = await _saveService.BackupActiveSaveAsync(profile);
+            await RefreshSavesAsync();
+            AppendConsoleLine($"[system] 已备份当前存档：{Path.GetFileName(backupPath)}");
+        }
+        catch (Exception ex)
+        {
+            AppendConsoleLine($"[system] 备份存档失败：{ex.Message}");
+        }
+    }
+
+    private async void OnInspectSavePathClick(object? sender, RoutedEventArgs e)
+    {
+        if (SaveProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            AppendConsoleLine("[system] 检查路径前请先选择一个档案，不能选择全部。");
+            return;
+        }
+
+        try
+        {
+            var inspection = await _saveService.InspectSavePathAsync(profile);
+            _lastInspectedSaveDirectory = inspection.EffectiveSaveDirectory;
+            SavePathInspectionTextBlock.Text = string.IsNullOrWhiteSpace(inspection.WarningMessage)
+                ? $"{inspection.Source} | {inspection.EffectiveSaveFile}"
+                : $"{inspection.Source} | {inspection.EffectiveSaveFile} | {inspection.WarningMessage}";
+            if (!string.IsNullOrWhiteSpace(inspection.EffectiveSaveDirectory))
+            {
+                Process.Start(new ProcessStartInfo { FileName = inspection.EffectiveSaveDirectory, UseShellExecute = true });
+            }
+        }
+        catch (Exception ex)
+        {
+            SavePathInspectionTextBlock.Text = ex.Message;
+            AppendConsoleLine($"[system] 检查存档路径失败：{ex.Message}");
+        }
+    }
+
+    private void OnOpenInspectedSaveFolderClick(object? sender, PointerPressedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_lastInspectedSaveDirectory) || !Directory.Exists(_lastInspectedSaveDirectory))
+        {
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo { FileName = _lastInspectedSaveDirectory, UseShellExecute = true });
     }
 
     private async void OnToggleDefaultSaveClick(object? sender, RoutedEventArgs e)
@@ -4940,6 +5632,8 @@ public partial class LauncherMainWindow : Window
         Profiles,
         Config,
         Saves,
+        Automation,
+        Mods,
         DownloadVersions
     }
 
@@ -4958,7 +5652,8 @@ public partial class LauncherMainWindow : Window
     {
         Frp,
         OpenInfo,
-        Robot
+        Robot,
+        Auth
     }
 
     private enum ConnectionProcessKind
@@ -4966,8 +5661,6 @@ public partial class LauncherMainWindow : Window
         Frp,
         ThirdPartyFrpc
     }
-
-    private readonly record struct CommandLaunchSpec(string FileName, IReadOnlyList<string> Arguments);
 
     private sealed class OsqEndpointEditorRow(TextBox hostTextBox, TextBox tokenTextBox, bool enabled = true)
     {
@@ -5128,6 +5821,367 @@ public partial class LauncherMainWindow : Window
         public string Label { get; } = label;
 
         public override string ToString() => Label;
+    }
+
+    public sealed class AutomationActionWindowItem : INotifyPropertyChanged
+    {
+        private AutomationScheduleMode _scheduleMode = AutomationScheduleMode.Weekly;
+        private AutomationActionType _action = AutomationActionType.Start;
+        private string _startDayOfWeek = "1";
+        private string _endDayOfWeek = "7";
+        private string _startDate = string.Empty;
+        private string _endDate = string.Empty;
+        private string _startTime = "08:00";
+        private string _endTime = "23:00";
+        private bool _enabled = true;
+
+        public AutomationActionWindowItem()
+        {
+            ScheduleModeOptions = new ObservableCollection<ConfigChoiceOption>
+            {
+                new(AutomationScheduleMode.Weekly.ToString(), "每周"),
+                new(AutomationScheduleMode.DateRange.ToString(), "日期范围")
+            };
+            ActionOptions = new ObservableCollection<ConfigChoiceOption>
+            {
+                new(AutomationActionType.Start.ToString(), "启动"),
+                new(AutomationActionType.Stop.ToString(), "停止")
+            };
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public ObservableCollection<ConfigChoiceOption> ScheduleModeOptions { get; }
+
+        public ObservableCollection<ConfigChoiceOption> ActionOptions { get; }
+
+        public bool Enabled
+        {
+            get => _enabled;
+            set => SetField(ref _enabled, value);
+        }
+
+        public string StartDayOfWeek
+        {
+            get => _startDayOfWeek;
+            set => SetField(ref _startDayOfWeek, value);
+        }
+
+        public string EndDayOfWeek
+        {
+            get => _endDayOfWeek;
+            set => SetField(ref _endDayOfWeek, value);
+        }
+
+        public string StartDate
+        {
+            get => _startDate;
+            set => SetField(ref _startDate, value);
+        }
+
+        public string EndDate
+        {
+            get => _endDate;
+            set => SetField(ref _endDate, value);
+        }
+
+        public string StartTime
+        {
+            get => _startTime;
+            set => SetField(ref _startTime, value);
+        }
+
+        public string EndTime
+        {
+            get => _endTime;
+            set => SetField(ref _endTime, value);
+        }
+
+        public ConfigChoiceOption SelectedScheduleMode
+        {
+            get => ScheduleModeOptions.First(option => option.Value.Equals(_scheduleMode.ToString(), StringComparison.OrdinalIgnoreCase));
+            set
+            {
+                if (value is null) return;
+                if (Enum.TryParse(value.Value, true, out AutomationScheduleMode mode))
+                {
+                    _scheduleMode = mode;
+                    OnPropertyChanged(nameof(SelectedScheduleMode));
+                }
+            }
+        }
+
+        public ConfigChoiceOption SelectedAction
+        {
+            get => ActionOptions.First(option => option.Value.Equals(_action.ToString(), StringComparison.OrdinalIgnoreCase));
+            set
+            {
+                if (value is null) return;
+                if (Enum.TryParse(value.Value, true, out AutomationActionType action))
+                {
+                    _action = action;
+                    OnPropertyChanged(nameof(SelectedAction));
+                }
+            }
+        }
+
+        public AutomationActionWindow ToModel()
+        {
+            return new AutomationActionWindow
+            {
+                ScheduleMode = _scheduleMode,
+                StartDayOfWeek = TryParseInt(_startDayOfWeek, 1),
+                EndDayOfWeek = TryParseInt(_endDayOfWeek, 7),
+                StartDate = _startDate?.Trim() ?? string.Empty,
+                EndDate = _endDate?.Trim() ?? string.Empty,
+                StartTime = _startTime?.Trim() ?? string.Empty,
+                EndTime = _endTime?.Trim() ?? string.Empty,
+                Action = _action,
+                Enabled = _enabled
+            };
+        }
+
+        public static AutomationActionWindowItem FromModel(AutomationActionWindow model)
+        {
+            return new AutomationActionWindowItem
+            {
+                Enabled = model.Enabled,
+                StartDayOfWeek = model.StartDayOfWeek.ToString(CultureInfo.InvariantCulture),
+                EndDayOfWeek = model.EndDayOfWeek.ToString(CultureInfo.InvariantCulture),
+                StartDate = model.StartDate,
+                EndDate = model.EndDate,
+                StartTime = model.StartTime,
+                EndTime = model.EndTime,
+                _scheduleMode = model.ScheduleMode,
+                _action = model.Action
+            };
+        }
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+            {
+                return false;
+            }
+
+            field = value;
+            OnPropertyChanged(propertyName);
+            return true;
+        }
+    }
+
+    public sealed class AutomationTimeItem : INotifyPropertyChanged
+    {
+        private string _time;
+
+        public AutomationTimeItem(string time = "03:00")
+        {
+            _time = time;
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public string Time
+        {
+            get => _time;
+            set => SetField(ref _time, value);
+        }
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+            {
+                return false;
+            }
+
+            field = value;
+            OnPropertyChanged(propertyName);
+            return true;
+        }
+    }
+
+    public sealed class ScheduledBroadcastItem : INotifyPropertyChanged
+    {
+        private string _time = "12:00";
+        private string _message = string.Empty;
+        private bool _enabled = true;
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public bool Enabled
+        {
+            get => _enabled;
+            set => SetField(ref _enabled, value);
+        }
+
+        public string Time
+        {
+            get => _time;
+            set => SetField(ref _time, value);
+        }
+
+        public string Message
+        {
+            get => _message;
+            set => SetField(ref _message, value);
+        }
+
+        public ScheduledBroadcastMessage ToModel()
+        {
+            return new ScheduledBroadcastMessage
+            {
+                Enabled = _enabled,
+                Time = _time?.Trim() ?? string.Empty,
+                Message = _message?.Trim() ?? string.Empty
+            };
+        }
+
+        public static ScheduledBroadcastItem FromModel(ScheduledBroadcastMessage model)
+        {
+            return new ScheduledBroadcastItem
+            {
+                Enabled = model.Enabled,
+                Time = model.Time,
+                Message = model.Message
+            };
+        }
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+            {
+                return false;
+            }
+
+            field = value;
+            OnPropertyChanged(propertyName);
+            return true;
+        }
+    }
+
+    public sealed class ModListItem : INotifyPropertyChanged
+    {
+        private bool _isSelected;
+
+        public required string ModId { get; init; }
+
+        public required string Version { get; init; }
+
+        public required string FilePath { get; init; }
+
+        public required string StatusText { get; init; }
+
+        public bool IsDisabled { get; init; }
+
+        public required string DependenciesText { get; init; }
+
+        public required string IssuesText { get; init; }
+
+        public string ToggleText => IsDisabled ? "启用" : "停用";
+
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set => SetField(ref _isSelected, value);
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public static ModListItem FromModel(ModEntry model)
+        {
+            return new ModListItem
+            {
+                ModId = model.ModId,
+                Version = model.Version,
+                FilePath = model.FilePath,
+                StatusText = model.Status,
+                IsDisabled = model.IsDisabled,
+                DependenciesText = model.DependenciesText,
+                IssuesText = model.IssuesText
+            };
+        }
+
+        public static ModEntry ToModel(ModListItem item)
+        {
+            return new ModEntry
+            {
+                ModId = item.ModId,
+                Version = item.Version,
+                FilePath = item.FilePath,
+                Status = item.StatusText,
+                IsDisabled = item.IsDisabled,
+                Dependencies = [],
+                DependencyIssues = []
+            };
+        }
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+            {
+                return false;
+            }
+
+            field = value;
+            OnPropertyChanged(propertyName);
+            return true;
+        }
+    }
+
+    public sealed class AuthPlayerListItem
+    {
+        public required string PlayerUid { get; init; }
+
+        public required string PlayerName { get; init; }
+
+        public required string RegisteredAtText { get; init; }
+
+        public required string RegisteredIp { get; init; }
+
+        public required string LastLoginAtText { get; init; }
+
+        public required string LastIp { get; init; }
+
+        public required string PasswordStateText { get; init; }
+
+        public required string DiscourseUsername { get; init; }
+
+        public static AuthPlayerListItem FromModel(ServerAuthPlayerSummary model)
+        {
+            return new AuthPlayerListItem
+            {
+                PlayerUid = model.PlayerUid,
+                PlayerName = model.PlayerName,
+                RegisteredAtText = model.RegisteredAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                RegisteredIp = model.RegisteredIp,
+                LastLoginAtText = model.LastLoginAtUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "-",
+                LastIp = model.LastIp,
+                PasswordStateText = model.PasswordResetRequired
+                    ? "重置待处理"
+                    : model.HasPassword ? "已设置" : "未设置",
+                DiscourseUsername = string.IsNullOrWhiteSpace(model.DiscourseUsername) ? "-" : model.DiscourseUsername
+            };
+        }
     }
 
     public sealed class ConfigSaveFileItem

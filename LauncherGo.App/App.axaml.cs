@@ -8,6 +8,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using LauncherGo.Abstractions.Services;
+using LauncherGo.Abstractions.Services.I18n;
 using LauncherGo.Domains.Enums;
 using LauncherGo.Ui;
 using LauncherGo.Ui.Views;
@@ -47,6 +48,16 @@ public partial class App : Application
             var preferences = preferencesService.Load();
 
             ApplyCulture(preferences.Language);
+            try
+            {
+                ServiceLocator.GetRequiredService<ILocalizationService>().CurrentCulture =
+                    CultureInfo.GetCultureInfo(preferences.Language);
+            }
+            catch
+            {
+                // Ignore invalid culture or service initialization errors.
+            }
+
             ApplyTheme(preferences.ThemeMode);
 
             desktop.MainWindow = preferences.IsOnboardingCompleted

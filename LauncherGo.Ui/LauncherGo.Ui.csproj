@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\**\*" />
+    <AvaloniaResource Remove="Assets\I18n\**\*.resx" />
   </ItemGroup>
 
   <PropertyGroup>

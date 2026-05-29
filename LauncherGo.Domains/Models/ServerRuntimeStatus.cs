@@ -20,5 +20,7 @@ public sealed class ServerRuntimeStatus
 
     public bool CanSendCommands { get; init; }
 
+    public string ControlMode { get; init; } = string.Empty;
+
     public string Message { get; init; } = string.Empty;
 }

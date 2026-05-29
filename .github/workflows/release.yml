@@ -24,6 +24,11 @@ on:
         description: "Afdian Token injected into the build"
         required: false
         type: string
+      vintage_story_version:
+        description: "Vintage Story server version used to build embedded ServerAuth mod"
+        required: true
+        default: "1.22.2"
+        type: string
 
 permissions:
   contents: write
@@ -58,8 +63,67 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
+      - name: Prepare Vintage Story API refs
+        shell: pwsh
+        env:
+          VINTAGE_STORY_VERSION: ${{ inputs.vintage_story_version }}
+        run: |
+          $vsVersion = $env:VINTAGE_STORY_VERSION.Trim()
+          if ([string]::IsNullOrWhiteSpace($vsVersion)) { throw "Vintage Story version is empty." }
+
+          $vsRoot = Join-Path $env:GITHUB_WORKSPACE ".vintagestory-runtime"
+          $apiDll = Join-Path $vsRoot "VintagestoryAPI.dll"
+          $libDll = Join-Path $vsRoot "VintagestoryLib.dll"
+          $protobufDll = Join-Path $vsRoot "Lib/protobuf-net.dll"
+
+          if (!(Test-Path $apiDll) -or !(Test-Path $libDll) -or !(Test-Path $protobufDll)) {
+            New-Item -ItemType Directory -Force -Path $vsRoot | Out-Null
+            $zipPath = Join-Path $vsRoot "vs_server_win-x64_$vsVersion.zip"
+            $downloadUrl = "https://cdn.vintagestory.at/gamefiles/stable/vs_server_win-x64_$vsVersion.zip"
+
+            Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+            try {
+              foreach ($entryName in @("VintagestoryAPI.dll", "VintagestoryLib.dll", "Lib/protobuf-net.dll")) {
+                $entry = $zip.GetEntry($entryName)
+                if ($null -eq $entry) { throw "Missing required file '$entryName' in $downloadUrl" }
+
+                $targetPath = Join-Path $vsRoot $entryName
+                $targetDir = Split-Path -Parent $targetPath
+                if (!(Test-Path $targetDir)) { New-Item -ItemType Directory -Force -Path $targetDir | Out-Null }
+
+                $entryStream = $entry.Open()
+                $fileStream = [System.IO.File]::Open($targetPath, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
+                try { $entryStream.CopyTo($fileStream) }
+                finally {
+                  $entryStream.Dispose()
+                  $fileStream.Dispose()
+                }
+              }
+            }
+            finally {
+              $zip.Dispose()
+            }
+
+            Remove-Item -LiteralPath $zipPath -Force
+          }
+
+          "VINTAGE_STORY=$vsRoot" >> $env:GITHUB_ENV
+
       - name: Restore
         run: dotnet restore LauncherGo.slnx
+
+      - name: Build embedded ServerAuth mod
+        shell: pwsh
+        run: |
+          $project = "LauncherGo.Services\EmbeddedMods\VsslAuthMod\VsslAuthMod.csproj"
+          dotnet restore $project
+          dotnet build $project -c Release --no-restore
+          $dllPath = "LauncherGo.Services\EmbeddedMods\VsslAuthMod\bin\Release\net10.0\serverauth.dll"
+          $targetPath = "LauncherGo.Services\EmbeddedMods\serverauth\serverauth.dll"
+          if (!(Test-Path $dllPath)) { throw "Missing built ServerAuth DLL: $dllPath" }
+          Copy-Item -LiteralPath $dllPath -Destination $targetPath -Force
 
       - name: Publish
         shell: pwsh
@@ -78,6 +142,19 @@ jobs:
             /p:InformationalVersion=$version `
             /p:AfdianUserId="$env:AFDIAN_USER_ID" `
             /p:AfdianToken="$env:AFDIAN_TOKEN"
+
+      - name: Verify embedded auth mod payload
+        shell: pwsh
+        run: |
+          $version = "${{ steps.vars.outputs.version }}"
+          $publishDir = Join-Path $env:GITHUB_WORKSPACE "artifacts\LauncherGo-$version-win-x64"
+          foreach ($path in @(
+            (Join-Path $publishDir "EmbeddedMods\serverauth\serverauth.dll"),
+            (Join-Path $publishDir "EmbeddedMods\serverauth\modinfo.json"),
+            (Join-Path $publishDir "EmbeddedMods\serverauth\README.txt")
+          )) {
+            if (!(Test-Path $path)) { throw "Missing embedded auth mod payload: $path" }
+          }
 
       - name: Package
         shell: pwsh

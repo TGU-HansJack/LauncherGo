@@ -10,6 +10,8 @@ public interface IServerProcessService
 
     ServerRuntimeStatus GetCurrentStatus();
 
+    ServerRuntimeStatus GetCachedStatus();
+
     Task StartAsync(InstanceProfile profile, CancellationToken cancellationToken = default);
 
     Task StopAsync(TimeSpan gracefulTimeout, CancellationToken cancellationToken = default);

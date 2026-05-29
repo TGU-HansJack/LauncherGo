@@ -1,0 +1,1470 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>1.3</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Greeting" xml:space="preserve">
+    <value>你好，Avalonia</value>
+  </data>
+  <data name="AppName" xml:space="preserve">
+    <value>复古物语服务器启动器</value>
+  </data>
+  <data name="HomeMenuTitle" xml:space="preserve">
+    <value>总览</value>
+  </data>
+  <data name="AboutMenuTitle" xml:space="preserve">
+    <value>关于</value>
+  </data>
+  <data name="MenuSearchPlaceholder" xml:space="preserve">
+    <value>搜索菜单...</value>
+  </data>
+  <data name="MenuAreaPlaceholder" xml:space="preserve">
+    <value>子菜单...</value>
+  </data>
+  <data name="ExitButtonText" xml:space="preserve">
+    <value>退出</value>
+  </data>
+  <data name="LanguageButtonText" xml:space="preserve">
+    <value>语言</value>
+  </data>
+  <data name="ThemesButtonText" xml:space="preserve">
+    <value>主题</value>
+  </data>
+  <data name="LightThemeName" xml:space="preserve">
+    <value>浅色</value>
+  </data>
+  <data name="DarkThemeName" xml:space="preserve">
+    <value>深色</value>
+  </data>
+  <data name="OverviewMenuTitle" xml:space="preserve">
+    <value>状态图表</value>
+  </data>
+  <data name="ProjectInfoMenuTitle" xml:space="preserve">
+    <value>项目信息</value>
+  </data>
+  <data name="WorkspaceMenuTitle" xml:space="preserve">
+    <value>控制台</value>
+  </data>
+  <data name="BugReportMenuTitle" xml:space="preserve">
+    <value>问题反馈</value>
+  </data>
+  <data name="InstanceMenuTitle" xml:space="preserve">
+    <value>实例</value>
+  </data>
+  <data name="InstanceDownloadMenuTitle" xml:space="preserve">
+    <value>下载</value>
+  </data>
+  <data name="InstanceCreateMenuTitle" xml:space="preserve">
+    <value>创建</value>
+  </data>
+  <data name="InstanceManageMenuTitle" xml:space="preserve">
+    <value>管理</value>
+  </data>
+  <data name="ConfigMenuTitle" xml:space="preserve">
+    <value>配置</value>
+  </data>
+  <data name="SaveMenuTitle" xml:space="preserve">
+    <value>存档</value>
+  </data>
+  <data name="ModMenuTitle" xml:space="preserve">
+    <value>模组</value>
+  </data>
+  <data name="RobotMenuTitle" xml:space="preserve">
+    <value>机器人</value>
+  </data>
+  <data name="RobotConfigMenuTitle" xml:space="preserve">
+    <value>配置</value>
+  </data>
+  <data name="RobotConsoleMenuTitle" xml:space="preserve">
+    <value>控制台</value>
+  </data>
+  <data name="ZhLanguageOptionName" xml:space="preserve">
+    <value>简体中文</value>
+  </data>
+  <data name="EnLanguageOptionName" xml:space="preserve">
+    <value>英文</value>
+  </data>
+  <data name="AboutRepositoryButtonText" xml:space="preserve">
+    <value>项目仓库</value>
+  </data>
+  <data name="AboutCommunityButtonText" xml:space="preserve">
+    <value>中文社区</value>
+  </data>
+  <data name="AboutIssuesButtonText" xml:space="preserve">
+    <value>问题工单</value>
+  </data>
+  <data name="AboutProjectInfoTitle" xml:space="preserve">
+    <value>项目信息</value>
+  </data>
+  <data name="AboutFeedbackText" xml:space="preserve">
+    <value>问题反馈：复古物语中文社区 https://vintagestory.top/ 或 GitHub Issues</value>
+  </data>
+  <data name="AboutCurrentVersionLabel" xml:space="preserve">
+    <value>当前版本：</value>
+  </data>
+  <data name="AboutCheckUpdatesButtonText" xml:space="preserve">
+    <value>检查更新</value>
+  </data>
+  <data name="AboutUpdateNowButtonText" xml:space="preserve">
+    <value>前往更新</value>
+  </data>
+  <data name="AboutUpdateStatusIdle" xml:space="preserve">
+    <value>点击“检查更新”获取最新版本。</value>
+  </data>
+  <data name="AboutUpdateStatusChecking" xml:space="preserve">
+    <value>正在检查更新...</value>
+  </data>
+  <data name="AboutUpdateStatusAvailableFormat" xml:space="preserve">
+    <value>发现新版本：{0}（当前 {1}）。</value>
+  </data>
+  <data name="AboutUpdateStatusLatestFormat" xml:space="preserve">
+    <value>已是最新版本（{0}）。</value>
+  </data>
+  <data name="AboutUpdateStatusFailedFormat" xml:space="preserve">
+    <value>检查更新失败：{0}</value>
+  </data>
+  <data name="CommonCreateButtonText" xml:space="preserve">
+    <value>创建</value>
+  </data>
+  <data name="CommonDeleteButtonText" xml:space="preserve">
+    <value>删除</value>
+  </data>
+  <data name="CommonRefreshButtonText" xml:space="preserve">
+    <value>刷新</value>
+  </data>
+  <data name="CommonCancelButtonText" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="CommonSaveButtonText" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="CommonBrowseButtonText" xml:space="preserve">
+    <value>浏览</value>
+  </data>
+  <data name="CommonImportButtonText" xml:space="preserve">
+    <value>导入</value>
+  </data>
+  <data name="CommonStartButtonText" xml:space="preserve">
+    <value>启动</value>
+  </data>
+  <data name="CommonStopButtonText" xml:space="preserve">
+    <value>停止</value>
+  </data>
+  <data name="CommonClearButtonText" xml:space="preserve">
+    <value>清空</value>
+  </data>
+  <data name="CommonFollowLabel" xml:space="preserve">
+    <value>追踪</value>
+  </data>
+  <data name="CommonExportButtonText" xml:space="preserve">
+    <value>导出</value>
+  </data>
+  <data name="CommonSearchTooltip" xml:space="preserve">
+    <value>搜索</value>
+  </data>
+  <data name="CommonRunningState" xml:space="preserve">
+    <value>运行中</value>
+  </data>
+  <data name="CommonStoppedState" xml:space="preserve">
+    <value>未运行</value>
+  </data>
+  <data name="ConfigAdvancedJsonButtonText" xml:space="preserve">
+    <value>高级JSON</value>
+  </data>
+  <data name="ConfigServerSectionTitle" xml:space="preserve">
+    <value>基础信息</value>
+  </data>
+  <data name="ConfigServerNameLabel" xml:space="preserve">
+    <value>服务器名称</value>
+  </data>
+  <data name="ConfigServerDescriptionLabel" xml:space="preserve">
+    <value>服务器描述</value>
+  </data>
+  <data name="ConfigServerUrlLabel" xml:space="preserve">
+    <value>服务器网址</value>
+  </data>
+  <data name="ConfigNetworkPublicSectionTitle" xml:space="preserve">
+    <value>网络与公开</value>
+  </data>
+  <data name="ConfigSecurityMaintenanceSectionTitle" xml:space="preserve">
+    <value>安全与维护</value>
+  </data>
+  <data name="ConfigIpLabel" xml:space="preserve">
+    <value>IP</value>
+  </data>
+  <data name="ConfigPortLabel" xml:space="preserve">
+    <value>端口</value>
+  </data>
+  <data name="ConfigMaxPlayersLabel" xml:space="preserve">
+    <value>最大玩家数</value>
+  </data>
+  <data name="ConfigMaxClientsInQueueLabel" xml:space="preserve">
+    <value>排队人数上限</value>
+  </data>
+  <data name="ConfigPasswordLabel" xml:space="preserve">
+    <value>加入密码</value>
+  </data>
+  <data name="ConfigPasswordHintText" xml:space="preserve">
+    <value>玩家加入服务器时需要输入的密码，留空表示不设置。</value>
+  </data>
+  <data name="ConfigWhitelistModeLabel" xml:space="preserve">
+    <value>白名单模式</value>
+  </data>
+  <data name="ConfigAdvertiseServerLabel" xml:space="preserve">
+    <value>公开到服务器列表</value>
+  </data>
+  <data name="ConfigUpnpLabel" xml:space="preserve">
+    <value>启用 UPnP 自动端口映射</value>
+  </data>
+  <data name="ConfigAllowPvpLabel" xml:space="preserve">
+    <value>允许PvP</value>
+  </data>
+  <data name="ConfigAllowFireSpreadLabel" xml:space="preserve">
+    <value>允许火势蔓延</value>
+  </data>
+  <data name="ConfigAllowFallingBlocksLabel" xml:space="preserve">
+    <value>允许方块掉落</value>
+  </data>
+  <data name="ConfigPassTimeWhenEmptyLabel" xml:space="preserve">
+    <value>无人在线时继续流逝时间</value>
+  </data>
+  <data name="ConfigWarnAfkSecondsLabel" xml:space="preserve">
+    <value>AFK 警告秒数</value>
+  </data>
+  <data name="ConfigKickAfkSecondsLabel" xml:space="preserve">
+    <value>AFK 踢出秒数</value>
+  </data>
+  <data name="ConfigClientConnectionTimeoutLabel" xml:space="preserve">
+    <value>连接超时秒数</value>
+  </data>
+  <data name="ConfigMaxChunkRadiusLabel" xml:space="preserve">
+    <value>最大区块视距半径</value>
+  </data>
+  <data name="ConfigDieBelowDiskSpaceMbLabel" xml:space="preserve">
+    <value>低于磁盘空间时关闭（MB）</value>
+  </data>
+  <data name="ConfigCorruptionProtectionLabel" xml:space="preserve">
+    <value>启用存档损坏保护</value>
+  </data>
+  <data name="ConfigRegenerateCorruptChunksLabel" xml:space="preserve">
+    <value>重新生成损坏区块</value>
+  </data>
+  <data name="ConfigStartupCommandsLabel" xml:space="preserve">
+    <value>启动后执行命令</value>
+  </data>
+  <data name="ConfigVerifyPlayerAuthLabel" xml:space="preserve">
+    <value>启用官方账号验证</value>
+  </data>
+  <data name="ConfigServerLanguageLabel" xml:space="preserve">
+    <value>服务器语言</value>
+  </data>
+  <data name="ConfigDefaultRoleCodeLabel" xml:space="preserve">
+    <value>默认角色代码</value>
+  </data>
+  <data name="ConfigWelcomeMessageLabel" xml:space="preserve">
+    <value>进服提示</value>
+  </data>
+  <data name="ConfigWorldSectionTitle" xml:space="preserve">
+    <value>世界</value>
+  </data>
+  <data name="ConfigSeedLabel" xml:space="preserve">
+    <value>种子</value>
+  </data>
+  <data name="ConfigWorldNameLabel" xml:space="preserve">
+    <value>世界名称</value>
+  </data>
+  <data name="ConfigSaveFileLabel" xml:space="preserve">
+    <value>存档文件</value>
+  </data>
+  <data name="ConfigPlayStyleLabel" xml:space="preserve">
+    <value>游玩风格</value>
+  </data>
+  <data name="ConfigWorldTypeLabel" xml:space="preserve">
+    <value>世界类型</value>
+  </data>
+  <data name="ConfigWorldHeightLabel" xml:space="preserve">
+    <value>世界高度</value>
+  </data>
+  <data name="ConfigWorldRulesSectionTitle" xml:space="preserve">
+    <value>世界规则</value>
+  </data>
+  <data name="ConfigSaveFilePlaceholder" xml:space="preserve">
+    <value>请选择存档文件</value>
+  </data>
+  <data name="ConfigPlayStylePlaceholder" xml:space="preserve">
+    <value>请选择游玩风格</value>
+  </data>
+  <data name="ConfigWorldTypePlaceholder" xml:space="preserve">
+    <value>请选择世界类型</value>
+  </data>
+  <data name="ConfigWorldGeneratedLockNotice" xml:space="preserve">
+    <value>当前存档已生成世界：种子、游玩风格、世界类型、世界高度，以及仅限建档阶段的世界规则（如世界宽度/长度）已锁定。</value>
+  </data>
+  <data name="ConfigServerImagesSectionTitle" xml:space="preserve">
+    <value>服务器图片</value>
+  </data>
+  <data name="ConfigServerImagesRootLabel" xml:space="preserve">
+    <value>图片目录</value>
+  </data>
+  <data name="ConfigServerImagesCoverTitle" xml:space="preserve">
+    <value>封面图（cover）</value>
+  </data>
+  <data name="ConfigServerImagesShowcaseTitle" xml:space="preserve">
+    <value>展示图（showcase）</value>
+  </data>
+  <data name="ConfigServerImagesShowcaseHintText" xml:space="preserve">
+    <value>选择列表项后可预览。</value>
+  </data>
+  <data name="ConfigServerImagesNoShowcaseText" xml:space="preserve">
+    <value>暂无展示图。</value>
+  </data>
+  <data name="ConfigServerImagesNoCoverText" xml:space="preserve">
+    <value>暂无封面图。</value>
+  </data>
+  <data name="ConfigServerImagesPreviewButtonText" xml:space="preserve">
+    <value>预览</value>
+  </data>
+  <data name="ConfigServerImagesAddButtonText" xml:space="preserve">
+    <value>添加</value>
+  </data>
+  <data name="ConfigImageBrowseDialogTitle" xml:space="preserve">
+    <value>选择图片</value>
+  </data>
+  <data name="ConfigImageBrowseFilterName" xml:space="preserve">
+    <value>图片文件</value>
+  </data>
+  <data name="ConfigImageImportFolderDialogTitle" xml:space="preserve">
+    <value>选择图片文件夹</value>
+  </data>
+  <data name="ConfigImagePreviewDialogTitleFormat" xml:space="preserve">
+    <value>预览：{0}</value>
+  </data>
+  <data name="ConfigImageStatusSelectedImportFileFormat" xml:space="preserve">
+    <value>已选择图片：{0}</value>
+  </data>
+  <data name="ConfigImageStatusCoverImportedFormat" xml:space="preserve">
+    <value>封面图已导入：{0}</value>
+  </data>
+  <data name="ConfigImageStatusCoverDeleted" xml:space="preserve">
+    <value>封面图已删除。</value>
+  </data>
+  <data name="ConfigImageStatusShowcaseAddedFormat" xml:space="preserve">
+    <value>已添加展示图：{0}</value>
+  </data>
+  <data name="ConfigImageStatusShowcaseImportedFormat" xml:space="preserve">
+    <value>已导入 {0} 张展示图。</value>
+  </data>
+  <data name="ConfigImageStatusShowcaseDeletedFormat" xml:space="preserve">
+    <value>展示图已删除：{0}</value>
+  </data>
+  <data name="ConfigImageStatusNoImportFiles" xml:space="preserve">
+    <value>所选目录中没有可导入的图片文件。</value>
+  </data>
+  <data name="ConfigImageStatusSelectShowcaseFirst" xml:space="preserve">
+    <value>请先选择一张展示图。</value>
+  </data>
+  <data name="ConfigImageStatusSelectFileFirst" xml:space="preserve">
+    <value>请先选择图片文件。</value>
+  </data>
+  <data name="ConfigImageStatusFileNotFound" xml:space="preserve">
+    <value>图片文件不存在。</value>
+  </data>
+  <data name="ConfigImageStatusUnsupportedFormat" xml:space="preserve">
+    <value>仅支持 png/jpg/jpeg/webp/gif/bmp 图片。</value>
+  </data>
+  <data name="ConfigImageStatusPreviewFailedFormat" xml:space="preserve">
+    <value>图片预览失败：{0}</value>
+  </data>
+  <data name="ConfigNoProfileText" xml:space="preserve">
+    <value>暂无档案，请先创建档案。</value>
+  </data>
+  <data name="ConfigAdvancedJsonDialogTitle" xml:space="preserve">
+    <value>编辑高级JSON</value>
+  </data>
+  <data name="ConfigStatusSaved" xml:space="preserve">
+    <value>配置已保存。</value>
+  </data>
+  <data name="ConfigStatusSaveFailedFormat" xml:space="preserve">
+    <value>保存配置失败：{0}</value>
+  </data>
+  <data name="ConfigStatusAdvancedJsonCanceled" xml:space="preserve">
+    <value>已取消高级JSON编辑。</value>
+  </data>
+  <data name="ConfigStatusAdvancedJsonSaved" xml:space="preserve">
+    <value>高级JSON已保存。</value>
+  </data>
+  <data name="ConfigStatusAdvancedJsonSaveFailedFormat" xml:space="preserve">
+    <value>保存高级JSON失败：{0}</value>
+  </data>
+  <data name="ConfigStatusLoadedProfileConfigFormat" xml:space="preserve">
+    <value>已加载配置：{0}</value>
+  </data>
+  <data name="ConfigStatusLoadFailedFormat" xml:space="preserve">
+    <value>加载配置失败：{0}</value>
+  </data>
+  <data name="StatusSelectProfileFirst" xml:space="preserve">
+    <value>请先选择档案。</value>
+  </data>
+  <data name="StatusNoProfileCreateFirst" xml:space="preserve">
+    <value>暂无档案，请先到实例/创建页面创建档案。</value>
+  </data>
+  <data name="StatusLoadedProfilesFormat" xml:space="preserve">
+    <value>已加载 {0} 个档案。</value>
+  </data>
+  <data name="StatusRefreshProfilesFailedFormat" xml:space="preserve">
+    <value>刷新档案失败：{0}</value>
+  </data>
+  <data name="InstanceCreateVersionTooltip" xml:space="preserve">
+    <value>已安装版本来自 packages（vs_server_win-x64_*.zip）</value>
+  </data>
+  <data name="InstanceCreateNameWatermark" xml:space="preserve">
+    <value>档案名称</value>
+  </data>
+  <data name="InstanceCreateHeaderName" xml:space="preserve">
+    <value>名称</value>
+  </data>
+  <data name="InstanceCreateHeaderVersion" xml:space="preserve">
+    <value>版本号</value>
+  </data>
+  <data name="InstanceCreateHeaderDirectory" xml:space="preserve">
+    <value>目录</value>
+  </data>
+  <data name="InstanceCreateHeaderTime" xml:space="preserve">
+    <value>创建时间</value>
+  </data>
+  <data name="InstanceCreateNoProfilesText" xml:space="preserve">
+    <value>暂无档案。</value>
+  </data>
+  <data name="InstanceCreateImportButtonText" xml:space="preserve">
+    <value>导入已有实例</value>
+  </data>
+  <data name="InstanceCreateDeleteRegistrationButtonText" xml:space="preserve">
+    <value>移除实例登记</value>
+  </data>
+  <data name="InstanceCreateDeleteDataButtonText" xml:space="preserve">
+    <value>删除实例 + 删除数据</value>
+  </data>
+  <data name="InstanceCreateImportPickerTitle" xml:space="preserve">
+    <value>选择 workspace/data 下的实例目录</value>
+  </data>
+  <data name="InstanceCreateImportConfirmTitle" xml:space="preserve">
+    <value>确认导入实例</value>
+  </data>
+  <data name="InstanceCreateImportConfirmMessage" xml:space="preserve">
+    <value>将只把该目录登记到 profiles.json，不复制、不接管其他目录。</value>
+  </data>
+  <data name="InstanceCreateImportConfirmButtonText" xml:space="preserve">
+    <value>确认导入</value>
+  </data>
+  <data name="InstanceCreateDeleteRegistrationConfirmTitle" xml:space="preserve">
+    <value>确认移除实例登记</value>
+  </data>
+  <data name="InstanceCreateDeleteRegistrationConfirmHint" xml:space="preserve">
+    <value>将只从 profiles.json 移除登记，不删除任何物理文件。</value>
+  </data>
+  <data name="InstanceCreateDeleteDataConfirmTitle" xml:space="preserve">
+    <value>确认删除实例和数据</value>
+  </data>
+  <data name="InstanceCreateDeleteDataConfirmHint" xml:space="preserve">
+    <value>将移除登记，并删除该实例专属数据目录。请确认下面是真实目标路径。</value>
+  </data>
+  <data name="InstanceCreatePreviewNameFormat" xml:space="preserve">
+    <value>实例：{0}</value>
+  </data>
+  <data name="InstanceCreatePreviewVersionFormat" xml:space="preserve">
+    <value>服务端版本：{0}</value>
+  </data>
+  <data name="InstanceCreatePreviewDataDirectoryFormat" xml:space="preserve">
+    <value>数据目录：{0}</value>
+  </data>
+  <data name="InstanceCreatePreviewSaveDirectoryFormat" xml:space="preserve">
+    <value>存档目录：{0}</value>
+  </data>
+  <data name="InstanceCreatePreviewActiveSaveFormat" xml:space="preserve">
+    <value>当前存档：{0}</value>
+  </data>
+  <data name="InstanceCreatePreviewSaveStateFormat" xml:space="preserve">
+    <value>存档状态：{0}</value>
+  </data>
+  <data name="InstanceCreateImportSaveExistsText" xml:space="preserve">
+    <value>已找到</value>
+  </data>
+  <data name="InstanceCreateImportSaveMissingText" xml:space="preserve">
+    <value>当前不存在，启动时由服务端创建</value>
+  </data>
+  <data name="InstanceCreateStatusEnterProfileName" xml:space="preserve">
+    <value>请输入档案名称。</value>
+  </data>
+  <data name="InstanceCreateStatusSelectVersionFirst" xml:space="preserve">
+    <value>请先选择服务端版本。</value>
+  </data>
+  <data name="InstanceCreateStatusProfileCreatedFormat" xml:space="preserve">
+    <value>已创建档案：{0}</value>
+  </data>
+  <data name="InstanceCreateStatusCreateFailedFormat" xml:space="preserve">
+    <value>创建档案失败：{0}</value>
+  </data>
+  <data name="InstanceCreateStatusSelectProfilesToDelete" xml:space="preserve">
+    <value>请选择要删除的档案。</value>
+  </data>
+  <data name="InstanceCreateStatusRemovedProfilesFormat" xml:space="preserve">
+    <value>已移除 {0} 个实例登记，未删除物理文件。</value>
+  </data>
+  <data name="InstanceCreateStatusDeletedProfilesAndDataFormat" xml:space="preserve">
+    <value>已删除 {0} 个实例登记及其专属数据。</value>
+  </data>
+  <data name="InstanceCreateStatusNoProfilesDeleted" xml:space="preserve">
+    <value>未删除任何档案。</value>
+  </data>
+  <data name="InstanceCreateStatusDeleteFailedFormat" xml:space="preserve">
+    <value>删除档案失败：{0}</value>
+  </data>
+  <data name="InstanceCreateStatusDeleteCanceled" xml:space="preserve">
+    <value>已取消删除。</value>
+  </data>
+  <data name="InstanceCreateStatusImportCanceled" xml:space="preserve">
+    <value>已取消导入。</value>
+  </data>
+  <data name="InstanceCreateStatusImportInvalidFormat" xml:space="preserve">
+    <value>不能导入：{0}</value>
+  </data>
+  <data name="InstanceCreateStatusImportedProfileFormat" xml:space="preserve">
+    <value>已导入实例：{0}</value>
+  </data>
+  <data name="InstanceCreateStatusImportFailedFormat" xml:space="preserve">
+    <value>导入实例失败：{0}</value>
+  </data>
+  <data name="InstanceCreateStatusNoVersionsFound" xml:space="preserve">
+    <value>packages 中未发现已安装服务端版本。</value>
+  </data>
+  <data name="InstanceCreateStatusDetectedVersionsFormat" xml:space="preserve">
+    <value>已识别 {0} 个已安装服务端版本。</value>
+  </data>
+  <data name="InstanceCreateStatusDefaultWorkspaceFormat" xml:space="preserve">
+    <value>工作目录：{0}</value>
+  </data>
+  <data name="InstanceDownloadShowDownloadedOnlyLabel" xml:space="preserve">
+    <value>仅显示已下载</value>
+  </data>
+  <data name="InstanceDownloadSearchWatermark" xml:space="preserve">
+    <value>搜索版本或文件名</value>
+  </data>
+  <data name="InstanceDownloadHeaderVersion" xml:space="preserve">
+    <value>版本号</value>
+  </data>
+  <data name="InstanceDownloadHeaderPlatform" xml:space="preserve">
+    <value>平台</value>
+  </data>
+  <data name="InstanceDownloadHeaderSize" xml:space="preserve">
+    <value>大小</value>
+  </data>
+  <data name="InstanceDownloadHeaderFilePath" xml:space="preserve">
+    <value>文件路径</value>
+  </data>
+  <data name="InstanceDownloadHeaderAction" xml:space="preserve">
+    <value>操作</value>
+  </data>
+  <data name="InstanceDownloadNoContentText" xml:space="preserve">
+    <value>没有可下载的服务端包。</value>
+  </data>
+  <data name="InstanceDownloadStatusDownloadingFormat" xml:space="preserve">
+    <value>正在下载 {0}...</value>
+  </data>
+  <data name="InstanceDownloadStatusCompletedFormat" xml:space="preserve">
+    <value>下载完成：{0}</value>
+  </data>
+  <data name="InstanceDownloadStatusFailedSimpleFormat" xml:space="preserve">
+    <value>下载失败：{0}</value>
+  </data>
+  <data name="InstanceDownloadStatusFailedFormat" xml:space="preserve">
+    <value>下载失败（{0}）：{1}</value>
+  </data>
+  <data name="InstanceDownloadStatusLoadingList" xml:space="preserve">
+    <value>正在加载服务端版本列表...</value>
+  </data>
+  <data name="InstanceDownloadStatusNoEntries" xml:space="preserve">
+    <value>未找到可用条目。</value>
+  </data>
+  <data name="InstanceDownloadStatusLoadedEntriesFormat" xml:space="preserve">
+    <value>已加载 {0} 条记录。下载目录：{1}</value>
+  </data>
+  <data name="InstanceDownloadStatusLoadFailedFormat" xml:space="preserve">
+    <value>加载下载列表失败：{0}</value>
+  </data>
+  <data name="InstanceDownloadImportDialogTitle" xml:space="preserve">
+    <value>选择服务端压缩包</value>
+  </data>
+  <data name="InstanceDownloadImportFilterName" xml:space="preserve">
+    <value>服务端压缩包</value>
+  </data>
+  <data name="InstanceDownloadStatusImportingFormat" xml:space="preserve">
+    <value>正在导入：{0}</value>
+  </data>
+  <data name="InstanceDownloadStatusImportedFormat" xml:space="preserve">
+    <value>导入完成：{0}</value>
+  </data>
+  <data name="InstanceDownloadStatusImportFailedFormat" xml:space="preserve">
+    <value>导入失败：{0}</value>
+  </data>
+  <data name="SaveNameWatermark" xml:space="preserve">
+    <value>存档名称</value>
+  </data>
+  <data name="SaveCurrentProfileVersionFormat" xml:space="preserve">
+    <value>当前档案版本：{0}</value>
+  </data>
+  <data name="SaveHeaderName" xml:space="preserve">
+    <value>名称</value>
+  </data>
+  <data name="SaveHeaderDirectory" xml:space="preserve">
+    <value>目录</value>
+  </data>
+  <data name="SaveHeaderSize" xml:space="preserve">
+    <value>大小</value>
+  </data>
+  <data name="SaveHeaderTime" xml:space="preserve">
+    <value>时间</value>
+  </data>
+  <data name="SaveHeaderCurrent" xml:space="preserve">
+    <value>当前</value>
+  </data>
+  <data name="SaveHeaderAction" xml:space="preserve">
+    <value>操作</value>
+  </data>
+  <data name="SaveSetActiveButtonText" xml:space="preserve">
+    <value>设为当前</value>
+  </data>
+  <data name="SaveNoSavesText" xml:space="preserve">
+    <value>暂无存档。</value>
+  </data>
+  <data name="SaveStatusCreatedFormat" xml:space="preserve">
+    <value>已创建存档：{0}</value>
+  </data>
+  <data name="SaveStatusCreateFailedFormat" xml:space="preserve">
+    <value>创建存档失败：{0}</value>
+  </data>
+  <data name="SaveStatusSelectSavesToDelete" xml:space="preserve">
+    <value>请选择要删除的存档。</value>
+  </data>
+  <data name="SaveStatusDeletedFormat" xml:space="preserve">
+    <value>已删除 {0} 个存档。</value>
+  </data>
+  <data name="SaveStatusNoDeletes" xml:space="preserve">
+    <value>未删除任何存档。</value>
+  </data>
+  <data name="SaveStatusDeleteFailedFormat" xml:space="preserve">
+    <value>删除存档失败：{0}</value>
+  </data>
+  <data name="SaveStatusSetActiveFormat" xml:space="preserve">
+    <value>已设置当前存档：{0}</value>
+  </data>
+  <data name="SaveStatusSetActiveFailedFormat" xml:space="preserve">
+    <value>设置当前存档失败：{0}</value>
+  </data>
+  <data name="SaveStatusSetActiveOutOfProfileDenied" xml:space="preserve">
+    <value>禁止设置：该存档不在当前实例目录下。</value>
+  </data>
+  <data name="SaveStatusLoadedFormat" xml:space="preserve">
+    <value>已加载 {0} 个存档（版本 {1}）。</value>
+  </data>
+  <data name="SaveStatusLoadFailedFormat" xml:space="preserve">
+    <value>加载存档失败：{0}</value>
+  </data>
+  <data name="SaveStatusDirectoryNotFound" xml:space="preserve">
+    <value>存档文件不存在。</value>
+  </data>
+  <data name="SaveStatusOpenDirectoryFailedFormat" xml:space="preserve">
+    <value>打开存档位置失败：{0}</value>
+  </data>
+  <data name="ModZipPathWatermark" xml:space="preserve">
+    <value>模组压缩包路径</value>
+  </data>
+  <data name="ModBrowseDialogTitle" xml:space="preserve">
+    <value>选择模组压缩包</value>
+  </data>
+  <data name="ModBrowseFilterName" xml:space="preserve">
+    <value>模组压缩包</value>
+  </data>
+  <data name="ModHeaderModId" xml:space="preserve">
+    <value>模组ID</value>
+  </data>
+  <data name="ModHeaderVersion" xml:space="preserve">
+    <value>版本</value>
+  </data>
+  <data name="ModHeaderStatus" xml:space="preserve">
+    <value>状态</value>
+  </data>
+  <data name="ModHeaderDependencies" xml:space="preserve">
+    <value>依赖</value>
+  </data>
+  <data name="ModHeaderDependencyCheck" xml:space="preserve">
+    <value>依赖检查</value>
+  </data>
+  <data name="ModHeaderPath" xml:space="preserve">
+    <value>路径</value>
+  </data>
+  <data name="ModHeaderAction" xml:space="preserve">
+    <value>操作</value>
+  </data>
+  <data name="ModToggleButtonText" xml:space="preserve">
+    <value>切换</value>
+  </data>
+  <data name="ModNoModsText" xml:space="preserve">
+    <value>暂无模组。</value>
+  </data>
+  <data name="ModEnabledLabel" xml:space="preserve">
+    <value>启用</value>
+  </data>
+  <data name="ModDisabledLabel" xml:space="preserve">
+    <value>禁用</value>
+  </data>
+  <data name="ModStatusEnterZipPath" xml:space="preserve">
+    <value>请输入模组压缩包路径。</value>
+  </data>
+  <data name="ModStatusImportedFormat" xml:space="preserve">
+    <value>已导入模组：{0}（{1}）</value>
+  </data>
+  <data name="ModStatusImportFailedFormat" xml:space="preserve">
+    <value>导入模组失败：{0}</value>
+  </data>
+  <data name="ModStatusToggledFormat" xml:space="preserve">
+    <value>模组 {0} 已切换为{1}。</value>
+  </data>
+  <data name="ModStatusToggleFailedFormat" xml:space="preserve">
+    <value>切换模组状态失败：{0}</value>
+  </data>
+  <data name="ModStatusLoadedFormat" xml:space="preserve">
+    <value>已加载 {0} 个模组。</value>
+  </data>
+  <data name="ModStatusLoadFailedFormat" xml:space="preserve">
+    <value>加载模组失败：{0}</value>
+  </data>
+  <data name="RobotOneBotWsLabel" xml:space="preserve">
+    <value>OneBot WebSocket</value>
+  </data>
+  <data name="RobotAccessTokenLabel" xml:space="preserve">
+    <value>访问令牌</value>
+  </data>
+  <data name="RobotReconnectIntervalLabel" xml:space="preserve">
+    <value>重连间隔（秒）</value>
+  </data>
+  <data name="RobotDatabasePathLabel" xml:space="preserve">
+    <value>数据库路径</value>
+  </data>
+  <data name="RobotPollingIntervalLabel" xml:space="preserve">
+    <value>轮询间隔（秒）</value>
+  </data>
+  <data name="RobotDefaultEncodingLabel" xml:space="preserve">
+    <value>默认编码</value>
+  </data>
+  <data name="RobotFallbackEncodingLabel" xml:space="preserve">
+    <value>回退编码</value>
+  </data>
+  <data name="RobotSuperUsersLabel" xml:space="preserve">
+    <value>超级管理员（每行一个）</value>
+  </data>
+  <data name="RobotOwnersLabel" xml:space="preserve">
+    <value>服主绑定（每行：服务器域名/IP QQ号）</value>
+  </data>
+  <data name="RobotOsqPollIntervalLabel" xml:space="preserve">
+    <value>OSQ轮询间隔（秒）</value>
+  </data>
+  <data name="RobotOsqRequestTimeoutLabel" xml:space="preserve">
+    <value>OSQ请求超时（秒）</value>
+  </data>
+  <data name="RobotOsqAllowInsecureHttpLabel" xml:space="preserve">
+    <value>允许HTTP OSQ</value>
+  </data>
+  <data name="RobotOsqListenPrefixLabel" xml:space="preserve">
+    <value>OSQ监听地址前缀</value>
+  </data>
+  <data name="RobotConfigStatusLoaded" xml:space="preserve">
+    <value>已加载机器人配置。</value>
+  </data>
+  <data name="RobotConfigStatusLoadFailedFormat" xml:space="preserve">
+    <value>读取机器人配置失败：{0}</value>
+  </data>
+  <data name="RobotConfigStatusSaved" xml:space="preserve">
+    <value>机器人配置已保存。</value>
+  </data>
+  <data name="RobotConfigStatusSaveFailedFormat" xml:space="preserve">
+    <value>保存机器人配置失败：{0}</value>
+  </data>
+  <data name="RobotConsoleRuntimeRunningFormat" xml:space="preserve">
+    <value>运行中（WS: {0}，启动时间：{1}）</value>
+  </data>
+  <data name="RobotConsoleStatusRefreshFailedFormat" xml:space="preserve">
+    <value>刷新机器人控制台失败：{0}</value>
+  </data>
+  <data name="RobotConsoleStatusStarted" xml:space="preserve">
+    <value>机器人已启动。</value>
+  </data>
+  <data name="RobotConsoleStatusStartFailedFormat" xml:space="preserve">
+    <value>启动机器人失败：{0}</value>
+  </data>
+  <data name="RobotConsoleStatusStopped" xml:space="preserve">
+    <value>机器人已停止。</value>
+  </data>
+  <data name="RobotConsoleStatusStopFailedFormat" xml:space="preserve">
+    <value>停止机器人失败：{0}</value>
+  </data>
+  <data name="RobotConsoleStatusCleared" xml:space="preserve">
+    <value>机器人控制台日志已清空。</value>
+  </data>
+  <data name="WorkspaceStartServerButtonText" xml:space="preserve">
+    <value>启动</value>
+  </data>
+  <data name="WorkspaceStopServerButtonText" xml:space="preserve">
+    <value>停止</value>
+  </data>
+  <data name="WorkspaceRefreshProfilesButtonText" xml:space="preserve">
+    <value>刷新</value>
+  </data>
+  <data name="WorkspaceSendCommandButtonText" xml:space="preserve">
+    <value>发送</value>
+  </data>
+  <data name="WorkspaceQuickVersionLabel" xml:space="preserve">
+    <value>版本</value>
+  </data>
+  <data name="WorkspaceQuickNameLabel" xml:space="preserve">
+    <value>名称</value>
+  </data>
+  <data name="WorkspaceQuickNameWatermark" xml:space="preserve">
+    <value>留空自动生成</value>
+  </data>
+  <data name="WorkspaceQuickCreateAndStartButtonText" xml:space="preserve">
+    <value>创建并启动</value>
+  </data>
+  <data name="WorkspaceStartFrpButtonText" xml:space="preserve">
+    <value>启动穿透</value>
+  </data>
+  <data name="WorkspaceStopFrpButtonText" xml:space="preserve">
+    <value>关闭穿透</value>
+  </data>
+  <data name="WorkspaceQuickNoVersionText" xml:space="preserve">
+    <value>请先在“实例/下载”下载服务端版本。</value>
+  </data>
+  <data name="WorkspaceQuickNoProfileTip" xml:space="preserve">
+    <value>尚无档案，可直接在上方创建并启动。</value>
+  </data>
+  <data name="WorkspaceQuickCreatingText" xml:space="preserve">
+    <value>正在创建档案并启动服务器...</value>
+  </data>
+  <data name="WorkspaceQuickCreatedFormat" xml:space="preserve">
+    <value>已创建档案：{0}</value>
+  </data>
+  <data name="WorkspaceQuickCreateFailedFormat" xml:space="preserve">
+    <value>创建并启动失败：{0}</value>
+  </data>
+  <data name="WorkspaceQuickDefaultProfileNameFormat" xml:space="preserve">
+    <value>服务器-{0:yyyyMMdd-HHmm}</value>
+  </data>
+  <data name="WorkspaceQuickCommandsAddButtonText" xml:space="preserve">
+    <value>添加</value>
+  </data>
+  <data name="WorkspaceQuickCommandsDialogTitle" xml:space="preserve">
+    <value>管理快捷指令</value>
+  </data>
+  <data name="ConsoleNoOutputText" xml:space="preserve">
+    <value>暂无输出。</value>
+  </data>
+  <data name="WorkspaceRuntimeRunningFormat" xml:space="preserve">
+    <value>运行中（PID: {0}，在线：{1}，启动：{2}）</value>
+  </data>
+  <data name="WorkspaceRuntimeReadOnlySuffix" xml:space="preserve">
+    <value>（控制只读）</value>
+  </data>
+  <data name="WorkspaceControlReadyText" xml:space="preserve">
+    <value>控制通道已连接。</value>
+  </data>
+  <data name="WorkspaceControlReadOnlyText" xml:space="preserve">
+    <value>已接管运行状态，但没有可恢复控制通道；需要用当前版本 LauncherGo 重启一次服务端后才能继续发送命令。</value>
+  </data>
+  <data name="WorkspaceStartupProgressFormat" xml:space="preserve">
+    <value>启动进度：{0:0}%</value>
+  </data>
+  <data name="WorkspaceStatusStarting" xml:space="preserve">
+    <value>正在启动服务器...</value>
+  </data>
+  <data name="WorkspaceStatusStarted" xml:space="preserve">
+    <value>服务器已启动。</value>
+  </data>
+  <data name="WorkspaceStatusStartFailedFormat" xml:space="preserve">
+    <value>启动服务器失败：{0}</value>
+  </data>
+  <data name="WorkspaceStatusStopping" xml:space="preserve">
+    <value>正在停止服务器...</value>
+  </data>
+  <data name="WorkspaceStatusStopped" xml:space="preserve">
+    <value>服务器已停止。</value>
+  </data>
+  <data name="WorkspaceStatusStopFailedFormat" xml:space="preserve">
+    <value>停止服务器失败：{0}</value>
+  </data>
+  <data name="WorkspaceStatusFrpAlreadyRunning" xml:space="preserve">
+    <value>内网穿透已在运行。</value>
+  </data>
+  <data name="WorkspaceStatusFrpAlreadyStopped" xml:space="preserve">
+    <value>内网穿透未运行。</value>
+  </data>
+  <data name="WorkspaceStatusFrpStarted" xml:space="preserve">
+    <value>内网穿透已启动。</value>
+  </data>
+  <data name="WorkspaceStatusFrpStopped" xml:space="preserve">
+    <value>内网穿透已关闭。</value>
+  </data>
+  <data name="WorkspaceStatusFrpStartFailedFormat" xml:space="preserve">
+    <value>启动内网穿透失败：{0}</value>
+  </data>
+  <data name="WorkspaceStatusFrpStopFailedFormat" xml:space="preserve">
+    <value>关闭内网穿透失败：{0}</value>
+  </data>
+  <data name="WorkspaceStartThirdPartyFrpcButtonText" xml:space="preserve">
+    <value>启动第三方FRPC</value>
+  </data>
+  <data name="WorkspaceStopThirdPartyFrpcButtonText" xml:space="preserve">
+    <value>关闭第三方FRPC</value>
+  </data>
+  <data name="WorkspaceStatusThirdPartyFrpcAlreadyRunning" xml:space="preserve">
+    <value>第三方FRPC已在运行。</value>
+  </data>
+  <data name="WorkspaceStatusThirdPartyFrpcAlreadyStopped" xml:space="preserve">
+    <value>第三方FRPC未运行。</value>
+  </data>
+  <data name="WorkspaceStatusThirdPartyFrpcStarted" xml:space="preserve">
+    <value>第三方FRPC已启动。</value>
+  </data>
+  <data name="WorkspaceStatusThirdPartyFrpcStopped" xml:space="preserve">
+    <value>第三方FRPC已关闭。</value>
+  </data>
+  <data name="WorkspaceStatusThirdPartyFrpcStartFailedFormat" xml:space="preserve">
+    <value>启动第三方FRPC失败：{0}</value>
+  </data>
+  <data name="WorkspaceStatusThirdPartyFrpcStopFailedFormat" xml:space="preserve">
+    <value>关闭第三方FRPC失败：{0}</value>
+  </data>
+  <data name="WorkspaceStatusSendCommandFailedFormat" xml:space="preserve">
+    <value>发送命令失败：{0}</value>
+  </data>
+  <data name="WorkspaceStatusNoExportLogs" xml:space="preserve">
+    <value>当前没有可导出的日志。</value>
+  </data>
+  <data name="WorkspaceStatusExportedFormat" xml:space="preserve">
+    <value>日志已导出：{0}</value>
+  </data>
+  <data name="WorkspaceStatusExportFailedFormat" xml:space="preserve">
+    <value>导出日志失败：{0}</value>
+  </data>
+  <data name="WorkspaceStatusLoadSavesFailedFormat" xml:space="preserve">
+    <value>加载存档失败：{0}</value>
+  </data>
+  <data name="WorkspaceStatusActiveSaveSwitchedFormat" xml:space="preserve">
+    <value>已切换当前存档：{0}</value>
+  </data>
+  <data name="WorkspaceStatusSwitchSaveFailedFormat" xml:space="preserve">
+    <value>切换存档失败：{0}</value>
+  </data>
+  <data name="WorkspaceStatusSwitchSaveOutOfProfileDenied" xml:space="preserve">
+    <value>禁止切换：该存档不在当前实例目录下。</value>
+  </data>
+  <data name="WorkspaceSaveSourceInstance" xml:space="preserve">
+    <value>存档来源：当前实例目录</value>
+  </data>
+  <data name="WorkspaceSaveSourceCrossProfile" xml:space="preserve">
+    <value>存档来源：其他实例目录（风险）</value>
+  </data>
+  <data name="WorkspaceSaveSourceExternal" xml:space="preserve">
+    <value>存档来源：工作区外部目录（风险）</value>
+  </data>
+  <data name="WorkspaceSaveSourceUnknown" xml:space="preserve">
+    <value>存档来源：未知</value>
+  </data>
+  <data name="WorkspaceSaveWarningFormat" xml:space="preserve">
+    <value>风险提示：{0}</value>
+  </data>
+  <data name="WorkspaceStartMissingSaveConfirmTitle" xml:space="preserve">
+    <value>确认首启创建存档</value>
+  </data>
+  <data name="WorkspaceStartMissingSaveConfirmButtonText" xml:space="preserve">
+    <value>确认并启动</value>
+  </data>
+  <data name="WorkspaceStartMissingSaveHint" xml:space="preserve">
+    <value>目标存档文件当前不存在，Vintage Story 会在首次启动时创建新世界文件。</value>
+  </data>
+  <data name="WorkspaceStartRiskySaveConfirmTitle" xml:space="preserve">
+    <value>确认跨目录存档启动</value>
+  </data>
+  <data name="WorkspaceStartRiskySaveConfirmButtonText" xml:space="preserve">
+    <value>继续启动</value>
+  </data>
+  <data name="WorkspaceStartRiskySaveHint" xml:space="preserve">
+    <value>当前存档路径不在本实例目录，可能导致“看似启动本档案，实际运行其他档案”。</value>
+  </data>
+  <data name="WorkspaceStartCanceled" xml:space="preserve">
+    <value>已取消启动。</value>
+  </data>
+  <data name="HomeServerCardTitle" xml:space="preserve">
+    <value>服务器</value>
+  </data>
+  <data name="HomeRobotCardTitle" xml:space="preserve">
+    <value>机器人</value>
+  </data>
+  <data name="HomeOnlinePlayersCardTitle" xml:space="preserve">
+    <value>在线玩家</value>
+  </data>
+  <data name="HomeSamplingWindowCardTitle" xml:space="preserve">
+    <value>采样窗口</value>
+  </data>
+  <data name="HomeSamplingWindowLine1" xml:space="preserve">
+    <value>最近 60 个采样点</value>
+  </data>
+  <data name="HomeSamplingWindowLine2" xml:space="preserve">
+    <value>手动刷新可更新数据</value>
+  </data>
+  <data name="HomeMemoryTrendTitle" xml:space="preserve">
+    <value>内存趋势</value>
+  </data>
+  <data name="HomeServerMemoryLegend" xml:space="preserve">
+    <value>服务器内存</value>
+  </data>
+  <data name="HomeRobotMemoryLegend" xml:space="preserve">
+    <value>机器人内存</value>
+  </data>
+  <data name="HomeSamplesAxisLabel" xml:space="preserve">
+    <value>采样点</value>
+  </data>
+  <data name="HomePlayerTrendTitle" xml:space="preserve">
+    <value>玩家数量趋势</value>
+  </data>
+  <data name="HomeOnlinePlayersLegend" xml:space="preserve">
+    <value>在线玩家</value>
+  </data>
+  <data name="HomePlayersAxisLabel" xml:space="preserve">
+    <value>玩家数</value>
+  </data>
+  <data name="HomeMemoryFormat" xml:space="preserve">
+    <value>内存：{0}</value>
+  </data>
+  <data name="HomeUptimeFormat" xml:space="preserve">
+    <value>运行时间：{0}</value>
+  </data>
+  <data name="MapPreviewMenuTitle" xml:space="preserve">
+    <value>地图预览</value>
+  </data>
+  <data name="AutomationMenuTitle" xml:space="preserve">
+    <value>自动化</value>
+  </data>
+  <data name="DirectorySettingsMenuTitle" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="AutomationTitle" xml:space="preserve">
+    <value>自动化</value>
+  </data>
+  <data name="AutomationDescription" xml:space="preserve">
+    <value>定时重启、定时播报和日志导出。</value>
+  </data>
+  <data name="AutomationTargetProfileLabel" xml:space="preserve">
+    <value>目标档案</value>
+  </data>
+  <data name="AutomationRestartSectionTitle" xml:space="preserve">
+    <value>服务重启</value>
+  </data>
+  <data name="AutomationBackupSectionTitle" xml:space="preserve">
+    <value>定时备份</value>
+  </data>
+  <data name="AutomationBroadcastSectionTitle" xml:space="preserve">
+    <value>服务器播报</value>
+  </data>
+  <data name="AutomationExportSectionTitle" xml:space="preserve">
+    <value>日志导出</value>
+  </data>
+  <data name="AutomationWarnMessageFormat" xml:space="preserve">
+    <value>服务器将在 {0} 分钟后重启或关闭。</value>
+  </data>
+  <data name="AutomationBrowseFolderButtonText" xml:space="preserve">
+    <value>选择文件夹</value>
+  </data>
+  <data name="AutomationResetFolderButtonText" xml:space="preserve">
+    <value>恢复默认</value>
+  </data>
+  <data name="AutomationSaveButtonText" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="DirectorySettingsTitle" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="DirectorySettingsDescription" xml:space="preserve">
+    <value>这里的设置会统一影响工作区路径、启动选项、托盘行为，以及服务器、内网穿透和 QQ 机器人的自动启动行为。</value>
+  </data>
+  <data name="DirectorySettingsWorkspaceLabel" xml:space="preserve">
+    <value>工作区根目录</value>
+  </data>
+  <data name="DirectorySettingsStartWithWindows" xml:space="preserve">
+    <value>开机启动启动器</value>
+  </data>
+  <data name="DirectorySettingsStartHiddenOnLaunch" xml:space="preserve">
+    <value>启动时隐藏到托盘</value>
+  </data>
+  <data name="DirectorySettingsCloseToTrayOnExit" xml:space="preserve">
+    <value>关闭时隐藏到托盘，不直接退出</value>
+  </data>
+  <data name="DirectorySettingsAutoStartRobotOnLaunch" xml:space="preserve">
+    <value>启动时自动启动 QQ 机器人</value>
+  </data>
+  <data name="DirectorySettingsAutoStartFrpOnLaunch" xml:space="preserve">
+    <value>启动时自动开启内网穿透</value>
+  </data>
+  <data name="DirectorySettingsAutoStartServerOnLaunch" xml:space="preserve">
+    <value>启动时自动启动服务器</value>
+  </data>
+  <data name="DirectorySettingsAutoStartServerProfileLabel" xml:space="preserve">
+    <value>自动启动服务器档案</value>
+  </data>
+  <data name="DirectorySettingsFrpConfigButtonText" xml:space="preserve">
+    <value>设置配置文件</value>
+  </data>
+  <data name="DirectorySettingsImportFrpExecutableButtonText" xml:space="preserve">
+    <value>导入FRP文件</value>
+  </data>
+  <data name="DirectorySettingsCustomFrpCommandLabel" xml:space="preserve">
+    <value>自定义穿透命令</value>
+  </data>
+  <data name="DirectorySettingsImportFrpExecutableDialogTitle" xml:space="preserve">
+    <value>选择 FRP 可执行文件</value>
+  </data>
+  <data name="DirectorySettingsImportFrpExecutableFilterName" xml:space="preserve">
+    <value>FRP 可执行文件</value>
+  </data>
+  <data name="DirectorySettingsFrpConfigDialogTitle" xml:space="preserve">
+    <value>编辑内网穿透配置</value>
+  </data>
+  <data name="DirectorySettingsStatusFrpConfigCanceled" xml:space="preserve">
+    <value>已取消配置文件编辑。</value>
+  </data>
+  <data name="DirectorySettingsStatusFrpConfigSaved" xml:space="preserve">
+    <value>配置文件已保存。</value>
+  </data>
+  <data name="DirectorySettingsStatusFrpConfigSaveFailedFormat" xml:space="preserve">
+    <value>保存配置文件失败：{0}</value>
+  </data>
+  <data name="DirectorySettingsStatusFrpExecutableImportedFormat" xml:space="preserve">
+    <value>已导入 FRP 可执行文件：{0}</value>
+  </data>
+  <data name="DirectorySettingsStatusFrpExecutableImportFailedFormat" xml:space="preserve">
+    <value>导入 FRP 可执行文件失败：{0}</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcTitle" xml:space="preserve">
+    <value>第三方FRPC</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcDescription" xml:space="preserve">
+    <value>适用于樱花 FRP 等独立 FRPC 程序，可按配置文件或仅命令两种方式启动。</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcAutoStart" xml:space="preserve">
+    <value>启动时自动开启第三方FRPC</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcImportButtonText" xml:space="preserve">
+    <value>导入第三方FRPC文件</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcConfigButtonText" xml:space="preserve">
+    <value>编辑配置文件</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcModeLabel" xml:space="preserve">
+    <value>启动模式</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcCommandLabel" xml:space="preserve">
+    <value>启动命令</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcImportDialogTitle" xml:space="preserve">
+    <value>选择第三方FRPC文件</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcImportFilterName" xml:space="preserve">
+    <value>第三方FRPC文件</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcConfigDialogTitle" xml:space="preserve">
+    <value>编辑第三方FRPC配置</value>
+  </data>
+  <data name="DirectorySettingsStatusThirdPartyFrpcConfigModeOnly" xml:space="preserve">
+    <value>仅在“通过配置文件”模式下可编辑配置文件。</value>
+  </data>
+  <data name="DirectorySettingsStatusThirdPartyFrpcConfigCanceled" xml:space="preserve">
+    <value>已取消第三方配置文件编辑。</value>
+  </data>
+  <data name="DirectorySettingsStatusThirdPartyFrpcConfigSaved" xml:space="preserve">
+    <value>第三方配置文件已保存。</value>
+  </data>
+  <data name="DirectorySettingsStatusThirdPartyFrpcConfigSaveFailedFormat" xml:space="preserve">
+    <value>保存第三方配置文件失败：{0}</value>
+  </data>
+  <data name="DirectorySettingsStatusThirdPartyFrpcExecutableImportedFormat" xml:space="preserve">
+    <value>已导入第三方FRPC文件：{0}</value>
+  </data>
+  <data name="DirectorySettingsStatusThirdPartyFrpcExecutableImportFailedFormat" xml:space="preserve">
+    <value>导入第三方FRPC文件失败：{0}</value>
+  </data>
+  <data name="DirectorySettingsSaveButtonText" xml:space="preserve">
+    <value>保存设置</value>
+  </data>
+  <data name="ConfigImportDialogTitle" xml:space="preserve">
+    <value>选择服务器配置文件</value>
+  </data>
+  <data name="ConfigImportFilterName" xml:space="preserve">
+    <value>服务器配置 JSON</value>
+  </data>
+  <data name="ConfigStatusImportedFormat" xml:space="preserve">
+    <value>已导入配置：{0}</value>
+  </data>
+  <data name="ConfigStatusImportFailedFormat" xml:space="preserve">
+    <value>导入配置失败：{0}</value>
+  </data>
+  <data name="DirectorySettingsResetButtonText" xml:space="preserve">
+    <value>恢复默认</value>
+  </data>
+  <data name="TrayShowWindowText" xml:space="preserve">
+    <value>显示窗口</value>
+  </data>
+  <data name="TrayStartServerText" xml:space="preserve">
+    <value>启动服务器</value>
+  </data>
+  <data name="TrayStopServerText" xml:space="preserve">
+    <value>停止服务器</value>
+  </data>
+  <data name="TrayStartRobotText" xml:space="preserve">
+    <value>启动 QQ 机器人</value>
+  </data>
+  <data name="TrayStopRobotText" xml:space="preserve">
+    <value>停止 QQ 机器人</value>
+  </data>
+  <data name="TrayExitText" xml:space="preserve">
+    <value>退出</value>
+  </data>
+  <data name="AutomationExportBeforeShutdownLabel" xml:space="preserve">
+    <value>关服前导出</value>
+  </data>
+  <data name="AutomationBackupBeforeShutdownLabel" xml:space="preserve">
+    <value>关服前备份当前存档</value>
+  </data>
+  <data name="AutomationExportIncludeChatLabel" xml:space="preserve">
+    <value>导出聊天信息</value>
+  </data>
+  <data name="AutomationExportIncludeServerLabel" xml:space="preserve">
+    <value>导出服务器信息</value>
+  </data>
+  <data name="AutomationBackupHintText" xml:space="preserve">
+    <value>备份当前 active savegame。服务器在线时使用 /genbackup，离线时直接复制 vcdbs 文件。</value>
+  </data>
+  <data name="AutomationHintText" xml:space="preserve">
+    <value>周模式使用 1-7，日期范围使用 yyyy-MM-dd，时间使用 HH:mm。</value>
+  </data>
+  <data name="AutomationModeLabel" xml:space="preserve">
+    <value>模式</value>
+  </data>
+  <data name="AutomationDayStartLabel" xml:space="preserve">
+    <value>开始星期</value>
+  </data>
+  <data name="AutomationDayEndLabel" xml:space="preserve">
+    <value>结束星期</value>
+  </data>
+  <data name="AutomationDateStartLabel" xml:space="preserve">
+    <value>开始日期</value>
+  </data>
+  <data name="AutomationDateEndLabel" xml:space="preserve">
+    <value>结束日期</value>
+  </data>
+  <data name="AutomationTimeStartLabel" xml:space="preserve">
+    <value>开始时间</value>
+  </data>
+  <data name="AutomationTimeEndLabel" xml:space="preserve">
+    <value>结束时间</value>
+  </data>
+  <data name="AutomationActionLabel" xml:space="preserve">
+    <value>操作</value>
+  </data>
+  <data name="MapPreviewProfileLabel" xml:space="preserve">
+    <value>档案：</value>
+  </data>
+  <data name="MapPreviewSaveLabel" xml:space="preserve">
+    <value>存档：</value>
+  </data>
+  <data name="MapPreviewLoadButtonText" xml:space="preserve">
+    <value>加载预览</value>
+  </data>
+  <data name="MapPreviewRefreshProfilesButtonText" xml:space="preserve">
+    <value>刷新档案</value>
+  </data>
+  <data name="MapPreviewRefreshSavesButtonText" xml:space="preserve">
+    <value>刷新存档</value>
+  </data>
+  <data name="MapPreviewColorTabTitle" xml:space="preserve">
+    <value>彩色地图</value>
+  </data>
+  <data name="MapPreviewGrayscaleTabTitle" xml:space="preserve">
+    <value>灰度地图</value>
+  </data>
+  <data name="MapPreviewNoPreviewText" xml:space="preserve">
+    <value>暂无地图预览，点击“加载预览”。</value>
+  </data>
+  <data name="MapPreviewCoordinatePlaceholder" xml:space="preserve">
+    <value>坐标：-</value>
+  </data>
+  <data name="MapPreviewCoordinateFormat" xml:space="preserve">
+    <value>维度 {0} | X:{1} Z:{2} | 区块:{3},{4}</value>
+  </data>
+  <data name="MapPreviewSourcePathFormat" xml:space="preserve">
+    <value>来源：{0}</value>
+  </data>
+  <data name="MapPreviewSummaryEmpty" xml:space="preserve">
+    <value>尚未加载地图预览。</value>
+  </data>
+  <data name="MapPreviewSummaryFormat" xml:space="preserve">
+    <value>维度 {0} | 区块数 {1} | X[{2},{3}] Z[{4},{5}] | 分辨率 {6}x{7} | 高度 {8}-{9} | 采样 x{10}</value>
+  </data>
+  <data name="MapPreviewStatusNoProfile" xml:space="preserve">
+    <value>未找到档案，请先创建档案。</value>
+  </data>
+  <data name="MapPreviewStatusLoading" xml:space="preserve">
+    <value>正在读取地图并生成预览...</value>
+  </data>
+  <data name="MapPreviewStatusLoaded" xml:space="preserve">
+    <value>地图预览已加载。</value>
+  </data>
+  <data name="MapPreviewStatusLoadFailedFormat" xml:space="preserve">
+    <value>加载地图预览失败：{0}</value>
+  </data>
+  <data name="MapPreviewStatusRefreshProfilesFailedFormat" xml:space="preserve">
+    <value>刷新档案失败：{0}</value>
+  </data>
+  <data name="MapPreviewStatusRefreshSavesFailedFormat" xml:space="preserve">
+    <value>刷新存档失败：{0}</value>
+  </data>
+  <data name="MapPreviewStatusLoadedProfilesFormat" xml:space="preserve">
+    <value>已加载 {0} 个档案。</value>
+  </data>
+  <data name="MapPreviewStatusLoadedSavesFormat" xml:space="preserve">
+    <value>已加载 {0} 个存档文件。</value>
+  </data>
+  <data name="MapPreviewStatusInvalidPixels" xml:space="preserve">
+    <value>地图像素数据无效。</value>
+  </data>
+  <data name="OverviewAuthMenuTitle" xml:space="preserve">
+    <value>认证</value>
+  </data>
+  <data name="InstanceManageTitle" xml:space="preserve">
+    <value>实例 / 管理</value>
+  </data>
+  <data name="InstanceManageDescription" xml:space="preserve">
+    <value>管理页面内容待补充。</value>
+  </data>
+  <data name="AuthProfileLabel" xml:space="preserve">
+    <value>档案</value>
+  </data>
+  <data name="AuthModStateLabel" xml:space="preserve">
+    <value>认证模组</value>
+  </data>
+  <data name="AuthModStateEnabled" xml:space="preserve">
+    <value>已部署</value>
+  </data>
+  <data name="AuthModStateMissing" xml:space="preserve">
+    <value>未部署</value>
+  </data>
+  <data name="AuthEnabledLabel" xml:space="preserve">
+    <value>启用认证</value>
+  </data>
+  <data name="AuthLoginTimeoutLabel" xml:space="preserve">
+    <value>超时（秒）</value>
+  </data>
+  <data name="AuthRememberMinutesLabel" xml:space="preserve">
+    <value>记住会话（分钟）</value>
+  </data>
+  <data name="AuthDiscourseEnabledLabel" xml:space="preserve">
+    <value>仅 Discourse 认证模式</value>
+  </data>
+  <data name="AuthDiscourseBaseUrlLabel" xml:space="preserve">
+    <value>Discourse 域名</value>
+  </data>
+  <data name="AuthDiscourseSecretLabel" xml:space="preserve">
+    <value>共享密钥</value>
+  </data>
+  <data name="AuthDiscoursePublicCallbackLabel" xml:space="preserve">
+    <value>公网回调基址</value>
+  </data>
+  <data name="AuthDiscourseListenPrefixLabel" xml:space="preserve">
+    <value>监听前缀</value>
+  </data>
+  <data name="AuthPlayersHeaderName" xml:space="preserve">
+    <value>玩家</value>
+  </data>
+  <data name="AuthPlayersHeaderRegistered" xml:space="preserve">
+    <value>注册信息</value>
+  </data>
+  <data name="AuthPlayersHeaderLastLogin" xml:space="preserve">
+    <value>最近登录</value>
+  </data>
+  <data name="AuthPlayersHeaderPassword" xml:space="preserve">
+    <value>密码状态</value>
+  </data>
+  <data name="AuthPlayersHeaderDiscourse" xml:space="preserve">
+    <value>社区账号</value>
+  </data>
+  <data name="AuthPlayersHeaderAction" xml:space="preserve">
+    <value>操作</value>
+  </data>
+  <data name="AuthNoPlayersText" xml:space="preserve">
+    <value>暂无认证玩家记录。</value>
+  </data>
+  <data name="AuthClearPasswordButtonText" xml:space="preserve">
+    <value>清空密码</value>
+  </data>
+  <data name="AuthPasswordStateSet" xml:space="preserve">
+    <value>已设置</value>
+  </data>
+  <data name="AuthPasswordStateEmpty" xml:space="preserve">
+    <value>未设置</value>
+  </data>
+  <data name="AuthPasswordStateResetRequired" xml:space="preserve">
+    <value>需重设</value>
+  </data>
+  <data name="AuthStatusLoadedFormat" xml:space="preserve">
+    <value>已加载 {1} 的 {0} 条玩家记录。</value>
+  </data>
+  <data name="AuthStatusLoadFailedFormat" xml:space="preserve">
+    <value>加载认证中心数据失败：{0}</value>
+  </data>
+  <data name="AuthStatusSaved" xml:space="preserve">
+    <value>认证配置已保存。</value>
+  </data>
+  <data name="AuthStatusSaveFailedFormat" xml:space="preserve">
+    <value>保存认证配置失败：{0}</value>
+  </data>
+  <data name="AuthStatusSelectPlayerFirst" xml:space="preserve">
+    <value>请先选择玩家。</value>
+  </data>
+  <data name="AuthStatusPasswordClearedFormat" xml:space="preserve">
+    <value>已清空密码：{0}</value>
+  </data>
+  <data name="AuthStatusPlayerNotFoundFormat" xml:space="preserve">
+    <value>未找到玩家：{0}</value>
+  </data>
+  <data name="AuthStatusClearPasswordFailedFormat" xml:space="preserve">
+    <value>清空玩家密码失败：{0}</value>
+  </data>
+  <data name="ModStatusSelectModsToDelete" xml:space="preserve">
+    <value>请选择要删除的模组。</value>
+  </data>
+  <data name="ModStatusDeletedFormat" xml:space="preserve">
+    <value>已删除 {0} 个模组。</value>
+  </data>
+  <data name="ModStatusNoDeletes" xml:space="preserve">
+    <value>未删除任何模组。</value>
+  </data>
+  <data name="ModStatusDeleteFailedFormat" xml:space="preserve">
+    <value>删除模组失败：{0}</value>
+  </data>
+</root>

@@ -13,6 +13,13 @@ public static class ServiceCollectionExtension
         services.AddSingleton<IInstanceSaveService, InstanceSaveService>();
         services.AddSingleton<IInstanceServerConfigService, InstanceServerConfigService>();
         services.AddSingleton<IServerProcessService, ServerProcessService>();
+        services.AddSingleton<ILogTailService, LogTailService>();
+        services.AddSingleton<IAutomationSettingsService, AutomationSettingsService>();
+        services.AddSingleton<IAutomationService, AutomationService>();
+        services.AddSingleton<IFrpService, FrpService>();
+        services.AddSingleton<IThirdPartyFrpcService, ThirdPartyFrpcService>();
+        services.AddSingleton<IInstanceModService, InstanceModService>();
+        services.AddSingleton<IServerAuthService, ServerAuthService>();
         services.AddSingleton<IOsqSnapshotCacheService, OsqSnapshotCacheService>();
         services.AddSingleton<IOpenServerQueryService, OpenServerQueryService>();
         services.AddSingleton<Vs2QQProcessService>();

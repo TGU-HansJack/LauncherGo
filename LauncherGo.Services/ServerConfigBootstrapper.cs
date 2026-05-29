@@ -9,6 +9,19 @@ namespace LauncherGo.Services;
 
 internal static class ServerConfigBootstrapper
 {
+    public static void EnsureGenerated(string installPath, string profileDataPath, bool forceRegenerate = false)
+    {
+        var saveDirectory = Path.Combine(profileDataPath, "Saves");
+        EnsureGenerated(installPath, new InstanceProfile
+        {
+            Id = Path.GetFileName(profileDataPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
+            Name = Path.GetFileName(profileDataPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
+            DirectoryPath = profileDataPath,
+            SaveDirectory = saveDirectory,
+            ActiveSaveFile = Path.Combine(saveDirectory, "default.vcdbs")
+        });
+    }
+
     public static void EnsureGenerated(string installPath, InstanceProfile profile)
     {
         var configPath = Path.Combine(profile.DirectoryPath, "serverconfig.json");
