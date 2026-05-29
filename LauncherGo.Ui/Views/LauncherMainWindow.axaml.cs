@@ -14,6 +14,7 @@ using Avalonia.Media.Transformation;
 using Avalonia.Platform.Storage;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using LauncherGo.Abstractions.Services;
 using LauncherGo.Domains.Enums;
 using LauncherGo.Domains.Models;
@@ -113,14 +114,11 @@ public partial class LauncherMainWindow : Window
         "globalForestation"
     };
 
-    private static readonly string[] ConfigImagePatterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.gif", "*.bmp"];
-
     private readonly ILauncherPreferencesService _preferencesService;
     private readonly IServerPackageService _serverPackageService;
     private readonly IInstanceProfileService _profileService;
     private readonly IInstanceSaveService _saveService;
     private readonly IInstanceServerConfigService _instanceServerConfigService;
-    private readonly IServerImageService _serverImageService;
     private readonly IServerProcessService _serverProcessService;
     private readonly DispatcherTimer _dataTimer;
     private readonly DispatcherTimer _tickerTimer;
@@ -144,7 +142,6 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<ConfigChoiceOption> _configWorldTypeOptions = [];
     private readonly ObservableCollection<ConfigSaveFileItem> _configSaveItems = [];
     private readonly ObservableCollection<ConfigWorldRuleItem> _configWorldRuleItems = [];
-    private readonly ObservableCollection<ConfigServerImageItem> _configShowcaseImageItems = [];
     private readonly List<ServerDownloadEntry> _catalogEntries = [];
 
     private MainTab _selectedTab = MainTab.Home;
@@ -163,9 +160,6 @@ public partial class LauncherMainWindow : Window
     private bool _isRefreshingConfigProfiles;
     private bool _isLoadingConfig;
     private string _configSaveFileLocation = string.Empty;
-    private string _pendingCoverImportPath = string.Empty;
-    private string _pendingShowcaseImportPath = string.Empty;
-    private ConfigServerImageItem? _configCoverImage;
 
     public LauncherMainWindow()
         : this(
@@ -174,7 +168,6 @@ public partial class LauncherMainWindow : Window
             ServiceLocator.GetRequiredService<IInstanceProfileService>(),
             ServiceLocator.GetRequiredService<IInstanceSaveService>(),
             ServiceLocator.GetRequiredService<IInstanceServerConfigService>(),
-            ServiceLocator.GetRequiredService<IServerImageService>(),
             ServiceLocator.GetRequiredService<IServerProcessService>())
     {
     }
@@ -185,7 +178,6 @@ public partial class LauncherMainWindow : Window
         IInstanceProfileService profileService,
         IInstanceSaveService saveService,
         IInstanceServerConfigService instanceServerConfigService,
-        IServerImageService serverImageService,
         IServerProcessService serverProcessService)
     {
         _preferencesService = preferencesService;
@@ -193,7 +185,6 @@ public partial class LauncherMainWindow : Window
         _profileService = profileService;
         _saveService = saveService;
         _instanceServerConfigService = instanceServerConfigService;
-        _serverImageService = serverImageService;
         _serverProcessService = serverProcessService;
 
         InitializeComponent();
@@ -341,27 +332,12 @@ public partial class LauncherMainWindow : Window
         ConfigWorldGeneratedNoticeTextBlock.Text = T(
             "当前存档已生成世界：种子、游玩风格、世界类型、世界高度，以及仅限建档阶段的世界规则（如世界宽度/长度）已锁定。",
             "This save already has a generated world: seed, play style, world type, world height, and world-creation-only rules are locked.");
-        ConfigServerImagesTitleTextBlock.Text = T("服务器图片", "Server Images");
-        ConfigServerImagesRootLabelTextBlock.Text = T("图片目录", "Image Folder");
-        ConfigCoverTitleTextBlock.Text = T("封面图（cover）", "Cover Image");
-        ConfigShowcaseTitleTextBlock.Text = T("展示图（showcase）", "Showcase Images");
-        ConfigShowcaseHintTextBlock.Text = T("选择列表项后可预览。", "Click an item to preview it.");
-        ConfigCoverBrowseButton.Content = T("浏览", "Browse");
-        ConfigCoverImportButton.Content = T("导入", "Import");
-        ConfigCoverPreviewButton.Content = T("预览", "Preview");
-        ConfigCoverDeleteButton.Content = T("删除", "Delete");
-        ConfigShowcaseBrowseButton.Content = T("浏览", "Browse");
-        ConfigShowcaseAddButton.Content = T("添加", "Add");
-        ConfigShowcaseImportFolderButton.Content = T("导入", "Import");
-        ConfigShowcasePreviewButton.Content = T("预览", "Preview");
-        ConfigShowcaseDeleteButton.Content = T("删除", "Delete");
         ConfigWorldRulesTitleTextBlock.Text = T("世界规则", "World Rules");
         ConfigAdvancedJsonTitleTextBlock.Text = T("高级 JSON", "Advanced JSON");
         ConfigAdvancedJsonButton.Content = T("编辑高级 JSON", "Edit Advanced JSON");
         ConfigNoProfileTextBlock.Text = T("暂无档案，请先创建档案。", "No profile found. Create a profile first.");
         RebuildConfigChoiceOptions();
         RefreshConfigWorldRuleLabels();
-        RefreshConfigImageTexts();
     }
 
     private void InitializeSeries()
@@ -393,7 +369,6 @@ public partial class LauncherMainWindow : Window
         ConfigWorldTypeComboBox.ItemsSource = _configWorldTypeOptions;
         ConfigSaveFileComboBox.ItemsSource = _configSaveItems;
         ConfigWorldRulesItemsControl.ItemsSource = _configWorldRuleItems;
-        ConfigShowcaseImagesListBox.ItemsSource = _configShowcaseImageItems;
         RebuildConfigChoiceOptions();
     }
 
@@ -1197,12 +1172,70 @@ public partial class LauncherMainWindow : Window
 
     private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || ShouldSkipWindowDrag(e.Source))
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        DeactivateInputControlsOnBackgroundClick(e.Source);
+
+        if (ShouldSkipWindowDrag(e.Source))
         {
             return;
         }
 
         BeginMoveDrag(e);
+    }
+
+    private void DeactivateInputControlsOnBackgroundClick(object? source)
+    {
+        if (ShouldKeepInputFocus(source))
+        {
+            return;
+        }
+
+        var closedDropDown = CloseOpenComboBoxDropDowns();
+        var focusedElement = FocusManager?.GetFocusedElement();
+        if (focusedElement is TextBox or ComboBox or ComboBoxItem or NumericUpDown || closedDropDown)
+        {
+            FocusManager?.Focus(null!, NavigationMethod.Pointer, KeyModifiers.None);
+        }
+    }
+
+    private bool CloseOpenComboBoxDropDowns()
+    {
+        var closedAny = false;
+        foreach (var comboBox in this.GetVisualDescendants().OfType<ComboBox>())
+        {
+            if (!comboBox.IsDropDownOpen)
+            {
+                continue;
+            }
+
+            comboBox.IsDropDownOpen = false;
+            closedAny = true;
+        }
+
+        return closedAny;
+    }
+
+    private static bool ShouldKeepInputFocus(object? source)
+    {
+        var current = source as StyledElement;
+        while (current is not null)
+        {
+            if (current is TextBox
+                or ComboBox
+                or ComboBoxItem
+                or NumericUpDown)
+            {
+                return true;
+            }
+
+            current = current.Parent;
+        }
+
+        return false;
     }
 
     private static bool ShouldSkipWindowDrag(object? source)
@@ -1536,7 +1569,6 @@ public partial class LauncherMainWindow : Window
             ApplyConfigWorldSettings(worldSettings);
             RebuildConfigWorldRules(worldRules);
             UpdateConfigWorldGeneratedState();
-            await LoadConfigImagesAsync(profile);
             SetConfigStatus(T($"已加载配置：{profile.Name}", $"Loaded configuration: {profile.Name}"));
         }
         catch (Exception ex)
@@ -1622,28 +1654,6 @@ public partial class LauncherMainWindow : Window
         SetNumericValue(ConfigWorldHeightNumericUpDown, settings.WorldHeight ?? 256);
     }
 
-    private async Task LoadConfigImagesAsync(InstanceProfile profile)
-    {
-        ConfigImageRootPathTextBlock.Text = _serverImageService.GetImageRootPath(profile);
-        var images = await _serverImageService.LoadServerImagesAsync(profile);
-        _configCoverImage = images
-            .Where(image => image.Kind == ServerImageKind.Cover)
-            .Select(ConfigServerImageItem.FromImage)
-            .FirstOrDefault();
-
-        var selectedShowcasePath = (ConfigShowcaseImagesListBox.SelectedItem as ConfigServerImageItem)?.FullPath;
-        _configShowcaseImageItems.Clear();
-        foreach (var image in images.Where(image => image.Kind == ServerImageKind.Showcase))
-        {
-            _configShowcaseImageItems.Add(ConfigServerImageItem.FromImage(image));
-        }
-
-        ConfigShowcaseImagesListBox.SelectedItem = _configShowcaseImageItems.FirstOrDefault(item =>
-            !string.IsNullOrWhiteSpace(selectedShowcasePath) &&
-            item.FullPath.Equals(selectedShowcasePath, StringComparison.OrdinalIgnoreCase));
-        RefreshConfigImageTexts();
-    }
-
     private void ClearConfigForm()
     {
         ConfigServerNameTextBox.Text = "Vintage Story Server";
@@ -1682,12 +1692,6 @@ public partial class LauncherMainWindow : Window
         SelectConfigChoiceByValue(ConfigWorldTypeComboBox, _configWorldTypeOptions, "standard");
         SetNumericValue(ConfigWorldHeightNumericUpDown, 256);
         _configWorldRuleItems.Clear();
-        _configCoverImage = null;
-        _configShowcaseImageItems.Clear();
-        _pendingCoverImportPath = string.Empty;
-        _pendingShowcaseImportPath = string.Empty;
-        ConfigImageRootPathTextBlock.Text = string.Empty;
-        RefreshConfigImageTexts();
         UpdateConfigWorldGeneratedState();
     }
 
@@ -1926,195 +1930,6 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private async void OnConfigCoverBrowseClick(object? sender, RoutedEventArgs e)
-    {
-        var path = await PickConfigImageFileAsync();
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return;
-        }
-
-        _pendingCoverImportPath = path;
-        RefreshConfigImageTexts();
-        SetConfigStatus(T($"已选择图片：{Path.GetFileName(path)}", $"Selected image: {Path.GetFileName(path)}"));
-    }
-
-    private async void OnConfigCoverImportClick(object? sender, RoutedEventArgs e)
-    {
-        var profile = GetSelectedConfigProfile();
-        if (profile is null)
-        {
-            SetConfigStatus(T("请先选择档案。", "Select a profile first."));
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(_pendingCoverImportPath))
-        {
-            _pendingCoverImportPath = await PickConfigImageFileAsync() ?? string.Empty;
-        }
-
-        if (string.IsNullOrWhiteSpace(_pendingCoverImportPath))
-        {
-            return;
-        }
-
-        try
-        {
-            var imported = await _serverImageService.ImportImageAsync(profile, _pendingCoverImportPath, ServerImageKind.Cover);
-            _pendingCoverImportPath = string.Empty;
-            await LoadConfigImagesAsync(profile);
-            SetConfigStatus(T($"封面图已导入：{imported.FileName}", $"Cover image imported: {imported.FileName}"));
-        }
-        catch (Exception ex)
-        {
-            SetConfigStatus(T($"导入封面图失败：{ex.Message}", $"Failed to import cover image: {ex.Message}"));
-        }
-    }
-
-    private void OnConfigCoverPreviewClick(object? sender, RoutedEventArgs e)
-    {
-        if (_configCoverImage is null)
-        {
-            SetConfigStatus(T("暂无封面图。", "No cover image yet."));
-            return;
-        }
-
-        OpenLocalFile(_configCoverImage.FullPath);
-    }
-
-    private async void OnConfigCoverDeleteClick(object? sender, RoutedEventArgs e)
-    {
-        var profile = GetSelectedConfigProfile();
-        if (profile is null || _configCoverImage is null)
-        {
-            SetConfigStatus(T("暂无封面图。", "No cover image yet."));
-            return;
-        }
-
-        try
-        {
-            await _serverImageService.DeleteImageAsync(profile, _configCoverImage.ToDomain(ServerImageKind.Cover));
-            await LoadConfigImagesAsync(profile);
-            SetConfigStatus(T("封面图已删除。", "Cover image deleted."));
-        }
-        catch (Exception ex)
-        {
-            SetConfigStatus(T($"删除封面图失败：{ex.Message}", $"Failed to delete cover image: {ex.Message}"));
-        }
-    }
-
-    private async void OnConfigShowcaseBrowseClick(object? sender, RoutedEventArgs e)
-    {
-        var path = await PickConfigImageFileAsync();
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return;
-        }
-
-        _pendingShowcaseImportPath = path;
-        RefreshConfigImageTexts();
-        SetConfigStatus(T($"已选择图片：{Path.GetFileName(path)}", $"Selected image: {Path.GetFileName(path)}"));
-    }
-
-    private async void OnConfigShowcaseAddClick(object? sender, RoutedEventArgs e)
-    {
-        var profile = GetSelectedConfigProfile();
-        if (profile is null)
-        {
-            SetConfigStatus(T("请先选择档案。", "Select a profile first."));
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(_pendingShowcaseImportPath))
-        {
-            _pendingShowcaseImportPath = await PickConfigImageFileAsync() ?? string.Empty;
-        }
-
-        if (string.IsNullOrWhiteSpace(_pendingShowcaseImportPath))
-        {
-            return;
-        }
-
-        try
-        {
-            var imported = await _serverImageService.ImportImageAsync(profile, _pendingShowcaseImportPath, ServerImageKind.Showcase);
-            _pendingShowcaseImportPath = string.Empty;
-            await LoadConfigImagesAsync(profile);
-            SetConfigStatus(T($"已添加展示图：{imported.FileName}", $"Showcase image added: {imported.FileName}"));
-        }
-        catch (Exception ex)
-        {
-            SetConfigStatus(T($"导入展示图失败：{ex.Message}", $"Failed to import showcase image: {ex.Message}"));
-        }
-    }
-
-    private async void OnConfigShowcaseImportFolderClick(object? sender, RoutedEventArgs e)
-    {
-        var profile = GetSelectedConfigProfile();
-        if (profile is null)
-        {
-            SetConfigStatus(T("请先选择档案。", "Select a profile first."));
-            return;
-        }
-
-        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = T("选择图片文件夹", "Select image folder"),
-            AllowMultiple = false
-        });
-
-        var path = TryGetLocalPath(folders.FirstOrDefault());
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return;
-        }
-
-        try
-        {
-            var count = await _serverImageService.ImportImagesFromFolderAsync(profile, path);
-            await LoadConfigImagesAsync(profile);
-            SetConfigStatus(count == 0
-                ? T("所选目录中没有可导入的图片文件。", "No image files found in the selected folder.")
-                : T($"已导入 {count} 张展示图。", $"Imported {count} showcase image(s)."));
-        }
-        catch (Exception ex)
-        {
-            SetConfigStatus(T($"导入展示图失败：{ex.Message}", $"Failed to import showcase image: {ex.Message}"));
-        }
-    }
-
-    private void OnConfigShowcasePreviewClick(object? sender, RoutedEventArgs e)
-    {
-        if (ConfigShowcaseImagesListBox.SelectedItem is not ConfigServerImageItem image)
-        {
-            SetConfigStatus(T("请先选择一张展示图。", "Please select a showcase image first."));
-            return;
-        }
-
-        OpenLocalFile(image.FullPath);
-    }
-
-    private async void OnConfigShowcaseDeleteClick(object? sender, RoutedEventArgs e)
-    {
-        var profile = GetSelectedConfigProfile();
-        if (profile is null || ConfigShowcaseImagesListBox.SelectedItem is not ConfigServerImageItem image)
-        {
-            SetConfigStatus(T("请先选择一张展示图。", "Please select a showcase image first."));
-            return;
-        }
-
-        try
-        {
-            await _serverImageService.DeleteImageAsync(profile, image.ToDomain(ServerImageKind.Showcase));
-            await LoadConfigImagesAsync(profile);
-            SetConfigStatus(T($"展示图已删除：{image.FileName}", $"Showcase image deleted: {image.FileName}"));
-        }
-        catch (Exception ex)
-        {
-            SetConfigStatus(T($"删除展示图失败：{ex.Message}", $"Failed to delete showcase image: {ex.Message}"));
-        }
-    }
-
     private void RebuildConfigChoiceOptions()
     {
         var selectedWhitelist = (ConfigWhitelistModeComboBox.SelectedItem as ConfigChoiceOption)?.Value;
@@ -2285,21 +2100,6 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private void RefreshConfigImageTexts()
-    {
-        ConfigCoverImageTextBlock.Text = _configCoverImage is null
-            ? T("暂无封面图。", "No cover image yet.")
-            : $"{_configCoverImage.RelativePath} ({_configCoverImage.SizeLabel})";
-        ConfigPendingCoverImportTextBlock.Text = string.IsNullOrWhiteSpace(_pendingCoverImportPath)
-            ? string.Empty
-            : _pendingCoverImportPath;
-        ConfigPendingShowcaseImportTextBlock.Text = string.IsNullOrWhiteSpace(_pendingShowcaseImportPath)
-            ? string.Empty
-            : _pendingShowcaseImportPath;
-        ConfigNoShowcaseTextBlock.IsVisible = _configShowcaseImageItems.Count == 0;
-        ConfigShowcaseHintTextBlock.IsVisible = _configShowcaseImageItems.Count > 0;
-    }
-
     private InstanceProfile? GetSelectedConfigProfile()
     {
         if (ConfigProfileComboBox.SelectedItem is not InstanceProfile selectedProfile)
@@ -2343,24 +2143,6 @@ public partial class LauncherMainWindow : Window
         }
 
         return fullPath;
-    }
-
-    private async Task<string?> PickConfigImageFileAsync()
-    {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = T("选择图片", "Select Image"),
-            AllowMultiple = false,
-            FileTypeFilter =
-            [
-                new FilePickerFileType(T("图片文件", "Image Files"))
-                {
-                    Patterns = ConfigImagePatterns
-                }
-            ]
-        });
-
-        return TryGetLocalPath(files.FirstOrDefault());
     }
 
     private async Task<string?> ShowAdvancedJsonEditorAsync(string title, string rawJson)
@@ -2598,26 +2380,6 @@ public partial class LauncherMainWindow : Window
         }
 
         options.Add(new ConfigChoiceOption(normalized, T($"自定义：{normalized}", $"Custom: {normalized}")));
-    }
-
-    private static string FormatConfigFileSize(long bytes)
-    {
-        if (bytes >= 1024L * 1024 * 1024)
-        {
-            return $"{bytes / 1024d / 1024d / 1024d:F2} GB";
-        }
-
-        if (bytes >= 1024L * 1024)
-        {
-            return $"{bytes / 1024d / 1024d:F1} MB";
-        }
-
-        if (bytes >= 1024)
-        {
-            return $"{bytes / 1024d:F1} KB";
-        }
-
-        return $"{bytes} B";
     }
 
     private async void OnCreateProfileClick(object? sender, RoutedEventArgs e)
@@ -3142,46 +2904,6 @@ public partial class LauncherMainWindow : Window
             {
                 FullPath = path,
                 FileName = string.IsNullOrWhiteSpace(Path.GetFileName(path)) ? path : Path.GetFileName(path)
-            };
-        }
-    }
-
-    public sealed class ConfigServerImageItem
-    {
-        public required ServerImageKind Kind { get; init; }
-
-        public required string FullPath { get; init; }
-
-        public required string RelativePath { get; init; }
-
-        public required string FileName { get; init; }
-
-        public long SizeBytes { get; init; }
-
-        public string SizeLabel => FormatConfigFileSize(SizeBytes);
-
-        public static ConfigServerImageItem FromImage(ServerImageFileInfo image)
-        {
-            return new ConfigServerImageItem
-            {
-                Kind = image.Kind,
-                FullPath = image.FullPath,
-                RelativePath = image.RelativePath,
-                FileName = image.FileName,
-                SizeBytes = image.SizeBytes
-            };
-        }
-
-        public ServerImageFileInfo ToDomain(ServerImageKind kind)
-        {
-            return new ServerImageFileInfo
-            {
-                Kind = kind,
-                FullPath = FullPath,
-                RelativePath = RelativePath,
-                FileName = FileName,
-                SizeBytes = SizeBytes,
-                LastWriteUtc = DateTimeOffset.UtcNow
             };
         }
     }

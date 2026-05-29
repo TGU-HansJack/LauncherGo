@@ -12,7 +12,6 @@ public static class ServiceCollectionExtension
         services.AddSingleton<IInstanceProfileService, InstanceProfileService>();
         services.AddSingleton<IInstanceSaveService, InstanceSaveService>();
         services.AddSingleton<IInstanceServerConfigService, InstanceServerConfigService>();
-        services.AddSingleton<IServerImageService, ServerImageService>();
         services.AddSingleton<IServerProcessService, ServerProcessService>();
         return services;
     }

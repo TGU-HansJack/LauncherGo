@@ -10,6 +10,7 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using LauncherGo.Abstractions.Services;
 using LauncherGo.Domains.Enums;
 using LauncherGo.Domains.Models;
@@ -279,12 +280,70 @@ public partial class FirstLaunchGuideWindow : Window
 
     private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || ShouldSkipWindowDrag(e.Source))
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        DeactivateInputControlsOnBackgroundClick(e.Source);
+
+        if (ShouldSkipWindowDrag(e.Source))
         {
             return;
         }
 
         BeginMoveDrag(e);
+    }
+
+    private void DeactivateInputControlsOnBackgroundClick(object? source)
+    {
+        if (ShouldKeepInputFocus(source))
+        {
+            return;
+        }
+
+        var closedDropDown = CloseOpenComboBoxDropDowns();
+        var focusedElement = FocusManager?.GetFocusedElement();
+        if (focusedElement is TextBox or ComboBox or ComboBoxItem || closedDropDown)
+        {
+            FocusManager?.Focus(null!, NavigationMethod.Pointer, KeyModifiers.None);
+        }
+    }
+
+    private bool CloseOpenComboBoxDropDowns()
+    {
+        var closedAny = false;
+        foreach (var comboBox in this.GetVisualDescendants().OfType<ComboBox>())
+        {
+            if (!comboBox.IsDropDownOpen)
+            {
+                continue;
+            }
+
+            comboBox.IsDropDownOpen = false;
+            closedAny = true;
+        }
+
+        return closedAny;
+    }
+
+    private static bool ShouldKeepInputFocus(object? source)
+    {
+        var current = source as StyledElement;
+        while (current is not null)
+        {
+            if (current is TextBox
+                or ComboBox
+                or ComboBoxItem
+                or NumericUpDown)
+            {
+                return true;
+            }
+
+            current = current.Parent;
+        }
+
+        return false;
     }
 
     private async Task BrowseFolderAsync(TextBox targetTextBox, string title)
