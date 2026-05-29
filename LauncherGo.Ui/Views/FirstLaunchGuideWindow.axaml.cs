@@ -15,6 +15,7 @@ using LauncherGo.Abstractions.Services;
 using LauncherGo.Domains.Enums;
 using LauncherGo.Domains.Models;
 using LauncherGo.Ui;
+using LauncherGo.Ui.Platform;
 
 namespace LauncherGo.Ui.Views;
 
@@ -99,6 +100,7 @@ public partial class FirstLaunchGuideWindow : Window
         LoadPreferencesToUi();
         ApplyLocalizedTexts();
         UpdateStepUi();
+        Opened += OnWindowOpened;
 
         Closed += (_, _) =>
         {
@@ -276,6 +278,12 @@ public partial class FirstLaunchGuideWindow : Window
     private void OnCloseClick(object? sender, RoutedEventArgs e)
     {
         Close();
+    }
+
+    private void OnWindowOpened(object? sender, EventArgs e)
+    {
+        Opened -= OnWindowOpened;
+        WindowsDwmWindowEffects.Apply(this);
     }
 
     private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)

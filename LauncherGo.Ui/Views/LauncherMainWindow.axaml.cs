@@ -20,6 +20,7 @@ using LauncherGo.Abstractions.Services;
 using LauncherGo.Domains.Enums;
 using LauncherGo.Domains.Models;
 using LauncherGo.Ui;
+using LauncherGo.Ui.Platform;
 
 namespace LauncherGo.Ui.Views;
 
@@ -268,6 +269,7 @@ public partial class LauncherMainWindow : Window
     private async void OnWindowOpened(object? sender, EventArgs e)
     {
         Opened -= OnWindowOpened;
+        WindowsDwmWindowEffects.Apply(this);
 
         var preferences = _preferencesService.Load();
         if (preferences.StartHiddenOnLaunch)

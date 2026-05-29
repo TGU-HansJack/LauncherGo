@@ -2,17 +2,15 @@
     x:Class="LauncherGo.Ui.Views.LauncherMainWindow"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Width="1008"
-    Height="608"
-    MinWidth="1008"
-    MinHeight="608"
-    MaxWidth="1008"
-    MaxHeight="608"
+    Width="980"
+    Height="580"
+    MinWidth="980"
+    MinHeight="580"
+    MaxWidth="980"
+    MaxHeight="580"
     CanResize="False"
-    WindowDecorations="None"
-    Background="Transparent"
-    TransparencyLevelHint="Transparent"
-    TransparencyBackgroundFallback="#FFFFFF"
+    WindowDecorations="BorderOnly"
+    Background="{DynamicResource WindowSurfaceBrush}"
     Icon="avares://LauncherGo.Ui/Assets/app-icon.ico"
     WindowStartupLocation="CenterScreen"
     x:CompileBindings="False"
@@ -851,13 +849,10 @@
 
     <Grid x:Name="WindowFrameContent" Background="Transparent">
         <Border
-            Width="980"
-            Height="580"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch"
             CornerRadius="8"
-            Background="{DynamicResource WindowSurfaceBrush}"
-            BoxShadow="0 8 28 0 #66000000">
+            Background="{DynamicResource WindowSurfaceBrush}">
             <Border CornerRadius="8" ClipToBounds="True" Background="{DynamicResource WindowSurfaceBrush}">
                 <Grid RowDefinitions="58,*,52">
                     <Border Grid.Row="0" Background="{DynamicResource HeaderBackgroundBrush}" BorderBrush="Transparent" BorderThickness="0">
