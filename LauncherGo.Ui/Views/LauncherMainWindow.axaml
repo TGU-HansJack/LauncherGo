@@ -1157,7 +1157,7 @@
                                     </Grid>
 
                                     <Grid x:Name="ConfigPanel" RowDefinitions="Auto,Auto,*" RowSpacing="8" IsVisible="False">
-                                        <Grid ColumnDefinitions="260,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                        <Grid ColumnDefinitions="260,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
                                             <ComboBox x:Name="ConfigProfileComboBox" Grid.Column="0" Classes="CompactCombo" SelectionChanged="OnConfigProfileSelectionChanged">
                                                 <ComboBox.ItemTemplate>
                                                     <DataTemplate>
@@ -1165,9 +1165,10 @@
                                                     </DataTemplate>
                                                 </ComboBox.ItemTemplate>
                                             </ComboBox>
-                                            <Button x:Name="ConfigRefreshButton" Grid.Column="1" Classes="SecondaryActionButton" Content="刷新" Click="OnConfigRefreshClick" />
-                                            <Button x:Name="ConfigImportButton" Grid.Column="2" Classes="SecondaryActionButton" Content="导入" Click="OnConfigImportClick" />
-                                            <Button x:Name="ConfigSaveButton" Grid.Column="3" Classes="ActionButton" Content="保存" Click="OnConfigSaveClick" />
+                                            <Button x:Name="ConfigAdvancedJsonButton" Grid.Column="1" Classes="SecondaryActionButton" Content="编辑JSON" Click="OnConfigAdvancedJsonClick" />
+                                            <Button x:Name="ConfigRefreshButton" Grid.Column="2" Classes="SecondaryActionButton" Content="刷新" Click="OnConfigRefreshClick" />
+                                            <Button x:Name="ConfigImportButton" Grid.Column="3" Classes="SecondaryActionButton" Content="导入" Click="OnConfigImportClick" />
+                                            <Button x:Name="ConfigSaveButton" Grid.Column="4" Classes="ActionButton" Content="保存" Click="OnConfigSaveClick" />
                                         </Grid>
 
                                         <TextBlock x:Name="ConfigStatusTextBlock" Grid.Row="1" FontSize="12" Foreground="{DynamicResource SubTextBrush}" TextWrapping="Wrap" />
@@ -1294,92 +1295,89 @@
                                                         </StackPanel>
                                                     </Border>
 
-                                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
-                                                        <Border Classes="ConfigCard" Grid.Column="0">
-                                                            <StackPanel Spacing="10">
-                                                                <TextBlock x:Name="ConfigWorldTitleTextBlock" Classes="ConfigSectionTitle" Text="世界" />
-                                                                <WrapPanel Orientation="Horizontal">
-                                                                    <StackPanel Classes="ConfigFormField">
-                                                                        <TextBlock x:Name="ConfigSeedLabelTextBlock" Classes="ConfigFieldLabel" Text="种子" />
-                                                                        <TextBox x:Name="ConfigSeedTextBox" Classes="CompactInput" />
-                                                                    </StackPanel>
-                                                                    <StackPanel Classes="ConfigFormField">
-                                                                        <TextBlock x:Name="ConfigWorldNameLabelTextBlock" Classes="ConfigFieldLabel" Text="世界名称" />
-                                                                        <TextBox x:Name="ConfigWorldNameTextBox" Classes="CompactInput" />
-                                                                    </StackPanel>
-                                                                    <StackPanel Classes="ConfigFormField">
-                                                                        <TextBlock x:Name="ConfigSaveFileLabelTextBlock" Classes="ConfigFieldLabel" Text="存档文件" />
-                                                                        <ComboBox x:Name="ConfigSaveFileComboBox" Classes="CompactCombo" SelectionChanged="OnConfigSaveFileSelectionChanged">
-                                                                            <ComboBox.ItemTemplate>
-                                                                                <DataTemplate>
-                                                                                    <TextBlock Text="{Binding FileName}" TextTrimming="CharacterEllipsis" />
-                                                                                </DataTemplate>
-                                                                            </ComboBox.ItemTemplate>
-                                                                        </ComboBox>
-                                                                    </StackPanel>
-                                                                    <StackPanel Classes="ConfigFormField">
-                                                                        <TextBlock x:Name="ConfigPlayStyleLabelTextBlock" Classes="ConfigFieldLabel" Text="游玩风格" />
-                                                                        <ComboBox x:Name="ConfigPlayStyleComboBox" Classes="CompactCombo">
-                                                                            <ComboBox.ItemTemplate>
-                                                                                <DataTemplate>
-                                                                                    <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
-                                                                                </DataTemplate>
-                                                                            </ComboBox.ItemTemplate>
-                                                                        </ComboBox>
-                                                                    </StackPanel>
-                                                                    <StackPanel Classes="ConfigFormField">
-                                                                        <TextBlock x:Name="ConfigWorldTypeLabelTextBlock" Classes="ConfigFieldLabel" Text="世界类型" />
-                                                                        <ComboBox x:Name="ConfigWorldTypeComboBox" Classes="CompactCombo">
-                                                                            <ComboBox.ItemTemplate>
-                                                                                <DataTemplate>
-                                                                                    <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
-                                                                                </DataTemplate>
-                                                                            </ComboBox.ItemTemplate>
-                                                                        </ComboBox>
-                                                                    </StackPanel>
-                                                                    <StackPanel Classes="ConfigFormField">
-                                                                        <TextBlock x:Name="ConfigWorldHeightLabelTextBlock" Classes="ConfigFieldLabel" Text="世界高度" />
-                                                                        <NumericUpDown x:Name="ConfigWorldHeightNumericUpDown" Classes="CompactNumber" Minimum="64" Maximum="2048" />
-                                                                    </StackPanel>
-                                                                </WrapPanel>
-                                                                <TextBlock x:Name="ConfigWorldGeneratedNoticeTextBlock" Classes="ConfigHintText" IsVisible="False" Text="当前存档已生成世界：建档阶段配置已锁定。" />
-                                                            </StackPanel>
-                                                        </Border>
-
-                                                        <Border Classes="ConfigCard" Grid.Column="1">
-                                                            <StackPanel Spacing="10">
-                                                                <TextBlock x:Name="ConfigWorldRulesTitleTextBlock" Classes="ConfigSectionTitle" Text="世界规则" />
-                                                                <ItemsControl x:Name="ConfigWorldRulesItemsControl">
-                                                                    <ItemsControl.ItemTemplate>
-                                                                        <DataTemplate>
-                                                                            <Border Classes="ConfigInnerCard" Margin="0,0,0,8" IsEnabled="{Binding CanEdit}">
-                                                                                <StackPanel Spacing="6">
-                                                                                    <TextBlock Text="{Binding Label}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" TextWrapping="Wrap" />
-                                                                                    <CheckBox Classes="ConfigCheck" Content="{Binding BooleanLabel}" IsVisible="{Binding IsBoolean}" IsChecked="{Binding BoolValue, Mode=TwoWay}" />
-                                                                                    <ComboBox Classes="CompactCombo" Width="360" IsVisible="{Binding IsChoice}" ItemsSource="{Binding ChoiceOptions}" SelectedItem="{Binding SelectedChoiceOption, Mode=TwoWay}">
-                                                                                        <ComboBox.ItemTemplate>
-                                                                                            <DataTemplate>
-                                                                                                <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
-                                                                                            </DataTemplate>
-                                                                                        </ComboBox.ItemTemplate>
-                                                                                    </ComboBox>
-                                                                                    <TextBox Classes="CompactInput" IsVisible="{Binding IsText}" Text="{Binding Value, Mode=TwoWay}" />
-                                                                                    <TextBlock Classes="ConfigHintText" IsVisible="{Binding HasDescription}" Text="{Binding Description}" />
-                                                                                </StackPanel>
-                                                                            </Border>
-                                                                        </DataTemplate>
-                                                                    </ItemsControl.ItemTemplate>
-                                                                </ItemsControl>
-                                                            </StackPanel>
-                                                        </Border>
-                                                    </Grid>
-
                                                     <Border Classes="ConfigCard">
-                                                        <StackPanel Spacing="8">
-                                                            <TextBlock x:Name="ConfigAdvancedJsonTitleTextBlock" Classes="ConfigSectionTitle" Text="高级 JSON" />
-                                                            <Button x:Name="ConfigAdvancedJsonButton" HorizontalAlignment="Left" Classes="SecondaryActionButton" Content="编辑高级 JSON" Click="OnConfigAdvancedJsonClick" />
+                                                        <StackPanel Spacing="10">
+                                                            <TextBlock x:Name="ConfigWorldTitleTextBlock" Classes="ConfigSectionTitle" Text="世界" />
+                                                            <WrapPanel Orientation="Horizontal">
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="ConfigSeedLabelTextBlock" Classes="ConfigFieldLabel" Text="种子" />
+                                                                    <TextBox x:Name="ConfigSeedTextBox" Classes="CompactInput" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="ConfigWorldNameLabelTextBlock" Classes="ConfigFieldLabel" Text="世界名称" />
+                                                                    <TextBox x:Name="ConfigWorldNameTextBox" Classes="CompactInput" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="ConfigSaveFileLabelTextBlock" Classes="ConfigFieldLabel" Text="存档文件" />
+                                                                    <ComboBox x:Name="ConfigSaveFileComboBox" Classes="CompactCombo" SelectionChanged="OnConfigSaveFileSelectionChanged">
+                                                                        <ComboBox.ItemTemplate>
+                                                                            <DataTemplate>
+                                                                                <TextBlock Text="{Binding FileName}" TextTrimming="CharacterEllipsis" />
+                                                                            </DataTemplate>
+                                                                        </ComboBox.ItemTemplate>
+                                                                    </ComboBox>
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="ConfigPlayStyleLabelTextBlock" Classes="ConfigFieldLabel" Text="游玩风格" />
+                                                                    <ComboBox x:Name="ConfigPlayStyleComboBox" Classes="CompactCombo">
+                                                                        <ComboBox.ItemTemplate>
+                                                                            <DataTemplate>
+                                                                                <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                                                                            </DataTemplate>
+                                                                        </ComboBox.ItemTemplate>
+                                                                    </ComboBox>
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="ConfigWorldTypeLabelTextBlock" Classes="ConfigFieldLabel" Text="世界类型" />
+                                                                    <ComboBox x:Name="ConfigWorldTypeComboBox" Classes="CompactCombo">
+                                                                        <ComboBox.ItemTemplate>
+                                                                            <DataTemplate>
+                                                                                <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                                                                            </DataTemplate>
+                                                                        </ComboBox.ItemTemplate>
+                                                                    </ComboBox>
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="ConfigWorldHeightLabelTextBlock" Classes="ConfigFieldLabel" Text="世界高度" />
+                                                                    <NumericUpDown x:Name="ConfigWorldHeightNumericUpDown" Classes="CompactNumber" Minimum="64" Maximum="2048" />
+                                                                </StackPanel>
+                                                            </WrapPanel>
+                                                            <TextBlock x:Name="ConfigWorldGeneratedNoticeTextBlock" Classes="ConfigHintText" IsVisible="False" Text="当前存档已生成世界：建档阶段配置已锁定。" />
                                                         </StackPanel>
                                                     </Border>
+
+                                                    <Border Classes="ConfigCard">
+                                                        <StackPanel Spacing="10">
+                                                            <TextBlock x:Name="ConfigWorldRulesTitleTextBlock" Classes="ConfigSectionTitle" Text="世界规则" />
+                                                            <ItemsControl x:Name="ConfigWorldRulesItemsControl">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate>
+                                                                        <WrapPanel Orientation="Horizontal" ItemWidth="270" />
+                                                                    </ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Classes="ConfigInnerCard" Width="270" Margin="0,0,10,10" IsEnabled="{Binding CanEdit}">
+                                                                            <StackPanel Spacing="6">
+                                                                                <TextBlock Text="{Binding Label}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" TextWrapping="Wrap" />
+                                                                                <CheckBox Classes="ConfigCheck" Content="{Binding BooleanLabel}" IsVisible="{Binding IsBoolean}" IsChecked="{Binding BoolValue, Mode=TwoWay}" />
+                                                                                <ComboBox Classes="CompactCombo" IsVisible="{Binding IsChoice}" ItemsSource="{Binding ChoiceOptions}" SelectedItem="{Binding SelectedChoiceOption, Mode=TwoWay}">
+                                                                                    <ComboBox.ItemTemplate>
+                                                                                        <DataTemplate>
+                                                                                            <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                                                                                        </DataTemplate>
+                                                                                    </ComboBox.ItemTemplate>
+                                                                                </ComboBox>
+                                                                                <TextBox Classes="CompactInput" IsVisible="{Binding IsText}" Text="{Binding Value, Mode=TwoWay}" />
+                                                                                <TextBlock Classes="ConfigHintText" IsVisible="{Binding HasDescription}" Text="{Binding Description}" />
+                                                                            </StackPanel>
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </Border>
+
                                                 </StackPanel>
                                             </ScrollViewer>
 

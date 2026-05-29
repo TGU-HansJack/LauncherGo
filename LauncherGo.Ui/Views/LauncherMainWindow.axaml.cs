@@ -333,8 +333,7 @@ public partial class LauncherMainWindow : Window
             "当前存档已生成世界：种子、游玩风格、世界类型、世界高度，以及仅限建档阶段的世界规则（如世界宽度/长度）已锁定。",
             "This save already has a generated world: seed, play style, world type, world height, and world-creation-only rules are locked.");
         ConfigWorldRulesTitleTextBlock.Text = T("世界规则", "World Rules");
-        ConfigAdvancedJsonTitleTextBlock.Text = T("高级 JSON", "Advanced JSON");
-        ConfigAdvancedJsonButton.Content = T("编辑高级 JSON", "Edit Advanced JSON");
+        ConfigAdvancedJsonButton.Content = T("编辑JSON", "Edit JSON");
         ConfigNoProfileTextBlock.Text = T("暂无档案，请先创建档案。", "No profile found. Create a profile first.");
         RebuildConfigChoiceOptions();
         RefreshConfigWorldRuleLabels();
@@ -1544,6 +1543,7 @@ public partial class LauncherMainWindow : Window
         ConfigScrollViewer.IsVisible = hasProfiles;
         ConfigEmptyPanel.IsVisible = !hasProfiles;
         ConfigRefreshButton.IsEnabled = true;
+        ConfigAdvancedJsonButton.IsEnabled = hasProfiles;
         ConfigImportButton.IsEnabled = hasProfiles;
         ConfigSaveButton.IsEnabled = hasProfiles;
     }
