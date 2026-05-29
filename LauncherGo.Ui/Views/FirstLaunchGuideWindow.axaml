@@ -339,22 +339,10 @@
 
                 <StackPanel x:Name="DirectoryPanel" IsVisible="False" VerticalAlignment="Center" Spacing="10">
                     <TextBlock x:Name="DirectoryTitleTextBlock" FontSize="22" FontWeight="SemiBold" />
-                    <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto" RowSpacing="10" ColumnSpacing="10">
-                        <TextBlock x:Name="ServerDirectoryLabelTextBlock" Grid.Row="0" VerticalAlignment="Center" FontSize="15" />
-                        <TextBox x:Name="ServerDirectoryTextBox" Grid.Row="0" Grid.Column="1" Classes="Bordered Large" Height="34" FontSize="14" />
-                        <Button x:Name="BrowseServerDirectoryButton" Grid.Row="0" Grid.Column="2" Theme="{DynamicResource SolidButton}" Classes="Secondary" Height="34" MinWidth="70" FontSize="13" Click="OnBrowseServerDirectoryClick" />
-
-                        <TextBlock x:Name="ProfileDirectoryLabelTextBlock" Grid.Row="1" VerticalAlignment="Center" FontSize="15" />
-                        <TextBox x:Name="ProfileDirectoryTextBox" Grid.Row="1" Grid.Column="1" Classes="Bordered Large" Height="34" FontSize="14" />
-                        <Button x:Name="BrowseProfileDirectoryButton" Grid.Row="1" Grid.Column="2" Theme="{DynamicResource SolidButton}" Classes="Secondary" Height="34" MinWidth="70" FontSize="13" Click="OnBrowseProfileDirectoryClick" />
-
-                        <TextBlock x:Name="SaveDirectoryLabelTextBlock" Grid.Row="2" VerticalAlignment="Center" FontSize="15" />
-                        <TextBox x:Name="SaveDirectoryTextBox" Grid.Row="2" Grid.Column="1" Classes="Bordered Large" Height="34" FontSize="14" />
-                        <Button x:Name="BrowseSaveDirectoryButton" Grid.Row="2" Grid.Column="2" Theme="{DynamicResource SolidButton}" Classes="Secondary" Height="34" MinWidth="70" FontSize="13" Click="OnBrowseSaveDirectoryClick" />
-
-                        <TextBlock x:Name="QqBotDirectoryLabelTextBlock" Grid.Row="3" VerticalAlignment="Center" FontSize="15" />
-                        <TextBox x:Name="QqBotDirectoryTextBox" Grid.Row="3" Grid.Column="1" Classes="Bordered Large" Height="34" FontSize="14" />
-                        <Button x:Name="BrowseQqBotDirectoryButton" Grid.Row="3" Grid.Column="2" Theme="{DynamicResource SolidButton}" Classes="Secondary" Height="34" MinWidth="70" FontSize="13" Click="OnBrowseQqBotDirectoryClick" />
+                    <Grid RowDefinitions="Auto" ColumnDefinitions="Auto,*,Auto" RowSpacing="10" ColumnSpacing="10">
+                        <TextBlock x:Name="WorkspaceDirectoryLabelTextBlock" Grid.Row="0" VerticalAlignment="Center" FontSize="15" />
+                        <TextBox x:Name="WorkspaceDirectoryTextBox" Grid.Row="0" Grid.Column="1" Classes="Bordered Large" Height="34" FontSize="14" />
+                        <Button x:Name="BrowseWorkspaceDirectoryButton" Grid.Row="0" Grid.Column="2" Theme="{DynamicResource SolidButton}" Classes="Secondary" Height="34" MinWidth="70" FontSize="13" Click="OnBrowseWorkspaceDirectoryClick" />
                     </Grid>
                 </StackPanel>
 

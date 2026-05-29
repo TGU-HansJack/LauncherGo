@@ -1755,9 +1755,10 @@ public partial class ServerProcessService : IServerProcessService
 
     private void PrepareSaveFileForStart(InstanceProfile profile)
     {
+        var profileSaveRoot = NormalizePath(GetProfileSaveRoot(profile));
         var savePath = profile.ActiveSaveFile;
         if (string.IsNullOrWhiteSpace(savePath))
-            savePath = WorkspacePathHelper.GetProfileDefaultSaveFile(profile.Id);
+            savePath = Path.Combine(profileSaveRoot, "default.vcdbs");
 
         if (string.IsNullOrWhiteSpace(savePath))
             return;
@@ -1772,11 +1773,16 @@ public partial class ServerProcessService : IServerProcessService
             return;
         }
 
-        var profileSaveRoot = NormalizePath(WorkspacePathHelper.GetProfileSavesPath(profile.Id));
         var saveDirectory = NormalizePath(Path.GetDirectoryName(fullSavePath));
         if (!IsSameOrChildPath(saveDirectory, profileSaveRoot))
         {
-            fullSavePath = WorkspacePathHelper.GetProfileDefaultSaveFile(profile.Id);
+            var migratedFileName = Path.GetFileName(fullSavePath);
+            if (string.IsNullOrWhiteSpace(migratedFileName))
+                migratedFileName = "default.vcdbs";
+
+            var migratedSavePath = Path.Combine(profileSaveRoot, migratedFileName);
+            TryCopySaveFile(fullSavePath, migratedSavePath);
+            fullSavePath = migratedSavePath;
             saveDirectory = NormalizePath(Path.GetDirectoryName(fullSavePath));
         }
 
@@ -1787,6 +1793,9 @@ public partial class ServerProcessService : IServerProcessService
 
         if (!string.IsNullOrWhiteSpace(saveDirectory))
             Directory.CreateDirectory(saveDirectory);
+
+        ServerConfigBootstrapper.ApplySaveLocation(WorkspacePathHelper.GetProfileConfigPath(profile.DirectoryPath), fullSavePath);
+        TryUpdateProfile(profile);
 
         if (!File.Exists(fullSavePath))
             return;
@@ -1841,6 +1850,52 @@ public partial class ServerProcessService : IServerProcessService
         finally
         {
             SqliteConnection.ClearAllPools();
+        }
+    }
+
+    private static string GetProfileSaveRoot(InstanceProfile profile)
+    {
+        var profileDataPath = WorkspacePathHelper.ResolveProfileDataPath(profile.DirectoryPath);
+        return Path.Combine(profileDataPath, "Saves");
+    }
+
+    private static void TryCopySaveFile(string sourceSaveFile, string targetSaveFile)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(sourceSaveFile) ||
+                string.IsNullOrWhiteSpace(targetSaveFile) ||
+                !sourceSaveFile.EndsWith(".vcdbs", StringComparison.OrdinalIgnoreCase) ||
+                !File.Exists(sourceSaveFile) ||
+                File.Exists(targetSaveFile))
+            {
+                return;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(targetSaveFile)!);
+            File.Copy(sourceSaveFile, targetSaveFile, overwrite: false);
+        }
+        catch
+        {
+            // 复制旧路径存档失败时仍使用档案目录下的新存档路径启动。
+        }
+    }
+
+    private void TryUpdateProfile(InstanceProfile profile)
+    {
+        if (_profileService is null)
+        {
+            return;
+        }
+
+        try
+        {
+            profile.LastUpdatedUtc = DateTimeOffset.UtcNow;
+            _profileService.UpdateProfile(profile);
+        }
+        catch
+        {
+            // 启动流程以 serverconfig 为准，索引写回失败不阻断开服。
         }
     }
 

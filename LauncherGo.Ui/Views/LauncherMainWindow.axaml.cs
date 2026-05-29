@@ -480,14 +480,6 @@ public partial class LauncherMainWindow : Window
         AutomationSaveButton.Content = T("保存", "Save");
         AutomationRefreshButton.Content = T("刷新", "Refresh");
         AutomationSyncLogsButton.Content = T("同步日志", "Sync Logs");
-        AutomationRestartEnabledCheckBox.Content = T("启用定时开关服", "Enable scheduled start/stop");
-        AutomationBackupEnabledCheckBox.Content = T("启用定时备份", "Enable scheduled backup");
-        AutomationBackupBeforeShutdownCheckBox.Content = T("关服前备份", "Backup before shutdown");
-        AutomationBroadcastEnabledCheckBox.Content = T("启用定时广播", "Enable scheduled broadcast");
-        AutomationExportEnabledCheckBox.Content = T("启用日志导出", "Enable log export");
-        AutomationExportBeforeShutdownCheckBox.Content = T("关服前导出日志", "Export before shutdown");
-        AutomationExportIncludeChatCheckBox.Content = T("导出聊天", "Export chat");
-        AutomationExportIncludeServerCheckBox.Content = T("导出服务端信息", "Export server info");
         AutomationActionTitleTextBlock.Text = T("定时开关服", "Scheduled Start/Stop");
         AutomationAddActionButton.Content = T("添加", "Add");
         AutomationAddBackupTimeButton.Content = T("添加", "Add");
@@ -521,8 +513,6 @@ public partial class LauncherMainWindow : Window
         ConfigMaxClientsLabelTextBlock.Text = T("最大玩家数", "Max Players");
         ConfigMaxClientsInQueueLabelTextBlock.Text = T("排队人数上限", "Queue Limit");
         ConfigServerUrlLabelTextBlock.Text = T("服务器网址", "Server URL");
-        ConfigAdvertiseServerCheckBox.Content = T("公开到服务器列表", "List on Public Server Browser");
-        ConfigUpnpCheckBox.Content = T("启用 UPnP 自动端口映射", "Enable UPnP Port Mapping");
         ConfigSecurityTitleTextBlock.Text = T("安全与维护", "Security & Maintenance");
         ConfigPasswordLabelTextBlock.Text = T("加入密码", "Join Password");
         ConfigPasswordHintTextBlock.Text = T("留空表示不设置密码。", "Leave empty to disable password.");
@@ -532,13 +522,6 @@ public partial class LauncherMainWindow : Window
         ConfigClientConnectionTimeoutLabelTextBlock.Text = T("连接超时秒数", "Connection Timeout Seconds");
         ConfigMaxChunkRadiusLabelTextBlock.Text = T("最大区块视距半径", "Max Chunk View Radius");
         ConfigDieBelowDiskSpaceMbLabelTextBlock.Text = T("低于磁盘空间时关闭（MB）", "Shutdown Below Disk Space (MB)");
-        ConfigVerifyPlayerAuthCheckBox.Content = T("启用官方账号验证", "Enable Official Auth");
-        ConfigAllowPvPCheckBox.Content = T("允许PvP", "Allow PvP");
-        ConfigAllowFireSpreadCheckBox.Content = T("允许火势蔓延", "Allow Fire Spread");
-        ConfigAllowFallingBlocksCheckBox.Content = T("允许方块掉落", "Allow Falling Blocks");
-        ConfigPassTimeWhenEmptyCheckBox.Content = T("无人在线时继续流逝时间", "Pass Time When Empty");
-        ConfigCorruptionProtectionCheckBox.Content = T("启用存档损坏保护", "Enable Corruption Protection");
-        ConfigRegenerateCorruptChunksCheckBox.Content = T("重新生成损坏区块", "Regenerate Corrupt Chunks");
         ConfigStartupCommandsLabelTextBlock.Text = T("启动后执行命令", "Startup Commands");
         ConfigWorldTitleTextBlock.Text = T("世界", "World");
         ConfigSeedLabelTextBlock.Text = T("种子", "Seed");
@@ -558,23 +541,10 @@ public partial class LauncherMainWindow : Window
 
     private void InitializeServerSettingsStaticTexts()
     {
-        SettingsServerDirectoryTitleTextBlock.Text = T("目录路径", "Directory Paths");
-        SettingsServerDirectoryLabelTextBlock.Text = T("服务端目录", "Server Directory");
-        SettingsProfileDirectoryLabelTextBlock.Text = T("档案目录", "Profile Directory");
-        SettingsSaveDirectoryLabelTextBlock.Text = T("存档目录", "Save Directory");
-        SettingsQqBotDirectoryLabelTextBlock.Text = T("QQ机器人目录", "QQ Bot Directory");
-        SettingsBrowseServerDirectoryButton.Content = T("浏览", "Browse");
-        SettingsBrowseProfileDirectoryButton.Content = T("浏览", "Browse");
-        SettingsBrowseSaveDirectoryButton.Content = T("浏览", "Browse");
-        SettingsBrowseQqBotDirectoryButton.Content = T("浏览", "Browse");
+        SettingsServerDirectoryTitleTextBlock.Text = T("目录路径", "Directory Path");
+        SettingsWorkspaceDirectoryLabelTextBlock.Text = T("工作目录", "Workspace");
+        SettingsBrowseWorkspaceDirectoryButton.Content = T("浏览", "Browse");
         SettingsServerAutomationTitleTextBlock.Text = T("启动与托盘", "Startup & Tray");
-        SettingsStartWithWindowsCheckBox.Content = T("开机启动启动器", "Start launcher with Windows");
-        SettingsCloseToTrayCheckBox.Content = T("关闭时隐藏到托盘，不直接退出", "Hide to tray on close instead of exiting");
-        SettingsStartHiddenCheckBox.Content = T("启动时隐藏到托盘", "Start hidden to tray");
-        SettingsAutoStartOsqCheckBox.Content = T("启动时自动启动开放信息", "Auto-start Open Info on launch");
-        SettingsAutoStartRobotCheckBox.Content = T("启动时自动启动QQ机器人", "Auto-start QQ robot on launch");
-        SettingsAutoStartFrpCheckBox.Content = T("启动时自动开启内网穿透（常规）", "Auto-start FRP (regular) on launch");
-        SettingsAutoStartThirdPartyFrpcCheckBox.Content = T("启动时自动开启第三方内网穿透", "Auto-start third-party FRPC on launch");
     }
 
     private void InitializeNetworkSettingsStaticTexts()
@@ -625,16 +595,8 @@ public partial class LauncherMainWindow : Window
 
         UpdateOsqToggleButtonText();
         OsqTitleTextBlock.Text = T("开放信息（OpenServerQuery）", "Open Info (OpenServerQuery)");
-        OsqEnabledCheckBox.Content = T("启用开放信息", "Enable Open Info");
-        OsqAllowInsecureHttpCheckBox.Content = T("允许 HTTP 外发", "Allow HTTP outbound");
         OsqListenPrefixLabelTextBlock.Text = T("监听地址", "Listen Prefix");
         OsqRequestTimeoutLabelTextBlock.Text = T("请求超时秒数", "Request Timeout Seconds");
-        OsqIncludeServerInfoCheckBox.Content = T("服务器信息", "Server Info");
-        OsqIncludePlayersCheckBox.Content = T("玩家列表", "Players");
-        OsqIncludeEventsCheckBox.Content = T("玩家事件", "Player Events");
-        OsqIncludeChatsCheckBox.Content = T("聊天", "Chats");
-        OsqIncludeNotificationsCheckBox.Content = T("通知", "Notifications");
-        OsqIncludeMapCheckBox.Content = T("地图数据", "Map Data");
         OsqEndpointHostLabelTextBlock.Text = T("上报端点", "Report Endpoint");
         OsqEndpointTokenLabelTextBlock.Text = T("端点令牌", "Endpoint Token");
         OsqEndpointAddButton.Content = T("添加", "Add");
@@ -657,10 +619,8 @@ public partial class LauncherMainWindow : Window
         AuthSaveButton.Content = T("保存", "Save");
         AuthRefreshButton.Content = T("刷新", "Refresh");
         AuthDeployButton.Content = T("部署认证模组", "Deploy Auth Mod");
-        AuthEnabledCheckBox.Content = T("启用认证", "Enable Auth");
         AuthLoginTimeoutLabelTextBlock.Text = T("登录超时秒数", "Login Timeout Seconds");
         AuthRememberSessionLabelTextBlock.Text = T("会话记住分钟", "Remember Session Minutes");
-        AuthDiscourseEnabledCheckBox.Content = T("启用 Discourse 登录", "Enable Discourse Login");
         AuthDiscourseBaseUrlLabelTextBlock.Text = T("Discourse 地址", "Discourse URL");
         AuthDiscourseSecretLabelTextBlock.Text = T("共享密钥", "Shared Secret");
         AuthDiscoursePublicCallbackLabelTextBlock.Text = T("公开回调地址", "Public Callback URL");
@@ -1801,10 +1761,7 @@ public partial class LauncherMainWindow : Window
 
     private void RegisterAutoSaveHandlers()
     {
-        SettingsServerDirectoryTextBox.LostFocus += OnServerSettingsAutoSaveChanged;
-        SettingsProfileDirectoryTextBox.LostFocus += OnServerSettingsAutoSaveChanged;
-        SettingsSaveDirectoryTextBox.LostFocus += OnServerSettingsAutoSaveChanged;
-        SettingsQqBotDirectoryTextBox.LostFocus += OnServerSettingsAutoSaveChanged;
+        SettingsWorkspaceDirectoryTextBox.LostFocus += OnServerSettingsAutoSaveChanged;
 
         foreach (var check in new[]
                  {
@@ -1912,10 +1869,7 @@ public partial class LauncherMainWindow : Window
         try
         {
             var preferences = _preferencesService.Load();
-            SettingsServerDirectoryTextBox.Text = preferences.ServerDirectory;
-            SettingsProfileDirectoryTextBox.Text = preferences.ProfileDirectory;
-            SettingsSaveDirectoryTextBox.Text = preferences.SaveDirectory;
-            SettingsQqBotDirectoryTextBox.Text = preferences.QqBotDirectory;
+            SettingsWorkspaceDirectoryTextBox.Text = preferences.WorkspaceRoot;
             SettingsStartWithWindowsCheckBox.IsChecked = preferences.StartWithWindows;
             SettingsCloseToTrayCheckBox.IsChecked = preferences.CloseToTrayOnExit;
             SettingsStartHiddenCheckBox.IsChecked = preferences.StartHiddenOnLaunch;
@@ -1934,10 +1888,7 @@ public partial class LauncherMainWindow : Window
     private void SaveServerSettings(bool refreshEditor = true)
     {
         var preferences = _preferencesService.Load();
-        preferences.ServerDirectory = SettingsServerDirectoryTextBox.Text?.Trim() ?? string.Empty;
-        preferences.ProfileDirectory = SettingsProfileDirectoryTextBox.Text?.Trim() ?? string.Empty;
-        preferences.SaveDirectory = SettingsSaveDirectoryTextBox.Text?.Trim() ?? string.Empty;
-        preferences.QqBotDirectory = SettingsQqBotDirectoryTextBox.Text?.Trim() ?? string.Empty;
+        preferences.WorkspaceRoot = SettingsWorkspaceDirectoryTextBox.Text?.Trim() ?? string.Empty;
         preferences.StartWithWindows = SettingsStartWithWindowsCheckBox.IsChecked == true;
         preferences.CloseToTrayOnExit = SettingsCloseToTrayCheckBox.IsChecked == true;
         preferences.StartHiddenOnLaunch = SettingsStartHiddenCheckBox.IsChecked == true;
@@ -3389,6 +3340,8 @@ public partial class LauncherMainWindow : Window
         while (current is not null)
         {
             if (current is Button
+                or ToggleSwitch
+                or CheckBox
                 or ComboBox
                 or ComboBoxItem
                 or TextBox
@@ -3501,24 +3454,9 @@ public partial class LauncherMainWindow : Window
         RefreshServerSettingsEditor();
     }
 
-    private async void OnSettingsBrowseServerDirectoryClick(object? sender, RoutedEventArgs e)
+    private async void OnSettingsBrowseWorkspaceDirectoryClick(object? sender, RoutedEventArgs e)
     {
-        await BrowseFolderToTextBoxAsync(SettingsServerDirectoryTextBox, T("选择服务端目录", "Select server directory"));
-    }
-
-    private async void OnSettingsBrowseProfileDirectoryClick(object? sender, RoutedEventArgs e)
-    {
-        await BrowseFolderToTextBoxAsync(SettingsProfileDirectoryTextBox, T("选择档案目录", "Select profile directory"));
-    }
-
-    private async void OnSettingsBrowseSaveDirectoryClick(object? sender, RoutedEventArgs e)
-    {
-        await BrowseFolderToTextBoxAsync(SettingsSaveDirectoryTextBox, T("选择存档目录", "Select save directory"));
-    }
-
-    private async void OnSettingsBrowseQqBotDirectoryClick(object? sender, RoutedEventArgs e)
-    {
-        await BrowseFolderToTextBoxAsync(SettingsQqBotDirectoryTextBox, T("选择QQ机器人目录", "Select QQ bot directory"));
+        await BrowseFolderToTextBoxAsync(SettingsWorkspaceDirectoryTextBox, T("选择工作目录", "Select workspace directory"));
     }
 
     private async void OnSettingsOpenLogClick(object? sender, RoutedEventArgs e)
@@ -3756,7 +3694,10 @@ public partial class LauncherMainWindow : Window
             return;
         }
 
-        var selected = _modItems.Where(item => item.IsSelected).Select(ModListItem.ToModel).ToList();
+        var selected = ModsListBox.SelectedItems?
+            .OfType<ModListItem>()
+            .Select(ModListItem.ToModel)
+            .ToList() ?? [];
         if (selected.Count == 0)
         {
             ModStatusTextBlock.Text = T("请先选择模组。", "Select mods first.");
@@ -3780,16 +3721,17 @@ public partial class LauncherMainWindow : Window
         await RefreshModsAsync();
     }
 
-    private async void OnToggleModEnabledClick(object? sender, RoutedEventArgs e)
+    private async void OnModEnabledSwitchClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: ModListItem item } || ModProfileComboBox.SelectedItem is not InstanceProfile profile)
+        if (sender is not ToggleSwitch { Tag: ModListItem item } toggleSwitch ||
+            ModProfileComboBox.SelectedItem is not InstanceProfile profile)
         {
             return;
         }
 
         try
         {
-            await _instanceModService.SetModEnabledAsync(profile, item.ModId, item.Version, item.IsDisabled);
+            await _instanceModService.SetModEnabledAsync(profile, item.ModId, item.Version, toggleSwitch.IsChecked == true);
             await LoadModsForSelectedProfileAsync();
         }
         catch (Exception ex)
@@ -5713,6 +5655,12 @@ public partial class LauncherMainWindow : Window
 
         public required string Description { get; init; }
 
+        public required string DirectoryPath { get; init; }
+
+        public required string SizeText { get; init; }
+
+        public required string LastWriteText { get; init; }
+
         public bool IsLocked { get; init; }
 
         public string LockActionText { get; init; } = string.Empty;
@@ -5727,13 +5675,19 @@ public partial class LauncherMainWindow : Window
             string lockedActionText,
             string unlockedActionText)
         {
+            var directoryPath = Path.GetDirectoryName(save.FullPath) ?? string.Empty;
+            var sizeText = FormatFileSize(save.SizeBytes);
+            var lastWriteText = save.LastWriteTimeUtc.LocalDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
             return new SaveListItem
             {
                 ProfileId = save.ProfileId,
                 FullPath = save.FullPath,
                 FileName = save.FileName,
                 ProfileName = save.ProfileName,
-                Description = $"{FormatFileSize(save.SizeBytes)}  {save.LastWriteTimeUtc.LocalDateTime:yyyy-MM-dd HH:mm}  {save.FullPath}",
+                Description = $"{sizeText}  {lastWriteText}  {save.FullPath}",
+                DirectoryPath = directoryPath,
+                SizeText = sizeText,
+                LastWriteText = lastWriteText,
                 IsLocked = isLocked,
                 LockActionText = isLocked ? lockedActionText : unlockedActionText
             };
@@ -6087,6 +6041,8 @@ public partial class LauncherMainWindow : Window
         public required string StatusText { get; init; }
 
         public bool IsDisabled { get; init; }
+
+        public bool ModEnabled => !IsDisabled;
 
         public required string DependenciesText { get; init; }
 

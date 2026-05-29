@@ -579,7 +579,7 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Height" Value="30" />
             <Setter Property="MinHeight" Value="30" />
-            <Setter Property="MinWidth" Value="150" />
+            <Setter Property="MinWidth" Value="122" />
             <Setter Property="CornerRadius" Value="4" />
             <Setter Property="FontSize" Value="13" />
         </Style>
@@ -620,7 +620,7 @@
             <Setter Property="Height" Value="34" />
             <Setter Property="MinHeight" Value="34" />
             <Setter Property="MaxHeight" Value="34" />
-            <Setter Property="MinWidth" Value="180" />
+            <Setter Property="MinWidth" Value="152" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
@@ -712,7 +712,11 @@
             <Setter Property="CornerRadius" Value="4" />
             <Setter Property="FontSize" Value="13" />
         </Style>
-        <Style Selector="CheckBox.ConfigCheck">
+        <Style Selector="ToggleSwitch">
+            <Setter Property="OnContent" Value="" />
+            <Setter Property="OffContent" Value="" />
+        </Style>
+        <Style Selector="ToggleSwitch.ConfigCheck">
             <Setter Property="Margin" Value="0,4,16,8" />
             <Setter Property="Foreground" Value="{DynamicResource MainTextBrush}" />
             <Setter Property="FontSize" Value="13" />
@@ -721,6 +725,83 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="ListBox.TableList">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        </Style>
+        <Style Selector="ListBox.TableList ListBoxItem">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="MinHeight" Value="36" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="ClipToBounds" Value="False" />
+        </Style>
+        <Style Selector="ListBox.TableList ListBoxItem /template/ ContentPresenter">
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox.TableList ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource DropdownHoverBrush}" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="ListBox.TableList ListBoxItem:selected">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource DropdownSelectedTextBrush}" />
+        </Style>
+        <Style Selector="ListBox.TableList ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource DropdownSelectedBrush}" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="Border.TableHeader">
+            <Setter Property="Background" Value="{DynamicResource CardHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SplitLineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4,4,0,0" />
+            <Setter Property="Padding" Value="10,8" />
+        </Style>
+        <Style Selector="Border.TableBody">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SplitLineBrush}" />
+            <Setter Property="BorderThickness" Value="1,0,1,1" />
+            <Setter Property="CornerRadius" Value="0,0,4,4" />
+            <Setter Property="Padding" Value="0,8,0,0" />
+        </Style>
+        <Style Selector="Border.TableRow">
+            <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+        <Style Selector="TextBlock.TableHeaderText">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource MainTextBrush}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.TableCellText">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource MainTextBrush}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.TableSubCellText">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource SubTextBrush}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="CheckBox.TableSelectCheck">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="ToggleSwitch.TableSwitch">
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
         <Style Selector="SelectableTextBlock#ConsoleOutputTextBlock">
             <Setter Property="Background" Value="Transparent" />
@@ -1151,7 +1232,7 @@
                                     <ComboBox
                                         x:Name="QuickCommandComboBox"
                                         Grid.Column="1"
-                                        Width="170"
+                                        Width="142"
                                         Classes="CompactCombo"
                                         PlaceholderText="快捷命令"
                                         SelectionChanged="OnQuickCommandSelectionChanged" />
@@ -1179,22 +1260,36 @@
                                             <Button x:Name="DeleteProfileButton" Grid.Column="4" Classes="SecondaryActionButton" Content="删除" Click="OnDeleteProfilesClick" />
                                             <Button x:Name="RefreshProfilesButton" Grid.Column="5" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshProfilesClick" />
                                         </Grid>
-                                        <ListBox x:Name="ProfilesListBox" Grid.Row="1" Classes="FlatList" SelectionMode="Multiple">
-                                            <ListBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="3">
-                                                        <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                                        <TextBlock Grid.Column="1" Text="{Binding Version}" FontSize="13" VerticalAlignment="Center" />
-                                                        <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Classes="ProfileSubText" Text="{Binding DirectoryPath}" FontSize="12" TextTrimming="CharacterEllipsis" />
-                                                        <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Classes="ProfileSubText" Text="{Binding ActiveSaveFile}" FontSize="12" TextTrimming="CharacterEllipsis" />
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ListBox.ItemTemplate>
-                                        </ListBox>
+                                        <Grid Grid.Row="1" RowDefinitions="Auto,*">
+                                            <Border Grid.Row="0" Classes="TableHeader">
+                                                <Grid ColumnDefinitions="44,1.1*,.8*,2.5*,2.2*" ColumnSpacing="8">
+                                                    <TextBlock Classes="TableHeaderText" Text="选择" HorizontalAlignment="Center" />
+                                                    <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="档案" />
+                                                    <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="版本" />
+                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="档案目录" />
+                                                    <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="当前存档" />
+                                                </Grid>
+                                            </Border>
+                                            <Border Grid.Row="1" Classes="TableBody">
+                                                <ListBox x:Name="ProfilesListBox" Classes="FlatList TableList" SelectionMode="Multiple">
+                                                    <ListBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid ColumnDefinitions="44,1.1*,.8*,2.5*,2.2*" ColumnSpacing="8">
+                                                                <CheckBox Classes="TableSelectCheck" IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}, Mode=TwoWay}" />
+                                                                <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding Name}" FontWeight="SemiBold" />
+                                                                <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding Version}" />
+                                                                <TextBlock Grid.Column="3" Classes="TableCellText ProfileSubText" Text="{Binding DirectoryPath}" />
+                                                                <TextBlock Grid.Column="4" Classes="TableCellText ProfileSubText" Text="{Binding ActiveSaveFile}" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ListBox.ItemTemplate>
+                                                </ListBox>
+                                            </Border>
+                                        </Grid>
                                     </Grid>
 
                                     <Grid x:Name="ConfigPanel" RowDefinitions="Auto,Auto,*" RowSpacing="8" IsVisible="False">
-                                        <Grid ColumnDefinitions="260,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                        <Grid ColumnDefinitions="232,Auto,Auto,Auto,*" ColumnSpacing="8">
                                             <ComboBox x:Name="ConfigProfileComboBox" Grid.Column="0" Classes="CompactCombo" SelectionChanged="OnConfigProfileSelectionChanged">
                                                 <ComboBox.ItemTemplate>
                                                     <DataTemplate>
@@ -1271,8 +1366,8 @@
                                                                     <TextBlock x:Name="ConfigServerUrlLabelTextBlock" Classes="ConfigFieldLabel" Text="服务器网址" />
                                                                     <TextBox x:Name="ConfigServerUrlTextBox" Classes="CompactInput" />
                                                                 </StackPanel>
-                                                                <CheckBox x:Name="ConfigAdvertiseServerCheckBox" Classes="ConfigCheck" Content="公开到服务器列表" />
-                                                                <CheckBox x:Name="ConfigUpnpCheckBox" Classes="ConfigCheck" Content="启用 UPnP 自动端口映射" />
+                                                                <ToggleSwitch x:Name="ConfigAdvertiseServerCheckBox" Classes="ConfigCheck" />
+                                                                <ToggleSwitch x:Name="ConfigUpnpCheckBox" Classes="ConfigCheck" />
                                                             </WrapPanel>
                                                         </StackPanel>
                                                     </Border>
@@ -1316,13 +1411,13 @@
                                                                     <TextBlock x:Name="ConfigDieBelowDiskSpaceMbLabelTextBlock" Classes="ConfigFieldLabel" Text="低于磁盘空间时关闭（MB）" />
                                                                     <NumericUpDown x:Name="ConfigDieBelowDiskSpaceMbNumericUpDown" Classes="CompactNumber" Minimum="-1" Maximum="1048576" />
                                                                 </StackPanel>
-                                                                <CheckBox x:Name="ConfigVerifyPlayerAuthCheckBox" Classes="ConfigCheck" Content="启用官方账号验证" />
-                                                                <CheckBox x:Name="ConfigAllowPvPCheckBox" Classes="ConfigCheck" Content="允许PvP" />
-                                                                <CheckBox x:Name="ConfigAllowFireSpreadCheckBox" Classes="ConfigCheck" Content="允许火势蔓延" />
-                                                                <CheckBox x:Name="ConfigAllowFallingBlocksCheckBox" Classes="ConfigCheck" Content="允许方块掉落" />
-                                                                <CheckBox x:Name="ConfigPassTimeWhenEmptyCheckBox" Classes="ConfigCheck" Content="无人在线时继续流逝时间" />
-                                                                <CheckBox x:Name="ConfigCorruptionProtectionCheckBox" Classes="ConfigCheck" Content="启用存档损坏保护" />
-                                                                <CheckBox x:Name="ConfigRegenerateCorruptChunksCheckBox" Classes="ConfigCheck" Content="重新生成损坏区块" />
+                                                                <ToggleSwitch x:Name="ConfigVerifyPlayerAuthCheckBox" Classes="ConfigCheck" />
+                                                                <ToggleSwitch x:Name="ConfigAllowPvPCheckBox" Classes="ConfigCheck" />
+                                                                <ToggleSwitch x:Name="ConfigAllowFireSpreadCheckBox" Classes="ConfigCheck" />
+                                                                <ToggleSwitch x:Name="ConfigAllowFallingBlocksCheckBox" Classes="ConfigCheck" />
+                                                                <ToggleSwitch x:Name="ConfigPassTimeWhenEmptyCheckBox" Classes="ConfigCheck" />
+                                                                <ToggleSwitch x:Name="ConfigCorruptionProtectionCheckBox" Classes="ConfigCheck" />
+                                                                <ToggleSwitch x:Name="ConfigRegenerateCorruptChunksCheckBox" Classes="ConfigCheck" />
                                                                 <StackPanel Classes="ConfigFormFieldWide">
                                                                     <TextBlock x:Name="ConfigStartupCommandsLabelTextBlock" Classes="ConfigFieldLabel" Text="启动后执行命令" />
                                                                     <TextBox x:Name="ConfigStartupCommandsTextBox" Classes="MultiLineInput" Height="74" AcceptsReturn="True" TextWrapping="Wrap" />
@@ -1396,7 +1491,7 @@
                                                                         <Border Classes="ConfigInnerCard" Width="270" Margin="0,0,10,10" IsEnabled="{Binding CanEdit}">
                                                                             <StackPanel Spacing="6">
                                                                                 <TextBlock Text="{Binding Label}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" TextWrapping="Wrap" />
-                                                                                <CheckBox Classes="ConfigCheck" Content="{Binding BooleanLabel}" IsVisible="{Binding IsBoolean}" IsChecked="{Binding BoolValue, Mode=TwoWay}" />
+                                                                                <ToggleSwitch Classes="ConfigCheck" IsVisible="{Binding IsBoolean}" IsChecked="{Binding BoolValue, Mode=TwoWay}" />
                                                                                 <ComboBox Classes="CompactCombo" IsVisible="{Binding IsChoice}" ItemsSource="{Binding ChoiceOptions}" SelectedItem="{Binding SelectedChoiceOption, Mode=TwoWay}">
                                                                                     <ComboBox.ItemTemplate>
                                                                                         <DataTemplate>
@@ -1435,31 +1530,47 @@
                                             <Button x:Name="RefreshSavesButton" Grid.Column="7" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshSavesClick" />
                                         </Grid>
                                         <TextBlock x:Name="SavePathInspectionTextBlock" Grid.Row="1" Classes="ConfigHintText" TextWrapping="Wrap" PointerPressed="OnOpenInspectedSaveFolderClick" />
-                                        <ListBox x:Name="SavesListBox" Grid.Row="2" Classes="FlatList" SelectionMode="Multiple">
-                                            <ListBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" MinHeight="34" Margin="0,2">
-                                                        <StackPanel Spacing="2" VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding FileName}" VerticalAlignment="Center" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                                            <TextBlock Text="{Binding Description}" FontSize="12" Foreground="{DynamicResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
-                                                        </StackPanel>
-                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding ProfileName}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="13" Foreground="{DynamicResource SubTextBrush}" />
-                                                            <Button Classes="SaveLockButton" Tag="{Binding}" Click="OnToggleDefaultSaveClick">
-                                                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                                                    <Path Width="14" Height="14" Stretch="Uniform" Fill="{Binding LockIconBrush}" Data="{Binding LockIconData}" />
-                                                                    <TextBlock Text="{Binding LockActionText}" VerticalAlignment="Center" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource DownloadActionTextBrush}" />
-                                                                </StackPanel>
-                                                            </Button>
-                                                        </StackPanel>
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ListBox.ItemTemplate>
-                                        </ListBox>
+                                        <Grid Grid.Row="2" RowDefinitions="Auto,*">
+                                            <Border Grid.Row="0" Classes="TableHeader">
+                                                <Grid ColumnDefinitions="44,1.4*,1.1*,.8*,1.2*,2.2*,58,Auto" ColumnSpacing="8">
+                                                    <TextBlock Classes="TableHeaderText" Text="选择" HorizontalAlignment="Center" />
+                                                    <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="存档" />
+                                                    <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="档案" />
+                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="大小" />
+                                                    <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="修改时间" />
+                                                    <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="路径" />
+                                                    <TextBlock Grid.Column="6" Classes="TableHeaderText" Text="当前" HorizontalAlignment="Center" />
+                                                    <TextBlock Grid.Column="7" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                </Grid>
+                                            </Border>
+                                            <Border Grid.Row="1" Classes="TableBody">
+                                                <ListBox x:Name="SavesListBox" Classes="FlatList TableList" SelectionMode="Multiple">
+                                                    <ListBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid ColumnDefinitions="44,1.4*,1.1*,.8*,1.2*,2.2*,58,Auto" ColumnSpacing="8" MinHeight="36">
+                                                                <CheckBox Classes="TableSelectCheck" IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}, Mode=TwoWay}" />
+                                                                <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding FileName}" FontWeight="SemiBold" />
+                                                                <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding ProfileName}" />
+                                                                <TextBlock Grid.Column="3" Classes="TableCellText" Text="{Binding SizeText}" />
+                                                                <TextBlock Grid.Column="4" Classes="TableCellText" Text="{Binding LastWriteText}" />
+                                                                <TextBlock Grid.Column="5" Classes="TableCellText" Text="{Binding DirectoryPath}" />
+                                                                <CheckBox Grid.Column="6" Classes="TableSelectCheck" IsChecked="{Binding IsLocked}" IsEnabled="False" />
+                                                                <Button Grid.Column="7" Classes="SaveLockButton" Tag="{Binding}" Click="OnToggleDefaultSaveClick">
+                                                                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                                                        <Path Width="14" Height="14" Stretch="Uniform" Fill="{Binding LockIconBrush}" Data="{Binding LockIconData}" />
+                                                                        <TextBlock Text="{Binding LockActionText}" VerticalAlignment="Center" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource DownloadActionTextBrush}" />
+                                                                    </StackPanel>
+                                                                </Button>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ListBox.ItemTemplate>
+                                                </ListBox>
+                                            </Border>
+                                        </Grid>
                                     </Grid>
 
                                     <Grid x:Name="AutomationPanel" RowDefinitions="Auto,Auto,*" RowSpacing="8" IsVisible="False">
-                                        <Grid ColumnDefinitions="240,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                        <Grid ColumnDefinitions="212,Auto,Auto,Auto,*" ColumnSpacing="8">
                                             <ComboBox x:Name="AutomationProfileComboBox" Grid.Column="0" Classes="CompactCombo" SelectionChanged="OnAutomationProfileSelectionChanged">
                                                 <ComboBox.ItemTemplate>
                                                     <DataTemplate>
@@ -1477,14 +1588,14 @@
                                                 <Border Classes="ConfigCard">
                                                     <StackPanel Spacing="8">
                                                         <WrapPanel Orientation="Horizontal">
-                                                            <CheckBox x:Name="AutomationRestartEnabledCheckBox" Classes="ConfigCheck" Content="启用定时开关服" />
-                                                            <CheckBox x:Name="AutomationBackupEnabledCheckBox" Classes="ConfigCheck" Content="启用定时备份" />
-                                                            <CheckBox x:Name="AutomationBackupBeforeShutdownCheckBox" Classes="ConfigCheck" Content="关服前备份" />
-                                                            <CheckBox x:Name="AutomationBroadcastEnabledCheckBox" Classes="ConfigCheck" Content="启用定时广播" />
-                                                            <CheckBox x:Name="AutomationExportEnabledCheckBox" Classes="ConfigCheck" Content="启用日志导出" />
-                                                            <CheckBox x:Name="AutomationExportBeforeShutdownCheckBox" Classes="ConfigCheck" Content="关服前导出日志" />
-                                                            <CheckBox x:Name="AutomationExportIncludeChatCheckBox" Classes="ConfigCheck" Content="导出聊天" />
-                                                            <CheckBox x:Name="AutomationExportIncludeServerCheckBox" Classes="ConfigCheck" Content="导出服务端信息" />
+                                                            <ToggleSwitch x:Name="AutomationRestartEnabledCheckBox" Classes="ConfigCheck" />
+                                                            <ToggleSwitch x:Name="AutomationBackupEnabledCheckBox" Classes="ConfigCheck" />
+                                                            <ToggleSwitch x:Name="AutomationBackupBeforeShutdownCheckBox" Classes="ConfigCheck" />
+                                                            <ToggleSwitch x:Name="AutomationBroadcastEnabledCheckBox" Classes="ConfigCheck" />
+                                                            <ToggleSwitch x:Name="AutomationExportEnabledCheckBox" Classes="ConfigCheck" />
+                                                            <ToggleSwitch x:Name="AutomationExportBeforeShutdownCheckBox" Classes="ConfigCheck" />
+                                                            <ToggleSwitch x:Name="AutomationExportIncludeChatCheckBox" Classes="ConfigCheck" />
+                                                            <ToggleSwitch x:Name="AutomationExportIncludeServerCheckBox" Classes="ConfigCheck" />
                                                         </WrapPanel>
                                                     </StackPanel>
                                                 </Border>
@@ -1495,50 +1606,42 @@
                                                             <TextBlock x:Name="AutomationActionTitleTextBlock" Classes="ConfigSectionTitle" Text="定时开关服" />
                                                             <Button x:Name="AutomationAddActionButton" Grid.Column="1" Classes="SecondaryActionButton" HorizontalAlignment="Right" Content="添加" Click="OnAutomationAddActionClick" />
                                                         </Grid>
-                                                        <ItemsControl x:Name="AutomationActionsItemsControl">
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate>
-                                                                    <Border Classes="ConfigInnerCard" Margin="0,0,0,8">
-                                                                        <Grid ColumnDefinitions="Auto,110,70,70,95,95,70,70,92,Auto" ColumnSpacing="8">
-                                                                            <CheckBox Classes="ConfigCheck" IsChecked="{Binding Enabled, Mode=TwoWay}" VerticalAlignment="Bottom" />
-                                                                            <StackPanel Grid.Column="1" Spacing="4">
-                                                                                <TextBlock Classes="ConfigFieldLabel" Text="模式" />
-                                                                                <ComboBox Classes="CompactCombo" ItemsSource="{Binding ScheduleModeOptions}" SelectedItem="{Binding SelectedScheduleMode, Mode=TwoWay}" />
-                                                                            </StackPanel>
-                                                                            <StackPanel Grid.Column="2" Spacing="4">
-                                                                                <TextBlock Classes="ConfigFieldLabel" Text="开始周" />
-                                                                                <TextBox Classes="CompactInput" Text="{Binding StartDayOfWeek, Mode=TwoWay}" />
-                                                                            </StackPanel>
-                                                                            <StackPanel Grid.Column="3" Spacing="4">
-                                                                                <TextBlock Classes="ConfigFieldLabel" Text="结束周" />
-                                                                                <TextBox Classes="CompactInput" Text="{Binding EndDayOfWeek, Mode=TwoWay}" />
-                                                                            </StackPanel>
-                                                                            <StackPanel Grid.Column="4" Spacing="4">
-                                                                                <TextBlock Classes="ConfigFieldLabel" Text="开始日期" />
-                                                                                <TextBox Classes="CompactInput" PlaceholderText="yyyy-MM-dd" Text="{Binding StartDate, Mode=TwoWay}" />
-                                                                            </StackPanel>
-                                                                            <StackPanel Grid.Column="5" Spacing="4">
-                                                                                <TextBlock Classes="ConfigFieldLabel" Text="结束日期" />
-                                                                                <TextBox Classes="CompactInput" PlaceholderText="yyyy-MM-dd" Text="{Binding EndDate, Mode=TwoWay}" />
-                                                                            </StackPanel>
-                                                                            <StackPanel Grid.Column="6" Spacing="4">
-                                                                                <TextBlock Classes="ConfigFieldLabel" Text="开始" />
-                                                                                <TextBox Classes="CompactInput" PlaceholderText="08:00" Text="{Binding StartTime, Mode=TwoWay}" />
-                                                                            </StackPanel>
-                                                                            <StackPanel Grid.Column="7" Spacing="4">
-                                                                                <TextBlock Classes="ConfigFieldLabel" Text="结束" />
-                                                                                <TextBox Classes="CompactInput" PlaceholderText="23:00" Text="{Binding EndTime, Mode=TwoWay}" />
-                                                                            </StackPanel>
-                                                                            <StackPanel Grid.Column="8" Spacing="4">
-                                                                                <TextBlock Classes="ConfigFieldLabel" Text="动作" />
-                                                                                <ComboBox Classes="CompactCombo" ItemsSource="{Binding ActionOptions}" SelectedItem="{Binding SelectedAction, Mode=TwoWay}" />
-                                                                            </StackPanel>
-                                                                            <Button Grid.Column="9" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" VerticalAlignment="Bottom" Click="OnAutomationRemoveActionClick" />
-                                                                        </Grid>
-                                                                    </Border>
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
+                                                        <Border Classes="TableHeader">
+                                                            <Grid ColumnDefinitions="50,110,70,70,95,95,70,70,92,Auto" ColumnSpacing="8">
+                                                                <TextBlock Classes="TableHeaderText" Text="启用" HorizontalAlignment="Center" />
+                                                                <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="模式" />
+                                                                <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="开始周" />
+                                                                <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="结束周" />
+                                                                <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="开始日期" />
+                                                                <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="结束日期" />
+                                                                <TextBlock Grid.Column="6" Classes="TableHeaderText" Text="开始" />
+                                                                <TextBlock Grid.Column="7" Classes="TableHeaderText" Text="结束" />
+                                                                <TextBlock Grid.Column="8" Classes="TableHeaderText" Text="动作" />
+                                                                <TextBlock Grid.Column="9" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                            </Grid>
+                                                        </Border>
+                                                        <Border Classes="TableBody">
+                                                            <ItemsControl x:Name="AutomationActionsItemsControl">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Classes="TableRow">
+                                                                            <Grid ColumnDefinitions="50,110,70,70,95,95,70,70,92,Auto" ColumnSpacing="8">
+                                                                                <ToggleSwitch Classes="TableSwitch" IsChecked="{Binding Enabled, Mode=TwoWay}" />
+                                                                                <ComboBox Grid.Column="1" Classes="CompactCombo" ItemsSource="{Binding ScheduleModeOptions}" SelectedItem="{Binding SelectedScheduleMode, Mode=TwoWay}" />
+                                                                                <TextBox Grid.Column="2" Classes="CompactInput" Text="{Binding StartDayOfWeek, Mode=TwoWay}" />
+                                                                                <TextBox Grid.Column="3" Classes="CompactInput" Text="{Binding EndDayOfWeek, Mode=TwoWay}" />
+                                                                                <TextBox Grid.Column="4" Classes="CompactInput" PlaceholderText="yyyy-MM-dd" Text="{Binding StartDate, Mode=TwoWay}" />
+                                                                                <TextBox Grid.Column="5" Classes="CompactInput" PlaceholderText="yyyy-MM-dd" Text="{Binding EndDate, Mode=TwoWay}" />
+                                                                                <TextBox Grid.Column="6" Classes="CompactInput" PlaceholderText="08:00" Text="{Binding StartTime, Mode=TwoWay}" />
+                                                                                <TextBox Grid.Column="7" Classes="CompactInput" PlaceholderText="23:00" Text="{Binding EndTime, Mode=TwoWay}" />
+                                                                                <ComboBox Grid.Column="8" Classes="CompactCombo" ItemsSource="{Binding ActionOptions}" SelectedItem="{Binding SelectedAction, Mode=TwoWay}" />
+                                                                                <Button Grid.Column="9" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveActionClick" />
+                                                                            </Grid>
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </Border>
                                                     </StackPanel>
                                                 </Border>
 
@@ -1549,16 +1652,26 @@
                                                                 <TextBlock Classes="ConfigSectionTitle" Text="定时备份" />
                                                                 <Button x:Name="AutomationAddBackupTimeButton" Grid.Column="1" Classes="SecondaryActionButton" HorizontalAlignment="Right" Content="添加" Click="OnAutomationAddBackupTimeClick" />
                                                             </Grid>
-                                                            <ItemsControl x:Name="AutomationBackupTimesItemsControl">
-                                                                <ItemsControl.ItemTemplate>
-                                                                    <DataTemplate>
-                                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,6">
-                                                                            <TextBox Classes="CompactInput" PlaceholderText="03:00" Text="{Binding Time, Mode=TwoWay}" />
-                                                                            <Button Grid.Column="1" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveBackupTimeClick" />
-                                                                        </Grid>
-                                                                    </DataTemplate>
-                                                                </ItemsControl.ItemTemplate>
-                                                            </ItemsControl>
+                                                            <Border Classes="TableHeader">
+                                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                    <TextBlock Classes="TableHeaderText" Text="时间" />
+                                                                    <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                                </Grid>
+                                                            </Border>
+                                                            <Border Classes="TableBody">
+                                                                <ItemsControl x:Name="AutomationBackupTimesItemsControl">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Border Classes="TableRow">
+                                                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                                    <TextBox Classes="CompactInput" PlaceholderText="03:00" Text="{Binding Time, Mode=TwoWay}" />
+                                                                                    <Button Grid.Column="1" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveBackupTimeClick" />
+                                                                                </Grid>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </Border>
                                                         </StackPanel>
                                                     </Border>
                                                     <Border Grid.Column="1" Classes="ConfigCard">
@@ -1567,16 +1680,26 @@
                                                                 <TextBlock Classes="ConfigSectionTitle" Text="日志导出" />
                                                                 <Button x:Name="AutomationAddExportTimeButton" Grid.Column="1" Classes="SecondaryActionButton" HorizontalAlignment="Right" Content="添加" Click="OnAutomationAddExportTimeClick" />
                                                             </Grid>
-                                                            <ItemsControl x:Name="AutomationExportTimesItemsControl">
-                                                                <ItemsControl.ItemTemplate>
-                                                                    <DataTemplate>
-                                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,6">
-                                                                            <TextBox Classes="CompactInput" PlaceholderText="12:00" Text="{Binding Time, Mode=TwoWay}" />
-                                                                            <Button Grid.Column="1" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveExportTimeClick" />
-                                                                        </Grid>
-                                                                    </DataTemplate>
-                                                                </ItemsControl.ItemTemplate>
-                                                            </ItemsControl>
+                                                            <Border Classes="TableHeader">
+                                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                    <TextBlock Classes="TableHeaderText" Text="时间" />
+                                                                    <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                                </Grid>
+                                                            </Border>
+                                                            <Border Classes="TableBody">
+                                                                <ItemsControl x:Name="AutomationExportTimesItemsControl">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Border Classes="TableRow">
+                                                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                                    <TextBox Classes="CompactInput" PlaceholderText="12:00" Text="{Binding Time, Mode=TwoWay}" />
+                                                                                    <Button Grid.Column="1" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveExportTimeClick" />
+                                                                                </Grid>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </Border>
                                                         </StackPanel>
                                                     </Border>
                                                 </Grid>
@@ -1587,18 +1710,30 @@
                                                             <TextBlock Classes="ConfigSectionTitle" Text="定时广播" />
                                                             <Button x:Name="AutomationAddBroadcastButton" Grid.Column="1" Classes="SecondaryActionButton" HorizontalAlignment="Right" Content="添加" Click="OnAutomationAddBroadcastClick" />
                                                         </Grid>
-                                                        <ItemsControl x:Name="AutomationBroadcastsItemsControl">
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate>
-                                                                    <Grid ColumnDefinitions="Auto,90,*,Auto" ColumnSpacing="8" Margin="0,0,0,6">
-                                                                        <CheckBox Classes="ConfigCheck" IsChecked="{Binding Enabled, Mode=TwoWay}" />
-                                                                        <TextBox Grid.Column="1" Classes="CompactInput" PlaceholderText="12:00" Text="{Binding Time, Mode=TwoWay}" />
-                                                                        <TextBox Grid.Column="2" Classes="CompactInput" Text="{Binding Message, Mode=TwoWay}" />
-                                                                        <Button Grid.Column="3" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveBroadcastClick" />
-                                                                    </Grid>
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
+                                                        <Border Classes="TableHeader">
+                                                            <Grid ColumnDefinitions="50,90,*,Auto" ColumnSpacing="8">
+                                                                <TextBlock Classes="TableHeaderText" Text="启用" HorizontalAlignment="Center" />
+                                                                <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="时间" />
+                                                                <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="消息" />
+                                                                <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                            </Grid>
+                                                        </Border>
+                                                        <Border Classes="TableBody">
+                                                            <ItemsControl x:Name="AutomationBroadcastsItemsControl">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Classes="TableRow">
+                                                                            <Grid ColumnDefinitions="50,90,*,Auto" ColumnSpacing="8">
+                                                                                <ToggleSwitch Classes="TableSwitch" IsChecked="{Binding Enabled, Mode=TwoWay}" />
+                                                                                <TextBox Grid.Column="1" Classes="CompactInput" PlaceholderText="12:00" Text="{Binding Time, Mode=TwoWay}" />
+                                                                                <TextBox Grid.Column="2" Classes="CompactInput" Text="{Binding Message, Mode=TwoWay}" />
+                                                                                <Button Grid.Column="3" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveBroadcastClick" />
+                                                                            </Grid>
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </Border>
                                                     </StackPanel>
                                                 </Border>
 
@@ -1613,7 +1748,7 @@
                                     </Grid>
 
                                     <Grid x:Name="ModsPanel" RowDefinitions="Auto,Auto,*" RowSpacing="8" IsVisible="False">
-                                        <Grid ColumnDefinitions="220,*,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+                                        <Grid ColumnDefinitions="192,*,Auto,Auto,Auto,Auto" ColumnSpacing="8">
                                             <ComboBox x:Name="ModProfileComboBox" Grid.Column="0" Classes="CompactCombo" SelectionChanged="OnModProfileSelectionChanged">
                                                 <ComboBox.ItemTemplate>
                                                     <DataTemplate>
@@ -1628,22 +1763,38 @@
                                             <Button x:Name="RefreshModsButton" Grid.Column="5" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshModsClick" />
                                         </Grid>
                                         <TextBlock x:Name="ModStatusTextBlock" Grid.Row="1" Classes="ConfigHintText" TextWrapping="Wrap" />
-                                        <ListBox x:Name="ModsListBox" Grid.Row="2" Classes="FlatList" SelectionMode="Multiple">
-                                            <ListBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Grid ColumnDefinitions="Auto,1.3*,.7*,1*,1.4*,1.4*,2*,Auto" ColumnSpacing="8" MinHeight="34" Margin="0,2">
-                                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" VerticalAlignment="Center" />
-                                                        <TextBlock Grid.Column="1" Text="{Binding ModId}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                                        <TextBlock Grid.Column="2" Text="{Binding Version}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                                        <TextBlock Grid.Column="3" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                                        <TextBlock Grid.Column="4" Text="{Binding DependenciesText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                                        <TextBlock Grid.Column="5" Text="{Binding IssuesText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                                        <TextBlock Grid.Column="6" Text="{Binding FilePath}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                                        <Button Grid.Column="7" Classes="SecondaryActionButton" Tag="{Binding}" Content="{Binding ToggleText}" Click="OnToggleModEnabledClick" />
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ListBox.ItemTemplate>
-                                        </ListBox>
+                                        <Grid Grid.Row="2" RowDefinitions="Auto,*">
+                                            <Border Grid.Row="0" Classes="TableHeader">
+                                                <Grid ColumnDefinitions="44,1.2*,.7*,58,1*,1.2*,1.2*,2.1*" ColumnSpacing="8">
+                                                    <TextBlock Classes="TableHeaderText" Text="选择" HorizontalAlignment="Center" />
+                                                    <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="Mod ID" />
+                                                    <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="版本" />
+                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="启用" HorizontalAlignment="Center" />
+                                                    <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="状态" />
+                                                    <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="依赖" />
+                                                    <TextBlock Grid.Column="6" Classes="TableHeaderText" Text="问题" />
+                                                    <TextBlock Grid.Column="7" Classes="TableHeaderText" Text="文件" />
+                                                </Grid>
+                                            </Border>
+                                            <Border Grid.Row="1" Classes="TableBody">
+                                                <ListBox x:Name="ModsListBox" Classes="FlatList TableList" SelectionMode="Multiple">
+                                                    <ListBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid ColumnDefinitions="44,1.2*,.7*,58,1*,1.2*,1.2*,2.1*" ColumnSpacing="8" MinHeight="36">
+                                                                <CheckBox Classes="TableSelectCheck" IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}, Mode=TwoWay}" />
+                                                                <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding ModId}" FontWeight="SemiBold" />
+                                                                <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding Version}" />
+                                                                <ToggleSwitch Grid.Column="3" Classes="TableSwitch" IsChecked="{Binding ModEnabled}" Tag="{Binding}" Click="OnModEnabledSwitchClick" />
+                                                                <TextBlock Grid.Column="4" Classes="TableCellText" Text="{Binding StatusText}" />
+                                                                <TextBlock Grid.Column="5" Classes="TableCellText" Text="{Binding DependenciesText}" />
+                                                                <TextBlock Grid.Column="6" Classes="TableCellText" Text="{Binding IssuesText}" />
+                                                                <TextBlock Grid.Column="7" Classes="TableCellText" Text="{Binding FilePath}" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ListBox.ItemTemplate>
+                                                </ListBox>
+                                            </Border>
+                                        </Grid>
                                     </Grid>
 
                                     <Grid x:Name="DownloadVersionsPanel" RowDefinitions="Auto,*,Auto" RowSpacing="10" IsVisible="False">
@@ -1652,19 +1803,35 @@
                                             <Button x:Name="ImportServerPackageButton" Grid.Column="1" Classes="SecondaryActionButton" Content="导入" Click="OnImportServerPackageClick" />
                                             <Button x:Name="RefreshDownloadVersionsButton" Grid.Column="2" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshDownloadVersionsClick" />
                                         </Grid>
-                                        <ListBox x:Name="DownloadVersionsListBox" Grid.Row="1" Classes="FlatList" ScrollViewer.VerticalScrollBarVisibility="Hidden" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                            <ListBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" MinHeight="34" Margin="0,2">
-                                                        <TextBlock Text="{Binding DisplayText}" VerticalAlignment="Center" FontSize="14" TextTrimming="CharacterEllipsis" />
-                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                                                            <Button Classes="DownloadTextButton" Tag="{Binding}" Content="{Binding ActionText}" IsVisible="{Binding CanDownload}" Click="OnDownloadVersionClick" />
-                                                            <TextBlock Classes="DownloadedTextLabel" Text="{Binding DownloadedText}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource DownloadedBadgeTextBrush}" IsVisible="{Binding IsDownloaded}" />
-                                                        </StackPanel>
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ListBox.ItemTemplate>
-                                        </ListBox>
+                                        <Grid Grid.Row="1" RowDefinitions="Auto,*">
+                                            <Border Grid.Row="0" Classes="TableHeader">
+                                                <Grid ColumnDefinitions="1.1*,1*,.8*,2.4*,Auto" ColumnSpacing="8">
+                                                    <TextBlock Classes="TableHeaderText" Text="版本" />
+                                                    <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="平台" />
+                                                    <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="大小" />
+                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="文件" />
+                                                    <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                </Grid>
+                                            </Border>
+                                            <Border Grid.Row="1" Classes="TableBody">
+                                                <ListBox x:Name="DownloadVersionsListBox" Classes="FlatList TableList" ScrollViewer.VerticalScrollBarVisibility="Hidden" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                                    <ListBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid ColumnDefinitions="1.1*,1*,.8*,2.4*,Auto" ColumnSpacing="8" MinHeight="36">
+                                                                <TextBlock Classes="TableCellText" Text="{Binding Entry.Version}" FontWeight="SemiBold" />
+                                                                <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding Entry.Platform}" />
+                                                                <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding Entry.FileSize}" />
+                                                                <TextBlock Grid.Column="3" Classes="TableCellText" Text="{Binding Entry.FileName}" />
+                                                                <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                                                    <Button Classes="DownloadTextButton" Tag="{Binding}" Content="{Binding ActionText}" IsVisible="{Binding CanDownload}" Click="OnDownloadVersionClick" />
+                                                                    <TextBlock Classes="DownloadedTextLabel" Text="{Binding DownloadedText}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource DownloadedBadgeTextBrush}" IsVisible="{Binding IsDownloaded}" />
+                                                                </StackPanel>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ListBox.ItemTemplate>
+                                                </ListBox>
+                                            </Border>
+                                        </Grid>
                                         <TextBlock x:Name="DownloadStatusTextBlock" Grid.Row="2" FontSize="12" Foreground="{DynamicResource SubTextBrush}" />
                                     </Grid>
                                 </Grid>
@@ -1687,22 +1854,10 @@
                                             <Border Classes="ConfigCard">
                                                 <StackPanel Spacing="10">
                                                     <TextBlock x:Name="SettingsServerDirectoryTitleTextBlock" Classes="ConfigSectionTitle" Text="目录路径" />
-                                                    <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="86,*,Auto" RowSpacing="10" ColumnSpacing="10">
-                                                        <TextBlock x:Name="SettingsServerDirectoryLabelTextBlock" Grid.Row="0" Classes="ConfigFieldLabel" VerticalAlignment="Center" Text="服务端目录" />
-                                                        <TextBox x:Name="SettingsServerDirectoryTextBox" Grid.Row="0" Grid.Column="1" Classes="CompactInput" />
-                                                        <Button x:Name="SettingsBrowseServerDirectoryButton" Grid.Row="0" Grid.Column="2" Classes="SecondaryActionButton" Content="浏览" Click="OnSettingsBrowseServerDirectoryClick" />
-
-                                                        <TextBlock x:Name="SettingsProfileDirectoryLabelTextBlock" Grid.Row="1" Classes="ConfigFieldLabel" VerticalAlignment="Center" Text="档案目录" />
-                                                        <TextBox x:Name="SettingsProfileDirectoryTextBox" Grid.Row="1" Grid.Column="1" Classes="CompactInput" />
-                                                        <Button x:Name="SettingsBrowseProfileDirectoryButton" Grid.Row="1" Grid.Column="2" Classes="SecondaryActionButton" Content="浏览" Click="OnSettingsBrowseProfileDirectoryClick" />
-
-                                                        <TextBlock x:Name="SettingsSaveDirectoryLabelTextBlock" Grid.Row="2" Classes="ConfigFieldLabel" VerticalAlignment="Center" Text="存档目录" />
-                                                        <TextBox x:Name="SettingsSaveDirectoryTextBox" Grid.Row="2" Grid.Column="1" Classes="CompactInput" />
-                                                        <Button x:Name="SettingsBrowseSaveDirectoryButton" Grid.Row="2" Grid.Column="2" Classes="SecondaryActionButton" Content="浏览" Click="OnSettingsBrowseSaveDirectoryClick" />
-
-                                                        <TextBlock x:Name="SettingsQqBotDirectoryLabelTextBlock" Grid.Row="3" Classes="ConfigFieldLabel" VerticalAlignment="Center" Text="QQ机器人目录" />
-                                                        <TextBox x:Name="SettingsQqBotDirectoryTextBox" Grid.Row="3" Grid.Column="1" Classes="CompactInput" />
-                                                        <Button x:Name="SettingsBrowseQqBotDirectoryButton" Grid.Row="3" Grid.Column="2" Classes="SecondaryActionButton" Content="浏览" Click="OnSettingsBrowseQqBotDirectoryClick" />
+                                                    <Grid RowDefinitions="Auto" ColumnDefinitions="86,*,Auto" RowSpacing="10" ColumnSpacing="10">
+                                                        <TextBlock x:Name="SettingsWorkspaceDirectoryLabelTextBlock" Grid.Row="0" Classes="ConfigFieldLabel" VerticalAlignment="Center" Text="工作目录" />
+                                                        <TextBox x:Name="SettingsWorkspaceDirectoryTextBox" Grid.Row="0" Grid.Column="1" Classes="CompactInput" />
+                                                        <Button x:Name="SettingsBrowseWorkspaceDirectoryButton" Grid.Row="0" Grid.Column="2" Classes="SecondaryActionButton" Content="浏览" Click="OnSettingsBrowseWorkspaceDirectoryClick" />
                                                     </Grid>
                                                 </StackPanel>
                                             </Border>
@@ -1710,13 +1865,13 @@
                                                 <StackPanel Spacing="10">
                                                     <TextBlock x:Name="SettingsServerAutomationTitleTextBlock" Classes="ConfigSectionTitle" Text="启动与托盘" />
                                                     <WrapPanel Orientation="Horizontal">
-                                                        <CheckBox x:Name="SettingsStartWithWindowsCheckBox" Classes="ConfigCheck" Content="开机启动启动器" />
-                                                        <CheckBox x:Name="SettingsCloseToTrayCheckBox" Classes="ConfigCheck" Content="关闭时隐藏到托盘，不直接退出" />
-                                                        <CheckBox x:Name="SettingsStartHiddenCheckBox" Classes="ConfigCheck" Content="启动时隐藏到托盘" />
-                                                        <CheckBox x:Name="SettingsAutoStartOsqCheckBox" Classes="ConfigCheck" Content="启动时自动启动开放信息" />
-                                                        <CheckBox x:Name="SettingsAutoStartRobotCheckBox" Classes="ConfigCheck" Content="启动时自动启动QQ机器人" />
-                                                        <CheckBox x:Name="SettingsAutoStartFrpCheckBox" Classes="ConfigCheck" Content="启动时自动开启内网穿透（常规）" />
-                                                        <CheckBox x:Name="SettingsAutoStartThirdPartyFrpcCheckBox" Classes="ConfigCheck" Content="启动时自动开启第三方内网穿透" />
+                                                        <ToggleSwitch x:Name="SettingsStartWithWindowsCheckBox" Classes="ConfigCheck" />
+                                                        <ToggleSwitch x:Name="SettingsCloseToTrayCheckBox" Classes="ConfigCheck" />
+                                                        <ToggleSwitch x:Name="SettingsStartHiddenCheckBox" Classes="ConfigCheck" />
+                                                        <ToggleSwitch x:Name="SettingsAutoStartOsqCheckBox" Classes="ConfigCheck" />
+                                                        <ToggleSwitch x:Name="SettingsAutoStartRobotCheckBox" Classes="ConfigCheck" />
+                                                        <ToggleSwitch x:Name="SettingsAutoStartFrpCheckBox" Classes="ConfigCheck" />
+                                                        <ToggleSwitch x:Name="SettingsAutoStartThirdPartyFrpcCheckBox" Classes="ConfigCheck" />
                                                     </WrapPanel>
                                                     <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="False">
                                                         <Button x:Name="SettingsServerSaveButton" Classes="ActionButton" Content="保存" Click="OnSettingsServerSaveClick" IsVisible="False" />
@@ -1901,8 +2056,8 @@
                                                 <StackPanel Spacing="10">
                                                     <TextBlock x:Name="OsqTitleTextBlock" Classes="ConfigSectionTitle" Text="开放信息（OpenServerQuery）" IsVisible="False" />
                                                     <WrapPanel Orientation="Horizontal">
-                                                        <CheckBox x:Name="OsqEnabledCheckBox" Classes="ConfigCheck" Content="启用开放信息" />
-                                                        <CheckBox x:Name="OsqAllowInsecureHttpCheckBox" Classes="ConfigCheck" Content="允许 HTTP 外发" />
+                                                        <ToggleSwitch x:Name="OsqEnabledCheckBox" Classes="ConfigCheck" />
+                                                        <ToggleSwitch x:Name="OsqAllowInsecureHttpCheckBox" Classes="ConfigCheck" />
                                                     </WrapPanel>
                                                     <WrapPanel Orientation="Horizontal">
                                                         <StackPanel Classes="ConfigFormFieldWide">
@@ -1915,12 +2070,12 @@
                                                         </StackPanel>
                                                     </WrapPanel>
                                                     <WrapPanel Orientation="Horizontal">
-                                                        <CheckBox x:Name="OsqIncludeServerInfoCheckBox" Classes="ConfigCheck" Content="服务器信息" />
-                                                        <CheckBox x:Name="OsqIncludePlayersCheckBox" Classes="ConfigCheck" Content="玩家列表" />
-                                                        <CheckBox x:Name="OsqIncludeEventsCheckBox" Classes="ConfigCheck" Content="玩家事件" />
-                                                        <CheckBox x:Name="OsqIncludeChatsCheckBox" Classes="ConfigCheck" Content="聊天" />
-                                                        <CheckBox x:Name="OsqIncludeNotificationsCheckBox" Classes="ConfigCheck" Content="通知" />
-                                                        <CheckBox x:Name="OsqIncludeMapCheckBox" Classes="ConfigCheck" Content="地图数据" />
+                                                        <ToggleSwitch x:Name="OsqIncludeServerInfoCheckBox" Classes="ConfigCheck" />
+                                                        <ToggleSwitch x:Name="OsqIncludePlayersCheckBox" Classes="ConfigCheck" />
+                                                        <ToggleSwitch x:Name="OsqIncludeEventsCheckBox" Classes="ConfigCheck" />
+                                                        <ToggleSwitch x:Name="OsqIncludeChatsCheckBox" Classes="ConfigCheck" />
+                                                        <ToggleSwitch x:Name="OsqIncludeNotificationsCheckBox" Classes="ConfigCheck" />
+                                                        <ToggleSwitch x:Name="OsqIncludeMapCheckBox" Classes="ConfigCheck" />
                                                     </WrapPanel>
                                                     <StackPanel Spacing="8">
                                                         <Grid ColumnDefinitions="420,420" ColumnSpacing="10">
@@ -2001,7 +2156,7 @@
 
                                     <ScrollViewer x:Name="ConnectionAuthPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
                                         <StackPanel Spacing="10">
-                                            <Grid ColumnDefinitions="240,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                            <Grid ColumnDefinitions="212,Auto,Auto,Auto,*" ColumnSpacing="8">
                                                 <ComboBox x:Name="AuthProfileComboBox" Grid.Column="0" Classes="CompactCombo" SelectionChanged="OnAuthProfileSelectionChanged">
                                                     <ComboBox.ItemTemplate>
                                                         <DataTemplate>
@@ -2017,7 +2172,7 @@
                                             <Border Classes="ConfigCard">
                                                 <StackPanel Spacing="10">
                                                     <WrapPanel Orientation="Horizontal">
-                                                        <CheckBox x:Name="AuthEnabledCheckBox" Classes="ConfigCheck" Content="启用认证" />
+                                                        <ToggleSwitch x:Name="AuthEnabledCheckBox" Classes="ConfigCheck" />
                                                         <StackPanel Classes="ConfigFormField">
                                                             <TextBlock x:Name="AuthLoginTimeoutLabelTextBlock" Classes="ConfigFieldLabel" Text="登录超时秒数" />
                                                             <NumericUpDown x:Name="AuthLoginTimeoutNumericUpDown" Classes="CompactNumber" Minimum="10" Maximum="600" />
@@ -2028,7 +2183,7 @@
                                                         </StackPanel>
                                                     </WrapPanel>
                                                     <WrapPanel Orientation="Horizontal">
-                                                        <CheckBox x:Name="AuthDiscourseEnabledCheckBox" Classes="ConfigCheck" Content="启用 Discourse 登录" />
+                                                        <ToggleSwitch x:Name="AuthDiscourseEnabledCheckBox" Classes="ConfigCheck" />
                                                         <StackPanel Classes="ConfigFormFieldWide">
                                                             <TextBlock x:Name="AuthDiscourseBaseUrlLabelTextBlock" Classes="ConfigFieldLabel" Text="Discourse 地址" />
                                                             <TextBox x:Name="AuthDiscourseBaseUrlTextBox" Classes="CompactInput" />
@@ -2054,29 +2209,43 @@
                                                         <TextBlock x:Name="AuthPlayersTitleTextBlock" Classes="ConfigSectionTitle" Text="玩家认证数据" />
                                                         <Button x:Name="AuthRefreshPlayersButton" Grid.Column="1" Classes="SecondaryActionButton" Content="刷新玩家" Click="OnAuthRefreshPlayersClick" />
                                                     </Grid>
-                                                    <ListBox x:Name="AuthPlayersListBox" Grid.Row="1" Classes="FlatList" Height="190">
-                                                        <ListBox.ItemTemplate>
-                                                            <DataTemplate>
-                                                                <Grid ColumnDefinitions="1.5*,1.4*,1.4*,1*,1.2*,Auto" ColumnSpacing="8" MinHeight="38" Margin="0,2">
-                                                                    <StackPanel Spacing="2">
-                                                                        <TextBlock Text="{Binding PlayerName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                                                        <TextBlock Text="{Binding PlayerUid}" FontSize="11" Foreground="{DynamicResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
-                                                                    </StackPanel>
-                                                                    <StackPanel Grid.Column="1" Spacing="2">
-                                                                        <TextBlock Text="{Binding RegisteredAtText}" TextTrimming="CharacterEllipsis" />
-                                                                        <TextBlock Text="{Binding RegisteredIp}" FontSize="11" Foreground="{DynamicResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
-                                                                    </StackPanel>
-                                                                    <StackPanel Grid.Column="2" Spacing="2">
-                                                                        <TextBlock Text="{Binding LastLoginAtText}" TextTrimming="CharacterEllipsis" />
-                                                                        <TextBlock Text="{Binding LastIp}" FontSize="11" Foreground="{DynamicResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
-                                                                    </StackPanel>
-                                                                    <TextBlock Grid.Column="3" Text="{Binding PasswordStateText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                                    <TextBlock Grid.Column="4" Text="{Binding DiscourseUsername}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                                    <Button Grid.Column="5" Classes="SecondaryActionButton" Tag="{Binding}" Content="清空密码" Click="OnAuthClearPlayerPasswordClick" />
-                                                                </Grid>
-                                                            </DataTemplate>
-                                                        </ListBox.ItemTemplate>
-                                                    </ListBox>
+                                                    <Grid Grid.Row="1" RowDefinitions="Auto,*" Height="190">
+                                                        <Border Grid.Row="0" Classes="TableHeader">
+                                                            <Grid ColumnDefinitions="1.5*,1.4*,1.4*,1*,1.2*,Auto" ColumnSpacing="8">
+                                                                <TextBlock Classes="TableHeaderText" Text="玩家" />
+                                                                <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="注册" />
+                                                                <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="最后登录" />
+                                                                <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="密码" />
+                                                                <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="Discourse" />
+                                                                <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                            </Grid>
+                                                        </Border>
+                                                        <Border Grid.Row="1" Classes="TableBody">
+                                                            <ListBox x:Name="AuthPlayersListBox" Classes="FlatList TableList">
+                                                                <ListBox.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Grid ColumnDefinitions="1.5*,1.4*,1.4*,1*,1.2*,Auto" ColumnSpacing="8" MinHeight="38">
+                                                                            <StackPanel Spacing="2">
+                                                                                <TextBlock Text="{Binding PlayerName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                                                <TextBlock Text="{Binding PlayerUid}" FontSize="11" Foreground="{DynamicResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
+                                                                            </StackPanel>
+                                                                            <StackPanel Grid.Column="1" Spacing="2">
+                                                                                <TextBlock Text="{Binding RegisteredAtText}" TextTrimming="CharacterEllipsis" />
+                                                                                <TextBlock Text="{Binding RegisteredIp}" FontSize="11" Foreground="{DynamicResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
+                                                                            </StackPanel>
+                                                                            <StackPanel Grid.Column="2" Spacing="2">
+                                                                                <TextBlock Text="{Binding LastLoginAtText}" TextTrimming="CharacterEllipsis" />
+                                                                                <TextBlock Text="{Binding LastIp}" FontSize="11" Foreground="{DynamicResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
+                                                                            </StackPanel>
+                                                                            <TextBlock Grid.Column="3" Classes="TableCellText" Text="{Binding PasswordStateText}" />
+                                                                            <TextBlock Grid.Column="4" Classes="TableCellText" Text="{Binding DiscourseUsername}" />
+                                                                            <Button Grid.Column="5" Classes="SecondaryActionButton" Tag="{Binding}" Content="清空密码" Click="OnAuthClearPlayerPasswordClick" />
+                                                                        </Grid>
+                                                                    </DataTemplate>
+                                                                </ListBox.ItemTemplate>
+                                                            </ListBox>
+                                                        </Border>
+                                                    </Grid>
                                                 </Grid>
                                             </Border>
                                         </StackPanel>

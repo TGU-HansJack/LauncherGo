@@ -23,6 +23,7 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
         if (!File.Exists(LauncherPathHelper.PreferencesFilePath))
         {
             var defaults = Normalize(LauncherPathHelper.BuildDefaults());
+            WorkspacePathHelper.SetWorkspaceRoot(defaults.WorkspaceRoot);
             LauncherPathHelper.EnsureBaseDirectories(defaults);
             return defaults;
         }
@@ -32,12 +33,14 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             var rawJson = File.ReadAllText(LauncherPathHelper.PreferencesFilePath);
             var parsed = JsonSerializer.Deserialize<LauncherPreferences>(rawJson, JsonOptions) ?? LauncherPathHelper.BuildDefaults();
             var normalized = Normalize(parsed);
+            WorkspacePathHelper.SetWorkspaceRoot(normalized.WorkspaceRoot);
             LauncherPathHelper.EnsureBaseDirectories(normalized);
             return normalized;
         }
         catch
         {
             var fallback = Normalize(LauncherPathHelper.BuildDefaults());
+            WorkspacePathHelper.SetWorkspaceRoot(fallback.WorkspaceRoot);
             LauncherPathHelper.EnsureBaseDirectories(fallback);
             return fallback;
         }
@@ -48,6 +51,7 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
         Directory.CreateDirectory(LauncherPathHelper.AppRoot);
 
         var normalized = Normalize(preferences);
+        WorkspacePathHelper.SetWorkspaceRoot(normalized.WorkspaceRoot);
         LauncherPathHelper.EnsureBaseDirectories(normalized);
 
         var json = JsonSerializer.Serialize(normalized, JsonOptions);
@@ -57,6 +61,11 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
     private static LauncherPreferences Normalize(LauncherPreferences source)
     {
         var defaults = LauncherPathHelper.BuildDefaults();
+        var workspaceRoot = LauncherPathHelper.GetWorkspaceRootOrDefault(source.WorkspaceRoot);
+        var serverDirectory = LauncherPathHelper.GetServerDirectory(workspaceRoot);
+        var profileDirectory = LauncherPathHelper.GetProfileDirectory(workspaceRoot);
+        var saveDirectory = LauncherPathHelper.GetSaveDirectory(workspaceRoot);
+        var qqBotDirectory = LauncherPathHelper.GetQqBotDirectory(workspaceRoot);
 
         return new LauncherPreferences
         {
@@ -65,10 +74,11 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
                 ? CultureInfo.CurrentUICulture.Name
                 : source.Language.Trim(),
             ThemeMode = Enum.IsDefined(source.ThemeMode) ? source.ThemeMode : ThemeMode.System,
-            ServerDirectory = LauncherPathHelper.NormalizeDirectoryOrDefault(source.ServerDirectory, defaults.ServerDirectory),
-            ProfileDirectory = LauncherPathHelper.NormalizeDirectoryOrDefault(source.ProfileDirectory, defaults.ProfileDirectory),
-            SaveDirectory = LauncherPathHelper.NormalizeDirectoryOrDefault(source.SaveDirectory, defaults.SaveDirectory),
-            QqBotDirectory = LauncherPathHelper.NormalizeDirectoryOrDefault(source.QqBotDirectory, defaults.QqBotDirectory),
+            WorkspaceRoot = workspaceRoot,
+            ServerDirectory = serverDirectory,
+            ProfileDirectory = profileDirectory,
+            SaveDirectory = saveDirectory,
+            QqBotDirectory = qqBotDirectory,
             ServerDownloadCatalogUrl = NormalizeHttpUrlOrDefault(source.ServerDownloadCatalogUrl, defaults.ServerDownloadCatalogUrl),
             EnableChunkedDownloads = source.EnableChunkedDownloads,
             DownloadChunkCount = Math.Clamp(source.DownloadChunkCount <= 0 ? defaults.DownloadChunkCount : source.DownloadChunkCount, 1, 32),
@@ -84,7 +94,7 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             AutoStartFrpOnLaunch = source.AutoStartFrpOnLaunch,
             AutoStartThirdPartyFrpcOnLaunch = source.AutoStartThirdPartyFrpcOnLaunch,
             OpenServerQuery = NormalizeOpenServerQuery(source.OpenServerQuery),
-            Robot = NormalizeRobot(source.Robot, defaults.QqBotDirectory),
+            Robot = NormalizeRobot(source.Robot, qqBotDirectory),
             Frp = NormalizeFrp(source.Frp)
         };
     }

@@ -18,7 +18,7 @@ internal static partial class LauncherWorkspacePathHelper
         Path.Combine(preferences.ProfileDirectory, SanitizeFileName(profileId));
 
     public static string ProfileSaveDirectory(LauncherPreferences preferences, string profileId) =>
-        Path.Combine(preferences.SaveDirectory, SanitizeFileName(profileId));
+        Path.Combine(ProfileDataPath(preferences, profileId), "Saves");
 
     public static string ProfileDefaultSaveFile(LauncherPreferences preferences, string profileId) =>
         Path.Combine(ProfileSaveDirectory(preferences, profileId), "default.vcdbs");

@@ -5,13 +5,21 @@ namespace LauncherGo.Services;
 
 internal static partial class WorkspacePathHelper
 {
-    public static string WorkspaceRoot => LauncherPathHelper.AppRoot;
+    private static string? _workspaceRoot;
 
-    public static string DataRoot => Path.Combine(WorkspaceRoot, "data");
+    public static string WorkspaceRoot => LauncherPathHelper.GetWorkspaceRootOrDefault(_workspaceRoot);
+
+    public static void SetWorkspaceRoot(string? workspaceRoot)
+    {
+        _workspaceRoot = LauncherPathHelper.GetWorkspaceRootOrDefault(workspaceRoot);
+        EnsureWorkspace();
+    }
+
+    public static string DataRoot => LauncherPathHelper.GetProfileDirectory(WorkspaceRoot);
 
     public static string SavesRoot => Path.Combine(WorkspaceRoot, "saves");
 
-    public static string ServersRoot => Path.Combine(WorkspaceRoot, "servers", "windows");
+    public static string ServersRoot => Path.Combine(LauncherPathHelper.GetServerDirectory(WorkspaceRoot), "installed");
 
     public static string PackagesRoot => Path.Combine(WorkspaceRoot, "packages");
 
@@ -44,7 +52,8 @@ internal static partial class WorkspacePathHelper
 
     public static string GetServerInstallPath(string version) => Path.Combine(ServersRoot, version);
 
-    public static string GetProfileSavesPath(string profileId) => Path.Combine(SavesRoot, profileId);
+    public static string GetProfileSavesPath(string profileId) =>
+        Path.Combine(GetProfileDataPath(profileId), "Saves");
 
     public static string GetDetachedProfileSavesPath(string profileId) => Path.Combine(SavesRoot, profileId);
 

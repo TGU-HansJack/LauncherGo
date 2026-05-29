@@ -21,14 +21,12 @@ namespace LauncherGo.Ui.Views;
 
 public partial class FirstLaunchGuideWindow : Window
 {
-    private static string DefaultRootDirectory => Path.Combine(
+    private static string DefaultWorkspaceDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "LauncherGo");
 
-    private static string DefaultServerDirectory => Path.Combine(DefaultRootDirectory, "servers");
-    private static string DefaultProfileDirectory => Path.Combine(DefaultRootDirectory, "profiles");
-    private static string DefaultSaveDirectory => Path.Combine(DefaultRootDirectory, "saves");
-    private static string DefaultQqBotDirectory => Path.Combine(DefaultRootDirectory, "qqbot");
+    private static string GetServerDirectory(string workspaceDirectory) =>
+        Path.Combine(NormalizeDirectoryInput(workspaceDirectory, DefaultWorkspaceDirectory), "servers");
 
     private static readonly string[] BlinkTexts =
     [
@@ -120,9 +118,10 @@ public partial class FirstLaunchGuideWindow : Window
 
     private async Task DownloadServerVersionAsync(ServerDownloadEntry entry)
     {
-        var serverDirectory = NormalizeDirectoryInput(ServerDirectoryTextBox.Text, DefaultServerDirectory);
+        var workspaceDirectory = NormalizeDirectoryInput(WorkspaceDirectoryTextBox.Text, DefaultWorkspaceDirectory);
+        var serverDirectory = GetServerDirectory(workspaceDirectory);
         Directory.CreateDirectory(serverDirectory);
-        ServerDirectoryTextBox.Text = serverDirectory;
+        WorkspaceDirectoryTextBox.Text = workspaceDirectory;
 
         var targetPath = Path.Combine(serverDirectory, entry.FileName);
         ToggleDownloadActions(enabled: false);
@@ -179,8 +178,9 @@ public partial class FirstLaunchGuideWindow : Window
             return;
         }
 
-        var serverDirectory = NormalizeDirectoryInput(ServerDirectoryTextBox.Text, DefaultServerDirectory);
-        ServerDirectoryTextBox.Text = serverDirectory;
+        var workspaceDirectory = NormalizeDirectoryInput(WorkspaceDirectoryTextBox.Text, DefaultWorkspaceDirectory);
+        var serverDirectory = GetServerDirectory(workspaceDirectory);
+        WorkspaceDirectoryTextBox.Text = workspaceDirectory;
 
         try
         {
@@ -226,24 +226,9 @@ public partial class FirstLaunchGuideWindow : Window
         UpdateStepUi();
     }
 
-    private async void OnBrowseServerDirectoryClick(object? sender, RoutedEventArgs e)
+    private async void OnBrowseWorkspaceDirectoryClick(object? sender, RoutedEventArgs e)
     {
-        await BrowseFolderAsync(ServerDirectoryTextBox, T("选择服务端目录", "Select server directory"));
-    }
-
-    private async void OnBrowseProfileDirectoryClick(object? sender, RoutedEventArgs e)
-    {
-        await BrowseFolderAsync(ProfileDirectoryTextBox, T("选择档案目录", "Select profile directory"));
-    }
-
-    private async void OnBrowseSaveDirectoryClick(object? sender, RoutedEventArgs e)
-    {
-        await BrowseFolderAsync(SaveDirectoryTextBox, T("选择存档目录", "Select save directory"));
-    }
-
-    private async void OnBrowseQqBotDirectoryClick(object? sender, RoutedEventArgs e)
-    {
-        await BrowseFolderAsync(QqBotDirectoryTextBox, T("选择QQ机器人目录", "Select QQ bot directory"));
+        await BrowseFolderAsync(WorkspaceDirectoryTextBox, T("选择工作目录", "Select workspace directory"));
     }
 
     private void OnPreviousClick(object? sender, RoutedEventArgs e)
@@ -415,10 +400,7 @@ public partial class FirstLaunchGuideWindow : Window
         AppearanceComboBox.ItemsSource = _themeOptions.Select(option => option.ZhLabel).ToList();
         AppearanceComboBox.SelectedIndex = GetThemeOptionIndex(_preferences.ThemeMode);
 
-        ServerDirectoryTextBox.Text = NormalizeDirectoryInput(_preferences.ServerDirectory, DefaultServerDirectory);
-        ProfileDirectoryTextBox.Text = NormalizeDirectoryInput(_preferences.ProfileDirectory, DefaultProfileDirectory);
-        SaveDirectoryTextBox.Text = NormalizeDirectoryInput(_preferences.SaveDirectory, DefaultSaveDirectory);
-        QqBotDirectoryTextBox.Text = NormalizeDirectoryInput(_preferences.QqBotDirectory, DefaultQqBotDirectory);
+        WorkspaceDirectoryTextBox.Text = NormalizeDirectoryInput(_preferences.WorkspaceRoot, DefaultWorkspaceDirectory);
 
         ApplyTheme(_preferences.ThemeMode);
 
@@ -433,22 +415,16 @@ public partial class FirstLaunchGuideWindow : Window
 
         StepWelcomeText.Text = T("欢迎", "Welcome");
         StepAppearanceText.Text = T("外观", "Appearance");
-        StepDirectoryText.Text = T("全局目录设置", "Global Directory");
+        StepDirectoryText.Text = T("工作目录", "Workspace");
         StepDownloadText.Text = T("下载", "Download");
         StepCompleteText.Text = T("完成", "Done");
 
         AppearanceTitleTextBlock.Text = T("选择适合你的外观", "Choose your appearance");
         AppearanceHintTextBlock.Text = T("稍后可以在启动器设置的“外观”页面修改外观设置", "You can change appearance later in launcher settings.");
 
-        DirectoryTitleTextBlock.Text = T("全局目录设置", "Global directory setup");
-        ServerDirectoryLabelTextBlock.Text = T("服务端目录", "Server directory");
-        ProfileDirectoryLabelTextBlock.Text = T("档案目录", "Profile directory");
-        SaveDirectoryLabelTextBlock.Text = T("存档目录", "Save directory");
-        QqBotDirectoryLabelTextBlock.Text = T("QQ机器人目录", "QQ bot directory");
-        BrowseServerDirectoryButton.Content = T("浏览", "Browse");
-        BrowseProfileDirectoryButton.Content = T("浏览", "Browse");
-        BrowseSaveDirectoryButton.Content = T("浏览", "Browse");
-        BrowseQqBotDirectoryButton.Content = T("浏览", "Browse");
+        DirectoryTitleTextBlock.Text = T("工作目录设置", "Workspace setup");
+        WorkspaceDirectoryLabelTextBlock.Text = T("工作目录", "Workspace");
+        BrowseWorkspaceDirectoryButton.Content = T("浏览", "Browse");
 
         DownloadTitleTextBlock.Text = T("下载", "Download");
         DownloadHintTextBlock.Text = T("从版本列表中下载服务端，也可以导入已有服务端压缩包。", "Download from the version list, or import an existing server package.");
@@ -618,7 +594,8 @@ public partial class FirstLaunchGuideWindow : Window
 
     private bool IsDownloadedInServerDirectory(string fileName)
     {
-        var serverDirectory = NormalizeDirectoryInput(ServerDirectoryTextBox.Text, DefaultServerDirectory);
+        var workspaceDirectory = NormalizeDirectoryInput(WorkspaceDirectoryTextBox.Text, DefaultWorkspaceDirectory);
+        var serverDirectory = GetServerDirectory(workspaceDirectory);
         var target = Path.Combine(serverDirectory, fileName);
         return File.Exists(target);
     }
@@ -633,10 +610,7 @@ public partial class FirstLaunchGuideWindow : Window
             IsOnboardingCompleted = true,
             Language = selectedLanguage,
             ThemeMode = selectedTheme,
-            ServerDirectory = NormalizeDirectoryInput(ServerDirectoryTextBox.Text, DefaultServerDirectory),
-            ProfileDirectory = NormalizeDirectoryInput(ProfileDirectoryTextBox.Text, DefaultProfileDirectory),
-            SaveDirectory = NormalizeDirectoryInput(SaveDirectoryTextBox.Text, DefaultSaveDirectory),
-            QqBotDirectory = NormalizeDirectoryInput(QqBotDirectoryTextBox.Text, DefaultQqBotDirectory)
+            WorkspaceRoot = NormalizeDirectoryInput(WorkspaceDirectoryTextBox.Text, DefaultWorkspaceDirectory)
         };
 
         _preferencesService.Save(updated);

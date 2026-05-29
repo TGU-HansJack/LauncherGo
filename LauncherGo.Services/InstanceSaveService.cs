@@ -4,9 +4,7 @@ using LauncherGo.Services.Paths;
 
 namespace LauncherGo.Services;
 
-public sealed class InstanceSaveService(
-    ILauncherPreferencesService preferencesService,
-    IInstanceProfileService profileService) : IInstanceSaveService
+public sealed class InstanceSaveService(IInstanceProfileService profileService) : IInstanceSaveService
 {
     public Task<IReadOnlyList<SaveFileEntry>> GetSavesAsync(
         InstanceProfile? profile = null,
@@ -240,15 +238,20 @@ public sealed class InstanceSaveService(
 
         var effectiveSaveDirectory = Path.GetDirectoryName(effectiveSaveFile) ?? string.Empty;
         var profileSaveRoot = LauncherWorkspacePathHelper.NormalizePath(profile.SaveDirectory);
-        var globalSaveRoot = LauncherWorkspacePathHelper.NormalizePath(preferencesService.Load().SaveDirectory);
+        var otherProfileSaveRoots = profileService.GetProfiles()
+            .Where(item => !item.Id.Equals(profile.Id, StringComparison.OrdinalIgnoreCase))
+            .Select(item => LauncherWorkspacePathHelper.NormalizePath(item.SaveDirectory))
+            .Where(root => !string.IsNullOrWhiteSpace(root))
+            .ToList();
         var saveDirectory = LauncherWorkspacePathHelper.NormalizePath(effectiveSaveDirectory);
 
         var isCrossProfile = !string.IsNullOrWhiteSpace(saveDirectory)
                              && !LauncherWorkspacePathHelper.IsSameOrChildPath(saveDirectory, profileSaveRoot)
-                             && LauncherWorkspacePathHelper.IsSameOrChildPath(saveDirectory, globalSaveRoot);
+                             && otherProfileSaveRoots.Any(root =>
+                                 LauncherWorkspacePathHelper.IsSameOrChildPath(saveDirectory, root));
         var isExternal = !string.IsNullOrWhiteSpace(saveDirectory)
                          && !LauncherWorkspacePathHelper.IsSameOrChildPath(saveDirectory, profileSaveRoot)
-                         && !LauncherWorkspacePathHelper.IsSameOrChildPath(saveDirectory, globalSaveRoot);
+                         && !isCrossProfile;
 
         var warningMessage = isCrossProfile
             ? "当前存档路径位于其他档案目录，可能导致启动错档或误删。"
@@ -277,14 +280,18 @@ public sealed class InstanceSaveService(
             return Task.FromResult(0);
         }
 
-        var preferences = preferencesService.Load();
+        var saveRoots = profileService.GetProfiles()
+            .Select(profile => LauncherWorkspacePathHelper.NormalizePath(profile.SaveDirectory))
+            .Where(root => !string.IsNullOrWhiteSpace(root))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         var deleted = 0;
         foreach (var path in saveFilePaths)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(path) ||
                 !path.EndsWith(".vcdbs", StringComparison.OrdinalIgnoreCase) ||
-                !LauncherWorkspacePathHelper.IsSameOrChildPath(path, preferences.SaveDirectory) ||
+                !saveRoots.Any(root => LauncherWorkspacePathHelper.IsSameOrChildPath(path, root)) ||
                 !File.Exists(path))
             {
                 continue;

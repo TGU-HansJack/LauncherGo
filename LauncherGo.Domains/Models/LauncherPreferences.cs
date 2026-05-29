@@ -1,6 +1,8 @@
 using System.Globalization;
 using LauncherGo.Domains.Enums;
 
+using System.Text.Json.Serialization;
+
 namespace LauncherGo.Domains.Models;
 
 public class LauncherPreferences
@@ -11,12 +13,18 @@ public class LauncherPreferences
 
     public ThemeMode ThemeMode { get; set; } = ThemeMode.System;
 
+    public string WorkspaceRoot { get; set; } = string.Empty;
+
+    [JsonIgnore]
     public string ServerDirectory { get; set; } = string.Empty;
 
+    [JsonIgnore]
     public string ProfileDirectory { get; set; } = string.Empty;
 
+    [JsonIgnore]
     public string SaveDirectory { get; set; } = string.Empty;
 
+    [JsonIgnore]
     public string QqBotDirectory { get; set; } = string.Empty;
 
     public string ServerDownloadCatalogUrl { get; set; } = string.Empty;

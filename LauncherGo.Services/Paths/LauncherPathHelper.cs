@@ -15,19 +15,37 @@ public static class LauncherPathHelper
 
     public static string LogDirectory => Path.Combine(AppRoot, "logs");
 
-    public static string DefaultServerDirectory => Path.Combine(AppRoot, "servers");
+    public static string DefaultWorkspaceRoot => AppRoot;
 
-    public static string DefaultProfileDirectory => Path.Combine(AppRoot, "profiles");
+    public static string DefaultServerDirectory => GetServerDirectory(DefaultWorkspaceRoot);
 
-    public static string DefaultSaveDirectory => Path.Combine(AppRoot, "saves");
+    public static string DefaultProfileDirectory => GetProfileDirectory(DefaultWorkspaceRoot);
 
-    public static string DefaultQqBotDirectory => Path.Combine(AppRoot, "qqbot");
+    public static string DefaultSaveDirectory => GetSaveDirectory(DefaultWorkspaceRoot);
+
+    public static string DefaultQqBotDirectory => GetQqBotDirectory(DefaultWorkspaceRoot);
+
+    public static string GetWorkspaceRootOrDefault(string? workspaceRoot) =>
+        NormalizeDirectoryOrDefault(workspaceRoot, DefaultWorkspaceRoot);
+
+    public static string GetServerDirectory(string workspaceRoot) =>
+        Path.Combine(GetWorkspaceRootOrDefault(workspaceRoot), "servers");
+
+    public static string GetProfileDirectory(string workspaceRoot) =>
+        Path.Combine(GetWorkspaceRootOrDefault(workspaceRoot), "profiles");
+
+    public static string GetSaveDirectory(string workspaceRoot) =>
+        Path.Combine(GetWorkspaceRootOrDefault(workspaceRoot), "saves");
+
+    public static string GetQqBotDirectory(string workspaceRoot) =>
+        Path.Combine(GetWorkspaceRootOrDefault(workspaceRoot), "qqbot");
 
     public static LauncherPreferences BuildDefaults()
     {
         return new LauncherPreferences
         {
             Language = CultureInfo.CurrentUICulture.Name,
+            WorkspaceRoot = DefaultWorkspaceRoot,
             ServerDirectory = DefaultServerDirectory,
             ProfileDirectory = DefaultProfileDirectory,
             SaveDirectory = DefaultSaveDirectory,

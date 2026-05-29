@@ -161,14 +161,16 @@ public sealed class InstanceProfileService(ILauncherPreferencesService preferenc
 
             var profileId = Guid.NewGuid().ToString("N");
             var version = GetInstalledVersions().FirstOrDefault() ?? string.Empty;
+            var saveDirectory = Path.Combine(fullPath, "Saves");
+            var activeSaveFile = ResolveImportedActiveSaveFile(fullPath, saveDirectory);
             var profile = new InstanceProfile
             {
                 Id = profileId,
                 Name = Path.GetFileName(fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
                 Version = version,
                 DirectoryPath = fullPath,
-                SaveDirectory = LauncherWorkspacePathHelper.ProfileSaveDirectory(preferences, profileId),
-                ActiveSaveFile = LauncherWorkspacePathHelper.ProfileDefaultSaveFile(preferences, profileId),
+                SaveDirectory = Path.GetDirectoryName(activeSaveFile) ?? saveDirectory,
+                ActiveSaveFile = activeSaveFile,
                 CreatedAtUtc = DateTimeOffset.UtcNow,
                 LastUpdatedUtc = DateTimeOffset.UtcNow
             };
@@ -262,6 +264,12 @@ public sealed class InstanceProfileService(ILauncherPreferencesService preferenc
     public string GetDefaultSaveFilePath(string profileId)
     {
         var preferences = LoadPreferences();
+        var profile = GetProfileById(profileId);
+        if (profile is not null)
+        {
+            return Path.Combine(ResolveProfileSaveDirectory(preferences, profile), "default.vcdbs");
+        }
+
         return LauncherWorkspacePathHelper.ProfileDefaultSaveFile(preferences, profileId);
     }
 
@@ -393,15 +401,61 @@ public sealed class InstanceProfileService(ILauncherPreferencesService preferenc
             changed = true;
         }
 
+        var preferredSaveDirectory = ResolveProfileSaveDirectory(preferences, profile);
+        var saveDirectory = TryGetFullPath(profile.SaveDirectory);
+        var activeSaveFile = TryGetFullPath(profile.ActiveSaveFile);
+        var profileDirectory = TryGetFullPath(profile.DirectoryPath);
+
+        if (!string.IsNullOrWhiteSpace(activeSaveFile) &&
+            !string.IsNullOrWhiteSpace(profileDirectory) &&
+            LauncherWorkspacePathHelper.IsSameOrChildPath(activeSaveFile, profileDirectory))
+        {
+            var activeSaveDirectory = Path.GetDirectoryName(activeSaveFile);
+            if (!string.IsNullOrWhiteSpace(activeSaveDirectory) &&
+                !LauncherWorkspacePathHelper.NormalizePath(activeSaveDirectory)
+                    .Equals(LauncherWorkspacePathHelper.NormalizePath(profile.SaveDirectory), StringComparison.OrdinalIgnoreCase))
+            {
+                profile.SaveDirectory = activeSaveDirectory;
+                changed = true;
+            }
+
+            if (!activeSaveFile.Equals(profile.ActiveSaveFile, StringComparison.OrdinalIgnoreCase))
+            {
+                profile.ActiveSaveFile = activeSaveFile;
+                changed = true;
+            }
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(saveDirectory) ||
+                !LauncherWorkspacePathHelper.IsSameOrChildPath(saveDirectory, profile.DirectoryPath))
+            {
+                profile.SaveDirectory = preferredSaveDirectory;
+                saveDirectory = preferredSaveDirectory;
+                changed = true;
+            }
+
+            if (string.IsNullOrWhiteSpace(activeSaveFile) ||
+                !LauncherWorkspacePathHelper.IsSameOrChildPath(activeSaveFile, profile.DirectoryPath))
+            {
+                var migratedSaveFile = TryCopySaveIntoDirectory(activeSaveFile, profile.SaveDirectory);
+                profile.ActiveSaveFile = migratedSaveFile
+                                         ?? Path.Combine(
+                                             profile.SaveDirectory,
+                                             ResolveSaveFileName(activeSaveFile));
+                changed = true;
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(profile.SaveDirectory))
         {
-            profile.SaveDirectory = LauncherWorkspacePathHelper.ProfileSaveDirectory(preferences, profile.Id);
+            profile.SaveDirectory = preferredSaveDirectory;
             changed = true;
         }
 
         if (string.IsNullOrWhiteSpace(profile.ActiveSaveFile))
         {
-            profile.ActiveSaveFile = LauncherWorkspacePathHelper.ProfileDefaultSaveFile(preferences, profile.Id);
+            profile.ActiveSaveFile = Path.Combine(profile.SaveDirectory, "default.vcdbs");
             changed = true;
         }
 
@@ -412,6 +466,118 @@ public sealed class InstanceProfileService(ILauncherPreferencesService preferenc
         }
 
         return changed;
+    }
+
+    private static string ResolveProfileSaveDirectory(LauncherPreferences preferences, InstanceProfile profile)
+    {
+        return string.IsNullOrWhiteSpace(profile.DirectoryPath)
+            ? LauncherWorkspacePathHelper.ProfileSaveDirectory(preferences, profile.Id)
+            : Path.Combine(profile.DirectoryPath, "Saves");
+    }
+
+    private static string ResolveImportedActiveSaveFile(string profileDirectoryPath, string defaultSaveDirectory)
+    {
+        var defaultSaveFile = Path.Combine(defaultSaveDirectory, "default.vcdbs");
+        var configuredSaveFile = TryReadConfiguredSaveFile(profileDirectoryPath);
+        if (string.IsNullOrWhiteSpace(configuredSaveFile))
+        {
+            return defaultSaveFile;
+        }
+
+        var fullSaveFile = TryGetFullPath(
+            Path.IsPathRooted(configuredSaveFile)
+                ? configuredSaveFile
+                : Path.Combine(profileDirectoryPath, configuredSaveFile));
+        if (string.IsNullOrWhiteSpace(fullSaveFile))
+        {
+            return defaultSaveFile;
+        }
+
+        if (LauncherWorkspacePathHelper.IsSameOrChildPath(fullSaveFile, profileDirectoryPath))
+        {
+            return fullSaveFile;
+        }
+
+        return TryCopySaveIntoDirectory(fullSaveFile, defaultSaveDirectory)
+               ?? Path.Combine(defaultSaveDirectory, ResolveSaveFileName(fullSaveFile));
+    }
+
+    private static string? TryReadConfiguredSaveFile(string profileDirectoryPath)
+    {
+        var configPath = Path.Combine(profileDirectoryPath, "serverconfig.json");
+        if (!File.Exists(configPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(configPath));
+            return document.RootElement.TryGetProperty("WorldConfig", out var worldConfig) &&
+                   worldConfig.TryGetProperty("SaveFileLocation", out var saveFileLocation) &&
+                   saveFileLocation.ValueKind == JsonValueKind.String
+                ? saveFileLocation.GetString()
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? TryCopySaveIntoDirectory(string? sourceSaveFile, string targetDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(sourceSaveFile) ||
+            !sourceSaveFile.EndsWith(".vcdbs", StringComparison.OrdinalIgnoreCase) ||
+            !File.Exists(sourceSaveFile))
+        {
+            return null;
+        }
+
+        var fileName = Path.GetFileName(sourceSaveFile);
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            fileName = "default.vcdbs";
+        }
+
+        var targetSaveFile = Path.Combine(targetDirectory, fileName);
+        try
+        {
+            Directory.CreateDirectory(targetDirectory);
+            if (!File.Exists(targetSaveFile))
+            {
+                File.Copy(sourceSaveFile, targetSaveFile, overwrite: false);
+            }
+
+            return targetSaveFile;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string ResolveSaveFileName(string? saveFilePath)
+    {
+        var fileName = string.IsNullOrWhiteSpace(saveFilePath) ? string.Empty : Path.GetFileName(saveFilePath);
+        return string.IsNullOrWhiteSpace(fileName) ? "default.vcdbs" : fileName;
+    }
+
+    private static string TryGetFullPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            return Path.GetFullPath(path.Trim());
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 
     private static InstanceProfile Clone(InstanceProfile profile)
