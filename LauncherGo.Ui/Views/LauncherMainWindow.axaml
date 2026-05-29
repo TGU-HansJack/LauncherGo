@@ -573,6 +573,10 @@
             <Setter Property="CornerRadius" Value="4" />
             <Setter Property="FontSize" Value="13" />
         </Style>
+        <Style Selector="TextBox.MultiLineInput">
+            <Setter Property="VerticalContentAlignment" Value="Top" />
+            <Setter Property="Padding" Value="8,8,8,6" />
+        </Style>
         <Style Selector="ComboBox.CompactCombo">
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Height" Value="30" />
@@ -1200,7 +1204,7 @@
                                                                 </StackPanel>
                                                                 <StackPanel Classes="ConfigFormFieldWide">
                                                                     <TextBlock x:Name="ConfigServerDescriptionLabelTextBlock" Classes="ConfigFieldLabel" Text="服务器描述" />
-                                                                    <TextBox x:Name="ConfigServerDescriptionTextBox" Height="64" AcceptsReturn="True" TextWrapping="Wrap" />
+                                                                    <TextBox x:Name="ConfigServerDescriptionTextBox" Classes="MultiLineInput" Height="64" AcceptsReturn="True" TextWrapping="Wrap" />
                                                                 </StackPanel>
                                                                 <StackPanel Classes="ConfigFormFieldWide">
                                                                     <TextBlock x:Name="ConfigWelcomeMessageLabelTextBlock" Classes="ConfigFieldLabel" Text="进服提示" />
@@ -1288,7 +1292,7 @@
                                                                 <CheckBox x:Name="ConfigRegenerateCorruptChunksCheckBox" Classes="ConfigCheck" Content="重新生成损坏区块" />
                                                                 <StackPanel Classes="ConfigFormFieldWide">
                                                                     <TextBlock x:Name="ConfigStartupCommandsLabelTextBlock" Classes="ConfigFieldLabel" Text="启动后执行命令" />
-                                                                    <TextBox x:Name="ConfigStartupCommandsTextBox" Height="74" AcceptsReturn="True" TextWrapping="Wrap" />
+                                                                    <TextBox x:Name="ConfigStartupCommandsTextBox" Classes="MultiLineInput" Height="74" AcceptsReturn="True" TextWrapping="Wrap" />
                                                                 </StackPanel>
                                                             </WrapPanel>
                                                         </StackPanel>
@@ -1634,7 +1638,7 @@
                                                         </StackPanel>
                                                         <StackPanel Classes="ConfigFormFieldWide">
                                                             <TextBlock x:Name="RobotSuperUsersLabelTextBlock" Classes="ConfigFieldLabel" Text="超级管理员 QQ" />
-                                                            <TextBox x:Name="RobotSuperUsersTextBox" Height="72" AcceptsReturn="True" TextWrapping="Wrap" />
+                                                            <TextBox x:Name="RobotSuperUsersTextBox" Classes="MultiLineInput" Height="72" AcceptsReturn="True" TextWrapping="Wrap" />
                                                         </StackPanel>
                                                     </WrapPanel>
                                                     <TextBlock x:Name="RobotOsqSourceHintTextBlock" Classes="ConfigHintText" Text="OSQ 来源由“开放信息”页面统一接收，机器人不再单独监听端口。" IsVisible="False" />
