@@ -1500,12 +1500,12 @@
                                             <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
                                                 <Button x:Name="ConnectionFrpSaveButton" Classes="ActionButton" Content="保存" Click="OnConnectionFrpSaveClick" IsVisible="False" />
                                                 <Button x:Name="ConnectionFrpRefreshButton" Grid.Column="1" Classes="SecondaryActionButton" Content="刷新" Click="OnConnectionRefreshClick" IsVisible="False" />
-                                                <Button x:Name="ConnectionFrpImportButton" Classes="SecondaryActionButton" Content="导入常规" Click="OnConnectionFrpImportClick" />
-                                                <Button x:Name="ConnectionFrpStartButton" Grid.Column="1" Classes="SecondaryActionButton" Content="启动常规" Click="OnConnectionFrpStartClick" />
-                                                <Button x:Name="ConnectionFrpStopButton" Grid.Column="2" Classes="SecondaryActionButton" Content="停止常规" Click="OnConnectionFrpStopClick" />
-                                                <Button x:Name="ConnectionThirdPartyFrpcImportButton" Grid.Column="3" Classes="SecondaryActionButton" Content="导入第三方" Click="OnConnectionThirdPartyFrpcImportClick" />
-                                                <Button x:Name="ConnectionThirdPartyFrpcStartButton" Grid.Column="4" Classes="SecondaryActionButton" Content="启动第三方" Click="OnConnectionThirdPartyFrpcStartClick" />
-                                                <Button x:Name="ConnectionThirdPartyFrpcStopButton" Grid.Column="5" Classes="SecondaryActionButton" Content="停止第三方" Click="OnConnectionThirdPartyFrpcStopClick" />
+                                                <Button x:Name="ConnectionFrpImportButton" Classes="SecondaryActionButton" Content="导入frpc" Click="OnConnectionFrpImportClick" />
+                                                <Button x:Name="ConnectionFrpToggleButton" Grid.Column="1" Classes="SecondaryActionButton" Content="启动常规" Click="OnConnectionFrpToggleClick" />
+                                                <Button x:Name="ConnectionFrpEditTomlButton" Grid.Column="2" Classes="SecondaryActionButton" Content="编辑常规TOML" Click="OnConnectionFrpEditTomlClick" />
+                                                <Button x:Name="ConnectionThirdPartyFrpcImportButton" Grid.Column="3" Classes="SecondaryActionButton" Content="导入第三方frpc" Click="OnConnectionThirdPartyFrpcImportClick" />
+                                                <Button x:Name="ConnectionThirdPartyFrpcToggleButton" Grid.Column="4" Classes="SecondaryActionButton" Content="启动第三方" Click="OnConnectionThirdPartyFrpcToggleClick" />
+                                                <Button x:Name="ConnectionThirdPartyFrpcEditTomlButton" Grid.Column="5" Classes="SecondaryActionButton" Content="编辑第三方TOML" Click="OnConnectionThirdPartyFrpcEditTomlClick" />
                                             </Grid>
                                             <Border Classes="ConfigCard">
                                                 <StackPanel Spacing="10">
