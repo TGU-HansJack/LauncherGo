@@ -1157,7 +1157,7 @@
                                     </Grid>
 
                                     <Grid x:Name="ConfigPanel" RowDefinitions="Auto,Auto,*" RowSpacing="8" IsVisible="False">
-                                        <Grid ColumnDefinitions="260,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                        <Grid ColumnDefinitions="260,Auto,Auto,Auto,*" ColumnSpacing="8">
                                             <ComboBox x:Name="ConfigProfileComboBox" Grid.Column="0" Classes="CompactCombo" SelectionChanged="OnConfigProfileSelectionChanged">
                                                 <ComboBox.ItemTemplate>
                                                     <DataTemplate>
@@ -1165,10 +1165,9 @@
                                                     </DataTemplate>
                                                 </ComboBox.ItemTemplate>
                                             </ComboBox>
-                                            <Button x:Name="ConfigAdvancedJsonButton" Grid.Column="1" Classes="SecondaryActionButton" Content="编辑JSON" Click="OnConfigAdvancedJsonClick" />
-                                            <Button x:Name="ConfigRefreshButton" Grid.Column="2" Classes="SecondaryActionButton" Content="刷新" Click="OnConfigRefreshClick" />
-                                            <Button x:Name="ConfigImportButton" Grid.Column="3" Classes="SecondaryActionButton" Content="导入" Click="OnConfigImportClick" />
-                                            <Button x:Name="ConfigSaveButton" Grid.Column="4" Classes="ActionButton" Content="保存" Click="OnConfigSaveClick" />
+                                            <Button x:Name="ConfigRefreshButton" Grid.Column="1" Classes="SecondaryActionButton" Content="刷新" Click="OnConfigRefreshClick" />
+                                            <Button x:Name="ConfigImportButton" Grid.Column="2" Classes="SecondaryActionButton" Content="导入" Click="OnConfigImportClick" />
+                                            <Button x:Name="ConfigSaveButton" Grid.Column="3" Classes="ActionButton" Content="保存" Click="OnConfigSaveClick" />
                                         </Grid>
 
                                         <TextBlock x:Name="ConfigStatusTextBlock" Grid.Row="1" FontSize="12" Foreground="{DynamicResource SubTextBrush}" TextWrapping="Wrap" />

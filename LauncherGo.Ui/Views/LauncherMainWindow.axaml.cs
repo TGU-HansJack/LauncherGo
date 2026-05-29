@@ -333,7 +333,6 @@ public partial class LauncherMainWindow : Window
             "当前存档已生成世界：种子、游玩风格、世界类型、世界高度，以及仅限建档阶段的世界规则（如世界宽度/长度）已锁定。",
             "This save already has a generated world: seed, play style, world type, world height, and world-creation-only rules are locked.");
         ConfigWorldRulesTitleTextBlock.Text = T("世界规则", "World Rules");
-        ConfigAdvancedJsonButton.Content = T("编辑JSON", "Edit JSON");
         ConfigNoProfileTextBlock.Text = T("暂无档案，请先创建档案。", "No profile found. Create a profile first.");
         RebuildConfigChoiceOptions();
         RefreshConfigWorldRuleLabels();
@@ -1543,7 +1542,6 @@ public partial class LauncherMainWindow : Window
         ConfigScrollViewer.IsVisible = hasProfiles;
         ConfigEmptyPanel.IsVisible = !hasProfiles;
         ConfigRefreshButton.IsEnabled = true;
-        ConfigAdvancedJsonButton.IsEnabled = hasProfiles;
         ConfigImportButton.IsEnabled = hasProfiles;
         ConfigSaveButton.IsEnabled = hasProfiles;
     }
@@ -1901,35 +1899,6 @@ public partial class LauncherMainWindow : Window
         };
     }
 
-    private async void OnConfigAdvancedJsonClick(object? sender, RoutedEventArgs e)
-    {
-        var profile = GetSelectedConfigProfile();
-        if (profile is null)
-        {
-            SetConfigStatus(T("请先选择档案。", "Select a profile first."));
-            return;
-        }
-
-        try
-        {
-            var rawJson = await _instanceServerConfigService.LoadRawJsonAsync(profile);
-            var editedJson = await ShowAdvancedJsonEditorAsync(T("高级 JSON", "Advanced JSON"), rawJson);
-            if (editedJson is null)
-            {
-                SetConfigStatus(T("已取消高级 JSON 编辑。", "Advanced JSON edit canceled."));
-                return;
-            }
-
-            await _instanceServerConfigService.SaveRawJsonAsync(profile, editedJson);
-            await LoadConfigForProfileAsync(profile);
-            SetConfigStatus(T("高级 JSON 已保存。", "Advanced JSON saved."));
-        }
-        catch (Exception ex)
-        {
-            SetConfigStatus(T($"保存高级 JSON 失败：{ex.Message}", $"Failed to save advanced JSON: {ex.Message}"));
-        }
-    }
-
     private void RebuildConfigChoiceOptions()
     {
         var selectedWhitelist = (ConfigWhitelistModeComboBox.SelectedItem as ConfigChoiceOption)?.Value;
@@ -2143,95 +2112,6 @@ public partial class LauncherMainWindow : Window
         }
 
         return fullPath;
-    }
-
-    private async Task<string?> ShowAdvancedJsonEditorAsync(string title, string rawJson)
-    {
-        var editor = new TextBox
-        {
-            Text = rawJson,
-            AcceptsReturn = true,
-            TextWrapping = Avalonia.Media.TextWrapping.NoWrap,
-            FontFamily = new Avalonia.Media.FontFamily("Consolas"),
-            FontSize = 12,
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch
-        };
-
-        var saveButton = new Button { Content = T("保存", "Save"), Classes = { "ActionButton" } };
-        var cancelButton = new Button { Content = T("取消", "Cancel"), Classes = { "SecondaryActionButton" } };
-        string? result = null;
-        var buttonPanel = new StackPanel
-        {
-            Orientation = Avalonia.Layout.Orientation.Horizontal,
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-            Spacing = 8,
-            Children = { cancelButton, saveButton }
-        };
-        Grid.SetRow(buttonPanel, 1);
-
-        var content = new Grid
-        {
-            RowDefinitions = new RowDefinitions("*,Auto"),
-            Margin = new Thickness(12),
-            RowSpacing = 10,
-            Children = { editor, buttonPanel }
-        };
-
-        var contentFrame = new Border
-        {
-            Width = 760,
-            Height = 500,
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            CornerRadius = new CornerRadius(8),
-            ClipToBounds = true,
-            Background = ActualThemeVariant == ThemeVariant.Dark ? Brushes.Black : Brushes.White,
-            BoxShadow = BoxShadows.Parse("0 8 28 0 #66000000"),
-            Child = content
-        };
-
-        var dialogRoot = new Grid
-        {
-            Background = Brushes.Transparent,
-            Children = { contentFrame }
-        };
-
-        var dialog = new Window
-        {
-            Title = title,
-            Width = 788,
-            Height = 528,
-            MinWidth = 788,
-            MinHeight = 528,
-            MaxWidth = 788,
-            MaxHeight = 528,
-            CanResize = false,
-            WindowDecorations = WindowDecorations.None,
-            Background = Brushes.Transparent,
-            TransparencyLevelHint = [WindowTransparencyLevel.Transparent],
-            TransparencyBackgroundFallback = Brushes.Transparent,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Content = dialogRoot
-        };
-
-        contentFrame.PointerPressed += (_, e) =>
-        {
-            if (e.GetCurrentPoint(dialog).Properties.IsLeftButtonPressed && e.Source is not TextBox)
-            {
-                dialog.BeginMoveDrag(e);
-            }
-        };
-
-        saveButton.Click += (_, _) =>
-        {
-            result = editor.Text ?? string.Empty;
-            dialog.Close();
-        };
-        cancelButton.Click += (_, _) => dialog.Close();
-
-        await dialog.ShowDialog(this);
-        return result;
     }
 
     private void OpenLocalFile(string path)
