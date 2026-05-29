@@ -5,11 +5,15 @@ namespace LauncherGo.Services.Paths;
 
 public static class LauncherPathHelper
 {
+    public const string DefaultServerDownloadCatalogUrl = "https://api.vintagestory.at/stable-unstable.json";
+
     public static string AppRoot => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "LauncherGo");
 
     public static string PreferencesFilePath => Path.Combine(AppRoot, "launcher-preferences.json");
+
+    public static string LogDirectory => Path.Combine(AppRoot, "logs");
 
     public static string DefaultServerDirectory => Path.Combine(AppRoot, "servers");
 
@@ -28,6 +32,9 @@ public static class LauncherPathHelper
             ProfileDirectory = DefaultProfileDirectory,
             SaveDirectory = DefaultSaveDirectory,
             QqBotDirectory = DefaultQqBotDirectory,
+            ServerDownloadCatalogUrl = DefaultServerDownloadCatalogUrl,
+            EnableChunkedDownloads = false,
+            DownloadChunkCount = 4,
             DefaultLaunchProfileId = string.Empty,
             DefaultLaunchSaveFile = string.Empty,
             OpenServerQuery = new OpenServerQuerySettings(),

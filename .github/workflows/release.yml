@@ -1,0 +1,105 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version, for example 1.2.3"
+        required: true
+        type: string
+      release_type:
+        description: "Build only, prerelease, or official release"
+        required: true
+        default: "package"
+        type: choice
+        options:
+          - package
+          - prerelease
+          - release
+      afdian_user_id:
+        description: "Afdian USERID injected into the build"
+        required: false
+        type: string
+      afdian_token:
+        description: "Afdian Token injected into the build"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Windows Package
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Mask Afdian inputs
+        shell: pwsh
+        env:
+          AFDIAN_USER_ID: ${{ inputs.afdian_user_id }}
+          AFDIAN_TOKEN: ${{ inputs.afdian_token }}
+        run: |
+          if ($env:AFDIAN_USER_ID) { Write-Output "::add-mask::$env:AFDIAN_USER_ID" }
+          if ($env:AFDIAN_TOKEN) { Write-Output "::add-mask::$env:AFDIAN_TOKEN" }
+
+      - name: Prepare version
+        id: vars
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}".Trim().TrimStart("v")
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore LauncherGo.slnx
+
+      - name: Publish
+        shell: pwsh
+        env:
+          AFDIAN_USER_ID: ${{ inputs.afdian_user_id }}
+          AFDIAN_TOKEN: ${{ inputs.afdian_token }}
+        run: |
+          $version = "${{ steps.vars.outputs.version }}"
+          $publishDir = Join-Path $env:GITHUB_WORKSPACE "artifacts\LauncherGo-$version-win-x64"
+          dotnet publish LauncherGo.App\LauncherGo.App.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained false `
+            -o $publishDir `
+            /p:Version=$version `
+            /p:InformationalVersion=$version `
+            /p:AfdianUserId="$env:AFDIAN_USER_ID" `
+            /p:AfdianToken="$env:AFDIAN_TOKEN"
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $version = "${{ steps.vars.outputs.version }}"
+          $packageDir = Join-Path $env:GITHUB_WORKSPACE "artifacts\LauncherGo-$version-win-x64"
+          $zipPath = Join-Path $env:GITHUB_WORKSPACE "artifacts\LauncherGo-$version-win-x64.zip"
+          Compress-Archive -Path "$packageDir\*" -DestinationPath $zipPath -Force
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LauncherGo-${{ steps.vars.outputs.version }}-win-x64
+          path: artifacts/LauncherGo-${{ steps.vars.outputs.version }}-win-x64.zip
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        if: ${{ inputs.release_type != 'package' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.vars.outputs.version }}
+          name: LauncherGo ${{ steps.vars.outputs.version }}
+          files: artifacts/LauncherGo-${{ steps.vars.outputs.version }}-win-x64.zip
+          prerelease: ${{ inputs.release_type == 'prerelease' }}
+          generate_release_notes: true

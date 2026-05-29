@@ -13,6 +13,10 @@ public interface IServerPackageService
         IProgress<double>? progress = null,
         CancellationToken cancellationToken = default);
 
+    Task<int> ClearDownloadCacheAsync(
+        string serverDirectory,
+        CancellationToken cancellationToken = default);
+
     Task<string> ImportServerPackageAsync(
         string sourceFilePath,
         string targetDirectory,

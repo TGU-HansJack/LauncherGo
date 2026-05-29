@@ -11,6 +11,7 @@ using LauncherGo.Abstractions.Services;
 using LauncherGo.Domains.Enums;
 using LauncherGo.Ui;
 using LauncherGo.Ui.Views;
+using Serilog;
 
 namespace LauncherGo.App;
 
@@ -36,7 +37,7 @@ public partial class App : Application
     {
         Dispatcher.UIThread.UnhandledException += (_, eventArgs) =>
         {
-            Console.Error.WriteLine($"[UI UnhandledException] {eventArgs.Exception}");
+            Log.Error(eventArgs.Exception, "Unhandled UI dispatcher exception.");
             eventArgs.Handled = true;
         };
 

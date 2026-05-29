@@ -2,11 +2,15 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Reflection;
+using System.Security.Cryptography;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -34,11 +38,15 @@ public partial class LauncherMainWindow : Window
     private const double ThumbnailHeight = 50;
     private const double OsqEndpointColumnWidth = 420;
     private const double OsqEndpointColumnSpacing = 10;
+    private const string DefaultServerDownloadCatalogUrl = "https://api.vintagestory.at/stable-unstable.json";
+    private const string GitHubContributorsApiUrl = "https://api.github.com/repos/TGU-HansJack/LauncherGo/contributors?per_page=100";
+    private const string AfdianSponsorApiUrl = "https://afdian.com/api/open/query-sponsor";
     private const string LaunchStartIconData =
         "M187.2 100.9C174.8 94.1 159.8 94.4 147.6 101.6C135.4 108.8 128 121.9 128 136L128 504C128 518.1 135.5 531.2 147.6 538.4C159.7 545.6 174.8 545.9 187.2 539.1L523.2 355.1C536 348.1 544 334.6 544 320C544 305.4 536 291.9 523.2 284.9L187.2 100.9z";
     private const string LaunchStopIconData =
         "M160 96L480 96C515.3 96 544 124.7 544 160L544 480C544 515.3 515.3 544 480 544L160 544C124.7 544 96 515.3 96 480L96 160C96 124.7 124.7 96 160 96z";
     private static readonly string[] QuickCommands = ["/stop", "/autosavenow", "/list"];
+    private static readonly HttpClient SharedHttpClient = CreateSharedHttpClient();
 
     private static readonly (string Zh, string En)[] HomeSlogans =
     [
@@ -149,6 +157,8 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<ConfigSaveFileItem> _configSaveItems = [];
     private readonly ObservableCollection<ConfigWorldRuleItem> _configWorldRuleItems = [];
     private readonly ObservableCollection<ConfigChoiceOption> _thirdPartyFrpcModeOptions = [];
+    private readonly ObservableCollection<SettingsContributorItem> _settingsContributorItems = [];
+    private readonly ObservableCollection<SettingsSponsorItem> _settingsSponsorItems = [];
     private readonly List<ServerDownloadEntry> _catalogEntries = [];
     private readonly List<OsqEndpointEditorRow> _osqEndpointEditors = [];
 
@@ -169,7 +179,11 @@ public partial class LauncherMainWindow : Window
     private bool _isRefreshingConfigProfiles;
     private bool _isLoadingConfig;
     private bool _isApplyingServerSettings;
+    private bool _isApplyingNetworkSettings;
     private bool _isApplyingConnectionSettings;
+    private bool _aboutMarkdownLoaded;
+    private bool _contributorsLoaded;
+    private bool _sponsorsLoaded;
     private bool _isFrpRunning;
     private bool _isThirdPartyFrpcRunning;
     private bool _isExitRequested;
@@ -390,6 +404,11 @@ public partial class LauncherMainWindow : Window
         SettingsLanguageLabelTextBlock.Text = T("语言", "Language");
         SettingsThemeLabelTextBlock.Text = T("主题", "Theme");
         InitializeServerSettingsStaticTexts();
+        InitializeNetworkSettingsStaticTexts();
+        InitializeAdvancedSettingsStaticTexts();
+        InitializeAboutSettingsStaticTexts();
+        InitializeSponsorSettingsStaticTexts();
+        InitializeContributorSettingsStaticTexts();
         InitializeConnectionStaticTexts();
 
         Title = T("LauncherGo 主窗口", "LauncherGo Main Window");
@@ -452,6 +471,15 @@ public partial class LauncherMainWindow : Window
 
     private void InitializeServerSettingsStaticTexts()
     {
+        SettingsServerDirectoryTitleTextBlock.Text = T("目录路径", "Directory Paths");
+        SettingsServerDirectoryLabelTextBlock.Text = T("服务端目录", "Server Directory");
+        SettingsProfileDirectoryLabelTextBlock.Text = T("档案目录", "Profile Directory");
+        SettingsSaveDirectoryLabelTextBlock.Text = T("存档目录", "Save Directory");
+        SettingsQqBotDirectoryLabelTextBlock.Text = T("QQ机器人目录", "QQ Bot Directory");
+        SettingsBrowseServerDirectoryButton.Content = T("浏览", "Browse");
+        SettingsBrowseProfileDirectoryButton.Content = T("浏览", "Browse");
+        SettingsBrowseSaveDirectoryButton.Content = T("浏览", "Browse");
+        SettingsBrowseQqBotDirectoryButton.Content = T("浏览", "Browse");
         SettingsServerAutomationTitleTextBlock.Text = T("启动与托盘", "Startup & Tray");
         SettingsStartWithWindowsCheckBox.Content = T("开机启动启动器", "Start launcher with Windows");
         SettingsCloseToTrayCheckBox.Content = T("关闭时隐藏到托盘，不直接退出", "Hide to tray on close instead of exiting");
@@ -460,6 +488,35 @@ public partial class LauncherMainWindow : Window
         SettingsAutoStartRobotCheckBox.Content = T("启动时自动启动QQ机器人", "Auto-start QQ robot on launch");
         SettingsAutoStartFrpCheckBox.Content = T("启动时自动开启内网穿透（常规）", "Auto-start FRP (regular) on launch");
         SettingsAutoStartThirdPartyFrpcCheckBox.Content = T("启动时自动开启第三方内网穿透", "Auto-start third-party FRPC on launch");
+    }
+
+    private void InitializeNetworkSettingsStaticTexts()
+    {
+        SettingsNetworkDownloadTitleTextBlock.Text = T("下载网络", "Download Network");
+        SettingsThirdPartyServerLabelTextBlock.Text = T("第三方服务端", "Third-party Server");
+        SettingsDownloadChunkCountLabelTextBlock.Text = T("分片数量", "Chunk Count");
+        SettingsChunkedDownloadLabelTextBlock.Text = T("大文件分片下载", "Chunked large-file downloads");
+    }
+
+    private void InitializeAdvancedSettingsStaticTexts()
+    {
+        SettingsAdvancedActionsTitleTextBlock.Text = T("维护", "Maintenance");
+        SettingsOpenLogButton.Content = T("打开软件日志", "Open App Logs");
+        SettingsResetAllButton.Content = T("重置所有设置", "Reset All Settings");
+        SettingsClearDownloadCacheButton.Content = T("清空下载缓存", "Clear Download Cache");
+    }
+
+    private void InitializeAboutSettingsStaticTexts()
+    {
+        SetAboutFallbackText(T("正在加载 README.md ...", "Loading README_en.md ..."));
+    }
+
+    private void InitializeSponsorSettingsStaticTexts()
+    {
+    }
+
+    private void InitializeContributorSettingsStaticTexts()
+    {
     }
 
     private void InitializeConnectionStaticTexts()
@@ -542,6 +599,8 @@ public partial class LauncherMainWindow : Window
         ConfigSaveFileComboBox.ItemsSource = _configSaveItems;
         ConfigWorldRulesItemsControl.ItemsSource = _configWorldRuleItems;
         ConnectionThirdPartyFrpcModeComboBox.ItemsSource = _thirdPartyFrpcModeOptions;
+        SettingsContributorsItemsControl.ItemsSource = _settingsContributorItems;
+        SettingsSponsorsItemsControl.ItemsSource = _settingsSponsorItems;
         RebuildConfigChoiceOptions();
         RebuildThirdPartyFrpcModeOptions();
     }
@@ -1218,9 +1277,25 @@ public partial class LauncherMainWindow : Window
         SetSelectedClass(ContributorsSettingsTabButton, tab == SettingsTab.Contributors);
         var isServer = tab == SettingsTab.Server;
         var isAppearance = tab == SettingsTab.Appearance;
+        var isNetwork = tab == SettingsTab.Network;
+        var isAdvanced = tab == SettingsTab.Advanced;
+        var isAbout = tab == SettingsTab.About;
+        var isSponsors = tab == SettingsTab.Sponsors;
+        var isContributors = tab == SettingsTab.Contributors;
         SettingsServerPanel.IsVisible = isServer;
         SettingsAppearancePanel.IsVisible = isAppearance;
-        SettingsBlankPanel.IsVisible = !isServer && !isAppearance;
+        SettingsNetworkPanel.IsVisible = isNetwork;
+        SettingsAdvancedPanel.IsVisible = isAdvanced;
+        SettingsAboutPanel.IsVisible = isAbout;
+        SettingsSponsorsPanel.IsVisible = isSponsors;
+        SettingsContributorsPanel.IsVisible = isContributors;
+        SettingsBlankPanel.IsVisible = !isServer &&
+                                       !isAppearance &&
+                                       !isNetwork &&
+                                       !isAdvanced &&
+                                       !isAbout &&
+                                       !isSponsors &&
+                                       !isContributors;
 
         if (isServer)
         {
@@ -1229,6 +1304,25 @@ public partial class LauncherMainWindow : Window
         else if (isAppearance)
         {
             RefreshAppearanceSettingsEditor();
+        }
+        else if (isNetwork)
+        {
+            RefreshNetworkSettingsEditor();
+        }
+        else if (isAbout)
+        {
+            LoadAboutMarkdown();
+        }
+        else if (isSponsors)
+        {
+            if (!_sponsorsLoaded)
+            {
+                _ = RefreshSponsorsAsync();
+            }
+        }
+        else if (isContributors && !_contributorsLoaded)
+        {
+            _ = RefreshContributorsAsync();
         }
     }
 
@@ -1247,6 +1341,11 @@ public partial class LauncherMainWindow : Window
 
     private void RegisterAutoSaveHandlers()
     {
+        SettingsServerDirectoryTextBox.LostFocus += OnServerSettingsAutoSaveChanged;
+        SettingsProfileDirectoryTextBox.LostFocus += OnServerSettingsAutoSaveChanged;
+        SettingsSaveDirectoryTextBox.LostFocus += OnServerSettingsAutoSaveChanged;
+        SettingsQqBotDirectoryTextBox.LostFocus += OnServerSettingsAutoSaveChanged;
+
         foreach (var check in new[]
                  {
                      SettingsStartWithWindowsCheckBox,
@@ -1260,6 +1359,10 @@ public partial class LauncherMainWindow : Window
         {
             check.IsCheckedChanged += OnServerSettingsAutoSaveChanged;
         }
+
+        SettingsThirdPartyServerTextBox.LostFocus += OnNetworkSettingsAutoSaveChanged;
+        SettingsDownloadChunkCountTextBox.LostFocus += OnNetworkSettingsAutoSaveChanged;
+        SettingsChunkedDownloadToggleSwitch.IsCheckedChanged += OnNetworkSettingsAutoSaveChanged;
 
         ConnectionFrpCommandTextBox.LostFocus += OnFrpAutoSaveChanged;
         ConnectionThirdPartyFrpcCommandTextBox.LostFocus += OnFrpAutoSaveChanged;
@@ -1303,6 +1406,16 @@ public partial class LauncherMainWindow : Window
         SaveServerSettings(refreshEditor: false);
     }
 
+    private void OnNetworkSettingsAutoSaveChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_isApplyingNetworkSettings)
+        {
+            return;
+        }
+
+        SaveNetworkSettings(refreshEditor: false);
+    }
+
     private void OnFrpAutoSaveChanged(object? sender, RoutedEventArgs e)
     {
         if (_isApplyingConnectionSettings)
@@ -1339,6 +1452,10 @@ public partial class LauncherMainWindow : Window
         try
         {
             var preferences = _preferencesService.Load();
+            SettingsServerDirectoryTextBox.Text = preferences.ServerDirectory;
+            SettingsProfileDirectoryTextBox.Text = preferences.ProfileDirectory;
+            SettingsSaveDirectoryTextBox.Text = preferences.SaveDirectory;
+            SettingsQqBotDirectoryTextBox.Text = preferences.QqBotDirectory;
             SettingsStartWithWindowsCheckBox.IsChecked = preferences.StartWithWindows;
             SettingsCloseToTrayCheckBox.IsChecked = preferences.CloseToTrayOnExit;
             SettingsStartHiddenCheckBox.IsChecked = preferences.StartHiddenOnLaunch;
@@ -1357,6 +1474,10 @@ public partial class LauncherMainWindow : Window
     private void SaveServerSettings(bool refreshEditor = true)
     {
         var preferences = _preferencesService.Load();
+        preferences.ServerDirectory = SettingsServerDirectoryTextBox.Text?.Trim() ?? string.Empty;
+        preferences.ProfileDirectory = SettingsProfileDirectoryTextBox.Text?.Trim() ?? string.Empty;
+        preferences.SaveDirectory = SettingsSaveDirectoryTextBox.Text?.Trim() ?? string.Empty;
+        preferences.QqBotDirectory = SettingsQqBotDirectoryTextBox.Text?.Trim() ?? string.Empty;
         preferences.StartWithWindows = SettingsStartWithWindowsCheckBox.IsChecked == true;
         preferences.CloseToTrayOnExit = SettingsCloseToTrayCheckBox.IsChecked == true;
         preferences.StartHiddenOnLaunch = SettingsStartHiddenCheckBox.IsChecked == true;
@@ -1377,6 +1498,368 @@ public partial class LauncherMainWindow : Window
         if (refreshEditor)
         {
             RefreshServerSettingsEditor();
+        }
+    }
+
+    private void RefreshNetworkSettingsEditor()
+    {
+        _isApplyingNetworkSettings = true;
+        try
+        {
+            var preferences = _preferencesService.Load();
+            SettingsThirdPartyServerTextBox.Text = string.IsNullOrWhiteSpace(preferences.ServerDownloadCatalogUrl)
+                ? DefaultServerDownloadCatalogUrl
+                : preferences.ServerDownloadCatalogUrl;
+            SettingsChunkedDownloadToggleSwitch.IsChecked = preferences.EnableChunkedDownloads;
+            SettingsDownloadChunkCountTextBox.Text = Math.Clamp(preferences.DownloadChunkCount, 1, 32).ToString(CultureInfo.InvariantCulture);
+        }
+        finally
+        {
+            _isApplyingNetworkSettings = false;
+        }
+    }
+
+    private void SaveNetworkSettings(bool refreshEditor = true)
+    {
+        var preferences = _preferencesService.Load();
+        preferences.ServerDownloadCatalogUrl = SettingsThirdPartyServerTextBox.Text?.Trim() ?? string.Empty;
+        preferences.EnableChunkedDownloads = SettingsChunkedDownloadToggleSwitch.IsChecked == true;
+        preferences.DownloadChunkCount = ParseClampedInt(SettingsDownloadChunkCountTextBox.Text, 4, 1, 32);
+        _preferencesService.Save(preferences);
+        _downloadCatalogLoaded = false;
+
+        if (refreshEditor)
+        {
+            RefreshNetworkSettingsEditor();
+        }
+    }
+
+    private void LoadAboutMarkdown()
+    {
+        if (_aboutMarkdownLoaded)
+        {
+            return;
+        }
+
+        var fileName = _isChinese ? "README.md" : "README_en.md";
+        var path = FindBundledReadmePath(fileName);
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            SetAboutFallbackText(T("未找到 README.md。", "README_en.md was not found."));
+            _aboutMarkdownLoaded = true;
+            return;
+        }
+
+        try
+        {
+            RenderAboutMarkdown(File.ReadAllText(path));
+        }
+        catch (Exception ex)
+        {
+            SetAboutFallbackText(T($"读取 README 失败：{ex.Message}", $"Failed to read README: {ex.Message}"));
+        }
+
+        _aboutMarkdownLoaded = true;
+    }
+
+    private void RenderAboutMarkdown(string markdown)
+    {
+        var sanitized = SanitizeAboutMarkdown(markdown);
+        try
+        {
+            SettingsAboutContentHost.Content = BuildAboutMarkdownView(sanitized);
+        }
+        catch
+        {
+            SetAboutFallbackText(sanitized);
+        }
+    }
+
+    private void SetAboutFallbackText(string text)
+    {
+        SettingsAboutContentHost.Content = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
+            Content = new SelectableTextBlock
+            {
+                Text = text,
+                TextWrapping = TextWrapping.Wrap,
+                FontSize = 13
+            }
+        };
+    }
+
+    private Control BuildAboutMarkdownView(string markdown)
+    {
+        var host = new StackPanel
+        {
+            Spacing = 6
+        };
+
+        using var reader = new StringReader(markdown);
+        var inCodeBlock = false;
+        var codeBuffer = new StringBuilder();
+        string? line;
+        while ((line = reader.ReadLine()) is not null)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("```", StringComparison.Ordinal))
+            {
+                if (inCodeBlock)
+                {
+                    AddAboutCodeBlock(host, codeBuffer.ToString().TrimEnd());
+                    codeBuffer.Clear();
+                    inCodeBlock = false;
+                }
+                else
+                {
+                    inCodeBlock = true;
+                }
+
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                codeBuffer.AppendLine(line);
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(trimmed))
+            {
+                continue;
+            }
+
+            if (trimmed.StartsWith("# ", StringComparison.Ordinal))
+            {
+                host.Children.Add(CreateAboutText(CleanInlineMarkdown(trimmed[2..]), "AboutHeading1"));
+                continue;
+            }
+
+            if (trimmed.StartsWith("## ", StringComparison.Ordinal))
+            {
+                host.Children.Add(CreateAboutText(CleanInlineMarkdown(trimmed[3..]), "AboutHeading2"));
+                continue;
+            }
+
+            if (trimmed.StartsWith("- ", StringComparison.Ordinal))
+            {
+                host.Children.Add(CreateAboutText($"• {CleanInlineMarkdown(trimmed[2..])}", "AboutSubText"));
+                continue;
+            }
+
+            host.Children.Add(CreateAboutText(CleanInlineMarkdown(trimmed), "AboutParagraph"));
+        }
+
+        if (inCodeBlock && codeBuffer.Length > 0)
+        {
+            AddAboutCodeBlock(host, codeBuffer.ToString().TrimEnd());
+        }
+
+        return new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
+            Content = host
+        };
+    }
+
+    private static TextBlock CreateAboutText(string text, string className)
+    {
+        var textBlock = new TextBlock
+        {
+            Text = text,
+            TextWrapping = TextWrapping.Wrap
+        };
+        textBlock.Classes.Add(className);
+        return textBlock;
+    }
+
+    private static void AddAboutCodeBlock(StackPanel host, string code)
+    {
+        var textBlock = CreateAboutText(code, "AboutCodeText");
+        var border = new Border
+        {
+            Child = textBlock
+        };
+        border.Classes.Add("AboutCodeBlock");
+        host.Children.Add(border);
+    }
+
+    private static string CleanInlineMarkdown(string value)
+    {
+        var result = Regex.Replace(value, @"`([^`]+)`", "$1");
+        result = Regex.Replace(result, @"\[([^\]]+)\]\(([^\)]+)\)", "$1 ($2)");
+        return result.Trim();
+    }
+
+    private static string SanitizeAboutMarkdown(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            return string.Empty;
+        }
+
+        return Regex.Replace(markdown, @"(?m)^\s*!\[[^\r\n\]]*\]\([^\r\n)]*\)\s*$", string.Empty).Trim();
+    }
+
+    private async Task RefreshContributorsAsync(bool forceReload = false)
+    {
+        if (_contributorsLoaded && !forceReload)
+        {
+            return;
+        }
+
+        try
+        {
+            using var response = await SharedHttpClient.GetAsync(GitHubContributorsApiUrl);
+            response.EnsureSuccessStatusCode();
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            using var document = await JsonDocument.ParseAsync(stream);
+
+            _settingsContributorItems.Clear();
+            foreach (var contributor in document.RootElement.EnumerateArray())
+            {
+                var login = ReadJsonString(contributor, "login");
+                if (string.IsNullOrWhiteSpace(login))
+                {
+                    continue;
+                }
+
+                var contributions = contributor.TryGetProperty("contributions", out var contributionsNode) &&
+                                    contributionsNode.TryGetInt32(out var parsed)
+                    ? parsed
+                    : 0;
+                _settingsContributorItems.Add(new SettingsContributorItem
+                {
+                    Login = login,
+                    HtmlUrl = ReadJsonString(contributor, "html_url"),
+                    ContributionsText = T($"贡献 {contributions} 次", $"{contributions} contributions")
+                });
+            }
+
+            _contributorsLoaded = true;
+        }
+        catch
+        {
+            _settingsContributorItems.Clear();
+        }
+    }
+
+    private async Task RefreshSponsorsAsync(bool forceReload = false)
+    {
+        if (_sponsorsLoaded && !forceReload)
+        {
+            return;
+        }
+
+        var credentials = GetAfdianCredentials();
+        if (string.IsNullOrWhiteSpace(credentials.UserId) || string.IsNullOrWhiteSpace(credentials.Token))
+        {
+            _settingsSponsorItems.Clear();
+            return;
+        }
+
+        try
+        {
+            var requestJson = BuildAfdianSponsorRequestJson(credentials.UserId, credentials.Token);
+            using var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
+            using var response = await SharedHttpClient.PostAsync(AfdianSponsorApiUrl, content);
+            response.EnsureSuccessStatusCode();
+            var json = await response.Content.ReadAsStringAsync();
+            using var document = JsonDocument.Parse(json);
+
+            if (document.RootElement.TryGetProperty("ec", out var ecNode) &&
+                ecNode.TryGetInt32(out var ec) &&
+                ec != 200)
+            {
+                var message = ReadJsonString(document.RootElement, "em");
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(message) ? $"Afdian ec={ec}" : message);
+            }
+
+            _settingsSponsorItems.Clear();
+            if (document.RootElement.TryGetProperty("data", out var dataNode) &&
+                dataNode.TryGetProperty("list", out var listNode) &&
+                listNode.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var sponsor in listNode.EnumerateArray())
+                {
+                    var item = BuildSponsorItem(sponsor);
+                    if (!string.IsNullOrWhiteSpace(item.Name))
+                    {
+                        _settingsSponsorItems.Add(item);
+                    }
+                }
+            }
+
+            _sponsorsLoaded = true;
+        }
+        catch
+        {
+            _settingsSponsorItems.Clear();
+        }
+    }
+
+    private async Task OpenAppLogsAsync()
+    {
+        var logDirectory = GetAppLogDirectory();
+        Directory.CreateDirectory(logDirectory);
+
+        var latestLog = Directory.EnumerateFiles(logDirectory, "LauncherGo-*.log", SearchOption.TopDirectoryOnly)
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .FirstOrDefault();
+        var target = latestLog ?? logDirectory;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = target, UseShellExecute = true });
+            SettingsAdvancedStatusTextBlock.Text = T("已打开软件日志。", "App logs opened.");
+        }
+        catch (Exception ex)
+        {
+            SettingsAdvancedStatusTextBlock.Text = T($"打开软件日志失败：{ex.Message}", $"Failed to open app logs: {ex.Message}");
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private async Task ClearDownloadCacheAsync()
+    {
+        try
+        {
+            var preferences = _preferencesService.Load();
+            var deleted = await _serverPackageService.ClearDownloadCacheAsync(preferences.ServerDirectory);
+            _downloadCatalogLoaded = false;
+            await RefreshDownloadVersionsAsync(forceReload: true);
+            SettingsAdvancedStatusTextBlock.Text = T($"已清空下载缓存：{deleted} 个文件。", $"Download cache cleared: {deleted} files.");
+        }
+        catch (Exception ex)
+        {
+            SettingsAdvancedStatusTextBlock.Text = T($"清空下载缓存失败：{ex.Message}", $"Failed to clear download cache: {ex.Message}");
+        }
+    }
+
+    private void ResetAllSettingsAndRestartToGuide()
+    {
+        try
+        {
+            _preferencesService.Save(new LauncherPreferences { IsOnboardingCompleted = false });
+            var executablePath = Environment.ProcessPath;
+            if (!string.IsNullOrWhiteSpace(executablePath))
+            {
+                Process.Start(new ProcessStartInfo { FileName = executablePath, UseShellExecute = true });
+            }
+
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                _isExitRequested = true;
+                desktop.Shutdown();
+            }
+        }
+        catch (Exception ex)
+        {
+            SettingsAdvancedStatusTextBlock.Text = T($"重置设置失败：{ex.Message}", $"Failed to reset settings: {ex.Message}");
         }
     }
 
@@ -2374,8 +2857,13 @@ public partial class LauncherMainWindow : Window
         ApplyCulture(languageCode);
         _isChinese = languageCode.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
 
+        _aboutMarkdownLoaded = false;
         InitializeStaticTexts();
         RefreshAppearanceSettingsEditor();
+        if (_selectedSettingsTab == SettingsTab.About)
+        {
+            LoadAboutMarkdown();
+        }
     }
 
     private void OnSettingsThemeSelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -2700,6 +3188,49 @@ public partial class LauncherMainWindow : Window
     private void OnSettingsServerRefreshClick(object? sender, RoutedEventArgs e)
     {
         RefreshServerSettingsEditor();
+    }
+
+    private async void OnSettingsBrowseServerDirectoryClick(object? sender, RoutedEventArgs e)
+    {
+        await BrowseFolderToTextBoxAsync(SettingsServerDirectoryTextBox, T("选择服务端目录", "Select server directory"));
+    }
+
+    private async void OnSettingsBrowseProfileDirectoryClick(object? sender, RoutedEventArgs e)
+    {
+        await BrowseFolderToTextBoxAsync(SettingsProfileDirectoryTextBox, T("选择档案目录", "Select profile directory"));
+    }
+
+    private async void OnSettingsBrowseSaveDirectoryClick(object? sender, RoutedEventArgs e)
+    {
+        await BrowseFolderToTextBoxAsync(SettingsSaveDirectoryTextBox, T("选择存档目录", "Select save directory"));
+    }
+
+    private async void OnSettingsBrowseQqBotDirectoryClick(object? sender, RoutedEventArgs e)
+    {
+        await BrowseFolderToTextBoxAsync(SettingsQqBotDirectoryTextBox, T("选择QQ机器人目录", "Select QQ bot directory"));
+    }
+
+    private async void OnSettingsOpenLogClick(object? sender, RoutedEventArgs e)
+    {
+        await OpenAppLogsAsync();
+    }
+
+    private async void OnSettingsClearDownloadCacheClick(object? sender, RoutedEventArgs e)
+    {
+        await ClearDownloadCacheAsync();
+    }
+
+    private void OnSettingsResetAllClick(object? sender, RoutedEventArgs e)
+    {
+        ResetAllSettingsAndRestartToGuide();
+    }
+
+    private void OnContributorOpenClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string url } && !string.IsNullOrWhiteSpace(url))
+        {
+            OpenUrl(url);
+        }
     }
 
     private void OnConnectionFrpTabClick(object? sender, RoutedEventArgs e) => SelectConnectionTab(ConnectionTab.Frp);
@@ -3707,6 +4238,11 @@ public partial class LauncherMainWindow : Window
             : fallback;
     }
 
+    private static int ParseClampedInt(string? value, int fallback, int min, int max)
+    {
+        return Math.Clamp(TryParseInt(value, fallback), min, max);
+    }
+
     private static string? NullIfWhiteSpace(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -4115,6 +4651,179 @@ public partial class LauncherMainWindow : Window
         }
     }
 
+    private async Task BrowseFolderToTextBoxAsync(TextBox targetTextBox, string title)
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = false
+        });
+
+        var path = TryGetLocalPath(folders.FirstOrDefault());
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        targetTextBox.Text = path;
+        SaveServerSettings();
+    }
+
+    private static HttpClient CreateSharedHttpClient()
+    {
+        var client = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(20)
+        };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("LauncherGo/1.0");
+        return client;
+    }
+
+    private static string? FindBundledReadmePath(string fileName)
+    {
+        var candidates = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, fileName),
+            Path.Combine(Environment.CurrentDirectory, fileName),
+            Path.Combine(Environment.CurrentDirectory, "LauncherGo", fileName),
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", fileName)),
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", fileName))
+        };
+
+        return candidates.FirstOrDefault(File.Exists);
+    }
+
+    private static string GetAppLogDirectory()
+    {
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "LauncherGo",
+            "logs");
+    }
+
+    private static string BuildAfdianSponsorRequestJson(string userId, string token)
+    {
+        var parameters = JsonSerializer.Serialize(new
+        {
+            page = 1,
+            per_page = 100
+        });
+        var ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+        var sign = ComputeMd5Hex($"{token}params{parameters}ts{ts}user_id{userId}");
+        return JsonSerializer.Serialize(new
+        {
+            user_id = userId,
+            @params = parameters,
+            ts,
+            sign
+        });
+    }
+
+    private static (string UserId, string Token) GetAfdianCredentials()
+    {
+        var userId = GetBuildMetadata("LauncherGo.AfdianUserId");
+        var token = GetBuildMetadata("LauncherGo.AfdianToken");
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            userId = Environment.GetEnvironmentVariable("LAUNCHERGO_AFDIAN_USER_ID") ?? string.Empty;
+        }
+
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            token = Environment.GetEnvironmentVariable("LAUNCHERGO_AFDIAN_TOKEN") ?? string.Empty;
+        }
+
+        return (userId.Trim(), token.Trim());
+    }
+
+    private static string GetBuildMetadata(string key)
+    {
+        return typeof(LauncherMainWindow)
+            .Assembly
+            .GetCustomAttributes<AssemblyMetadataAttribute>()
+            .FirstOrDefault(attribute => attribute.Key.Equals(key, StringComparison.OrdinalIgnoreCase))
+            ?.Value ?? string.Empty;
+    }
+
+    private static string ComputeMd5Hex(string value)
+    {
+        var hash = MD5.HashData(Encoding.UTF8.GetBytes(value));
+        var builder = new StringBuilder(hash.Length * 2);
+        foreach (var b in hash)
+        {
+            builder.Append(b.ToString("x2", CultureInfo.InvariantCulture));
+        }
+
+        return builder.ToString();
+    }
+
+    private SettingsSponsorItem BuildSponsorItem(JsonElement sponsor)
+    {
+        var name = ReadJsonString(sponsor, "name");
+        if (string.IsNullOrWhiteSpace(name) &&
+            sponsor.TryGetProperty("user", out var userNode))
+        {
+            name = ReadJsonString(userNode, "name");
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            name = ReadJsonString(sponsor, "user_id");
+        }
+
+        var amount = ReadJsonString(sponsor, "all_sum_amount");
+        if (string.IsNullOrWhiteSpace(amount))
+        {
+            amount = ReadJsonString(sponsor, "sum_amount");
+        }
+
+        var plan = string.Empty;
+        if (sponsor.TryGetProperty("current_plan", out var currentPlanNode))
+        {
+            plan = ReadJsonString(currentPlanNode, "name");
+        }
+
+        if (string.IsNullOrWhiteSpace(plan) &&
+            sponsor.TryGetProperty("sponsor_plans", out var plansNode) &&
+            plansNode.ValueKind == JsonValueKind.Array)
+        {
+            var firstPlan = plansNode.EnumerateArray().FirstOrDefault();
+            if (firstPlan.ValueKind == JsonValueKind.Object)
+            {
+                plan = ReadJsonString(firstPlan, "name");
+            }
+        }
+
+        return new SettingsSponsorItem
+        {
+            Name = string.IsNullOrWhiteSpace(name) ? T("匿名赞助者", "Anonymous Sponsor") : name,
+            AmountText = string.IsNullOrWhiteSpace(amount)
+                ? T("累计赞助金额未知", "Total sponsored amount unknown")
+                : T($"累计赞助 {amount} 元", $"Total sponsored CNY {amount}"),
+            PlanText = string.IsNullOrWhiteSpace(plan)
+                ? T("未识别赞助方案", "Plan not available")
+                : plan
+        };
+    }
+
+    private static string ReadJsonString(JsonElement node, string propertyName)
+    {
+        if (!node.TryGetProperty(propertyName, out var value))
+        {
+            return string.Empty;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString()?.Trim() ?? string.Empty,
+            JsonValueKind.Number => value.GetRawText(),
+            JsonValueKind.True => bool.TrueString,
+            JsonValueKind.False => bool.FalseString,
+            _ => string.Empty
+        };
+    }
+
     private static string FormatDuration(TimeSpan duration)
     {
         if (duration.TotalDays >= 1)
@@ -4332,6 +5041,24 @@ public partial class LauncherMainWindow : Window
         public string DownloadedText { get; } = downloadedText;
 
         public string ActionText { get; } = actionText;
+    }
+
+    public sealed class SettingsContributorItem
+    {
+        public required string Login { get; init; }
+
+        public required string HtmlUrl { get; init; }
+
+        public required string ContributionsText { get; init; }
+    }
+
+    public sealed class SettingsSponsorItem
+    {
+        public required string Name { get; init; }
+
+        public required string AmountText { get; init; }
+
+        public required string PlanText { get; init; }
     }
 
     public sealed class ConfigChoiceOption(string value, string label)

@@ -660,6 +660,42 @@
             <Setter Property="Foreground" Value="{DynamicResource SubTextBrush}" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
+        <Style Selector="TextBlock.AboutHeading1">
+            <Setter Property="FontSize" Value="22" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource MainTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+        <Style Selector="TextBlock.AboutHeading2">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource MainTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,8,0,2" />
+        </Style>
+        <Style Selector="TextBlock.AboutParagraph">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource MainTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="TextBlock.AboutSubText">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource SubTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="TextBlock.AboutCodeText">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="Foreground" Value="{DynamicResource MainTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="Border.AboutCodeBlock">
+            <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="Margin" Value="0,3,0,5" />
+        </Style>
         <Style Selector="StackPanel.ConfigFormField">
             <Setter Property="Width" Value="205" />
             <Setter Property="Spacing" Value="4" />
@@ -1455,6 +1491,28 @@
                                         <StackPanel Spacing="10">
                                             <Border Classes="ConfigCard">
                                                 <StackPanel Spacing="10">
+                                                    <TextBlock x:Name="SettingsServerDirectoryTitleTextBlock" Classes="ConfigSectionTitle" Text="目录路径" />
+                                                    <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="86,*,Auto" RowSpacing="10" ColumnSpacing="10">
+                                                        <TextBlock x:Name="SettingsServerDirectoryLabelTextBlock" Grid.Row="0" Classes="ConfigFieldLabel" VerticalAlignment="Center" Text="服务端目录" />
+                                                        <TextBox x:Name="SettingsServerDirectoryTextBox" Grid.Row="0" Grid.Column="1" Classes="CompactInput" />
+                                                        <Button x:Name="SettingsBrowseServerDirectoryButton" Grid.Row="0" Grid.Column="2" Classes="SecondaryActionButton" Content="浏览" Click="OnSettingsBrowseServerDirectoryClick" />
+
+                                                        <TextBlock x:Name="SettingsProfileDirectoryLabelTextBlock" Grid.Row="1" Classes="ConfigFieldLabel" VerticalAlignment="Center" Text="档案目录" />
+                                                        <TextBox x:Name="SettingsProfileDirectoryTextBox" Grid.Row="1" Grid.Column="1" Classes="CompactInput" />
+                                                        <Button x:Name="SettingsBrowseProfileDirectoryButton" Grid.Row="1" Grid.Column="2" Classes="SecondaryActionButton" Content="浏览" Click="OnSettingsBrowseProfileDirectoryClick" />
+
+                                                        <TextBlock x:Name="SettingsSaveDirectoryLabelTextBlock" Grid.Row="2" Classes="ConfigFieldLabel" VerticalAlignment="Center" Text="存档目录" />
+                                                        <TextBox x:Name="SettingsSaveDirectoryTextBox" Grid.Row="2" Grid.Column="1" Classes="CompactInput" />
+                                                        <Button x:Name="SettingsBrowseSaveDirectoryButton" Grid.Row="2" Grid.Column="2" Classes="SecondaryActionButton" Content="浏览" Click="OnSettingsBrowseSaveDirectoryClick" />
+
+                                                        <TextBlock x:Name="SettingsQqBotDirectoryLabelTextBlock" Grid.Row="3" Classes="ConfigFieldLabel" VerticalAlignment="Center" Text="QQ机器人目录" />
+                                                        <TextBox x:Name="SettingsQqBotDirectoryTextBox" Grid.Row="3" Grid.Column="1" Classes="CompactInput" />
+                                                        <Button x:Name="SettingsBrowseQqBotDirectoryButton" Grid.Row="3" Grid.Column="2" Classes="SecondaryActionButton" Content="浏览" Click="OnSettingsBrowseQqBotDirectoryClick" />
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Classes="ConfigCard">
+                                                <StackPanel Spacing="10">
                                                     <TextBlock x:Name="SettingsServerAutomationTitleTextBlock" Classes="ConfigSectionTitle" Text="启动与托盘" />
                                                     <WrapPanel Orientation="Horizontal">
                                                         <CheckBox x:Name="SettingsStartWithWindowsCheckBox" Classes="ConfigCheck" Content="开机启动启动器" />
@@ -1484,6 +1542,93 @@
                                             <ComboBox x:Name="SettingsThemeComboBox" Grid.Column="1" Classes="Bordered SettingsGuideCombo" SelectionChanged="OnSettingsThemeSelectionChanged" />
                                         </Grid>
                                     </Grid>
+                                    <ScrollViewer x:Name="SettingsNetworkPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
+                                        <StackPanel Spacing="10">
+                                            <Border Classes="ConfigCard">
+                                                <StackPanel Spacing="10">
+                                                    <TextBlock x:Name="SettingsNetworkDownloadTitleTextBlock" Classes="ConfigSectionTitle" Text="下载网络" />
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="SettingsThirdPartyServerLabelTextBlock" Classes="ConfigFieldLabel" Text="第三方服务端" />
+                                                            <TextBox x:Name="SettingsThirdPartyServerTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="SettingsDownloadChunkCountLabelTextBlock" Classes="ConfigFieldLabel" Text="分片数量" />
+                                                            <TextBox x:Name="SettingsDownloadChunkCountTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="SettingsChunkedDownloadLabelTextBlock" Classes="ConfigFieldLabel" Text="大文件分片下载" />
+                                                            <ToggleSwitch x:Name="SettingsChunkedDownloadToggleSwitch" />
+                                                        </StackPanel>
+                                                    </WrapPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                    <ScrollViewer x:Name="SettingsAdvancedPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
+                                        <StackPanel Spacing="10">
+                                            <Border Classes="ConfigCard">
+                                                <StackPanel Spacing="10">
+                                                    <TextBlock x:Name="SettingsAdvancedActionsTitleTextBlock" Classes="ConfigSectionTitle" Text="维护" />
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <Button x:Name="SettingsOpenLogButton" Classes="SecondaryActionButton" Content="打开软件日志" Click="OnSettingsOpenLogClick" Margin="0,0,8,8" />
+                                                        <Button x:Name="SettingsClearDownloadCacheButton" Classes="SecondaryActionButton" Content="清空下载缓存" Click="OnSettingsClearDownloadCacheClick" Margin="0,0,8,8" />
+                                                        <Button x:Name="SettingsResetAllButton" Classes="SecondaryActionButton" Content="重置所有设置" Click="OnSettingsResetAllClick" Margin="0,0,8,8" />
+                                                    </WrapPanel>
+                                                    <TextBlock x:Name="SettingsAdvancedStatusTextBlock" Classes="ConfigHintText" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                    <Border x:Name="SettingsAboutPanel" Classes="ConfigCard" IsVisible="False">
+                                        <ContentControl x:Name="SettingsAboutContentHost" />
+                                    </Border>
+                                    <ScrollViewer x:Name="SettingsSponsorsPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
+                                        <StackPanel Spacing="10">
+                                            <ItemsControl x:Name="SettingsSponsorsItemsControl">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel Orientation="Horizontal" ItemWidth="270" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Classes="ConfigInnerCard" Width="270" Margin="0,0,10,10">
+                                                            <StackPanel Spacing="4">
+                                                                <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" TextTrimming="CharacterEllipsis" />
+                                                                <TextBlock Text="{Binding AmountText}" FontSize="13" Foreground="{DynamicResource SubTextBrush}" TextWrapping="Wrap" />
+                                                                <TextBlock Text="{Binding PlanText}" FontSize="12" Foreground="{DynamicResource SubTextBrush}" TextWrapping="Wrap" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                    <ScrollViewer x:Name="SettingsContributorsPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
+                                        <StackPanel Spacing="10">
+                                            <ItemsControl x:Name="SettingsContributorsItemsControl">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel Orientation="Horizontal" ItemWidth="270" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Classes="ConfigInnerCard" Width="270" Margin="0,0,10,10">
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                <StackPanel Spacing="4">
+                                                                    <TextBlock Text="{Binding Login}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" TextTrimming="CharacterEllipsis" />
+                                                                    <TextBlock Text="{Binding ContributionsText}" FontSize="13" Foreground="{DynamicResource SubTextBrush}" />
+                                                                </StackPanel>
+                                                                <Button Grid.Column="1" Classes="DownloadTextButton" Content="打开" Tag="{Binding HtmlUrl}" Click="OnContributorOpenClick" />
+                                                            </Grid>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </ScrollViewer>
                                 </Grid>
                             </Grid>
 

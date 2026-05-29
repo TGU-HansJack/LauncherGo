@@ -69,6 +69,9 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             ProfileDirectory = LauncherPathHelper.NormalizeDirectoryOrDefault(source.ProfileDirectory, defaults.ProfileDirectory),
             SaveDirectory = LauncherPathHelper.NormalizeDirectoryOrDefault(source.SaveDirectory, defaults.SaveDirectory),
             QqBotDirectory = LauncherPathHelper.NormalizeDirectoryOrDefault(source.QqBotDirectory, defaults.QqBotDirectory),
+            ServerDownloadCatalogUrl = NormalizeHttpUrlOrDefault(source.ServerDownloadCatalogUrl, defaults.ServerDownloadCatalogUrl),
+            EnableChunkedDownloads = source.EnableChunkedDownloads,
+            DownloadChunkCount = Math.Clamp(source.DownloadChunkCount <= 0 ? defaults.DownloadChunkCount : source.DownloadChunkCount, 1, 32),
             DefaultLaunchProfileId = string.IsNullOrWhiteSpace(source.DefaultLaunchProfileId)
                 ? string.Empty
                 : source.DefaultLaunchProfileId.Trim(),
@@ -243,5 +246,15 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
         {
             return string.Empty;
         }
+    }
+
+    private static string NormalizeHttpUrlOrDefault(string? value, string defaultValue)
+    {
+        var raw = string.IsNullOrWhiteSpace(value) ? defaultValue : value.Trim();
+        return Uri.TryCreate(raw, UriKind.Absolute, out var uri) &&
+               (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
+               !string.IsNullOrWhiteSpace(uri.Host)
+            ? uri.ToString()
+            : defaultValue;
     }
 }

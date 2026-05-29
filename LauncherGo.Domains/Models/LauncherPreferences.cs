@@ -19,6 +19,12 @@ public class LauncherPreferences
 
     public string QqBotDirectory { get; set; } = string.Empty;
 
+    public string ServerDownloadCatalogUrl { get; set; } = string.Empty;
+
+    public bool EnableChunkedDownloads { get; set; }
+
+    public int DownloadChunkCount { get; set; } = 4;
+
     public string DefaultLaunchProfileId { get; set; } = string.Empty;
 
     public string DefaultLaunchSaveFile { get; set; } = string.Empty;
