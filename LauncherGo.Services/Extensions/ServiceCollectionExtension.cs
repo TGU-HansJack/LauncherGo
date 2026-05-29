@@ -13,6 +13,10 @@ public static class ServiceCollectionExtension
         services.AddSingleton<IInstanceSaveService, InstanceSaveService>();
         services.AddSingleton<IInstanceServerConfigService, InstanceServerConfigService>();
         services.AddSingleton<IServerProcessService, ServerProcessService>();
+        services.AddSingleton<IOsqSnapshotCacheService, OsqSnapshotCacheService>();
+        services.AddSingleton<IOpenServerQueryService, OpenServerQueryService>();
+        services.AddSingleton<Vs2QQProcessService>();
+        services.AddSingleton<IRobotService, RobotService>();
         return services;
     }
 }

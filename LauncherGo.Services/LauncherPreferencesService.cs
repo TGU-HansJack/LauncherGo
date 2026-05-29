@@ -72,8 +72,123 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             DefaultLaunchProfileId = string.IsNullOrWhiteSpace(source.DefaultLaunchProfileId)
                 ? string.Empty
                 : source.DefaultLaunchProfileId.Trim(),
-            DefaultLaunchSaveFile = NormalizeFilePathOrEmpty(source.DefaultLaunchSaveFile)
+            DefaultLaunchSaveFile = NormalizeFilePathOrEmpty(source.DefaultLaunchSaveFile),
+            StartWithWindows = source.StartWithWindows,
+            CloseToTrayOnExit = source.CloseToTrayOnExit,
+            StartHiddenOnLaunch = source.StartHiddenOnLaunch,
+            AutoStartOpenServerQueryOnLaunch = source.AutoStartOpenServerQueryOnLaunch,
+            AutoStartRobotOnLaunch = source.AutoStartRobotOnLaunch,
+            AutoStartFrpOnLaunch = source.AutoStartFrpOnLaunch,
+            AutoStartThirdPartyFrpcOnLaunch = source.AutoStartThirdPartyFrpcOnLaunch,
+            OpenServerQuery = NormalizeOpenServerQuery(source.OpenServerQuery),
+            Robot = NormalizeRobot(source.Robot, defaults.QqBotDirectory),
+            Frp = NormalizeFrp(source.Frp)
         };
+    }
+
+    private static OpenServerQuerySettings NormalizeOpenServerQuery(OpenServerQuerySettings? source)
+    {
+        source ??= new OpenServerQuerySettings();
+        return new OpenServerQuerySettings
+        {
+            Enabled = source.Enabled,
+            ListenPrefix = NormalizeListenPrefix(source.ListenPrefix),
+            AllowInsecureHttp = source.AllowInsecureHttp,
+            RequestTimeoutSec = Math.Clamp(source.RequestTimeoutSec, 3, 60),
+            IncludeServerInfo = source.IncludeServerInfo,
+            IncludePlayers = source.IncludePlayers,
+            IncludePlayerEvents = source.IncludePlayerEvents,
+            IncludeChats = source.IncludeChats,
+            IncludeNotifications = source.IncludeNotifications,
+            IncludeMapData = source.IncludeMapData,
+            EndpointHost = source.EndpointHost?.Trim() ?? string.Empty,
+            EndpointToken = source.EndpointToken?.Trim() ?? string.Empty
+        };
+    }
+
+    private static RobotIntegrationSettings NormalizeRobot(RobotIntegrationSettings? source, string defaultQqBotDirectory)
+    {
+        source ??= new RobotIntegrationSettings();
+
+        var dbPath = string.IsNullOrWhiteSpace(source.DatabasePath)
+            ? Path.Combine(defaultQqBotDirectory, "vs2qq.db")
+            : NormalizeFilePathOrEmpty(source.DatabasePath);
+        if (string.IsNullOrWhiteSpace(dbPath))
+        {
+            dbPath = Path.Combine(defaultQqBotDirectory, "vs2qq.db");
+        }
+
+        var dbDirectory = Path.GetDirectoryName(dbPath);
+        if (!string.IsNullOrWhiteSpace(dbDirectory))
+        {
+            Directory.CreateDirectory(dbDirectory);
+        }
+
+        var wsUrl = string.IsNullOrWhiteSpace(source.OneBotWsUrl)
+            ? "ws://127.0.0.1:3001/"
+            : source.OneBotWsUrl.Trim();
+        if (!wsUrl.StartsWith("ws://", StringComparison.OrdinalIgnoreCase) &&
+            !wsUrl.StartsWith("wss://", StringComparison.OrdinalIgnoreCase))
+        {
+            wsUrl = "ws://127.0.0.1:3001/";
+        }
+
+        return new RobotIntegrationSettings
+        {
+            OneBotWsUrl = wsUrl,
+            AccessToken = source.AccessToken?.Trim() ?? string.Empty,
+            ReconnectIntervalSec = Math.Clamp(source.ReconnectIntervalSec, 1, 120),
+            DatabasePath = dbPath,
+            PollIntervalSec = Math.Clamp(source.PollIntervalSec, 0.2, 30),
+            DefaultEncoding = string.IsNullOrWhiteSpace(source.DefaultEncoding) ? "utf-8" : source.DefaultEncoding.Trim(),
+            FallbackEncoding = string.IsNullOrWhiteSpace(source.FallbackEncoding) ? "gbk" : source.FallbackEncoding.Trim(),
+            SuperUsersText = source.SuperUsersText?.Trim() ?? string.Empty,
+            OsqPollIntervalSec = Math.Clamp(source.OsqPollIntervalSec, 3, 300),
+            OsqRequestTimeoutSec = Math.Clamp(source.OsqRequestTimeoutSec, 3, 60)
+        };
+    }
+
+    private static FrpIntegrationSettings NormalizeFrp(FrpIntegrationSettings? source)
+    {
+        source ??= new FrpIntegrationSettings();
+        var mode = Enum.IsDefined(source.ThirdPartyFrpcLaunchMode)
+            ? source.ThirdPartyFrpcLaunchMode
+            : ThirdPartyFrpcLaunchMode.ConfigFile;
+        var thirdPartyDefault = mode == ThirdPartyFrpcLaunchMode.CommandOnly
+            ? FrpIntegrationSettings.DefaultThirdPartyFrpcCommand
+            : FrpIntegrationSettings.DefaultThirdPartyFrpcConfigCommand;
+
+        return new FrpIntegrationSettings
+        {
+            FrpCommand = string.IsNullOrWhiteSpace(source.FrpCommand)
+                ? FrpIntegrationSettings.DefaultFrpCommand
+                : source.FrpCommand.Trim(),
+            ThirdPartyFrpcLaunchMode = mode,
+            ThirdPartyFrpcCommand = string.IsNullOrWhiteSpace(source.ThirdPartyFrpcCommand)
+                ? thirdPartyDefault
+                : source.ThirdPartyFrpcCommand.Trim()
+        };
+    }
+
+    private static string NormalizeListenPrefix(string? value)
+    {
+        var raw = string.IsNullOrWhiteSpace(value)
+            ? "http://127.0.0.1:18089/"
+            : value.Trim();
+        if (!raw.EndsWith('/'))
+        {
+            raw += "/";
+        }
+
+        if (!Uri.TryCreate(raw, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) ||
+            string.IsNullOrWhiteSpace(uri.Host))
+        {
+            return "http://127.0.0.1:18089/";
+        }
+
+        var prefix = uri.GetLeftPart(UriPartial.Path);
+        return prefix.EndsWith('/') ? prefix : prefix + "/";
     }
 
     private static string NormalizeFilePathOrEmpty(string? path)

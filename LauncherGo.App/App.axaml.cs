@@ -1,6 +1,8 @@
 using System.Globalization;
 using System;
+using System.Windows.Input;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
@@ -14,8 +16,19 @@ namespace LauncherGo.App;
 
 public partial class App : Application
 {
+    public App()
+    {
+        ShowWindowCommand = new DelegateCommand(ShowMainWindowFromTray);
+        ExitCommand = new DelegateCommand(ExitFromTray);
+    }
+
+    public ICommand ShowWindowCommand { get; }
+
+    public ICommand ExitCommand { get; }
+
     public override void Initialize()
     {
+        DataContext = this;
         AvaloniaXamlLoader.Load(this);
     }
 
@@ -67,5 +80,50 @@ public partial class App : Application
         {
             // Ignore invalid culture name.
         }
+    }
+
+    private void OnTrayIconClicked(object? sender, EventArgs e)
+    {
+        ShowMainWindowFromTray();
+    }
+
+    private void ExitFromTray()
+    {
+        if (ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            return;
+        }
+
+        if (desktop.MainWindow is LauncherMainWindow launcherMainWindow)
+        {
+            launcherMainWindow.RequestExit();
+            return;
+        }
+
+        desktop.Shutdown();
+    }
+
+    private void ShowMainWindowFromTray()
+    {
+        if (ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop || desktop.MainWindow is null)
+        {
+            return;
+        }
+
+        desktop.MainWindow.ShowInTaskbar = true;
+        desktop.MainWindow.Show();
+        desktop.MainWindow.WindowState = WindowState.Normal;
+        desktop.MainWindow.Activate();
+    }
+
+    private sealed class DelegateCommand(Action execute) : ICommand
+    {
+        public event EventHandler? CanExecuteChanged;
+
+        public bool CanExecute(object? parameter) => true;
+
+        public void Execute(object? parameter) => execute();
+
+        public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
     }
 }

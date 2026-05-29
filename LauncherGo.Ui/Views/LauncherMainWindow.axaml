@@ -1452,6 +1452,29 @@
                                 </StackPanel>
                                 <Grid Grid.Row="1">
                                     <Grid x:Name="SettingsBlankPanel" />
+                                    <ScrollViewer x:Name="SettingsServerPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
+                                        <StackPanel Spacing="10">
+                                            <Border Classes="ConfigCard">
+                                                <StackPanel Spacing="10">
+                                                    <TextBlock x:Name="SettingsServerAutomationTitleTextBlock" Classes="ConfigSectionTitle" Text="启动与托盘" />
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <CheckBox x:Name="SettingsStartWithWindowsCheckBox" Classes="ConfigCheck" Content="开机启动启动器" />
+                                                        <CheckBox x:Name="SettingsCloseToTrayCheckBox" Classes="ConfigCheck" Content="关闭时隐藏到托盘，不直接退出" />
+                                                        <CheckBox x:Name="SettingsStartHiddenCheckBox" Classes="ConfigCheck" Content="启动时隐藏到托盘" />
+                                                        <CheckBox x:Name="SettingsAutoStartOsqCheckBox" Classes="ConfigCheck" Content="启动时自动启动开放信息" />
+                                                        <CheckBox x:Name="SettingsAutoStartRobotCheckBox" Classes="ConfigCheck" Content="启动时自动启动QQ机器人" />
+                                                        <CheckBox x:Name="SettingsAutoStartFrpCheckBox" Classes="ConfigCheck" Content="启动时自动开启内网穿透（常规）" />
+                                                        <CheckBox x:Name="SettingsAutoStartThirdPartyFrpcCheckBox" Classes="ConfigCheck" Content="启动时自动开启第三方内网穿透" />
+                                                    </WrapPanel>
+                                                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="False">
+                                                        <Button x:Name="SettingsServerSaveButton" Classes="ActionButton" Content="保存" Click="OnSettingsServerSaveClick" IsVisible="False" />
+                                                        <Button x:Name="SettingsServerRefreshButton" Classes="SecondaryActionButton" Content="刷新" Click="OnSettingsServerRefreshClick" IsVisible="False" />
+                                                    </StackPanel>
+                                                    <TextBlock x:Name="SettingsServerStatusTextBlock" Classes="ConfigHintText" IsVisible="False" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </ScrollViewer>
                                     <Grid x:Name="SettingsAppearancePanel" IsVisible="False" RowDefinitions="Auto,Auto" RowSpacing="12" VerticalAlignment="Top" HorizontalAlignment="Left">
                                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                                             <TextBlock x:Name="SettingsLanguageLabelTextBlock" VerticalAlignment="Center" FontSize="14" Foreground="{DynamicResource MainTextBrush}" />
@@ -1465,22 +1488,161 @@
                                 </Grid>
                             </Grid>
 
-                            <Grid x:Name="RobotPanel" IsVisible="False">
-                                <Border Classes="SectionPanel" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                                    <StackPanel Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <TextBlock Text="机器人" FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" HorizontalAlignment="Center" />
-                                        <TextBlock Text="QQ 机器人基础入口已保留，后续接入机器人进程和配置。" FontSize="13" Foreground="{DynamicResource SubTextBrush}" />
-                                    </StackPanel>
-                                </Border>
-                            </Grid>
+                            <Grid x:Name="ConnectionPanel" RowDefinitions="Auto,Auto,*" RowSpacing="8" IsVisible="False">
+                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                    <Button x:Name="ConnectionFrpTabButton" Classes="TextTabButton" Content="内网穿透" Click="OnConnectionFrpTabClick" />
+                                    <Button x:Name="ConnectionOpenInfoTabButton" Classes="TextTabButton" Content="开放信息" Click="OnConnectionOpenInfoTabClick" />
+                                    <Button x:Name="ConnectionRobotTabButton" Classes="TextTabButton" Content="QQ机器人" Click="OnConnectionRobotTabClick" />
+                                </StackPanel>
+                                <TextBlock x:Name="ConnectionStatusTextBlock" Grid.Row="1" Classes="ConfigHintText" IsVisible="False" />
+                                <Grid Grid.Row="2">
+                                    <ScrollViewer x:Name="ConnectionFrpPanel" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
+                                        <StackPanel Spacing="10">
+                                            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                                <Button x:Name="ConnectionFrpSaveButton" Classes="ActionButton" Content="保存" Click="OnConnectionFrpSaveClick" IsVisible="False" />
+                                                <Button x:Name="ConnectionFrpRefreshButton" Grid.Column="1" Classes="SecondaryActionButton" Content="刷新" Click="OnConnectionRefreshClick" IsVisible="False" />
+                                                <Button x:Name="ConnectionFrpImportButton" Classes="SecondaryActionButton" Content="导入常规" Click="OnConnectionFrpImportClick" />
+                                                <Button x:Name="ConnectionFrpStartButton" Grid.Column="1" Classes="SecondaryActionButton" Content="启动常规" Click="OnConnectionFrpStartClick" />
+                                                <Button x:Name="ConnectionFrpStopButton" Grid.Column="2" Classes="SecondaryActionButton" Content="停止常规" Click="OnConnectionFrpStopClick" />
+                                                <Button x:Name="ConnectionThirdPartyFrpcImportButton" Grid.Column="3" Classes="SecondaryActionButton" Content="导入第三方" Click="OnConnectionThirdPartyFrpcImportClick" />
+                                                <Button x:Name="ConnectionThirdPartyFrpcStartButton" Grid.Column="4" Classes="SecondaryActionButton" Content="启动第三方" Click="OnConnectionThirdPartyFrpcStartClick" />
+                                                <Button x:Name="ConnectionThirdPartyFrpcStopButton" Grid.Column="5" Classes="SecondaryActionButton" Content="停止第三方" Click="OnConnectionThirdPartyFrpcStopClick" />
+                                            </Grid>
+                                            <Border Classes="ConfigCard">
+                                                <StackPanel Spacing="10">
+                                                    <TextBlock x:Name="ConnectionFrpTitleTextBlock" Classes="ConfigSectionTitle" Text="内网穿透配置" IsVisible="False" />
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="ConnectionFrpCommandLabelTextBlock" Classes="ConfigFieldLabel" Text="常规启动命令" />
+                                                            <TextBox x:Name="ConnectionFrpCommandTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="ConnectionThirdPartyFrpcModeLabelTextBlock" Classes="ConfigFieldLabel" Text="第三方模式" />
+                                                            <ComboBox x:Name="ConnectionThirdPartyFrpcModeComboBox" Classes="CompactCombo" SelectionChanged="OnConnectionThirdPartyFrpcModeSelectionChanged">
+                                                                <ComboBox.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                                                                    </DataTemplate>
+                                                                </ComboBox.ItemTemplate>
+                                                            </ComboBox>
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="ConnectionThirdPartyFrpcCommandLabelTextBlock" Classes="ConfigFieldLabel" Text="第三方启动命令" />
+                                                            <TextBox x:Name="ConnectionThirdPartyFrpcCommandTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                    </WrapPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </ScrollViewer>
 
-                            <Grid x:Name="ConnectionPanel" IsVisible="False">
-                                <Border Classes="SectionPanel" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                                    <StackPanel Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <TextBlock Text="连接" FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" HorizontalAlignment="Center" />
-                                        <TextBlock Text="内网穿透与连接监控入口已保留，主页网络图表不会再使用随机数据。" FontSize="13" Foreground="{DynamicResource SubTextBrush}" />
-                                    </StackPanel>
-                                </Border>
+                                    <ScrollViewer x:Name="ConnectionOpenInfoPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
+                                        <StackPanel Spacing="10">
+                                            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                                <Button x:Name="OsqSaveButton" Classes="ActionButton" Content="保存" Click="OnOsqSaveClick" IsVisible="False" />
+                                                <Button x:Name="OsqRefreshButton" Grid.Column="1" Classes="SecondaryActionButton" Content="刷新" Click="OnConnectionRefreshClick" IsVisible="False" />
+                                                <Button x:Name="OsqStartButton" Classes="SecondaryActionButton" Content="启动" Click="OnOsqStartClick" />
+                                                <Button x:Name="OsqStopButton" Grid.Column="1" Classes="SecondaryActionButton" Content="停止" Click="OnOsqStopClick" />
+                                            </Grid>
+                                            <Border Classes="ConfigCard">
+                                                <StackPanel Spacing="10">
+                                                    <TextBlock x:Name="OsqTitleTextBlock" Classes="ConfigSectionTitle" Text="开放信息（OpenServerQuery）" IsVisible="False" />
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <CheckBox x:Name="OsqEnabledCheckBox" Classes="ConfigCheck" Content="启用开放信息" />
+                                                        <CheckBox x:Name="OsqAllowInsecureHttpCheckBox" Classes="ConfigCheck" Content="允许 HTTP 外发" />
+                                                    </WrapPanel>
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="OsqListenPrefixLabelTextBlock" Classes="ConfigFieldLabel" Text="监听地址" />
+                                                            <TextBox x:Name="OsqListenPrefixTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="OsqRequestTimeoutLabelTextBlock" Classes="ConfigFieldLabel" Text="请求超时秒数" />
+                                                            <NumericUpDown x:Name="OsqRequestTimeoutNumericUpDown" Classes="CompactNumber" Minimum="3" Maximum="60" />
+                                                        </StackPanel>
+                                                    </WrapPanel>
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <CheckBox x:Name="OsqIncludeServerInfoCheckBox" Classes="ConfigCheck" Content="服务器信息" />
+                                                        <CheckBox x:Name="OsqIncludePlayersCheckBox" Classes="ConfigCheck" Content="玩家列表" />
+                                                        <CheckBox x:Name="OsqIncludeEventsCheckBox" Classes="ConfigCheck" Content="玩家事件" />
+                                                        <CheckBox x:Name="OsqIncludeChatsCheckBox" Classes="ConfigCheck" Content="聊天" />
+                                                        <CheckBox x:Name="OsqIncludeNotificationsCheckBox" Classes="ConfigCheck" Content="通知" />
+                                                        <CheckBox x:Name="OsqIncludeMapCheckBox" Classes="ConfigCheck" Content="地图数据" />
+                                                    </WrapPanel>
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="OsqEndpointHostLabelTextBlock" Classes="ConfigFieldLabel" Text="上报端点" />
+                                                            <TextBox x:Name="OsqEndpointHostTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="OsqEndpointTokenLabelTextBlock" Classes="ConfigFieldLabel" Text="端点令牌" />
+                                                            <TextBox x:Name="OsqEndpointTokenTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                    </WrapPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </ScrollViewer>
+
+                                    <ScrollViewer x:Name="ConnectionRobotPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
+                                        <StackPanel Spacing="10">
+                                            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                                <Button x:Name="RobotSaveButton" Classes="ActionButton" Content="保存" Click="OnRobotSaveClick" IsVisible="False" />
+                                                <Button x:Name="RobotRefreshButton" Grid.Column="1" Classes="SecondaryActionButton" Content="刷新" Click="OnConnectionRefreshClick" IsVisible="False" />
+                                                <Button x:Name="RobotStartButton" Classes="SecondaryActionButton" Content="启动" Click="OnRobotStartClick" />
+                                                <Button x:Name="RobotStopButton" Grid.Column="1" Classes="SecondaryActionButton" Content="停止" Click="OnRobotStopClick" />
+                                            </Grid>
+                                            <Border Classes="ConfigCard">
+                                                <StackPanel Spacing="10">
+                                                    <TextBlock x:Name="RobotConfigTitleTextBlock" Classes="ConfigSectionTitle" Text="QQ机器人配置" IsVisible="False" />
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="RobotOneBotLabelTextBlock" Classes="ConfigFieldLabel" Text="OneBot WebSocket" />
+                                                            <TextBox x:Name="RobotOneBotTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="RobotAccessTokenLabelTextBlock" Classes="ConfigFieldLabel" Text="访问令牌" />
+                                                            <TextBox x:Name="RobotAccessTokenTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="RobotReconnectLabelTextBlock" Classes="ConfigFieldLabel" Text="重连间隔秒数" />
+                                                            <NumericUpDown x:Name="RobotReconnectNumericUpDown" Classes="CompactNumber" Minimum="1" Maximum="120" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="RobotPollIntervalLabelTextBlock" Classes="ConfigFieldLabel" Text="轮询间隔秒数" />
+                                                            <NumericUpDown x:Name="RobotPollIntervalNumericUpDown" Classes="CompactNumber" Minimum="0.2" Maximum="30" Increment="0.2" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="RobotDatabasePathLabelTextBlock" Classes="ConfigFieldLabel" Text="数据库路径" />
+                                                            <TextBox x:Name="RobotDatabasePathTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="RobotDefaultEncodingLabelTextBlock" Classes="ConfigFieldLabel" Text="默认编码" />
+                                                            <TextBox x:Name="RobotDefaultEncodingTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="RobotFallbackEncodingLabelTextBlock" Classes="ConfigFieldLabel" Text="回退编码" />
+                                                            <TextBox x:Name="RobotFallbackEncodingTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="RobotOsqPollLabelTextBlock" Classes="ConfigFieldLabel" Text="OSQ轮询秒数" />
+                                                            <NumericUpDown x:Name="RobotOsqPollNumericUpDown" Classes="CompactNumber" Minimum="3" Maximum="300" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="RobotOsqTimeoutLabelTextBlock" Classes="ConfigFieldLabel" Text="OSQ超时秒数" />
+                                                            <NumericUpDown x:Name="RobotOsqTimeoutNumericUpDown" Classes="CompactNumber" Minimum="3" Maximum="60" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="RobotSuperUsersLabelTextBlock" Classes="ConfigFieldLabel" Text="超级管理员 QQ" />
+                                                            <TextBox x:Name="RobotSuperUsersTextBox" Height="72" AcceptsReturn="True" TextWrapping="Wrap" />
+                                                        </StackPanel>
+                                                    </WrapPanel>
+                                                    <TextBlock x:Name="RobotOsqSourceHintTextBlock" Classes="ConfigHintText" Text="OSQ 来源由“开放信息”页面统一接收，机器人不再单独监听端口。" IsVisible="False" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Grid>
                             </Grid>
                                 </Grid>
                             </Grid>
@@ -1494,7 +1656,6 @@
                                 <Button x:Name="MonitorNavButton" Classes="FooterNavButton" Click="OnMonitorNavClick" />
                                 <Button x:Name="ConsoleNavButton" Classes="FooterNavButton" Click="OnConsoleNavClick" />
                                 <Button x:Name="InstanceManageNavButton" Classes="FooterNavButton" Click="OnInstanceManageNavClick" />
-                                <Button x:Name="RobotNavButton" Classes="FooterNavButton" Click="OnRobotNavClick" />
                                 <Button x:Name="ConnectionNavButton" Classes="FooterNavButton" Click="OnConnectionNavClick" />
                                 <Button x:Name="SettingsNavButton" Classes="FooterNavButton" Click="OnSettingsNavClick" />
                             </StackPanel>

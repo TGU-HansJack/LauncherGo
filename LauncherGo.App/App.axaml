@@ -1,6 +1,8 @@
 <Application
     x:Class="LauncherGo.App.App"
+    x:DataType="app:App"
     xmlns="https://github.com/avaloniaui"
+    xmlns:app="clr-namespace:LauncherGo.App"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:semi="https://irihi.tech/semi"
     RequestedThemeVariant="Default">
@@ -8,4 +10,19 @@
     <Application.Styles>
         <semi:SemiTheme Locale="zh-CN" />
     </Application.Styles>
+
+    <TrayIcon.Icons>
+        <TrayIcons>
+            <TrayIcon Icon="/Assets/app-icon.ico"
+                      ToolTipText="Launcher Go"
+                      Clicked="OnTrayIconClicked">
+                <TrayIcon.Menu>
+                    <NativeMenu>
+                        <NativeMenuItem Header="显示窗口" Command="{Binding ShowWindowCommand}" />
+                        <NativeMenuItem Header="退出" Command="{Binding ExitCommand}" />
+                    </NativeMenu>
+                </TrayIcon.Menu>
+            </TrayIcon>
+        </TrayIcons>
+    </TrayIcon.Icons>
 </Application>

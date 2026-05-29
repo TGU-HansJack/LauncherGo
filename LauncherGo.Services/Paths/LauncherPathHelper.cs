@@ -29,7 +29,13 @@ public static class LauncherPathHelper
             SaveDirectory = DefaultSaveDirectory,
             QqBotDirectory = DefaultQqBotDirectory,
             DefaultLaunchProfileId = string.Empty,
-            DefaultLaunchSaveFile = string.Empty
+            DefaultLaunchSaveFile = string.Empty,
+            OpenServerQuery = new OpenServerQuerySettings(),
+            Robot = new RobotIntegrationSettings
+            {
+                DatabasePath = Path.Combine(DefaultQqBotDirectory, "vs2qq.db")
+            },
+            Frp = new FrpIntegrationSettings()
         };
     }
 
