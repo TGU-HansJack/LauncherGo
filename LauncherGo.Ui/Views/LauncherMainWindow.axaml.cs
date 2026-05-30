@@ -480,6 +480,14 @@ public partial class LauncherMainWindow : Window
         AutomationSaveButton.Content = T("保存", "Save");
         AutomationRefreshButton.Content = T("刷新", "Refresh");
         AutomationSyncLogsButton.Content = T("同步日志", "Sync Logs");
+        AutomationRestartEnabledLabelTextBlock.Text = T("启用定时开关服", "Enable scheduled start/stop");
+        AutomationBackupEnabledLabelTextBlock.Text = T("启用定时备份", "Enable scheduled backup");
+        AutomationBackupBeforeShutdownLabelTextBlock.Text = T("关服前备份", "Backup before shutdown");
+        AutomationBroadcastEnabledLabelTextBlock.Text = T("启用定时广播", "Enable scheduled broadcast");
+        AutomationExportEnabledLabelTextBlock.Text = T("启用日志导出", "Enable log export");
+        AutomationExportBeforeShutdownLabelTextBlock.Text = T("关服前导出日志", "Export before shutdown");
+        AutomationExportIncludeChatLabelTextBlock.Text = T("导出聊天", "Export chat");
+        AutomationExportIncludeServerLabelTextBlock.Text = T("导出服务端信息", "Export server info");
         AutomationActionTitleTextBlock.Text = T("定时开关服", "Scheduled Start/Stop");
         AutomationAddActionButton.Content = T("添加", "Add");
         AutomationAddBackupTimeButton.Content = T("添加", "Add");
@@ -513,6 +521,8 @@ public partial class LauncherMainWindow : Window
         ConfigMaxClientsLabelTextBlock.Text = T("最大玩家数", "Max Players");
         ConfigMaxClientsInQueueLabelTextBlock.Text = T("排队人数上限", "Queue Limit");
         ConfigServerUrlLabelTextBlock.Text = T("服务器网址", "Server URL");
+        ConfigAdvertiseServerToggleLabelTextBlock.Text = T("公开到服务器列表", "List on Public Server Browser");
+        ConfigUpnpToggleLabelTextBlock.Text = T("启用 UPnP 自动端口映射", "Enable UPnP Port Mapping");
         ConfigSecurityTitleTextBlock.Text = T("安全与维护", "Security & Maintenance");
         ConfigPasswordLabelTextBlock.Text = T("加入密码", "Join Password");
         ConfigPasswordHintTextBlock.Text = T("留空表示不设置密码。", "Leave empty to disable password.");
@@ -522,6 +532,13 @@ public partial class LauncherMainWindow : Window
         ConfigClientConnectionTimeoutLabelTextBlock.Text = T("连接超时秒数", "Connection Timeout Seconds");
         ConfigMaxChunkRadiusLabelTextBlock.Text = T("最大区块视距半径", "Max Chunk View Radius");
         ConfigDieBelowDiskSpaceMbLabelTextBlock.Text = T("低于磁盘空间时关闭（MB）", "Shutdown Below Disk Space (MB)");
+        ConfigVerifyPlayerAuthToggleLabelTextBlock.Text = T("启用官方账号验证", "Enable Official Auth");
+        ConfigAllowPvPToggleLabelTextBlock.Text = T("允许PvP", "Allow PvP");
+        ConfigAllowFireSpreadToggleLabelTextBlock.Text = T("允许火势蔓延", "Allow Fire Spread");
+        ConfigAllowFallingBlocksToggleLabelTextBlock.Text = T("允许方块掉落", "Allow Falling Blocks");
+        ConfigPassTimeWhenEmptyToggleLabelTextBlock.Text = T("无人在线时继续流逝时间", "Pass Time When Empty");
+        ConfigCorruptionProtectionToggleLabelTextBlock.Text = T("启用存档损坏保护", "Enable Corruption Protection");
+        ConfigRegenerateCorruptChunksToggleLabelTextBlock.Text = T("重新生成损坏区块", "Regenerate Corrupt Chunks");
         ConfigStartupCommandsLabelTextBlock.Text = T("启动后执行命令", "Startup Commands");
         ConfigWorldTitleTextBlock.Text = T("世界", "World");
         ConfigSeedLabelTextBlock.Text = T("种子", "Seed");
@@ -545,6 +562,13 @@ public partial class LauncherMainWindow : Window
         SettingsWorkspaceDirectoryLabelTextBlock.Text = T("工作目录", "Workspace");
         SettingsBrowseWorkspaceDirectoryButton.Content = T("浏览", "Browse");
         SettingsServerAutomationTitleTextBlock.Text = T("启动与托盘", "Startup & Tray");
+        SettingsStartWithWindowsLabelTextBlock.Text = T("开机启动启动器", "Start launcher with Windows");
+        SettingsCloseToTrayLabelTextBlock.Text = T("关闭时隐藏到托盘，不直接退出", "Hide to tray on close instead of exiting");
+        SettingsStartHiddenLabelTextBlock.Text = T("启动时隐藏到托盘", "Start hidden to tray");
+        SettingsAutoStartOsqLabelTextBlock.Text = T("启动时自动启动开放信息", "Auto-start Open Info on launch");
+        SettingsAutoStartRobotLabelTextBlock.Text = T("启动时自动启动QQ机器人", "Auto-start QQ robot on launch");
+        SettingsAutoStartFrpLabelTextBlock.Text = T("启动时自动开启内网穿透（常规）", "Auto-start FRP (regular) on launch");
+        SettingsAutoStartThirdPartyFrpcLabelTextBlock.Text = T("启动时自动开启第三方内网穿透", "Auto-start third-party FRPC on launch");
     }
 
     private void InitializeNetworkSettingsStaticTexts()
@@ -595,8 +619,16 @@ public partial class LauncherMainWindow : Window
 
         UpdateOsqToggleButtonText();
         OsqTitleTextBlock.Text = T("开放信息（OpenServerQuery）", "Open Info (OpenServerQuery)");
+        OsqEnabledLabelTextBlock.Text = T("启用开放信息", "Enable Open Info");
+        OsqAllowInsecureHttpLabelTextBlock.Text = T("允许 HTTP 外发", "Allow HTTP outbound");
         OsqListenPrefixLabelTextBlock.Text = T("监听地址", "Listen Prefix");
         OsqRequestTimeoutLabelTextBlock.Text = T("请求超时秒数", "Request Timeout Seconds");
+        OsqIncludeServerInfoLabelTextBlock.Text = T("服务器信息", "Server Info");
+        OsqIncludePlayersLabelTextBlock.Text = T("玩家列表", "Players");
+        OsqIncludeEventsLabelTextBlock.Text = T("玩家事件", "Player Events");
+        OsqIncludeChatsLabelTextBlock.Text = T("聊天", "Chats");
+        OsqIncludeNotificationsLabelTextBlock.Text = T("通知", "Notifications");
+        OsqIncludeMapLabelTextBlock.Text = T("地图数据", "Map Data");
         OsqEndpointHostLabelTextBlock.Text = T("上报端点", "Report Endpoint");
         OsqEndpointTokenLabelTextBlock.Text = T("端点令牌", "Endpoint Token");
         OsqEndpointAddButton.Content = T("添加", "Add");
@@ -619,8 +651,10 @@ public partial class LauncherMainWindow : Window
         AuthSaveButton.Content = T("保存", "Save");
         AuthRefreshButton.Content = T("刷新", "Refresh");
         AuthDeployButton.Content = T("部署认证模组", "Deploy Auth Mod");
+        AuthEnabledLabelTextBlock.Text = T("启用认证", "Enable Auth");
         AuthLoginTimeoutLabelTextBlock.Text = T("登录超时秒数", "Login Timeout Seconds");
         AuthRememberSessionLabelTextBlock.Text = T("会话记住分钟", "Remember Session Minutes");
+        AuthDiscourseEnabledLabelTextBlock.Text = T("启用 Discourse 登录", "Enable Discourse Login");
         AuthDiscourseBaseUrlLabelTextBlock.Text = T("Discourse 地址", "Discourse URL");
         AuthDiscourseSecretLabelTextBlock.Text = T("共享密钥", "Shared Secret");
         AuthDiscoursePublicCallbackLabelTextBlock.Text = T("公开回调地址", "Public Callback URL");

@@ -579,7 +579,7 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Height" Value="30" />
             <Setter Property="MinHeight" Value="30" />
-            <Setter Property="MinWidth" Value="122" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
             <Setter Property="CornerRadius" Value="4" />
             <Setter Property="FontSize" Value="13" />
         </Style>
@@ -620,7 +620,7 @@
             <Setter Property="Height" Value="34" />
             <Setter Property="MinHeight" Value="34" />
             <Setter Property="MaxHeight" Value="34" />
-            <Setter Property="MinWidth" Value="152" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
@@ -706,6 +706,14 @@
             <Setter Property="Spacing" Value="4" />
             <Setter Property="Margin" Value="0,0,10,10" />
         </Style>
+        <Style Selector="StackPanel.ToggleField">
+            <Setter Property="Width" Value="205" />
+            <Setter Property="Spacing" Value="4" />
+            <Setter Property="Margin" Value="0,0,10,10" />
+        </Style>
+        <Style Selector="StackPanel.ToggleField TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
         <Style Selector="NumericUpDown.CompactNumber">
             <Setter Property="Height" Value="30" />
             <Setter Property="MinHeight" Value="30" />
@@ -720,6 +728,9 @@
             <Setter Property="Margin" Value="0,4,16,8" />
             <Setter Property="Foreground" Value="{DynamicResource MainTextBrush}" />
             <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="ToggleSwitch.LabelledToggle">
+            <Setter Property="Margin" Value="0" />
         </Style>
         <Style Selector="ListBox.FlatList">
             <Setter Property="Background" Value="Transparent" />
@@ -1232,7 +1243,6 @@
                                     <ComboBox
                                         x:Name="QuickCommandComboBox"
                                         Grid.Column="1"
-                                        Width="142"
                                         Classes="CompactCombo"
                                         PlaceholderText="快捷命令"
                                         SelectionChanged="OnQuickCommandSelectionChanged" />
@@ -1289,7 +1299,7 @@
                                     </Grid>
 
                                     <Grid x:Name="ConfigPanel" RowDefinitions="Auto,Auto,*" RowSpacing="8" IsVisible="False">
-                                        <Grid ColumnDefinitions="232,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
                                             <ComboBox x:Name="ConfigProfileComboBox" Grid.Column="0" Classes="CompactCombo" SelectionChanged="OnConfigProfileSelectionChanged">
                                                 <ComboBox.ItemTemplate>
                                                     <DataTemplate>
@@ -1366,8 +1376,14 @@
                                                                     <TextBlock x:Name="ConfigServerUrlLabelTextBlock" Classes="ConfigFieldLabel" Text="服务器网址" />
                                                                     <TextBox x:Name="ConfigServerUrlTextBox" Classes="CompactInput" />
                                                                 </StackPanel>
-                                                                <ToggleSwitch x:Name="ConfigAdvertiseServerCheckBox" Classes="ConfigCheck" />
-                                                                <ToggleSwitch x:Name="ConfigUpnpCheckBox" Classes="ConfigCheck" />
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="ConfigAdvertiseServerToggleLabelTextBlock" Classes="ConfigFieldLabel" Text="公开到服务器列表" />
+                                                                    <ToggleSwitch x:Name="ConfigAdvertiseServerCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="ConfigUpnpToggleLabelTextBlock" Classes="ConfigFieldLabel" Text="启用 UPnP 自动端口映射" />
+                                                                    <ToggleSwitch x:Name="ConfigUpnpCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
                                                             </WrapPanel>
                                                         </StackPanel>
                                                     </Border>
@@ -1411,13 +1427,34 @@
                                                                     <TextBlock x:Name="ConfigDieBelowDiskSpaceMbLabelTextBlock" Classes="ConfigFieldLabel" Text="低于磁盘空间时关闭（MB）" />
                                                                     <NumericUpDown x:Name="ConfigDieBelowDiskSpaceMbNumericUpDown" Classes="CompactNumber" Minimum="-1" Maximum="1048576" />
                                                                 </StackPanel>
-                                                                <ToggleSwitch x:Name="ConfigVerifyPlayerAuthCheckBox" Classes="ConfigCheck" />
-                                                                <ToggleSwitch x:Name="ConfigAllowPvPCheckBox" Classes="ConfigCheck" />
-                                                                <ToggleSwitch x:Name="ConfigAllowFireSpreadCheckBox" Classes="ConfigCheck" />
-                                                                <ToggleSwitch x:Name="ConfigAllowFallingBlocksCheckBox" Classes="ConfigCheck" />
-                                                                <ToggleSwitch x:Name="ConfigPassTimeWhenEmptyCheckBox" Classes="ConfigCheck" />
-                                                                <ToggleSwitch x:Name="ConfigCorruptionProtectionCheckBox" Classes="ConfigCheck" />
-                                                                <ToggleSwitch x:Name="ConfigRegenerateCorruptChunksCheckBox" Classes="ConfigCheck" />
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="ConfigVerifyPlayerAuthToggleLabelTextBlock" Classes="ConfigFieldLabel" Text="启用官方账号验证" />
+                                                                    <ToggleSwitch x:Name="ConfigVerifyPlayerAuthCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="ConfigAllowPvPToggleLabelTextBlock" Classes="ConfigFieldLabel" Text="允许PvP" />
+                                                                    <ToggleSwitch x:Name="ConfigAllowPvPCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="ConfigAllowFireSpreadToggleLabelTextBlock" Classes="ConfigFieldLabel" Text="允许火势蔓延" />
+                                                                    <ToggleSwitch x:Name="ConfigAllowFireSpreadCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="ConfigAllowFallingBlocksToggleLabelTextBlock" Classes="ConfigFieldLabel" Text="允许方块掉落" />
+                                                                    <ToggleSwitch x:Name="ConfigAllowFallingBlocksCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="ConfigPassTimeWhenEmptyToggleLabelTextBlock" Classes="ConfigFieldLabel" Text="无人在线时继续流逝时间" />
+                                                                    <ToggleSwitch x:Name="ConfigPassTimeWhenEmptyCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="ConfigCorruptionProtectionToggleLabelTextBlock" Classes="ConfigFieldLabel" Text="启用存档损坏保护" />
+                                                                    <ToggleSwitch x:Name="ConfigCorruptionProtectionCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="ConfigRegenerateCorruptChunksToggleLabelTextBlock" Classes="ConfigFieldLabel" Text="重新生成损坏区块" />
+                                                                    <ToggleSwitch x:Name="ConfigRegenerateCorruptChunksCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
                                                                 <StackPanel Classes="ConfigFormFieldWide">
                                                                     <TextBlock x:Name="ConfigStartupCommandsLabelTextBlock" Classes="ConfigFieldLabel" Text="启动后执行命令" />
                                                                     <TextBox x:Name="ConfigStartupCommandsTextBox" Classes="MultiLineInput" Height="74" AcceptsReturn="True" TextWrapping="Wrap" />
@@ -1570,7 +1607,7 @@
                                     </Grid>
 
                                     <Grid x:Name="AutomationPanel" RowDefinitions="Auto,Auto,*" RowSpacing="8" IsVisible="False">
-                                        <Grid ColumnDefinitions="212,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
                                             <ComboBox x:Name="AutomationProfileComboBox" Grid.Column="0" Classes="CompactCombo" SelectionChanged="OnAutomationProfileSelectionChanged">
                                                 <ComboBox.ItemTemplate>
                                                     <DataTemplate>
@@ -1588,14 +1625,38 @@
                                                 <Border Classes="ConfigCard">
                                                     <StackPanel Spacing="8">
                                                         <WrapPanel Orientation="Horizontal">
-                                                            <ToggleSwitch x:Name="AutomationRestartEnabledCheckBox" Classes="ConfigCheck" />
-                                                            <ToggleSwitch x:Name="AutomationBackupEnabledCheckBox" Classes="ConfigCheck" />
-                                                            <ToggleSwitch x:Name="AutomationBackupBeforeShutdownCheckBox" Classes="ConfigCheck" />
-                                                            <ToggleSwitch x:Name="AutomationBroadcastEnabledCheckBox" Classes="ConfigCheck" />
-                                                            <ToggleSwitch x:Name="AutomationExportEnabledCheckBox" Classes="ConfigCheck" />
-                                                            <ToggleSwitch x:Name="AutomationExportBeforeShutdownCheckBox" Classes="ConfigCheck" />
-                                                            <ToggleSwitch x:Name="AutomationExportIncludeChatCheckBox" Classes="ConfigCheck" />
-                                                            <ToggleSwitch x:Name="AutomationExportIncludeServerCheckBox" Classes="ConfigCheck" />
+                                                            <StackPanel Classes="ToggleField">
+                                                                <TextBlock x:Name="AutomationRestartEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="启用定时开关服" />
+                                                                <ToggleSwitch x:Name="AutomationRestartEnabledCheckBox" Classes="LabelledToggle" />
+                                                            </StackPanel>
+                                                            <StackPanel Classes="ToggleField">
+                                                                <TextBlock x:Name="AutomationBackupEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="启用定时备份" />
+                                                                <ToggleSwitch x:Name="AutomationBackupEnabledCheckBox" Classes="LabelledToggle" />
+                                                            </StackPanel>
+                                                            <StackPanel Classes="ToggleField">
+                                                                <TextBlock x:Name="AutomationBackupBeforeShutdownLabelTextBlock" Classes="ConfigFieldLabel" Text="关服前备份" />
+                                                                <ToggleSwitch x:Name="AutomationBackupBeforeShutdownCheckBox" Classes="LabelledToggle" />
+                                                            </StackPanel>
+                                                            <StackPanel Classes="ToggleField">
+                                                                <TextBlock x:Name="AutomationBroadcastEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="启用定时广播" />
+                                                                <ToggleSwitch x:Name="AutomationBroadcastEnabledCheckBox" Classes="LabelledToggle" />
+                                                            </StackPanel>
+                                                            <StackPanel Classes="ToggleField">
+                                                                <TextBlock x:Name="AutomationExportEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="启用日志导出" />
+                                                                <ToggleSwitch x:Name="AutomationExportEnabledCheckBox" Classes="LabelledToggle" />
+                                                            </StackPanel>
+                                                            <StackPanel Classes="ToggleField">
+                                                                <TextBlock x:Name="AutomationExportBeforeShutdownLabelTextBlock" Classes="ConfigFieldLabel" Text="关服前导出日志" />
+                                                                <ToggleSwitch x:Name="AutomationExportBeforeShutdownCheckBox" Classes="LabelledToggle" />
+                                                            </StackPanel>
+                                                            <StackPanel Classes="ToggleField">
+                                                                <TextBlock x:Name="AutomationExportIncludeChatLabelTextBlock" Classes="ConfigFieldLabel" Text="导出聊天" />
+                                                                <ToggleSwitch x:Name="AutomationExportIncludeChatCheckBox" Classes="LabelledToggle" />
+                                                            </StackPanel>
+                                                            <StackPanel Classes="ToggleField">
+                                                                <TextBlock x:Name="AutomationExportIncludeServerLabelTextBlock" Classes="ConfigFieldLabel" Text="导出服务端信息" />
+                                                                <ToggleSwitch x:Name="AutomationExportIncludeServerCheckBox" Classes="LabelledToggle" />
+                                                            </StackPanel>
                                                         </WrapPanel>
                                                     </StackPanel>
                                                 </Border>
@@ -1748,7 +1809,7 @@
                                     </Grid>
 
                                     <Grid x:Name="ModsPanel" RowDefinitions="Auto,Auto,*" RowSpacing="8" IsVisible="False">
-                                        <Grid ColumnDefinitions="192,*,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="8">
                                             <ComboBox x:Name="ModProfileComboBox" Grid.Column="0" Classes="CompactCombo" SelectionChanged="OnModProfileSelectionChanged">
                                                 <ComboBox.ItemTemplate>
                                                     <DataTemplate>
@@ -1865,13 +1926,34 @@
                                                 <StackPanel Spacing="10">
                                                     <TextBlock x:Name="SettingsServerAutomationTitleTextBlock" Classes="ConfigSectionTitle" Text="启动与托盘" />
                                                     <WrapPanel Orientation="Horizontal">
-                                                        <ToggleSwitch x:Name="SettingsStartWithWindowsCheckBox" Classes="ConfigCheck" />
-                                                        <ToggleSwitch x:Name="SettingsCloseToTrayCheckBox" Classes="ConfigCheck" />
-                                                        <ToggleSwitch x:Name="SettingsStartHiddenCheckBox" Classes="ConfigCheck" />
-                                                        <ToggleSwitch x:Name="SettingsAutoStartOsqCheckBox" Classes="ConfigCheck" />
-                                                        <ToggleSwitch x:Name="SettingsAutoStartRobotCheckBox" Classes="ConfigCheck" />
-                                                        <ToggleSwitch x:Name="SettingsAutoStartFrpCheckBox" Classes="ConfigCheck" />
-                                                        <ToggleSwitch x:Name="SettingsAutoStartThirdPartyFrpcCheckBox" Classes="ConfigCheck" />
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="SettingsStartWithWindowsLabelTextBlock" Classes="ConfigFieldLabel" Text="开机启动启动器" />
+                                                            <ToggleSwitch x:Name="SettingsStartWithWindowsCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="SettingsCloseToTrayLabelTextBlock" Classes="ConfigFieldLabel" Text="关闭时隐藏到托盘，不直接退出" />
+                                                            <ToggleSwitch x:Name="SettingsCloseToTrayCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="SettingsStartHiddenLabelTextBlock" Classes="ConfigFieldLabel" Text="启动时隐藏到托盘" />
+                                                            <ToggleSwitch x:Name="SettingsStartHiddenCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="SettingsAutoStartOsqLabelTextBlock" Classes="ConfigFieldLabel" Text="启动时自动启动开放信息" />
+                                                            <ToggleSwitch x:Name="SettingsAutoStartOsqCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="SettingsAutoStartRobotLabelTextBlock" Classes="ConfigFieldLabel" Text="启动时自动启动QQ机器人" />
+                                                            <ToggleSwitch x:Name="SettingsAutoStartRobotCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="SettingsAutoStartFrpLabelTextBlock" Classes="ConfigFieldLabel" Text="启动时自动开启内网穿透（常规）" />
+                                                            <ToggleSwitch x:Name="SettingsAutoStartFrpCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="SettingsAutoStartThirdPartyFrpcLabelTextBlock" Classes="ConfigFieldLabel" Text="启动时自动开启第三方内网穿透" />
+                                                            <ToggleSwitch x:Name="SettingsAutoStartThirdPartyFrpcCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
                                                     </WrapPanel>
                                                     <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="False">
                                                         <Button x:Name="SettingsServerSaveButton" Classes="ActionButton" Content="保存" Click="OnSettingsServerSaveClick" IsVisible="False" />
@@ -2056,8 +2138,14 @@
                                                 <StackPanel Spacing="10">
                                                     <TextBlock x:Name="OsqTitleTextBlock" Classes="ConfigSectionTitle" Text="开放信息（OpenServerQuery）" IsVisible="False" />
                                                     <WrapPanel Orientation="Horizontal">
-                                                        <ToggleSwitch x:Name="OsqEnabledCheckBox" Classes="ConfigCheck" />
-                                                        <ToggleSwitch x:Name="OsqAllowInsecureHttpCheckBox" Classes="ConfigCheck" />
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="OsqEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="启用开放信息" />
+                                                            <ToggleSwitch x:Name="OsqEnabledCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="OsqAllowInsecureHttpLabelTextBlock" Classes="ConfigFieldLabel" Text="允许 HTTP 外发" />
+                                                            <ToggleSwitch x:Name="OsqAllowInsecureHttpCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
                                                     </WrapPanel>
                                                     <WrapPanel Orientation="Horizontal">
                                                         <StackPanel Classes="ConfigFormFieldWide">
@@ -2070,12 +2158,30 @@
                                                         </StackPanel>
                                                     </WrapPanel>
                                                     <WrapPanel Orientation="Horizontal">
-                                                        <ToggleSwitch x:Name="OsqIncludeServerInfoCheckBox" Classes="ConfigCheck" />
-                                                        <ToggleSwitch x:Name="OsqIncludePlayersCheckBox" Classes="ConfigCheck" />
-                                                        <ToggleSwitch x:Name="OsqIncludeEventsCheckBox" Classes="ConfigCheck" />
-                                                        <ToggleSwitch x:Name="OsqIncludeChatsCheckBox" Classes="ConfigCheck" />
-                                                        <ToggleSwitch x:Name="OsqIncludeNotificationsCheckBox" Classes="ConfigCheck" />
-                                                        <ToggleSwitch x:Name="OsqIncludeMapCheckBox" Classes="ConfigCheck" />
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="OsqIncludeServerInfoLabelTextBlock" Classes="ConfigFieldLabel" Text="服务器信息" />
+                                                            <ToggleSwitch x:Name="OsqIncludeServerInfoCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="OsqIncludePlayersLabelTextBlock" Classes="ConfigFieldLabel" Text="玩家列表" />
+                                                            <ToggleSwitch x:Name="OsqIncludePlayersCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="OsqIncludeEventsLabelTextBlock" Classes="ConfigFieldLabel" Text="玩家事件" />
+                                                            <ToggleSwitch x:Name="OsqIncludeEventsCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="OsqIncludeChatsLabelTextBlock" Classes="ConfigFieldLabel" Text="聊天" />
+                                                            <ToggleSwitch x:Name="OsqIncludeChatsCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="OsqIncludeNotificationsLabelTextBlock" Classes="ConfigFieldLabel" Text="通知" />
+                                                            <ToggleSwitch x:Name="OsqIncludeNotificationsCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="OsqIncludeMapLabelTextBlock" Classes="ConfigFieldLabel" Text="地图数据" />
+                                                            <ToggleSwitch x:Name="OsqIncludeMapCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
                                                     </WrapPanel>
                                                     <StackPanel Spacing="8">
                                                         <Grid ColumnDefinitions="420,420" ColumnSpacing="10">
@@ -2156,7 +2262,7 @@
 
                                     <ScrollViewer x:Name="ConnectionAuthPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
                                         <StackPanel Spacing="10">
-                                            <Grid ColumnDefinitions="212,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
                                                 <ComboBox x:Name="AuthProfileComboBox" Grid.Column="0" Classes="CompactCombo" SelectionChanged="OnAuthProfileSelectionChanged">
                                                     <ComboBox.ItemTemplate>
                                                         <DataTemplate>
@@ -2172,7 +2278,10 @@
                                             <Border Classes="ConfigCard">
                                                 <StackPanel Spacing="10">
                                                     <WrapPanel Orientation="Horizontal">
-                                                        <ToggleSwitch x:Name="AuthEnabledCheckBox" Classes="ConfigCheck" />
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="AuthEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="启用认证" />
+                                                            <ToggleSwitch x:Name="AuthEnabledCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
                                                         <StackPanel Classes="ConfigFormField">
                                                             <TextBlock x:Name="AuthLoginTimeoutLabelTextBlock" Classes="ConfigFieldLabel" Text="登录超时秒数" />
                                                             <NumericUpDown x:Name="AuthLoginTimeoutNumericUpDown" Classes="CompactNumber" Minimum="10" Maximum="600" />
@@ -2183,7 +2292,10 @@
                                                         </StackPanel>
                                                     </WrapPanel>
                                                     <WrapPanel Orientation="Horizontal">
-                                                        <ToggleSwitch x:Name="AuthDiscourseEnabledCheckBox" Classes="ConfigCheck" />
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="AuthDiscourseEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="启用 Discourse 登录" />
+                                                            <ToggleSwitch x:Name="AuthDiscourseEnabledCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
                                                         <StackPanel Classes="ConfigFormFieldWide">
                                                             <TextBlock x:Name="AuthDiscourseBaseUrlLabelTextBlock" Classes="ConfigFieldLabel" Text="Discourse 地址" />
                                                             <TextBox x:Name="AuthDiscourseBaseUrlTextBox" Classes="CompactInput" />
