@@ -55,6 +55,7 @@ public static class LauncherPathHelper
             DownloadChunkCount = 4,
             DefaultLaunchProfileId = string.Empty,
             DefaultLaunchSaveFile = string.Empty,
+            QuickCommands = [],
             OpenServerQuery = new OpenServerQuerySettings(),
             Robot = new RobotIntegrationSettings
             {

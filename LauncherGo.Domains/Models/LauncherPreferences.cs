@@ -37,6 +37,8 @@ public class LauncherPreferences
 
     public string DefaultLaunchSaveFile { get; set; } = string.Empty;
 
+    public List<string> QuickCommands { get; set; } = [];
+
     public bool StartWithWindows { get; set; }
 
     public bool CloseToTrayOnExit { get; set; }

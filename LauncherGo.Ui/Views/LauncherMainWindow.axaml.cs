@@ -47,7 +47,6 @@ public partial class LauncherMainWindow : Window
         "M187.2 100.9C174.8 94.1 159.8 94.4 147.6 101.6C135.4 108.8 128 121.9 128 136L128 504C128 518.1 135.5 531.2 147.6 538.4C159.7 545.6 174.8 545.9 187.2 539.1L523.2 355.1C536 348.1 544 334.6 544 320C544 305.4 536 291.9 523.2 284.9L187.2 100.9z";
     private const string LaunchStopIconData =
         "M160 96L480 96C515.3 96 544 124.7 544 160L544 480C544 515.3 515.3 544 480 544L160 544C124.7 544 96 515.3 96 480L96 160C96 124.7 124.7 96 160 96z";
-    private static readonly string[] QuickCommands = ["/stop", "/autosavenow", "/list"];
     private static readonly HttpClient SharedHttpClient = CreateSharedHttpClient();
 
     private static readonly (string Zh, string En)[] HomeSlogans =
@@ -556,6 +555,7 @@ public partial class LauncherMainWindow : Window
         SettingsServerDirectoryTitleTextBlock.Text = T("目录路径", "Directory Path");
         SettingsWorkspaceDirectoryLabelTextBlock.Text = T("工作目录", "Workspace");
         SettingsBrowseWorkspaceDirectoryButton.Content = T("浏览", "Browse");
+        SettingsQuickCommandsTitleTextBlock.Text = T("快捷命令", "Quick Commands");
         SettingsServerAutomationTitleTextBlock.Text = T("启动与托盘", "Startup & Tray");
         SettingsStartWithWindowsLabelTextBlock.Text = T("开机启动启动器", "Start launcher with Windows");
         SettingsCloseToTrayLabelTextBlock.Text = T("关闭时隐藏到托盘，不直接退出", "Hide to tray on close instead of exiting");
@@ -676,8 +676,7 @@ public partial class LauncherMainWindow : Window
     private void InitializeCollections()
     {
         ConsoleOutputTextBlock.Text = string.Empty;
-        QuickCommandComboBox.ItemsSource = QuickCommands;
-        QuickCommandComboBox.SelectedIndex = -1;
+        RefreshQuickCommandItems(_preferencesService.Load().QuickCommands);
         ProfilesListBox.ItemsSource = _profileItems;
         SavesListBox.ItemsSource = _saveItems;
         DownloadVersionsListBox.ItemsSource = _downloadVersionItems;
@@ -1783,6 +1782,7 @@ public partial class LauncherMainWindow : Window
     private void RegisterAutoSaveHandlers()
     {
         SettingsWorkspaceDirectoryTextBox.LostFocus += OnServerSettingsAutoSaveChanged;
+        SettingsQuickCommandsTextBox.LostFocus += OnServerSettingsAutoSaveChanged;
 
         foreach (var check in new[]
                  {
@@ -1884,6 +1884,44 @@ public partial class LauncherMainWindow : Window
         SaveRobotSettings(updateStatus: false, refreshEditor: false);
     }
 
+    private void RefreshQuickCommandItems(IEnumerable<string>? commands)
+    {
+        QuickCommandComboBox.ItemsSource = NormalizeQuickCommands(commands);
+        QuickCommandComboBox.SelectedIndex = -1;
+    }
+
+    private static string FormatQuickCommands(IEnumerable<string>? commands)
+    {
+        return string.Join(Environment.NewLine, NormalizeQuickCommands(commands));
+    }
+
+    private static List<string> ParseQuickCommands(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return [];
+        }
+
+        return NormalizeQuickCommands(text.Split(
+            ["\r\n", "\n", "\r"],
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    }
+
+    private static List<string> NormalizeQuickCommands(IEnumerable<string>? commands)
+    {
+        var result = new List<string>();
+        foreach (var command in commands ?? [])
+        {
+            var normalized = command?.Trim();
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                result.Add(normalized);
+            }
+        }
+
+        return result;
+    }
+
     private void RefreshServerSettingsEditor()
     {
         _isApplyingServerSettings = true;
@@ -1891,6 +1929,7 @@ public partial class LauncherMainWindow : Window
         {
             var preferences = _preferencesService.Load();
             SettingsWorkspaceDirectoryTextBox.Text = preferences.WorkspaceRoot;
+            SettingsQuickCommandsTextBox.Text = FormatQuickCommands(preferences.QuickCommands);
             SettingsStartWithWindowsCheckBox.IsChecked = preferences.StartWithWindows;
             SettingsCloseToTrayCheckBox.IsChecked = preferences.CloseToTrayOnExit;
             SettingsStartHiddenCheckBox.IsChecked = preferences.StartHiddenOnLaunch;
@@ -1910,6 +1949,7 @@ public partial class LauncherMainWindow : Window
     {
         var preferences = _preferencesService.Load();
         preferences.WorkspaceRoot = SettingsWorkspaceDirectoryTextBox.Text?.Trim() ?? string.Empty;
+        preferences.QuickCommands = ParseQuickCommands(SettingsQuickCommandsTextBox.Text);
         preferences.StartWithWindows = SettingsStartWithWindowsCheckBox.IsChecked == true;
         preferences.CloseToTrayOnExit = SettingsCloseToTrayCheckBox.IsChecked == true;
         preferences.StartHiddenOnLaunch = SettingsStartHiddenCheckBox.IsChecked == true;
@@ -1918,6 +1958,7 @@ public partial class LauncherMainWindow : Window
         preferences.AutoStartFrpOnLaunch = SettingsAutoStartFrpCheckBox.IsChecked == true;
         preferences.AutoStartThirdPartyFrpcOnLaunch = SettingsAutoStartThirdPartyFrpcCheckBox.IsChecked == true;
         _preferencesService.Save(preferences);
+        RefreshQuickCommandItems(preferences.QuickCommands);
         try
         {
             ApplyWindowsStartupRegistration(preferences.StartWithWindows);

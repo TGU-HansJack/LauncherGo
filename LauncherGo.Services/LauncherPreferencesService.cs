@@ -86,6 +86,7 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
                 ? string.Empty
                 : source.DefaultLaunchProfileId.Trim(),
             DefaultLaunchSaveFile = NormalizeFilePathOrEmpty(source.DefaultLaunchSaveFile),
+            QuickCommands = NormalizeQuickCommands(source.QuickCommands),
             StartWithWindows = source.StartWithWindows,
             CloseToTrayOnExit = source.CloseToTrayOnExit,
             StartHiddenOnLaunch = source.StartHiddenOnLaunch,
@@ -97,6 +98,23 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             Robot = NormalizeRobot(source.Robot, qqBotDirectory),
             Frp = NormalizeFrp(source.Frp)
         };
+    }
+
+    private static List<string> NormalizeQuickCommands(IEnumerable<string>? source)
+    {
+        var commands = new List<string>();
+        foreach (var command in source ?? [])
+        {
+            var normalized = command?.Trim();
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                continue;
+            }
+
+            commands.Add(normalized);
+        }
+
+        return commands;
     }
 
     private static OpenServerQuerySettings NormalizeOpenServerQuery(OpenServerQuerySettings? source)

@@ -1936,6 +1936,12 @@
                                             </Border>
                                             <Border Classes="ConfigCard">
                                                 <StackPanel Spacing="10">
+                                                    <TextBlock x:Name="SettingsQuickCommandsTitleTextBlock" Classes="ConfigSectionTitle" Text="快捷命令" />
+                                                    <TextBox x:Name="SettingsQuickCommandsTextBox" Classes="MultiLineInput" Height="92" AcceptsReturn="True" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Classes="ConfigCard">
+                                                <StackPanel Spacing="10">
                                                     <TextBlock x:Name="SettingsServerAutomationTitleTextBlock" Classes="ConfigSectionTitle" Text="启动与托盘" />
                                                     <WrapPanel Orientation="Horizontal">
                                                         <StackPanel Classes="ToggleField">
