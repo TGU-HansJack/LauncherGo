@@ -9,6 +9,19 @@
 
 LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标是把服务端下载、档案管理、存档管理、配置编辑、进程控制、自动化任务、模组管理、认证模组、开放信息传输、QQ 机器人和内网穿透整合到同一个桌面应用中。
 
+## 版本信息
+
+| 项目 | 当前情况 |
+| --- | --- |
+| 软件版本 | 源码中未写死固定版本号，正式版和预发布版由 `.github/workflows/release.yml` 的 `version` 输入写入 `Version` 与 `InformationalVersion` |
+| 产品阶段 | 第二代开服器，持续开发中 |
+| 目标框架 | `.NET net10.0` |
+| 桌面 UI | `Avalonia 12.0.1` 与 `Semi.Avalonia 12.0.1` |
+| 默认运行平台 | 当前发布工作流打包 `win-x64`，为 framework-dependent 发布 |
+| Vintage Story 服务端版本 | 由官方或第三方服务端索引下载，实例档案按选择的服务端版本运行 |
+| 嵌入认证模组 | `serverauth.dll`，当前服务端侧集成版本常量为 `1.0.0` |
+| 认证模组构建参考 | GitHub Actions 默认使用 Vintage Story `1.22.2` 的服务端 API 引用构建，可在工作流输入中修改 |
+
 ## 当前功能
 
 | 模块 | 当前实现 |

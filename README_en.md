@@ -9,6 +9,19 @@
 
 LauncherGo is a graphical server launcher for Vintage Story. Its goal is to integrate server downloads, profile management, save management, configuration editing, process control, automation, mod management, authentication, open server information transport, QQ bot integration, and FRP tunneling into one desktop application.
 
+## Version Information
+
+| Item | Current Status |
+| --- | --- |
+| Application version | The source tree does not hard-code a fixed product version. Official and prerelease builds receive `Version` and `InformationalVersion` from `.github/workflows/release.yml` |
+| Product stage | Second-generation server launcher, under active development |
+| Target framework | `.NET net10.0` |
+| Desktop UI | `Avalonia 12.0.1` and `Semi.Avalonia 12.0.1` |
+| Default release platform | The current release workflow packages `win-x64` as a framework-dependent build |
+| Vintage Story server version | Server versions are downloaded from the official or configured third-party server catalog, and each profile runs the selected version |
+| Embedded authentication mod | `serverauth.dll`, with the current server-side integration version constant set to `1.0.0` |
+| Auth mod build reference | GitHub Actions defaults to Vintage Story `1.22.2` server API references, and the version can be changed in workflow inputs |
+
 ## Current Features
 
 | Area | Current Implementation |

@@ -2070,12 +2070,14 @@ public partial class LauncherMainWindow : Window
             Spacing = 6
         };
 
-        using var reader = new StringReader(markdown);
+        var lines = markdown.Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n');
         var inCodeBlock = false;
         var codeBuffer = new StringBuilder();
-        string? line;
-        while ((line = reader.ReadLine()) is not null)
+        for (var i = 0; i < lines.Length; i++)
         {
+            var line = lines[i];
             var trimmed = line.Trim();
             if (trimmed.StartsWith("```", StringComparison.Ordinal))
             {
@@ -2104,6 +2106,21 @@ public partial class LauncherMainWindow : Window
                 continue;
             }
 
+            if (IsMarkdownTableStart(lines, i))
+            {
+                var tableRows = new List<string> { lines[i] };
+                i += 2;
+                while (i < lines.Length && IsMarkdownTableRow(lines[i]))
+                {
+                    tableRows.Add(lines[i]);
+                    i++;
+                }
+
+                i--;
+                AddAboutTable(host, tableRows);
+                continue;
+            }
+
             if (trimmed.StartsWith("# ", StringComparison.Ordinal))
             {
                 host.Children.Add(CreateAboutText(CleanInlineMarkdown(trimmed[2..]), "AboutHeading1"));
@@ -2122,7 +2139,11 @@ public partial class LauncherMainWindow : Window
                 continue;
             }
 
-            host.Children.Add(CreateAboutText(CleanInlineMarkdown(trimmed), "AboutParagraph"));
+            var text = CleanInlineMarkdown(trimmed);
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                host.Children.Add(CreateAboutText(text, "AboutParagraph"));
+            }
         }
 
         if (inCodeBlock && codeBuffer.Length > 0)
@@ -2160,11 +2181,103 @@ public partial class LauncherMainWindow : Window
         host.Children.Add(border);
     }
 
+    private static void AddAboutTable(StackPanel host, IReadOnlyList<string> rawRows)
+    {
+        var rows = rawRows
+            .Select(SplitMarkdownTableRow)
+            .Where(row => row.Count > 0)
+            .ToList();
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        var columnCount = rows.Max(row => row.Count);
+        var grid = new Grid
+        {
+            ColumnSpacing = 0,
+            RowSpacing = 0,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch
+        };
+        grid.Classes.Add("AboutTable");
+
+        for (var column = 0; column < columnCount; column++)
+        {
+            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        }
+
+        for (var row = 0; row < rows.Count; row++)
+        {
+            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            for (var column = 0; column < columnCount; column++)
+            {
+                var cellText = column < rows[row].Count ? CleanInlineMarkdown(rows[row][column]) : string.Empty;
+                var cell = new Border
+                {
+                    Child = CreateAboutText(
+                        cellText,
+                        row == 0 ? "AboutTableHeaderText" : "AboutTableCellText")
+                };
+                cell.Classes.Add(row == 0 ? "AboutTableHeaderCell" : "AboutTableCell");
+                Grid.SetRow(cell, row);
+                Grid.SetColumn(cell, column);
+                grid.Children.Add(cell);
+            }
+        }
+
+        host.Children.Add(grid);
+    }
+
+    private static bool IsMarkdownTableStart(IReadOnlyList<string> lines, int index)
+    {
+        return index + 1 < lines.Count &&
+               IsMarkdownTableRow(lines[index]) &&
+               IsMarkdownTableSeparator(lines[index + 1]);
+    }
+
+    private static bool IsMarkdownTableRow(string line)
+    {
+        var trimmed = line.Trim();
+        return trimmed.Length >= 3 &&
+               trimmed.StartsWith('|') &&
+               trimmed.EndsWith('|') &&
+               trimmed.Count(character => character == '|') >= 2;
+    }
+
+    private static bool IsMarkdownTableSeparator(string line)
+    {
+        var cells = SplitMarkdownTableRow(line);
+        return cells.Count > 0 &&
+               cells.All(cell => Regex.IsMatch(cell.Trim(), "^:?-{3,}:?$"));
+    }
+
+    private static List<string> SplitMarkdownTableRow(string line)
+    {
+        var trimmed = line.Trim();
+        if (trimmed.StartsWith('|'))
+        {
+            trimmed = trimmed[1..];
+        }
+
+        if (trimmed.EndsWith('|'))
+        {
+            trimmed = trimmed[..^1];
+        }
+
+        return trimmed
+            .Split('|')
+            .Select(cell => cell.Trim())
+            .ToList();
+    }
+
     private static string CleanInlineMarkdown(string value)
     {
         var result = Regex.Replace(value, @"`([^`]+)`", "$1");
         result = Regex.Replace(result, @"\[([^\]]+)\]\(([^\)]+)\)", "$1 ($2)");
-        return result.Trim();
+        result = Regex.Replace(result, @"<br\s*/?>", " ", RegexOptions.IgnoreCase);
+        result = Regex.Replace(result, @"</?(p|span|strong)[^>]*>", string.Empty, RegexOptions.IgnoreCase);
+        result = Regex.Replace(result, @"<[^>]+>", string.Empty);
+        return System.Net.WebUtility.HtmlDecode(result).Trim();
     }
 
     private static string SanitizeAboutMarkdown(string markdown)

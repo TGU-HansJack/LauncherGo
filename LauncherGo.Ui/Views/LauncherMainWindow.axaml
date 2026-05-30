@@ -696,6 +696,32 @@
             <Setter Property="Padding" Value="10" />
             <Setter Property="Margin" Value="0,3,0,5" />
         </Style>
+        <Style Selector="Grid.AboutTable">
+            <Setter Property="Margin" Value="0,4,0,8" />
+        </Style>
+        <Style Selector="Border.AboutTableHeaderCell">
+            <Setter Property="Background" Value="{DynamicResource CardHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SplitLineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8,7" />
+        </Style>
+        <Style Selector="Border.AboutTableCell">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SplitLineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8,7" />
+        </Style>
+        <Style Selector="TextBlock.AboutTableHeaderText">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource MainTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="TextBlock.AboutTableCellText">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource MainTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
         <Style Selector="StackPanel.ConfigFormField">
             <Setter Property="Width" Value="205" />
             <Setter Property="Spacing" Value="4" />
