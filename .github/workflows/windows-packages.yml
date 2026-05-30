@@ -1,0 +1,258 @@
+name: Build Windows Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version number (for example: 1.2.3)"
+        required: true
+        default: "0.0.0"
+        type: string
+      vintage_story_version:
+        description: "Vintage Story server version used to build embedded ServerAuth mod"
+        required: true
+        default: "1.22.2"
+        type: string
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    env:
+      PROJECT_PATH: LauncherGo.App/LauncherGo.App.csproj
+      EMBEDDED_AUTH_PROJECT: LauncherGo.Services/EmbeddedMods/VsslAuthMod/VsslAuthMod.csproj
+      CONFIGURATION: Release
+      RUNTIME: win-x64
+      VINTAGE_STORY_VERSION: 1.22.2
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Prepare Vintage Story API refs
+        shell: pwsh
+        run: |
+          $inputVsVersion = "${{ inputs.vintage_story_version }}"
+          $vsVersion = if ([string]::IsNullOrWhiteSpace($inputVsVersion)) { $env:VINTAGE_STORY_VERSION } else { $inputVsVersion.Trim() }
+          if ([string]::IsNullOrWhiteSpace($vsVersion)) { throw "VINTAGE_STORY_VERSION is empty." }
+
+          $vsRoot = Join-Path $pwd ".vintagestory-runtime"
+          $apiDll = Join-Path $vsRoot "VintagestoryAPI.dll"
+          $libDll = Join-Path $vsRoot "VintagestoryLib.dll"
+          $protobufDll = Join-Path $vsRoot "Lib/protobuf-net.dll"
+
+          if (!(Test-Path $apiDll) -or !(Test-Path $libDll) -or !(Test-Path $protobufDll)) {
+            New-Item -ItemType Directory -Force -Path $vsRoot | Out-Null
+            $zipPath = Join-Path $vsRoot "vs_server_win-x64_$vsVersion.zip"
+            $downloadUrl = "https://cdn.vintagestory.at/gamefiles/stable/vs_server_win-x64_$vsVersion.zip"
+
+            Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+            try {
+              $requiredEntries = @(
+                "VintagestoryAPI.dll",
+                "VintagestoryLib.dll",
+                "Lib/protobuf-net.dll"
+              )
+
+              foreach ($entryName in $requiredEntries) {
+                $entry = $zip.GetEntry($entryName)
+                if ($null -eq $entry) {
+                  throw "Missing required file '$entryName' in $downloadUrl"
+                }
+
+                $targetPath = Join-Path $vsRoot $entryName
+                $targetDir = Split-Path -Parent $targetPath
+                if (!(Test-Path $targetDir)) {
+                  New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+                }
+
+                $entryStream = $entry.Open()
+                $fileStream = [System.IO.File]::Open($targetPath, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
+                try {
+                  $entryStream.CopyTo($fileStream)
+                }
+                finally {
+                  $entryStream.Dispose()
+                  $fileStream.Dispose()
+                }
+              }
+            }
+            finally {
+              $zip.Dispose()
+            }
+
+            if (Test-Path $zipPath) {
+              Remove-Item -LiteralPath $zipPath -Force
+            }
+          }
+
+          "VINTAGE_STORY_VERSION=$vsVersion" >> $env:GITHUB_ENV
+          "VINTAGE_STORY=$vsRoot" >> $env:GITHUB_ENV
+          Write-Host "Using VINTAGE_STORY=$vsRoot"
+
+      - name: Restore
+        run: dotnet restore LauncherGo.slnx
+
+      - name: Restore embedded ServerAuth mod project
+        run: dotnet restore $env:EMBEDDED_AUTH_PROJECT
+
+      - name: Resolve package version
+        id: resolve_version
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $version = "${{ inputs.version }}"
+          }
+          elseif ("${{ github.ref_type }}" -eq "tag") {
+            $version = "${{ github.ref_name }}"
+          }
+          else {
+            $version = "0.0.0-${{ github.run_number }}"
+          }
+
+          if ($version.StartsWith("v")) { $version = $version.Substring(1) }
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "Resolved version is empty."
+          }
+
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Build embedded ServerAuth mod
+        shell: pwsh
+        run: |
+          dotnet build $env:EMBEDDED_AUTH_PROJECT -c $env:CONFIGURATION --no-restore
+          if ($LASTEXITCODE -ne 0) {
+            throw "Build failed: $env:EMBEDDED_AUTH_PROJECT"
+          }
+
+          $dllPath = "LauncherGo.Services/EmbeddedMods/VsslAuthMod/bin/$env:CONFIGURATION/net10.0/serverauth.dll"
+          $targetDir = "LauncherGo.Services/EmbeddedMods/serverauth"
+          $targetPath = Join-Path $targetDir "serverauth.dll"
+
+          if (!(Test-Path $dllPath)) {
+            throw "Missing built ServerAuth DLL: $dllPath"
+          }
+
+          New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+          Copy-Item -LiteralPath $dllPath -Destination $targetPath -Force
+
+      - name: Publish installer payload
+        run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -o artifacts/publish/win-x64
+
+      - name: Publish portable single-file
+        run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o artifacts/publish/portable
+
+      - name: Verify embedded ServerAuth payload exists
+        shell: pwsh
+        run: |
+          $requiredPaths = @(
+            "artifacts/publish/win-x64/EmbeddedMods/serverauth/serverauth.dll",
+            "artifacts/publish/win-x64/EmbeddedMods/serverauth/modinfo.json",
+            "artifacts/publish/win-x64/EmbeddedMods/serverauth/README.txt",
+            "artifacts/publish/portable/EmbeddedMods/serverauth/serverauth.dll",
+            "artifacts/publish/portable/EmbeddedMods/serverauth/modinfo.json",
+            "artifacts/publish/portable/EmbeddedMods/serverauth/README.txt"
+          )
+
+          foreach ($path in $requiredPaths) {
+            if (!(Test-Path $path)) {
+              throw "Missing embedded ServerAuth payload: $path"
+            }
+          }
+
+      - name: Prepare embedded ServerAuth artifact
+        shell: pwsh
+        run: |
+          $modRoot = "artifacts/publish/win-x64/EmbeddedMods/serverauth"
+          $outputRoot = "artifacts/embedded-mods"
+          $zipPath = Join-Path $outputRoot "serverauth.zip"
+
+          New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
+
+          foreach ($fileName in @("serverauth.dll", "modinfo.json", "README.txt")) {
+            $requiredPath = Join-Path $modRoot $fileName
+            if (!(Test-Path $requiredPath)) {
+              throw "Missing embedded ServerAuth package file: $requiredPath"
+            }
+          }
+
+          if (Test-Path $zipPath) {
+            Remove-Item -LiteralPath $zipPath -Force
+          }
+
+          Compress-Archive -Path (Join-Path $modRoot "*") -DestinationPath $zipPath -CompressionLevel Optimal
+
+      - name: Prepare portable artifact
+        shell: pwsh
+        run: |
+          $version = "${{ steps.resolve_version.outputs.value }}"
+          $staging = "artifacts/portable/LauncherGo-portable-$version-win-x64"
+          $zipPath = "artifacts/portable/LauncherGo-portable-$version-win-x64.zip"
+          $publishRoot = "artifacts/publish/portable"
+
+          if (Test-Path $staging) {
+            Remove-Item -LiteralPath $staging -Recurse -Force
+          }
+
+          New-Item -ItemType Directory -Force -Path $staging | Out-Null
+          Copy-Item -Path (Join-Path $publishRoot "*") -Destination $staging -Recurse -Force
+
+          if (!(Test-Path (Join-Path $staging "LauncherGo.App.exe"))) {
+            throw "Missing portable executable."
+          }
+
+          if (Test-Path $zipPath) {
+            Remove-Item -LiteralPath $zipPath -Force
+          }
+
+          Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $zipPath -CompressionLevel Optimal
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer package
+        shell: pwsh
+        run: |
+          $version = "${{ steps.resolve_version.outputs.value }}"
+
+          New-Item -ItemType Directory -Force -Path artifacts/installer | Out-Null
+
+          $buildDir = (Resolve-Path "artifacts/publish/win-x64").Path
+          $outputDir = (Resolve-Path "artifacts/installer").Path
+
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=$version" `
+            "/DBuildDir=$buildDir" `
+            "/DOutputDir=$outputDir" `
+            "installer/LauncherGo.iss"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LauncherGo-installer-${{ steps.resolve_version.outputs.value }}-win-x64
+          path: artifacts/installer/*.exe
+          if-no-files-found: error
+
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LauncherGo-portable-${{ steps.resolve_version.outputs.value }}-win-x64
+          path: artifacts/portable/LauncherGo-portable-${{ steps.resolve_version.outputs.value }}-win-x64.zip
+          if-no-files-found: error
+
+      - name: Upload embedded ServerAuth artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LauncherGo-embedded-mods-${{ steps.resolve_version.outputs.value }}
+          path: artifacts/embedded-mods/*.zip
+          if-no-files-found: error

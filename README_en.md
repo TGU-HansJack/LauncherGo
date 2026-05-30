@@ -13,11 +13,11 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 
 | Item | Current Status |
 | --- | --- |
-| Application version | The source tree does not hard-code a fixed product version. Official and prerelease builds receive `Version` and `InformationalVersion` from `.github/workflows/release.yml` |
+| Application version | The source tree does not hard-code a fixed product version. Windows packaging and Release publishing receive `Version` and `InformationalVersion` from `.github/workflows/windows-packages.yml`, `.github/workflows/publish-release.yml`, or `v*` tags |
 | Product stage | Second-generation server launcher, under active development |
 | Target framework | `.NET net10.0` |
 | Desktop UI | `Avalonia 12.0.1` and `Semi.Avalonia 12.0.1` |
-| Default release platform | The current release workflow packages `win-x64` as a framework-dependent build |
+| Default release platform | The current release workflows package `win-x64` as a self-contained installer, portable single-file package, and embedded ServerAuth mod package |
 | Vintage Story server version | Server versions are downloaded from the official or configured third-party server catalog, and each profile runs the selected version |
 | Embedded authentication mod | `serverauth.dll`, with the current server-side integration version constant set to `1.0.0` |
 | Auth mod build reference | GitHub Actions defaults to Vintage Story `1.22.2` server API references, and the version can be changed in workflow inputs |
@@ -78,7 +78,8 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 | `LauncherGo.Abstractions` | Service interfaces and cross-layer abstractions |
 | `LauncherGo.Domains` | Domain models, configuration models, enums, and data structures |
 | `LauncherGo.Services/EmbeddedMods/VsslAuthMod` | Embedded ServerAuth mod source code |
-| `.github/workflows` | Release packaging and embedded authentication mod build workflows |
+| `installer` | Inno Setup script for Windows installer packages |
+| `.github/workflows` | Windows packaging, Release publishing, and embedded authentication mod build workflows |
 
 ## Open Source Projects Used
 
@@ -104,6 +105,7 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 | actions/setup-dotnet | GitHub Actions .NET SDK setup | `v4` |
 | actions/upload-artifact | GitHub Actions artifact upload | `v4` |
 | softprops/action-gh-release | GitHub Release creation and asset upload | `v2` |
+| Inno Setup | Windows installer generation | `6.x` |
 
 The copyrights and licenses of the projects above belong to their respective owners. The authoritative license text is the one declared by each upstream repository and NuGet package.
 

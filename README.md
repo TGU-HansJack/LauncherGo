@@ -13,11 +13,11 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 
 | 项目 | 当前情况 |
 | --- | --- |
-| 软件版本 | 源码中未写死固定版本号，正式版和预发布版由 `.github/workflows/release.yml` 的 `version` 输入写入 `Version` 与 `InformationalVersion` |
+| 软件版本 | 源码中未写死固定版本号，Windows 打包和 Release 发布由 `.github/workflows/windows-packages.yml`、`.github/workflows/publish-release.yml` 的版本输入或 `v*` 标签写入 `Version` 与 `InformationalVersion` |
 | 产品阶段 | 第二代开服器，持续开发中 |
 | 目标框架 | `.NET net10.0` |
 | 桌面 UI | `Avalonia 12.0.1` 与 `Semi.Avalonia 12.0.1` |
-| 默认运行平台 | 当前发布工作流打包 `win-x64`，为 framework-dependent 发布 |
+| 默认运行平台 | 当前发布工作流打包 `win-x64`，产出自包含安装包、便携单文件包和嵌入 ServerAuth 模组包 |
 | Vintage Story 服务端版本 | 由官方或第三方服务端索引下载，实例档案按选择的服务端版本运行 |
 | 嵌入认证模组 | `serverauth.dll`，当前服务端侧集成版本常量为 `1.0.0` |
 | 认证模组构建参考 | GitHub Actions 默认使用 Vintage Story `1.22.2` 的服务端 API 引用构建，可在工作流输入中修改 |
@@ -78,7 +78,8 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | `LauncherGo.Abstractions` | 服务接口与跨层抽象 |
 | `LauncherGo.Domains` | 领域模型、配置模型、枚举与数据结构 |
 | `LauncherGo.Services/EmbeddedMods/VsslAuthMod` | 嵌入式 ServerAuth 模组源码 |
-| `.github/workflows` | 发布打包与嵌入认证模组构建工作流 |
+| `installer` | Inno Setup Windows 安装包脚本 |
+| `.github/workflows` | Windows 打包、Release 发布与嵌入认证模组构建工作流 |
 
 ## 开源项目使用
 
@@ -104,6 +105,7 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | actions/setup-dotnet | GitHub Actions 配置 .NET SDK | `v4` |
 | actions/upload-artifact | GitHub Actions 上传构建产物 | `v4` |
 | softprops/action-gh-release | GitHub Release 创建与产物上传 | `v2` |
+| Inno Setup | Windows 安装包生成 | `6.x` |
 
 以上开源项目的版权与许可归各自项目所有，实际许可证以对应项目仓库和 NuGet 包声明为准。
 
