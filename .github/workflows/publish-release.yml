@@ -176,6 +176,28 @@ jobs:
       - name: Publish portable single-file
         run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.meta.outputs.version }} -p:InformationalVersion=${{ steps.meta.outputs.version }} -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o artifacts/publish/portable
 
+      - name: Copy embedded ServerAuth payload to publish outputs
+        shell: pwsh
+        run: |
+          $sourceRoot = "LauncherGo.Services/EmbeddedMods/serverauth"
+          $requiredFiles = @("serverauth.dll", "modinfo.json", "README.txt")
+
+          foreach ($fileName in $requiredFiles) {
+            $sourcePath = Join-Path $sourceRoot $fileName
+            if (!(Test-Path $sourcePath)) {
+              throw "Missing embedded ServerAuth source payload: $sourcePath"
+            }
+          }
+
+          foreach ($publishRoot in @("artifacts/publish/win-x64", "artifacts/publish/portable")) {
+            $targetRoot = Join-Path $publishRoot "EmbeddedMods/serverauth"
+            New-Item -ItemType Directory -Force -Path $targetRoot | Out-Null
+
+            foreach ($fileName in $requiredFiles) {
+              Copy-Item -LiteralPath (Join-Path $sourceRoot $fileName) -Destination (Join-Path $targetRoot $fileName) -Force
+            }
+          }
+
       - name: Verify embedded ServerAuth payload exists
         shell: pwsh
         run: |
