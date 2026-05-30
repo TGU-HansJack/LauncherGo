@@ -75,8 +75,11 @@ public partial class ServerProcessService : IServerProcessService
 
             if (_process is null)
             {
-                if (!TryAttachToExistingWorkspaceServerRelay(preferredProfile: null, emitOutput: false))
-                    TryAttachToExistingWorkspaceServerProcess(preferredProfile: null, emitOutput: false);
+                if (!TryAttachToExistingWorkspaceServerRelay(preferredProfile: null, emitOutput: false) &&
+                    !TryAttachToExistingWorkspaceServerProcess(preferredProfile: null, emitOutput: false))
+                {
+                    PublishStoppedStatusIfStale();
+                }
             }
 
             return _currentStatus;
@@ -235,11 +238,17 @@ public partial class ServerProcessService : IServerProcessService
             {
                 if (!TryAttachToExistingWorkspaceServerRelay(preferredProfile: null, emitOutput: true) &&
                     !TryAttachToExistingWorkspaceServerProcess(preferredProfile: null, emitOutput: true))
+                {
+                    PublishStoppedStatusIfStale();
                     return;
+                }
 
                 process = _process;
                 if (process is null || IsProcessTerminated(process))
+                {
+                    PublishStoppedStatusIfStale();
                     return;
+                }
             }
 
             var targetDataPath = ResolveStopTargetDataPath(process);
@@ -855,7 +864,13 @@ public partial class ServerProcessService : IServerProcessService
     private void ClearTrackedProcessIfTerminated()
     {
         var process = _process;
-        if (process is null || !IsProcessTerminated(process))
+        if (process is null)
+        {
+            PublishStoppedStatusIfStale();
+            return;
+        }
+
+        if (!IsProcessTerminated(process))
             return;
 
         var previousProfileId = _currentProfile?.Id;
@@ -897,6 +912,35 @@ public partial class ServerProcessService : IServerProcessService
                 PeakOnlinePlayers = _peakOnlinePlayers
             });
         }
+    }
+
+    private void PublishStoppedStatusIfStale()
+    {
+        if (!_currentStatus.IsRunning)
+            return;
+
+        var previousProfileId = _currentStatus.ProfileId ?? _currentProfile?.Id;
+        _relayState = null;
+        _canWriteStandardInput = false;
+        _playerCountLogPath = null;
+        _playerCountLogPosition = 0;
+        _peakOnlinePlayers = 0;
+        _lastProcessorTime = TimeSpan.Zero;
+        _lastCpuPercent = 0;
+        _lastCpuSampleUtc = DateTimeOffset.UtcNow;
+        ResetOnlinePlayerTracking();
+
+        UpdateStatus(new ServerRuntimeStatus
+        {
+            IsRunning = false,
+            ProcessId = null,
+            StartedAtUtc = null,
+            ProfileId = previousProfileId,
+            CpuPercent = 0,
+            MemoryBytes = 0,
+            OnlinePlayers = 0,
+            PeakOnlinePlayers = _peakOnlinePlayers
+        });
     }
 
     private void UpdateStatus(ServerRuntimeStatus status)

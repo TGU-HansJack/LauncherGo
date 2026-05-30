@@ -32,6 +32,8 @@ public partial class LauncherMainWindow : Window
 {
     private const int RealtimeRangeSeconds = 60;
     private const int NetworkRangeCount = 144;
+    private const int MaxConsoleLines = 3000;
+    private const int RunningServerLogReplayGraceSeconds = 5;
     private const double ChartWidth = 640;
     private const double ChartHeight = 248;
     private const double ThumbnailWidth = 76;
@@ -143,6 +145,7 @@ public partial class LauncherMainWindow : Window
     private readonly DispatcherTimer _dataTimer;
     private readonly DispatcherTimer _tickerTimer;
     private readonly DispatcherTimer _homeSloganTimer;
+    private readonly DateTimeOffset _windowStartedAtUtc = DateTimeOffset.UtcNow;
 
     private readonly List<double> _serverCpuSamples = [];
     private readonly List<double> _serverMemoryMbSamples = [];
@@ -207,6 +210,7 @@ public partial class LauncherMainWindow : Window
     private bool _isRefreshingMods;
     private bool _isRefreshingAuth;
     private string _tailedProfileId = string.Empty;
+    private string _replayedLogProfileId = string.Empty;
     private TimeSpan _robotLastProcessorTime;
     private DateTimeOffset _robotLastCpuSampleUtc = DateTimeOffset.UtcNow;
     private double _robotLastCpuPercent;
@@ -3322,6 +3326,7 @@ public partial class LauncherMainWindow : Window
                 if (!string.IsNullOrWhiteSpace(_tailedProfileId))
                 {
                     _tailedProfileId = string.Empty;
+                    _replayedLogProfileId = string.Empty;
                     await _logTailService.StopAsync();
                 }
 
@@ -3340,12 +3345,28 @@ public partial class LauncherMainWindow : Window
             }
 
             _tailedProfileId = profile.Id;
-            await _logTailService.StartAsync(profile);
+            var replayExisting = ShouldReplayExistingServerLogs(status, profile);
+            await _logTailService.StartAsync(profile, replayExisting);
+            if (replayExisting)
+            {
+                _replayedLogProfileId = profile.Id;
+            }
         }
         catch
         {
             // 日志跟随失败不影响主流程。
         }
+    }
+
+    private bool ShouldReplayExistingServerLogs(ServerRuntimeStatus status, InstanceProfile profile)
+    {
+        if (_replayedLogProfileId.Equals(profile.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return status.StartedAtUtc.HasValue &&
+               status.StartedAtUtc.Value < _windowStartedAtUtc.AddSeconds(-RunningServerLogReplayGraceSeconds);
     }
 
     private void OnLogTailLineReceived(object? sender, string line)
@@ -3416,7 +3437,7 @@ public partial class LauncherMainWindow : Window
         }
 
         _consoleLines.Add(line);
-        while (_consoleLines.Count > 500)
+        while (_consoleLines.Count > MaxConsoleLines)
         {
             _consoleLines.RemoveAt(0);
         }
@@ -4178,8 +4199,7 @@ public partial class LauncherMainWindow : Window
 
     private async Task StopServerFromLaunchButtonAsync()
     {
-        _isStoppingOrStarting = true;
-        LaunchServerButton.IsEnabled = false;
+        SetLaunchOperationBusy(T("停止中...", "Stopping..."));
         try
         {
             AppendConsoleLine("[system] 正在停止服务器...");
@@ -4191,9 +4211,7 @@ public partial class LauncherMainWindow : Window
         }
         finally
         {
-            LaunchServerButton.IsEnabled = true;
-            _isStoppingOrStarting = false;
-            RefreshLaunchButtonSummary();
+            ClearLaunchOperationBusy();
         }
     }
 
@@ -4233,8 +4251,7 @@ public partial class LauncherMainWindow : Window
             }
         }
 
-        _isStoppingOrStarting = true;
-        LaunchServerButton.IsEnabled = false;
+        SetLaunchOperationBusy(T("启动中...", "Starting..."));
         try
         {
             profile.ActiveSaveFile = lockedSave.FullPath;
@@ -4248,10 +4265,23 @@ public partial class LauncherMainWindow : Window
         }
         finally
         {
-            LaunchServerButton.IsEnabled = true;
-            _isStoppingOrStarting = false;
-            RefreshLaunchButtonSummary();
+            ClearLaunchOperationBusy();
         }
+    }
+
+    private void SetLaunchOperationBusy(string text)
+    {
+        _isStoppingOrStarting = true;
+        LaunchServerButton.IsEnabled = false;
+        LaunchActionTextBlock.Text = text;
+        LaunchSelectionSummaryTextBlock.Text = text;
+    }
+
+    private void ClearLaunchOperationBusy()
+    {
+        LaunchServerButton.IsEnabled = true;
+        _isStoppingOrStarting = false;
+        UpdateCardValues(_serverProcessService.GetCurrentStatus());
     }
 
     private async void OnSendCommandClick(object? sender, RoutedEventArgs e)

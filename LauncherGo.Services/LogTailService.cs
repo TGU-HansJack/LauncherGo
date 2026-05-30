@@ -9,6 +9,8 @@ namespace LauncherGo.Services;
 /// </summary>
 public class LogTailService : ILogTailService
 {
+    private const int MaxReplayLogBytes = 512 * 1024;
+    private const int MaxReplayLogLines = 500;
     private CancellationTokenSource? _cts;
     private Task? _tailTask;
     private IReadOnlyList<string> _trackedLogPaths = [];
@@ -18,7 +20,7 @@ public class LogTailService : ILogTailService
     public event EventHandler<string>? LogLineReceived;
 
     /// <inheritdoc />
-    public async Task StartAsync(InstanceProfile profile, CancellationToken cancellationToken = default)
+    public async Task StartAsync(InstanceProfile profile, bool replayExisting = false, CancellationToken cancellationToken = default)
     {
         await StopAsync(cancellationToken);
 
@@ -29,6 +31,11 @@ public class LogTailService : ILogTailService
         var mainLogPath = WorkspacePathHelper.GetServerMainLogPath(profileDataPath);
         _trackedLogPaths = ResolveTrackedLogPaths(mainLogPath);
         _positions.Clear();
+        if (replayExisting)
+        {
+            ReplayExistingLogs(_trackedLogPaths, cancellationToken);
+        }
+
         foreach (var logPath in _trackedLogPaths)
         {
             _positions[logPath] = GetExistingLogLength(logPath);
@@ -143,6 +150,73 @@ public class LogTailService : ILogTailService
         catch
         {
             return 0;
+        }
+    }
+
+    private void ReplayExistingLogs(IReadOnlyList<string> logPaths, CancellationToken cancellationToken)
+    {
+        foreach (var logPath in logPaths)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var line in ReadTailLines(logPath, MaxReplayLogBytes, MaxReplayLogLines, cancellationToken))
+            {
+                if (!string.IsNullOrWhiteSpace(line) && !ServerLogPrivacyFilter.ShouldSuppressConsoleLogLine(line))
+                {
+                    LogLineReceived?.Invoke(this, line);
+                }
+            }
+        }
+    }
+
+    private static IReadOnlyList<string> ReadTailLines(
+        string logPath,
+        int maxBytes,
+        int maxLines,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(logPath) || !File.Exists(logPath))
+        {
+            return [];
+        }
+
+        try
+        {
+            using var stream = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            var start = Math.Max(0, stream.Length - maxBytes);
+            stream.Seek(start, SeekOrigin.Begin);
+
+            using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            if (start > 0)
+            {
+                _ = reader.ReadLine();
+            }
+
+            var lines = new Queue<string>();
+            while (!reader.EndOfStream)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var line = reader.ReadLine();
+                if (line is null)
+                {
+                    break;
+                }
+
+                lines.Enqueue(line);
+                while (lines.Count > maxLines)
+                {
+                    lines.Dequeue();
+                }
+            }
+
+            return lines.ToArray();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return [];
         }
     }
 
