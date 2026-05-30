@@ -1864,30 +1864,28 @@
                                         <TextBlock x:Name="ModStatusTextBlock" Grid.Row="1" Classes="ConfigHintText" TextWrapping="Wrap" />
                                         <Grid Grid.Row="2" RowDefinitions="Auto,*">
                                             <Border Grid.Row="0" Classes="TableHeader">
-                                                <Grid ColumnDefinitions="44,1.2*,.7*,58,1*,1.2*,1.2*,2.1*" ColumnSpacing="8">
+                                                <Grid ColumnDefinitions="44,1.2*,.7*,1.2*,1.2*,2.1*,58" ColumnSpacing="8">
                                                     <TextBlock Classes="TableHeaderText" Text="选择" HorizontalAlignment="Center" />
                                                     <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="Mod ID" />
                                                     <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="版本" />
-                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="启用" HorizontalAlignment="Center" />
-                                                    <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="状态" />
-                                                    <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="依赖" />
-                                                    <TextBlock Grid.Column="6" Classes="TableHeaderText" Text="问题" />
-                                                    <TextBlock Grid.Column="7" Classes="TableHeaderText" Text="文件" />
+                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="依赖" />
+                                                    <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="问题" />
+                                                    <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="文件" />
+                                                    <TextBlock Grid.Column="6" Classes="TableHeaderText" Text="启用" HorizontalAlignment="Center" />
                                                 </Grid>
                                             </Border>
                                             <Border Grid.Row="1" Classes="TableBody">
                                                 <ListBox x:Name="ModsListBox" Classes="FlatList TableList" SelectionMode="Multiple">
                                                     <ListBox.ItemTemplate>
                                                         <DataTemplate>
-                                                            <Grid ColumnDefinitions="44,1.2*,.7*,58,1*,1.2*,1.2*,2.1*" ColumnSpacing="8" MinHeight="36">
+                                                            <Grid ColumnDefinitions="44,1.2*,.7*,1.2*,1.2*,2.1*,58" ColumnSpacing="8" MinHeight="36">
                                                                 <CheckBox Classes="TableSelectCheck" IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}, Mode=TwoWay}" />
                                                                 <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding ModId}" FontWeight="SemiBold" />
                                                                 <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding Version}" />
-                                                                <ToggleSwitch Grid.Column="3" Classes="TableSwitch" IsChecked="{Binding ModEnabled}" Tag="{Binding}" Click="OnModEnabledSwitchClick" />
-                                                                <TextBlock Grid.Column="4" Classes="TableCellText" Text="{Binding StatusText}" />
-                                                                <TextBlock Grid.Column="5" Classes="TableCellText" Text="{Binding DependenciesText}" />
-                                                                <TextBlock Grid.Column="6" Classes="TableCellText" Text="{Binding IssuesText}" />
-                                                                <TextBlock Grid.Column="7" Classes="TableCellText" Text="{Binding FilePath}" />
+                                                                <TextBlock Grid.Column="3" Classes="TableCellText" Text="{Binding DependenciesText}" />
+                                                                <TextBlock Grid.Column="4" Classes="TableCellText" Text="{Binding IssuesText}" />
+                                                                <TextBlock Grid.Column="5" Classes="TableCellText" Text="{Binding FilePath}" />
+                                                                <ToggleSwitch Grid.Column="6" Classes="TableSwitch" IsChecked="{Binding ModEnabled, Mode=OneWay}" Tag="{Binding}" Click="OnModEnabledSwitchClick" />
                                                             </Grid>
                                                         </DataTemplate>
                                                     </ListBox.ItemTemplate>

@@ -1346,7 +1346,11 @@ public partial class LauncherMainWindow : Window
             _modItems.Add(ModListItem.FromModel(mod));
         }
 
-        ModStatusTextBlock.Text = T($"已加载 {mods.Count} 个模组。", $"Loaded {mods.Count} mods.");
+        var enabledCount = mods.Count(static mod => !mod.IsDisabled);
+        var disabledCount = mods.Count - enabledCount;
+        ModStatusTextBlock.Text = T(
+            $"已加载 {mods.Count} 个模组，启用 {enabledCount} 个，关闭 {disabledCount} 个。",
+            $"Loaded {mods.Count} mods, {enabledCount} enabled, {disabledCount} disabled.");
     }
 
     private async Task RefreshAuthProfilesAsync()
@@ -3892,6 +3896,7 @@ public partial class LauncherMainWindow : Window
         }
         catch (Exception ex)
         {
+            await LoadModsForSelectedProfileAsync();
             ModStatusTextBlock.Text = T($"切换失败：{ex.Message}", $"Toggle failed: {ex.Message}");
         }
     }
@@ -6173,8 +6178,6 @@ public partial class LauncherMainWindow : Window
 
         public required string FilePath { get; init; }
 
-        public required string StatusText { get; init; }
-
         public bool IsDisabled { get; init; }
 
         public bool ModEnabled => !IsDisabled;
@@ -6182,8 +6185,6 @@ public partial class LauncherMainWindow : Window
         public required string DependenciesText { get; init; }
 
         public required string IssuesText { get; init; }
-
-        public string ToggleText => IsDisabled ? "启用" : "停用";
 
         public bool IsSelected
         {
@@ -6200,10 +6201,9 @@ public partial class LauncherMainWindow : Window
                 ModId = model.ModId,
                 Version = model.Version,
                 FilePath = model.FilePath,
-                StatusText = model.Status,
                 IsDisabled = model.IsDisabled,
                 DependenciesText = model.DependenciesText,
-                IssuesText = model.IssuesText
+                IssuesText = BuildModIssuesText(model)
             };
         }
 
@@ -6214,11 +6214,25 @@ public partial class LauncherMainWindow : Window
                 ModId = item.ModId,
                 Version = item.Version,
                 FilePath = item.FilePath,
-                Status = item.StatusText,
+                Status = item.IsDisabled ? "Disabled" : "OK",
                 IsDisabled = item.IsDisabled,
                 Dependencies = [],
                 DependencyIssues = []
             };
+        }
+
+        private static string BuildModIssuesText(ModEntry model)
+        {
+            var issues = model.DependencyIssues.ToList();
+            if (!model.Status.Equals("OK", StringComparison.OrdinalIgnoreCase) &&
+                !model.Status.Equals("MissingDependency", StringComparison.OrdinalIgnoreCase))
+            {
+                issues.Add(model.Status.Equals("InvalidMetadata", StringComparison.OrdinalIgnoreCase)
+                    ? "元数据无效"
+                    : model.Status);
+            }
+
+            return issues.Count == 0 ? "-" : string.Join("; ", issues);
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
