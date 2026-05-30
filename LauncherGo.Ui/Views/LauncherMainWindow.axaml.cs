@@ -5930,13 +5930,13 @@ public partial class LauncherMainWindow : Window
             }
         }
 
-        public DateTimeOffset? StartDateValue
+        public DateTime? StartDateValue
         {
             get => TryParseDateValue(_startDate);
             set => SetDateValue(ref _startDate, value, nameof(StartDateValue), nameof(StartDate));
         }
 
-        public DateTimeOffset? EndDateValue
+        public DateTime? EndDateValue
         {
             get => TryParseDateValue(_endDate);
             set => SetDateValue(ref _endDate, value, nameof(EndDateValue), nameof(EndDate));
@@ -6014,7 +6014,7 @@ public partial class LauncherMainWindow : Window
             };
         }
 
-        private static DateTimeOffset? TryParseDateValue(string? value)
+        private static DateTime? TryParseDateValue(string? value)
         {
             var text = value?.Trim();
             if (string.IsNullOrWhiteSpace(text))
@@ -6029,10 +6029,10 @@ public partial class LauncherMainWindow : Window
                 return null;
             }
 
-            return new DateTimeOffset(date.Year, date.Month, date.Day, 0, 0, 0, TimeSpan.Zero);
+            return new DateTime(date.Year, date.Month, date.Day);
         }
 
-        private bool SetDateValue(ref string field, DateTimeOffset? value, string datePropertyName, string textPropertyName)
+        private bool SetDateValue(ref string field, DateTime? value, string datePropertyName, string textPropertyName)
         {
             var next = value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty;
             if (EqualityComparer<string>.Default.Equals(field, next))
