@@ -732,6 +732,14 @@
         <Style Selector="ToggleSwitch.LabelledToggle">
             <Setter Property="Margin" Value="0" />
         </Style>
+        <Style Selector="CalendarDatePicker.CompactDatePicker">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
         <Style Selector="ListBox.FlatList">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
@@ -1555,44 +1563,41 @@
                                         </Grid>
                                     </Grid>
 
-                                    <Grid x:Name="SavesPanel" RowDefinitions="Auto,Auto,*" RowSpacing="10" IsVisible="False">
-                                        <Grid ColumnDefinitions="Auto,170,Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                    <Grid x:Name="SavesPanel" RowDefinitions="Auto,*" RowSpacing="10" IsVisible="False">
+                                        <Grid ColumnDefinitions="Auto,170,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
                                             <ComboBox x:Name="SaveProfileComboBox" Grid.Column="0" Classes="CompactCombo" SelectionChanged="OnSaveProfileSelectionChanged" />
                                             <TextBox x:Name="NewSaveNameTextBox" Grid.Column="1" Classes="CompactInput" PlaceholderText="新存档名称" />
                                             <Button x:Name="CreateSaveButton" Grid.Column="2" Classes="SecondaryActionButton" Content="创建存档" Click="OnCreateSaveClick" />
-                                            <Button x:Name="BackupSaveButton" Grid.Column="3" Classes="SecondaryActionButton" Content="备份当前" Click="OnBackupActiveSaveClick" />
-                                            <Button x:Name="InspectSavePathButton" Grid.Column="4" Classes="SecondaryActionButton" Content="检查路径" Click="OnInspectSavePathClick" />
-                                            <Button x:Name="ImportSaveButton" Grid.Column="5" Classes="SecondaryActionButton" Content="导入" Click="OnImportSaveClick" />
-                                            <Button x:Name="DeleteSaveButton" Grid.Column="6" Classes="SecondaryActionButton" Content="删除" Click="OnDeleteSavesClick" />
-                                            <Button x:Name="RefreshSavesButton" Grid.Column="7" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshSavesClick" />
+                                            <Button x:Name="ImportSaveButton" Grid.Column="3" Classes="SecondaryActionButton" Content="导入" Click="OnImportSaveClick" />
+                                            <Button x:Name="DeleteSaveButton" Grid.Column="4" Classes="SecondaryActionButton" Content="删除" Click="OnDeleteSavesClick" />
+                                            <Button x:Name="RefreshSavesButton" Grid.Column="5" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshSavesClick" />
                                         </Grid>
-                                        <TextBlock x:Name="SavePathInspectionTextBlock" Grid.Row="1" Classes="ConfigHintText" TextWrapping="Wrap" PointerPressed="OnOpenInspectedSaveFolderClick" />
-                                        <Grid Grid.Row="2" RowDefinitions="Auto,*">
+                                        <Grid Grid.Row="1" RowDefinitions="Auto,*">
                                             <Border Grid.Row="0" Classes="TableHeader">
-                                                <Grid ColumnDefinitions="44,1.4*,1.1*,.8*,1.2*,2.2*,58,Auto" ColumnSpacing="8">
+                                                <Grid ColumnDefinitions="44,1.4*,1.1*,.8*,1.2*,2.2*,Auto" ColumnSpacing="8">
                                                     <TextBlock Classes="TableHeaderText" Text="选择" HorizontalAlignment="Center" />
                                                     <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="存档" />
                                                     <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="档案" />
                                                     <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="大小" />
                                                     <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="修改时间" />
                                                     <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="路径" />
-                                                    <TextBlock Grid.Column="6" Classes="TableHeaderText" Text="当前" HorizontalAlignment="Center" />
-                                                    <TextBlock Grid.Column="7" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                    <TextBlock Grid.Column="6" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
                                                 </Grid>
                                             </Border>
                                             <Border Grid.Row="1" Classes="TableBody">
                                                 <ListBox x:Name="SavesListBox" Classes="FlatList TableList" SelectionMode="Multiple">
                                                     <ListBox.ItemTemplate>
                                                         <DataTemplate>
-                                                            <Grid ColumnDefinitions="44,1.4*,1.1*,.8*,1.2*,2.2*,58,Auto" ColumnSpacing="8" MinHeight="36">
+                                                            <Grid ColumnDefinitions="44,1.4*,1.1*,.8*,1.2*,2.2*,Auto" ColumnSpacing="8" MinHeight="36">
                                                                 <CheckBox Classes="TableSelectCheck" IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}, Mode=TwoWay}" />
                                                                 <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding FileName}" FontWeight="SemiBold" />
                                                                 <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding ProfileName}" />
                                                                 <TextBlock Grid.Column="3" Classes="TableCellText" Text="{Binding SizeText}" />
                                                                 <TextBlock Grid.Column="4" Classes="TableCellText" Text="{Binding LastWriteText}" />
-                                                                <TextBlock Grid.Column="5" Classes="TableCellText" Text="{Binding DirectoryPath}" />
-                                                                <CheckBox Grid.Column="6" Classes="TableSelectCheck" IsChecked="{Binding IsLocked}" IsEnabled="False" />
-                                                                <Button Grid.Column="7" Classes="SaveLockButton" Tag="{Binding}" Click="OnToggleDefaultSaveClick">
+                                                                <Button Grid.Column="5" Classes="DownloadTextButton" Tag="{Binding DirectoryPath}" HorizontalAlignment="Stretch" Click="OnOpenSaveDirectoryClick">
+                                                                    <TextBlock Classes="TableCellText" Text="{Binding DirectoryPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
+                                                                </Button>
+                                                                <Button Grid.Column="6" Classes="SaveLockButton" Tag="{Binding}" Click="OnToggleDefaultSaveClick">
                                                                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                                                         <Path Width="14" Height="14" Stretch="Uniform" Fill="{Binding LockIconBrush}" Data="{Binding LockIconData}" />
                                                                         <TextBlock Text="{Binding LockActionText}" VerticalAlignment="Center" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource DownloadActionTextBrush}" />
@@ -1607,7 +1612,7 @@
                                     </Grid>
 
                                     <Grid x:Name="AutomationPanel" RowDefinitions="Auto,Auto,*" RowSpacing="8" IsVisible="False">
-                                        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                        <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="8">
                                             <ComboBox x:Name="AutomationProfileComboBox" Grid.Column="0" Classes="CompactCombo" SelectionChanged="OnAutomationProfileSelectionChanged">
                                                 <ComboBox.ItemTemplate>
                                                     <DataTemplate>
@@ -1617,7 +1622,6 @@
                                             </ComboBox>
                                             <Button x:Name="AutomationSaveButton" Grid.Column="1" Classes="ActionButton" Content="保存" Click="OnAutomationSaveClick" />
                                             <Button x:Name="AutomationRefreshButton" Grid.Column="2" Classes="SecondaryActionButton" Content="刷新" Click="OnAutomationRefreshClick" />
-                                            <Button x:Name="AutomationSyncLogsButton" Grid.Column="3" Classes="SecondaryActionButton" Content="同步日志" Click="OnAutomationSyncLogsClick" />
                                         </Grid>
                                         <TextBlock x:Name="AutomationStatusTextBlock" Grid.Row="1" Classes="ConfigHintText" TextWrapping="Wrap" />
                                         <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
@@ -1667,42 +1671,44 @@
                                                             <TextBlock x:Name="AutomationActionTitleTextBlock" Classes="ConfigSectionTitle" Text="定时开关服" />
                                                             <Button x:Name="AutomationAddActionButton" Grid.Column="1" Classes="SecondaryActionButton" HorizontalAlignment="Right" Content="添加" Click="OnAutomationAddActionClick" />
                                                         </Grid>
-                                                        <Border Classes="TableHeader">
-                                                            <Grid ColumnDefinitions="50,110,70,70,95,95,70,70,92,Auto" ColumnSpacing="8">
-                                                                <TextBlock Classes="TableHeaderText" Text="启用" HorizontalAlignment="Center" />
-                                                                <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="模式" />
-                                                                <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="开始周" />
-                                                                <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="结束周" />
-                                                                <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="开始日期" />
-                                                                <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="结束日期" />
-                                                                <TextBlock Grid.Column="6" Classes="TableHeaderText" Text="开始" />
-                                                                <TextBlock Grid.Column="7" Classes="TableHeaderText" Text="结束" />
-                                                                <TextBlock Grid.Column="8" Classes="TableHeaderText" Text="动作" />
-                                                                <TextBlock Grid.Column="9" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
-                                                            </Grid>
-                                                        </Border>
-                                                        <Border Classes="TableBody">
-                                                            <ItemsControl x:Name="AutomationActionsItemsControl">
-                                                                <ItemsControl.ItemTemplate>
-                                                                    <DataTemplate>
-                                                                        <Border Classes="TableRow">
-                                                                            <Grid ColumnDefinitions="50,110,70,70,95,95,70,70,92,Auto" ColumnSpacing="8">
-                                                                                <ToggleSwitch Classes="TableSwitch" IsChecked="{Binding Enabled, Mode=TwoWay}" />
-                                                                                <ComboBox Grid.Column="1" Classes="CompactCombo" ItemsSource="{Binding ScheduleModeOptions}" SelectedItem="{Binding SelectedScheduleMode, Mode=TwoWay}" />
-                                                                                <TextBox Grid.Column="2" Classes="CompactInput" Text="{Binding StartDayOfWeek, Mode=TwoWay}" />
-                                                                                <TextBox Grid.Column="3" Classes="CompactInput" Text="{Binding EndDayOfWeek, Mode=TwoWay}" />
-                                                                                <TextBox Grid.Column="4" Classes="CompactInput" PlaceholderText="yyyy-MM-dd" Text="{Binding StartDate, Mode=TwoWay}" />
-                                                                                <TextBox Grid.Column="5" Classes="CompactInput" PlaceholderText="yyyy-MM-dd" Text="{Binding EndDate, Mode=TwoWay}" />
-                                                                                <TextBox Grid.Column="6" Classes="CompactInput" PlaceholderText="08:00" Text="{Binding StartTime, Mode=TwoWay}" />
-                                                                                <TextBox Grid.Column="7" Classes="CompactInput" PlaceholderText="23:00" Text="{Binding EndTime, Mode=TwoWay}" />
-                                                                                <ComboBox Grid.Column="8" Classes="CompactCombo" ItemsSource="{Binding ActionOptions}" SelectedItem="{Binding SelectedAction, Mode=TwoWay}" />
-                                                                                <Button Grid.Column="9" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveActionClick" />
-                                                                            </Grid>
-                                                                        </Border>
-                                                                    </DataTemplate>
-                                                                </ItemsControl.ItemTemplate>
-                                                            </ItemsControl>
-                                                        </Border>
+                                                        <Grid RowDefinitions="Auto,*">
+                                                            <Border Grid.Row="0" Classes="TableHeader">
+                                                                <Grid ColumnDefinitions="50,110,70,70,112,112,70,70,92,Auto" ColumnSpacing="8">
+                                                                    <TextBlock Classes="TableHeaderText" Text="启用" HorizontalAlignment="Center" />
+                                                                    <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="模式" />
+                                                                    <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="开始周" />
+                                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="结束周" />
+                                                                    <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="开始日期" />
+                                                                    <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="结束日期" />
+                                                                    <TextBlock Grid.Column="6" Classes="TableHeaderText" Text="开始" />
+                                                                    <TextBlock Grid.Column="7" Classes="TableHeaderText" Text="结束" />
+                                                                    <TextBlock Grid.Column="8" Classes="TableHeaderText" Text="动作" />
+                                                                    <TextBlock Grid.Column="9" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                                </Grid>
+                                                            </Border>
+                                                            <Border Grid.Row="1" Classes="TableBody">
+                                                                <ItemsControl x:Name="AutomationActionsItemsControl">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Border Classes="TableRow">
+                                                                                <Grid ColumnDefinitions="50,110,70,70,112,112,70,70,92,Auto" ColumnSpacing="8">
+                                                                                    <ToggleSwitch Classes="TableSwitch" IsChecked="{Binding Enabled, Mode=TwoWay}" />
+                                                                                    <ComboBox Grid.Column="1" Classes="CompactCombo" ItemsSource="{Binding ScheduleModeOptions}" SelectedItem="{Binding SelectedScheduleMode, Mode=TwoWay}" />
+                                                                                    <TextBox Grid.Column="2" Classes="CompactInput" Text="{Binding StartDayOfWeek, Mode=TwoWay}" />
+                                                                                    <TextBox Grid.Column="3" Classes="CompactInput" Text="{Binding EndDayOfWeek, Mode=TwoWay}" />
+                                                                                    <CalendarDatePicker Grid.Column="4" Classes="CompactDatePicker" PlaceholderText="yyyy-MM-dd" SelectedDateFormat="Custom" CustomDateFormatString="yyyy-MM-dd" SelectedDate="{Binding StartDateValue, Mode=TwoWay}" />
+                                                                                    <CalendarDatePicker Grid.Column="5" Classes="CompactDatePicker" PlaceholderText="yyyy-MM-dd" SelectedDateFormat="Custom" CustomDateFormatString="yyyy-MM-dd" SelectedDate="{Binding EndDateValue, Mode=TwoWay}" />
+                                                                                    <TextBox Grid.Column="6" Classes="CompactInput" PlaceholderText="08:00" Text="{Binding StartTime, Mode=TwoWay}" />
+                                                                                    <TextBox Grid.Column="7" Classes="CompactInput" PlaceholderText="23:00" Text="{Binding EndTime, Mode=TwoWay}" />
+                                                                                    <ComboBox Grid.Column="8" Classes="CompactCombo" ItemsSource="{Binding ActionOptions}" SelectedItem="{Binding SelectedAction, Mode=TwoWay}" />
+                                                                                    <Button Grid.Column="9" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveActionClick" />
+                                                                                </Grid>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </Border>
+                                                        </Grid>
                                                     </StackPanel>
                                                 </Border>
 
@@ -1713,26 +1719,28 @@
                                                                 <TextBlock Classes="ConfigSectionTitle" Text="定时备份" />
                                                                 <Button x:Name="AutomationAddBackupTimeButton" Grid.Column="1" Classes="SecondaryActionButton" HorizontalAlignment="Right" Content="添加" Click="OnAutomationAddBackupTimeClick" />
                                                             </Grid>
-                                                            <Border Classes="TableHeader">
-                                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                                    <TextBlock Classes="TableHeaderText" Text="时间" />
-                                                                    <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
-                                                                </Grid>
-                                                            </Border>
-                                                            <Border Classes="TableBody">
-                                                                <ItemsControl x:Name="AutomationBackupTimesItemsControl">
-                                                                    <ItemsControl.ItemTemplate>
-                                                                        <DataTemplate>
-                                                                            <Border Classes="TableRow">
-                                                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                                                    <TextBox Classes="CompactInput" PlaceholderText="03:00" Text="{Binding Time, Mode=TwoWay}" />
-                                                                                    <Button Grid.Column="1" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveBackupTimeClick" />
-                                                                                </Grid>
-                                                                            </Border>
-                                                                        </DataTemplate>
-                                                                    </ItemsControl.ItemTemplate>
-                                                                </ItemsControl>
-                                                            </Border>
+                                                            <Grid RowDefinitions="Auto,*">
+                                                                <Border Grid.Row="0" Classes="TableHeader">
+                                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                        <TextBlock Classes="TableHeaderText" Text="时间" />
+                                                                        <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                                    </Grid>
+                                                                </Border>
+                                                                <Border Grid.Row="1" Classes="TableBody">
+                                                                    <ItemsControl x:Name="AutomationBackupTimesItemsControl">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate>
+                                                                                <Border Classes="TableRow">
+                                                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                                        <TextBox Classes="CompactInput" PlaceholderText="03:00" Text="{Binding Time, Mode=TwoWay}" />
+                                                                                        <Button Grid.Column="1" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveBackupTimeClick" />
+                                                                                    </Grid>
+                                                                                </Border>
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </Border>
+                                                            </Grid>
                                                         </StackPanel>
                                                     </Border>
                                                     <Border Grid.Column="1" Classes="ConfigCard">
@@ -1741,26 +1749,28 @@
                                                                 <TextBlock Classes="ConfigSectionTitle" Text="日志导出" />
                                                                 <Button x:Name="AutomationAddExportTimeButton" Grid.Column="1" Classes="SecondaryActionButton" HorizontalAlignment="Right" Content="添加" Click="OnAutomationAddExportTimeClick" />
                                                             </Grid>
-                                                            <Border Classes="TableHeader">
-                                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                                    <TextBlock Classes="TableHeaderText" Text="时间" />
-                                                                    <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
-                                                                </Grid>
-                                                            </Border>
-                                                            <Border Classes="TableBody">
-                                                                <ItemsControl x:Name="AutomationExportTimesItemsControl">
-                                                                    <ItemsControl.ItemTemplate>
-                                                                        <DataTemplate>
-                                                                            <Border Classes="TableRow">
-                                                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                                                    <TextBox Classes="CompactInput" PlaceholderText="12:00" Text="{Binding Time, Mode=TwoWay}" />
-                                                                                    <Button Grid.Column="1" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveExportTimeClick" />
-                                                                                </Grid>
-                                                                            </Border>
-                                                                        </DataTemplate>
-                                                                    </ItemsControl.ItemTemplate>
-                                                                </ItemsControl>
-                                                            </Border>
+                                                            <Grid RowDefinitions="Auto,*">
+                                                                <Border Grid.Row="0" Classes="TableHeader">
+                                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                        <TextBlock Classes="TableHeaderText" Text="时间" />
+                                                                        <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                                    </Grid>
+                                                                </Border>
+                                                                <Border Grid.Row="1" Classes="TableBody">
+                                                                    <ItemsControl x:Name="AutomationExportTimesItemsControl">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate>
+                                                                                <Border Classes="TableRow">
+                                                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                                        <TextBox Classes="CompactInput" PlaceholderText="12:00" Text="{Binding Time, Mode=TwoWay}" />
+                                                                                        <Button Grid.Column="1" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveExportTimeClick" />
+                                                                                    </Grid>
+                                                                                </Border>
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </Border>
+                                                            </Grid>
                                                         </StackPanel>
                                                     </Border>
                                                 </Grid>
@@ -1771,30 +1781,32 @@
                                                             <TextBlock Classes="ConfigSectionTitle" Text="定时广播" />
                                                             <Button x:Name="AutomationAddBroadcastButton" Grid.Column="1" Classes="SecondaryActionButton" HorizontalAlignment="Right" Content="添加" Click="OnAutomationAddBroadcastClick" />
                                                         </Grid>
-                                                        <Border Classes="TableHeader">
-                                                            <Grid ColumnDefinitions="50,90,*,Auto" ColumnSpacing="8">
-                                                                <TextBlock Classes="TableHeaderText" Text="启用" HorizontalAlignment="Center" />
-                                                                <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="时间" />
-                                                                <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="消息" />
-                                                                <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
-                                                            </Grid>
-                                                        </Border>
-                                                        <Border Classes="TableBody">
-                                                            <ItemsControl x:Name="AutomationBroadcastsItemsControl">
-                                                                <ItemsControl.ItemTemplate>
-                                                                    <DataTemplate>
-                                                                        <Border Classes="TableRow">
-                                                                            <Grid ColumnDefinitions="50,90,*,Auto" ColumnSpacing="8">
-                                                                                <ToggleSwitch Classes="TableSwitch" IsChecked="{Binding Enabled, Mode=TwoWay}" />
-                                                                                <TextBox Grid.Column="1" Classes="CompactInput" PlaceholderText="12:00" Text="{Binding Time, Mode=TwoWay}" />
-                                                                                <TextBox Grid.Column="2" Classes="CompactInput" Text="{Binding Message, Mode=TwoWay}" />
-                                                                                <Button Grid.Column="3" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveBroadcastClick" />
-                                                                            </Grid>
-                                                                        </Border>
-                                                                    </DataTemplate>
-                                                                </ItemsControl.ItemTemplate>
-                                                            </ItemsControl>
-                                                        </Border>
+                                                        <Grid RowDefinitions="Auto,*">
+                                                            <Border Grid.Row="0" Classes="TableHeader">
+                                                                <Grid ColumnDefinitions="50,90,*,Auto" ColumnSpacing="8">
+                                                                    <TextBlock Classes="TableHeaderText" Text="启用" HorizontalAlignment="Center" />
+                                                                    <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="时间" />
+                                                                    <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="消息" />
+                                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                                </Grid>
+                                                            </Border>
+                                                            <Border Grid.Row="1" Classes="TableBody">
+                                                                <ItemsControl x:Name="AutomationBroadcastsItemsControl">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Border Classes="TableRow">
+                                                                                <Grid ColumnDefinitions="50,90,*,Auto" ColumnSpacing="8">
+                                                                                    <ToggleSwitch Classes="TableSwitch" IsChecked="{Binding Enabled, Mode=TwoWay}" />
+                                                                                    <TextBox Grid.Column="1" Classes="CompactInput" PlaceholderText="12:00" Text="{Binding Time, Mode=TwoWay}" />
+                                                                                    <TextBox Grid.Column="2" Classes="CompactInput" Text="{Binding Message, Mode=TwoWay}" />
+                                                                                    <Button Grid.Column="3" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveBroadcastClick" />
+                                                                                </Grid>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </Border>
+                                                        </Grid>
                                                     </StackPanel>
                                                 </Border>
 

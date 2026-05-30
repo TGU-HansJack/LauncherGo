@@ -214,8 +214,6 @@ public partial class LauncherMainWindow : Window
     private DateTimeOffset _robotLastCpuSampleUtc = DateTimeOffset.UtcNow;
     private double _robotLastCpuPercent;
     private string _configSaveFileLocation = string.Empty;
-    private string _lastInspectedSaveDirectory = string.Empty;
-
     public LauncherMainWindow()
         : this(
             ServiceLocator.GetRequiredService<ILauncherPreferencesService>(),
@@ -440,8 +438,6 @@ public partial class LauncherMainWindow : Window
         RefreshProfilesButton.Content = T("刷新", "Refresh");
         NewSaveNameTextBox.PlaceholderText = T("新存档名称", "New save name");
         CreateSaveButton.Content = T("创建存档", "Create Save");
-        BackupSaveButton.Content = T("备份当前", "Backup Active");
-        InspectSavePathButton.Content = T("检查路径", "Inspect Path");
         ImportSaveButton.Content = T("导入", "Import");
         DeleteSaveButton.Content = T("删除", "Delete");
         RefreshSavesButton.Content = T("刷新", "Refresh");
@@ -479,7 +475,6 @@ public partial class LauncherMainWindow : Window
     {
         AutomationSaveButton.Content = T("保存", "Save");
         AutomationRefreshButton.Content = T("刷新", "Refresh");
-        AutomationSyncLogsButton.Content = T("同步日志", "Sync Logs");
         AutomationRestartEnabledLabelTextBlock.Text = T("启用定时开关服", "Enable scheduled start/stop");
         AutomationBackupEnabledLabelTextBlock.Text = T("启用定时备份", "Enable scheduled backup");
         AutomationBackupBeforeShutdownLabelTextBlock.Text = T("关服前备份", "Backup before shutdown");
@@ -1529,14 +1524,6 @@ public partial class LauncherMainWindow : Window
             }
 
             RefreshLaunchButtonSummary();
-            if (SaveProfileComboBox.SelectedItem is InstanceProfile selectedSaveProfile)
-            {
-                var inspection = await _saveService.InspectSavePathAsync(selectedSaveProfile);
-                _lastInspectedSaveDirectory = inspection.EffectiveSaveDirectory;
-                SavePathInspectionTextBlock.Text = string.IsNullOrWhiteSpace(inspection.WarningMessage)
-                    ? $"{inspection.Source} | {inspection.EffectiveSaveFile}"
-                    : $"{inspection.Source} | {inspection.EffectiveSaveFile} | {inspection.WarningMessage}";
-            }
         }
         finally
         {
@@ -3604,11 +3591,6 @@ public partial class LauncherMainWindow : Window
         await SaveAutomationAsync();
     }
 
-    private async void OnAutomationSyncLogsClick(object? sender, RoutedEventArgs e)
-    {
-        await SyncAutomationRuntimeLogsAsync();
-    }
-
     private void OnAutomationAddActionClick(object? sender, RoutedEventArgs e)
     {
         _automationActionWindowItems.Add(new AutomationActionWindowItem());
@@ -5116,61 +5098,16 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private async void OnBackupActiveSaveClick(object? sender, RoutedEventArgs e)
+    private void OnOpenSaveDirectoryClick(object? sender, RoutedEventArgs e)
     {
-        if (SaveProfileComboBox.SelectedItem is not InstanceProfile profile)
-        {
-            AppendConsoleLine("[system] 备份前请先选择一个档案，不能选择全部。");
-            return;
-        }
-
-        try
-        {
-            var backupPath = await _saveService.BackupActiveSaveAsync(profile);
-            await RefreshSavesAsync();
-            AppendConsoleLine($"[system] 已备份当前存档：{Path.GetFileName(backupPath)}");
-        }
-        catch (Exception ex)
-        {
-            AppendConsoleLine($"[system] 备份存档失败：{ex.Message}");
-        }
-    }
-
-    private async void OnInspectSavePathClick(object? sender, RoutedEventArgs e)
-    {
-        if (SaveProfileComboBox.SelectedItem is not InstanceProfile profile)
-        {
-            AppendConsoleLine("[system] 检查路径前请先选择一个档案，不能选择全部。");
-            return;
-        }
-
-        try
-        {
-            var inspection = await _saveService.InspectSavePathAsync(profile);
-            _lastInspectedSaveDirectory = inspection.EffectiveSaveDirectory;
-            SavePathInspectionTextBlock.Text = string.IsNullOrWhiteSpace(inspection.WarningMessage)
-                ? $"{inspection.Source} | {inspection.EffectiveSaveFile}"
-                : $"{inspection.Source} | {inspection.EffectiveSaveFile} | {inspection.WarningMessage}";
-            if (!string.IsNullOrWhiteSpace(inspection.EffectiveSaveDirectory))
-            {
-                Process.Start(new ProcessStartInfo { FileName = inspection.EffectiveSaveDirectory, UseShellExecute = true });
-            }
-        }
-        catch (Exception ex)
-        {
-            SavePathInspectionTextBlock.Text = ex.Message;
-            AppendConsoleLine($"[system] 检查存档路径失败：{ex.Message}");
-        }
-    }
-
-    private void OnOpenInspectedSaveFolderClick(object? sender, PointerPressedEventArgs e)
-    {
-        if (string.IsNullOrWhiteSpace(_lastInspectedSaveDirectory) || !Directory.Exists(_lastInspectedSaveDirectory))
+        if (sender is not Button { Tag: string directoryPath } ||
+            string.IsNullOrWhiteSpace(directoryPath) ||
+            !Directory.Exists(directoryPath))
         {
             return;
         }
 
-        Process.Start(new ProcessStartInfo { FileName = _lastInspectedSaveDirectory, UseShellExecute = true });
+        Process.Start(new ProcessStartInfo { FileName = directoryPath, UseShellExecute = true });
     }
 
     private async void OnToggleDefaultSaveClick(object? sender, RoutedEventArgs e)
@@ -5864,13 +5801,37 @@ public partial class LauncherMainWindow : Window
         public string StartDate
         {
             get => _startDate;
-            set => SetField(ref _startDate, value);
+            set
+            {
+                if (SetField(ref _startDate, value ?? string.Empty))
+                {
+                    OnPropertyChanged(nameof(StartDateValue));
+                }
+            }
         }
 
         public string EndDate
         {
             get => _endDate;
-            set => SetField(ref _endDate, value);
+            set
+            {
+                if (SetField(ref _endDate, value ?? string.Empty))
+                {
+                    OnPropertyChanged(nameof(EndDateValue));
+                }
+            }
+        }
+
+        public DateTimeOffset? StartDateValue
+        {
+            get => TryParseDateValue(_startDate);
+            set => SetDateValue(ref _startDate, value, nameof(StartDateValue), nameof(StartDate));
+        }
+
+        public DateTimeOffset? EndDateValue
+        {
+            get => TryParseDateValue(_endDate);
+            set => SetDateValue(ref _endDate, value, nameof(EndDateValue), nameof(EndDate));
         }
 
         public string StartTime
@@ -5943,6 +5904,38 @@ public partial class LauncherMainWindow : Window
                 _scheduleMode = model.ScheduleMode,
                 _action = model.Action
             };
+        }
+
+        private static DateTimeOffset? TryParseDateValue(string? value)
+        {
+            var text = value?.Trim();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return null;
+            }
+
+            if (!DateOnly.TryParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) &&
+                !DateOnly.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out date) &&
+                !DateOnly.TryParse(text, out date))
+            {
+                return null;
+            }
+
+            return new DateTimeOffset(date.Year, date.Month, date.Day, 0, 0, 0, TimeSpan.Zero);
+        }
+
+        private bool SetDateValue(ref string field, DateTimeOffset? value, string datePropertyName, string textPropertyName)
+        {
+            var next = value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty;
+            if (EqualityComparer<string>.Default.Equals(field, next))
+            {
+                return false;
+            }
+
+            field = next;
+            OnPropertyChanged(datePropertyName);
+            OnPropertyChanged(textPropertyName);
+            return true;
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
