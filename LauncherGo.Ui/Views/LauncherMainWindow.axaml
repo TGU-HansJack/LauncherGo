@@ -1020,12 +1020,12 @@
             <Setter Property="BorderBrush" Value="{DynamicResource ToastBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="Padding" Value="0" />
         </Style>
         <Style Selector="Button.ToastCloseButton">
             <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
-            <Setter Property="Width" Value="20" />
-            <Setter Property="Height" Value="20" />
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
             <Setter Property="Padding" Value="4" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
@@ -1070,7 +1070,7 @@
                         </Grid>
                     </Border>
 
-                    <Grid x:Name="MainContentHost" Grid.Row="1" Background="{DynamicResource PanelBackgroundBrush}" ClipToBounds="True">
+                    <Grid x:Name="MainContentHost" Grid.Row="1" MinHeight="0" Background="{DynamicResource PanelBackgroundBrush}" ClipToBounds="True">
                         <Grid Margin="24,6,24,8">
                             <Grid x:Name="HomePanel" ColumnDefinitions="*,360" ColumnSpacing="30">
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="10">
@@ -1134,8 +1134,9 @@
                             </Grid>
                         </Grid>
 
-                        <Border
+                            <Border
                             x:Name="NonHomePanelHost"
+                            MinHeight="0"
                             Background="{DynamicResource WindowSurfaceBrush}"
                             ClipToBounds="True"
                             IsVisible="False"
@@ -1148,7 +1149,7 @@
                             <Grid Margin="24,6,24,8">
                                 <Grid Margin="0">
 
-                            <Grid x:Name="MonitorPanel" ColumnDefinitions="330,*" ColumnSpacing="12" IsVisible="False">
+                            <Grid x:Name="MonitorPanel" ColumnDefinitions="330,*" ColumnSpacing="12" MinHeight="0" IsVisible="False" ClipToBounds="True">
                                 <Grid Grid.Column="0" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8" VerticalAlignment="Top">
                                     <Button x:Name="ServerStatusCard" Grid.Row="0" Classes="StatusCardButton" Click="OnServerStatusCardClick">
                                         <Grid ColumnDefinitions="78,*" ColumnSpacing="12">
@@ -1282,7 +1283,7 @@
                                 </Border>
                             </Grid>
 
-                            <Grid x:Name="ConsolePanel" RowDefinitions="*,Auto" RowSpacing="8" IsVisible="False" Margin="-24,-6,-24,0" ClipToBounds="True">
+                            <Grid x:Name="ConsolePanel" RowDefinitions="*,Auto" RowSpacing="8" MinHeight="0" IsVisible="False" Margin="-24,-6,-24,0" ClipToBounds="True">
                                 <Border Classes="SectionPanel" Background="{DynamicResource ConsoleBackgroundBrush}" ClipToBounds="True">
                                     <ScrollViewer
                                         x:Name="ConsoleOutputScrollViewer"
@@ -1675,7 +1676,7 @@
                                             <Button x:Name="AutomationRefreshButton" Grid.Column="2" Classes="SecondaryActionButton" Content="刷新" Click="OnAutomationRefreshClick" />
                                         </Grid>
                                         <TextBlock x:Name="AutomationStatusTextBlock" Grid.Row="1" Classes="ConfigHintText" TextWrapping="Wrap" />
-                                        <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
+                                        <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden" ClipToBounds="True">
                                             <StackPanel Spacing="10">
                                                 <Border Classes="ConfigCard">
                                                     <StackPanel Spacing="8">
@@ -1903,7 +1904,12 @@
                                                 <Border Classes="ConfigCard">
                                                     <StackPanel Spacing="8">
                                                         <TextBlock Classes="ConfigSectionTitle" Text="运行日志" />
-                                                        <ListBox x:Name="AutomationRuntimeLogsListBox" Classes="FlatList" Height="160" />
+                                                        <ListBox
+                                                            x:Name="AutomationRuntimeLogsListBox"
+                                                            Classes="FlatList"
+                                                            Height="160"
+                                                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                            ScrollViewer.VerticalScrollBarVisibility="Auto" />
                                                     </StackPanel>
                                                 </Border>
                                             </StackPanel>
@@ -2476,7 +2482,7 @@
                         </Border>
                     </Grid>
 
-                    <Border Grid.Row="2" MinHeight="52" Background="{DynamicResource FooterBackgroundBrush}" BorderBrush="Transparent" BorderThickness="0">
+                    <Border Grid.Row="2" Height="52" MinHeight="52" Background="{DynamicResource FooterBackgroundBrush}" BorderBrush="Transparent" BorderThickness="0">
                         <Grid Margin="14,0,14,0" ColumnDefinitions="Auto,*,Auto">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <Button x:Name="HomeNavButton" Classes="FooterNavButton" Click="OnHomeNavClick" />
@@ -2548,23 +2554,31 @@
             Classes="ToastSurface"
             HorizontalAlignment="Right"
             VerticalAlignment="Top"
-            Margin="0,14,14,0"
+            Margin="0,56,14,0"
             MinWidth="180"
-            MaxWidth="330"
+            MaxWidth="320"
             IsVisible="False"
             PointerEntered="OnToastPointerEntered"
             PointerExited="OnToastPointerExited">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <Grid ColumnDefinitions="4,*,Auto">
+                <Border
+                    x:Name="ToastAccentBorder"
+                    Grid.Column="0"
+                    Background="#555555"
+                    CornerRadius="4,0,0,4" />
                 <TextBlock
                     x:Name="ToastMessageTextBlock"
+                    Grid.Column="1"
+                    Margin="8,6,4,6"
                     Foreground="{DynamicResource ToastTextBrush}"
-                    FontSize="13"
+                    FontSize="12"
                     TextWrapping="Wrap"
                     VerticalAlignment="Center" />
                 <Button
                     x:Name="ToastCloseButton"
-                    Grid.Column="1"
+                    Grid.Column="2"
                     Classes="ToastCloseButton"
+                    Margin="0,4,6,4"
                     Click="OnToastCloseClick">
                     <Viewbox Width="10" Height="10">
                         <Path

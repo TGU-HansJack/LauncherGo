@@ -814,14 +814,16 @@ public partial class LauncherMainWindow : Window
         _homeSloganVisible = true;
     }
 
-    private void ShowToast(string message)
+    private void ShowToast(string message, ToastKind? kind = null)
     {
         var text = NormalizeToastMessage(message);
         if (string.IsNullOrWhiteSpace(text))
             return;
 
-        _logger.LogInformation("Toast: {Message}", text);
+        var resolvedKind = kind ?? InferToastKind(text);
+        _logger.LogInformation("Toast[{Kind}]: {Message}", resolvedKind, text);
         ToastMessageTextBlock.Text = text;
+        ToastAccentBorder.Background = GetToastAccentBrush(resolvedKind);
         ToastHost.IsVisible = true;
         RestartToastTimer();
     }
@@ -875,6 +877,57 @@ public partial class LauncherMainWindow : Window
         }
 
         return text;
+    }
+
+    private static ToastKind InferToastKind(string text)
+    {
+        if (text.Contains("失败", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("错误", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("异常", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("error", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToastKind.Error;
+        }
+
+        if (text.Contains("未启动", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("未启用", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("已停止", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("跳过", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("stopped", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("disabled", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("skipped", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToastKind.Neutral;
+        }
+
+        if (text.Contains("已", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("完成", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("成功", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("启动", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("运行中", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("saved", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("started", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("running", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("deployed", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("imported", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("deleted", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("completed", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToastKind.Success;
+        }
+
+        return ToastKind.Neutral;
+    }
+
+    private static IBrush GetToastAccentBrush(ToastKind kind)
+    {
+        return new SolidColorBrush(kind switch
+        {
+            ToastKind.Success => Color.Parse("#6B8E23"),
+            ToastKind.Error => Color.Parse("#C62828"),
+            _ => Color.Parse("#555555")
+        });
     }
 
     private void UpdateCardValues(ServerRuntimeStatus status)
@@ -3592,12 +3645,21 @@ public partial class LauncherMainWindow : Window
 
             if (_selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.Automation)
             {
-                if (_automationRuntimeLogItems.LastOrDefault() is { } lastLog)
-                {
-                    AutomationRuntimeLogsListBox.ScrollIntoView(lastLog);
-                }
+                ScrollAutomationRuntimeLogsToEnd();
             }
         });
+    }
+
+    private void ScrollAutomationRuntimeLogsToEnd()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            var scrollViewer = AutomationRuntimeLogsListBox
+                .GetVisualDescendants()
+                .OfType<ScrollViewer>()
+                .FirstOrDefault();
+            scrollViewer?.ScrollToEnd();
+        }, DispatcherPriority.Background);
     }
 
     private void OnFrpStatusChanged(object? sender, FrpRuntimeStatus status)
@@ -4343,7 +4405,12 @@ public partial class LauncherMainWindow : Window
             }
 
             await _openServerQueryService.StartAsync(ToOpenServerQueryRuntimeSettings(settings));
-            SetConnectionStatus(BuildOpenInfoRuntimeStatusText());
+            var status = await WaitForOpenInfoListeningAsync(TimeSpan.FromSeconds(2));
+            SetConnectionStatus(status.IsListening
+                ? BuildOpenInfoRuntimeStatusText()
+                : T(
+                    $"开放信息正在启动：{settings.ListenPrefix}",
+                    $"Open Info is starting: {settings.ListenPrefix}"));
         }
         catch (Exception ex)
         {
@@ -4354,6 +4421,22 @@ public partial class LauncherMainWindow : Window
             UpdateOsqToggleButtonText();
             UpdateCardValues(_serverProcessService.GetCurrentStatus());
         }
+    }
+
+    private async Task<OpenServerQueryRuntimeStatus> WaitForOpenInfoListeningAsync(TimeSpan timeout)
+    {
+        var deadline = DateTimeOffset.UtcNow + timeout;
+        OpenServerQueryRuntimeStatus status;
+        do
+        {
+            status = _openServerQueryService.GetRuntimeStatus();
+            if (status.IsListening)
+                return status;
+
+            await Task.Delay(100);
+        } while (DateTimeOffset.UtcNow < deadline);
+
+        return _openServerQueryService.GetRuntimeStatus();
     }
 
     private async Task StopOpenInfoAsync()
@@ -6036,6 +6119,13 @@ public partial class LauncherMainWindow : Window
     {
         Frp,
         ThirdPartyFrpc
+    }
+
+    private enum ToastKind
+    {
+        Neutral,
+        Success,
+        Error
     }
 
     private sealed class OsqEndpointEditorRow(TextBox hostTextBox, TextBox tokenTextBox, bool enabled = true)
