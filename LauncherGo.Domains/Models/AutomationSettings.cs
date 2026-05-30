@@ -23,6 +23,10 @@ public class AutomationSettings
 
     public List<ScheduledBroadcastMessage> BroadcastMessages { get; set; } = [];
 
+    public bool CommandEnabled { get; set; }
+
+    public List<ScheduledServerCommand> ScheduledCommands { get; set; } = [];
+
     public bool ExportLogEnabled { get; set; }
 
     public List<string> ExportTimes { get; set; } = [];

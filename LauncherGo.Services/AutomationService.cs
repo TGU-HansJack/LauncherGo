@@ -131,6 +131,9 @@ public partial class AutomationService : IAutomationService, IDisposable
         if (_settings.BroadcastEnabled)
             await HandleBroadcastAsync(minute, cancellationToken);
 
+        if (_settings.CommandEnabled)
+            await HandleScheduledCommandsAsync(minute, cancellationToken);
+
         if (_settings.ExportLogEnabled)
             await HandleExportLogsAsync(minute, cancellationToken);
     }
@@ -239,6 +242,25 @@ public partial class AutomationService : IAutomationService, IDisposable
                 continue;
 
             await TryBackupActiveSaveAsync(profile, cancellationToken);
+        }
+    }
+
+    private async Task HandleScheduledCommandsAsync(DateTime minute, CancellationToken cancellationToken)
+    {
+        foreach (var item in _settings.ScheduledCommands.Where(x => x.Enabled))
+        {
+            if (!TryParseHm(item.Time, out var at))
+                continue;
+
+            var point = minute.Date.Add(at);
+            if (point != minute)
+                continue;
+
+            var key = $"command|{minute:yyyyMMddHHmm}|{item.Command}";
+            if (!MarkExecuted(key))
+                continue;
+
+            await TrySendScheduledCommandAsync(item.Command, cancellationToken);
         }
     }
 
@@ -366,6 +388,23 @@ public partial class AutomationService : IAutomationService, IDisposable
         var normalized = content.Replace('\r', ' ').Replace('\n', ' ').Trim();
         await _serverProcessService.SendCommandAsync($"/announce {normalized}", cancellationToken);
         WriteRuntimeLog($"自动化播报：{content}");
+    }
+
+    private async Task TrySendScheduledCommandAsync(string command, CancellationToken cancellationToken)
+    {
+        var status = _serverProcessService.GetCurrentStatus();
+        if (!status.IsRunning)
+        {
+            WriteRuntimeLog($"自动化命令跳过（服务端未运行）：{command}");
+            return;
+        }
+
+        var normalized = command.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+            return;
+
+        await _serverProcessService.SendCommandAsync(normalized, cancellationToken);
+        WriteRuntimeLog($"自动化命令：{normalized}");
     }
 
     private async Task ExportLogsAsync(string reason, CancellationToken cancellationToken)

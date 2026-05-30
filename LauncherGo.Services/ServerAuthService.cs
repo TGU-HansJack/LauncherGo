@@ -135,7 +135,8 @@ public sealed class ServerAuthService : IServerAuthService
     /// <inheritdoc />
     public async Task EnsureAuthModDeployedAsync(
         InstanceProfile profile,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool enableMod = true)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -149,20 +150,67 @@ public sealed class ServerAuthService : IServerAuthService
         var sourceRoot = ResolveEmbeddedAuthSourceRoot();
 
         SyncDirectory(sourceRoot, destination);
-        await RemoveAuthModFromDisabledListAsync(profile, cancellationToken);
+        await SetAuthModEnabledAsync(profile, enableMod, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<bool> GetAuthModEnabledAsync(
+    public async Task<bool> GetAuthModEnabledAsync(
         InstanceProfile profile,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var modsPath = WorkspacePathHelper.GetProfileModsPath(profile.DirectoryPath);
-        var folderPath = Path.Combine(modsPath, AuthModFolderName);
-        var zipPath = Path.Combine(modsPath, AuthModZipName);
-        var enabled = Directory.Exists(folderPath) || File.Exists(zipPath);
-        return Task.FromResult(enabled);
+        if (!IsAuthModPresent(profile))
+            return false;
+
+        return !await IsAuthModDisabledAsync(profile, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task SetAuthModEnabledAsync(
+        InstanceProfile profile,
+        bool enabled,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            var rawJson = await _serverConfigService.LoadRawJsonAsync(profile, cancellationToken);
+            var root = JsonNode.Parse(rawJson) as JsonObject
+                       ?? throw new InvalidOperationException("配置格式错误。");
+
+            var disabledMods = GetOrCreateDisabledModsArray(root);
+            var cleanupSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                AuthModId,
+                $"{AuthModId}@{AuthModVersion}"
+            };
+
+            var remain = disabledMods
+                .Where(static item => item is not null)
+                .Select(static item => item!.GetValue<string>())
+                .Where(item => !IsAuthModDisabledKey(item, cleanupSet))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (!enabled)
+            {
+                remain.Add($"{AuthModId}@{AuthModVersion}");
+            }
+
+            disabledMods.Clear();
+            foreach (var item in remain.Distinct(StringComparer.OrdinalIgnoreCase))
+                disabledMods.Add(item);
+
+            await _serverConfigService.SaveRawJsonAsync(
+                profile,
+                root.ToJsonString(JsonWriteOptions),
+                cancellationToken);
+        }
+        catch
+        {
+            // 配置清理失败不阻断认证配置保存或模组部署。
+        }
     }
 
     private static void SyncDirectory(string sourcePath, string destinationPath)
@@ -301,7 +349,15 @@ public sealed class ServerAuthService : IServerAuthService
             $"未找到内置认证模组文件，请先重新构建启动器。查找路径：{primary}；{fallback}");
     }
 
-    private async Task RemoveAuthModFromDisabledListAsync(
+    private static bool IsAuthModPresent(InstanceProfile profile)
+    {
+        var modsPath = WorkspacePathHelper.GetProfileModsPath(profile.DirectoryPath);
+        var folderPath = Path.Combine(modsPath, AuthModFolderName);
+        var zipPath = Path.Combine(modsPath, AuthModZipName);
+        return Directory.Exists(folderPath) || File.Exists(zipPath);
+    }
+
+    private async Task<bool> IsAuthModDisabledAsync(
         InstanceProfile profile,
         CancellationToken cancellationToken)
     {
@@ -309,41 +365,46 @@ public sealed class ServerAuthService : IServerAuthService
         {
             var rawJson = await _serverConfigService.LoadRawJsonAsync(profile, cancellationToken);
             if (JsonNode.Parse(rawJson) is not JsonObject root)
-                return;
+                return false;
             if (root["WorldConfig"] is not JsonObject worldConfig)
-                return;
+                return false;
             if (worldConfig["DisabledMods"] is not JsonArray disabledMods)
-                return;
+                return false;
 
-            var beforeCount = disabledMods.Count;
-            var cleanupSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                AuthModId,
-                $"{AuthModId}@{AuthModVersion}"
-            };
-
-            var remain = disabledMods
+            return disabledMods
                 .Where(static item => item is not null)
                 .Select(static item => item!.GetValue<string>())
-                .Where(item => !cleanupSet.Contains(item))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            if (remain.Count == beforeCount)
-                return;
-
-            disabledMods.Clear();
-            foreach (var item in remain)
-                disabledMods.Add(item);
-
-            await _serverConfigService.SaveRawJsonAsync(
-                profile,
-                root.ToJsonString(JsonWriteOptions),
-                cancellationToken);
+                .Any(item => IsAuthModDisabledKey(item));
         }
         catch
         {
-            // 清理禁用项失败不阻断主流程
+            return false;
         }
+    }
+
+    private static JsonArray GetOrCreateDisabledModsArray(JsonObject root)
+    {
+        if (root["WorldConfig"] is not JsonObject worldConfig)
+        {
+            worldConfig = new JsonObject();
+            root["WorldConfig"] = worldConfig;
+        }
+
+        if (worldConfig["DisabledMods"] is JsonArray disabledMods)
+            return disabledMods;
+
+        disabledMods = new JsonArray();
+        worldConfig["DisabledMods"] = disabledMods;
+        return disabledMods;
+    }
+
+    private static bool IsAuthModDisabledKey(
+        string item,
+        HashSet<string>? exactKeys = null)
+    {
+        return (exactKeys?.Contains(item) ?? false) ||
+               item.Equals(AuthModId, StringComparison.OrdinalIgnoreCase) ||
+               item.StartsWith($"{AuthModId}@", StringComparison.OrdinalIgnoreCase);
     }
 
     private static ServerAuthSettings NormalizeSettings(ServerAuthSettings settings)

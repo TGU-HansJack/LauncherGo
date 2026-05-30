@@ -57,6 +57,10 @@
                     <SolidColorBrush x:Key="ConsoleTextBrush" Color="#000000" />
                     <SolidColorBrush x:Key="ConsoleSelectionBrush" Color="#000000" />
                     <SolidColorBrush x:Key="ConsoleSelectionTextBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="ToastBackgroundBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="ToastBorderBrush" Color="#D8DEE6" />
+                    <SolidColorBrush x:Key="ToastTextBrush" Color="#111111" />
+                    <SolidColorBrush x:Key="ToastCloseBrush" Color="#68717D" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
                     <SolidColorBrush x:Key="WindowSurfaceBrush" Color="#121212" />
@@ -97,6 +101,10 @@
                     <SolidColorBrush x:Key="ConsoleTextBrush" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="ConsoleSelectionBrush" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="ConsoleSelectionTextBrush" Color="#000000" />
+                    <SolidColorBrush x:Key="ToastBackgroundBrush" Color="#1E1E1E" />
+                    <SolidColorBrush x:Key="ToastBorderBrush" Color="#404040" />
+                    <SolidColorBrush x:Key="ToastTextBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="ToastCloseBrush" Color="#CFCFCF" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
@@ -1007,6 +1015,23 @@
         <Style Selector="ListBoxItem">
             <Setter Property="CornerRadius" Value="4" />
         </Style>
+        <Style Selector="Border.ToastSurface">
+            <Setter Property="Background" Value="{DynamicResource ToastBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ToastBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="10,8" />
+        </Style>
+        <Style Selector="Button.ToastCloseButton">
+            <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
     </Window.Styles>
 
     <Grid x:Name="WindowFrameContent" Background="Transparent">
@@ -1672,6 +1697,10 @@
                                                                 <ToggleSwitch x:Name="AutomationBroadcastEnabledCheckBox" Classes="LabelledToggle" />
                                                             </StackPanel>
                                                             <StackPanel Classes="ToggleField">
+                                                                <TextBlock x:Name="AutomationCommandEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="启用定时命令" />
+                                                                <ToggleSwitch x:Name="AutomationCommandEnabledCheckBox" Classes="LabelledToggle" />
+                                                            </StackPanel>
+                                                            <StackPanel Classes="ToggleField">
                                                                 <TextBlock x:Name="AutomationExportEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="启用日志导出" />
                                                                 <ToggleSwitch x:Name="AutomationExportEnabledCheckBox" Classes="LabelledToggle" />
                                                             </StackPanel>
@@ -1826,6 +1855,41 @@
                                                                                     <TextBox Grid.Column="1" Classes="CompactInput" PlaceholderText="12:00" Text="{Binding Time, Mode=TwoWay}" />
                                                                                     <TextBox Grid.Column="2" Classes="CompactInput" Text="{Binding Message, Mode=TwoWay}" />
                                                                                     <Button Grid.Column="3" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveBroadcastClick" />
+                                                                                </Grid>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </Border>
+                                                        </Grid>
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <Border Classes="ConfigCard">
+                                                    <StackPanel Spacing="8">
+                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                                            <TextBlock Classes="ConfigSectionTitle" Text="定时命令" />
+                                                            <Button x:Name="AutomationAddCommandButton" Grid.Column="1" Classes="SecondaryActionButton" HorizontalAlignment="Right" Content="添加" Click="OnAutomationAddCommandClick" />
+                                                        </Grid>
+                                                        <Grid RowDefinitions="Auto,*">
+                                                            <Border Grid.Row="0" Classes="TableHeader">
+                                                                <Grid ColumnDefinitions="50,90,*,Auto" ColumnSpacing="8">
+                                                                    <TextBlock Classes="TableHeaderText" Text="启用" HorizontalAlignment="Center" />
+                                                                    <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="时间" />
+                                                                    <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="命令" />
+                                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                                </Grid>
+                                                            </Border>
+                                                            <Border Grid.Row="1" Classes="TableBody">
+                                                                <ItemsControl x:Name="AutomationCommandsItemsControl">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Border Classes="TableRow">
+                                                                                <Grid ColumnDefinitions="50,90,*,Auto" ColumnSpacing="8">
+                                                                                    <ToggleSwitch Classes="TableSwitch" IsChecked="{Binding Enabled, Mode=TwoWay}" />
+                                                                                    <TextBox Grid.Column="1" Classes="CompactInput" PlaceholderText="12:00" Text="{Binding Time, Mode=TwoWay}" />
+                                                                                    <TextBox Grid.Column="2" Classes="CompactInput" Text="{Binding Command, Mode=TwoWay}" />
+                                                                                    <Button Grid.Column="3" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveCommandClick" />
                                                                                 </Grid>
                                                                             </Border>
                                                                         </DataTemplate>
@@ -2478,6 +2542,40 @@
                     </Border>
                 </Grid>
             </Border>
+        </Border>
+        <Border
+            x:Name="ToastHost"
+            Classes="ToastSurface"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            Margin="0,14,14,0"
+            MinWidth="180"
+            MaxWidth="330"
+            IsVisible="False"
+            PointerEntered="OnToastPointerEntered"
+            PointerExited="OnToastPointerExited">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBlock
+                    x:Name="ToastMessageTextBlock"
+                    Foreground="{DynamicResource ToastTextBrush}"
+                    FontSize="13"
+                    TextWrapping="Wrap"
+                    VerticalAlignment="Center" />
+                <Button
+                    x:Name="ToastCloseButton"
+                    Grid.Column="1"
+                    Classes="ToastCloseButton"
+                    Click="OnToastCloseClick">
+                    <Viewbox Width="10" Height="10">
+                        <Path
+                            Stroke="{DynamicResource ToastCloseBrush}"
+                            StrokeThickness="1.4"
+                            StrokeLineCap="Round"
+                            StrokeJoin="Round"
+                            Data="M18 6L6 18M6 6L18 18" />
+                    </Viewbox>
+                </Button>
+            </Grid>
         </Border>
     </Grid>
 </Window>

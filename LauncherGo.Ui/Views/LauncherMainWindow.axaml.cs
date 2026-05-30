@@ -25,6 +25,8 @@ using LauncherGo.Domains.Enums;
 using LauncherGo.Domains.Models;
 using LauncherGo.Ui;
 using LauncherGo.Ui.Platform;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LauncherGo.Ui.Views;
 
@@ -143,9 +145,11 @@ public partial class LauncherMainWindow : Window
     private readonly IInstanceModService _instanceModService;
     private readonly IServerAuthService _serverAuthService;
     private readonly IServerMapService _serverMapService;
+    private readonly ILogger<LauncherMainWindow> _logger;
     private readonly DispatcherTimer _dataTimer;
     private readonly DispatcherTimer _tickerTimer;
     private readonly DispatcherTimer _homeSloganTimer;
+    private readonly DispatcherTimer _toastTimer;
     private readonly DateTimeOffset _windowStartedAtUtc = DateTimeOffset.UtcNow;
 
     private readonly List<double> _serverCpuSamples = [];
@@ -173,6 +177,7 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<AutomationActionWindowItem> _automationActionWindowItems = [];
     private readonly ObservableCollection<AutomationTimeItem> _automationBackupTimeItems = [];
     private readonly ObservableCollection<ScheduledBroadcastItem> _automationBroadcastItems = [];
+    private readonly ObservableCollection<ScheduledCommandItem> _automationCommandItems = [];
     private readonly ObservableCollection<AutomationTimeItem> _automationExportTimeItems = [];
     private readonly ObservableCollection<string> _automationRuntimeLogItems = [];
     private readonly ObservableCollection<InstanceProfile> _modProfileItems = [];
@@ -206,10 +211,15 @@ public partial class LauncherMainWindow : Window
     private bool _sponsorsLoaded;
     private bool _isFrpRunning;
     private bool _isThirdPartyFrpcRunning;
+    private bool _isTogglingFrp;
+    private bool _isTogglingThirdPartyFrpc;
+    private bool _isTogglingOsq;
+    private bool _isTogglingRobot;
     private bool _isExitRequested;
     private bool _isRefreshingAutomation;
     private bool _isRefreshingMods;
     private bool _isRefreshingAuth;
+    private bool _toastPointerOver;
     private string _tailedProfileId = string.Empty;
     private string _replayedLogProfileId = string.Empty;
     private TimeSpan _robotLastProcessorTime;
@@ -233,7 +243,8 @@ public partial class LauncherMainWindow : Window
             ServiceLocator.GetRequiredService<IThirdPartyFrpcService>(),
             ServiceLocator.GetRequiredService<IInstanceModService>(),
             ServiceLocator.GetRequiredService<IServerAuthService>(),
-            ServiceLocator.GetRequiredService<IServerMapService>())
+            ServiceLocator.GetRequiredService<IServerMapService>(),
+            ServiceLocator.GetRequiredService<ILogger<LauncherMainWindow>>())
     {
     }
 
@@ -253,7 +264,8 @@ public partial class LauncherMainWindow : Window
         IThirdPartyFrpcService thirdPartyFrpcService,
         IInstanceModService instanceModService,
         IServerAuthService serverAuthService,
-        IServerMapService serverMapService)
+        IServerMapService serverMapService,
+        ILogger<LauncherMainWindow>? logger = null)
     {
         _preferencesService = preferencesService;
         _serverPackageService = serverPackageService;
@@ -271,6 +283,7 @@ public partial class LauncherMainWindow : Window
         _instanceModService = instanceModService;
         _serverAuthService = serverAuthService;
         _serverMapService = serverMapService;
+        _logger = logger ?? NullLogger<LauncherMainWindow>.Instance;
 
         InitializeComponent();
         AddHandler(InputElement.PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -285,6 +298,9 @@ public partial class LauncherMainWindow : Window
 
         _homeSloganTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.1) };
         _homeSloganTimer.Tick += OnHomeSloganTimerTick;
+
+        _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        _toastTimer.Tick += OnToastTimerTick;
 
         _serverProcessService.OutputReceived += OnServerOutputReceived;
         _serverProcessService.StatusChanged += OnServerStatusChanged;
@@ -321,6 +337,7 @@ public partial class LauncherMainWindow : Window
             _dataTimer.Stop();
             _tickerTimer.Stop();
             _homeSloganTimer.Stop();
+            _toastTimer.Stop();
             _serverProcessService.OutputReceived -= OnServerOutputReceived;
             _serverProcessService.StatusChanged -= OnServerStatusChanged;
             _logTailService.LogLineReceived -= OnLogTailLineReceived;
@@ -484,6 +501,7 @@ public partial class LauncherMainWindow : Window
         AutomationBackupEnabledLabelTextBlock.Text = T("启用定时备份", "Enable scheduled backup");
         AutomationBackupBeforeShutdownLabelTextBlock.Text = T("关服前备份", "Backup before shutdown");
         AutomationBroadcastEnabledLabelTextBlock.Text = T("启用定时广播", "Enable scheduled broadcast");
+        AutomationCommandEnabledLabelTextBlock.Text = T("启用定时命令", "Enable scheduled commands");
         AutomationExportEnabledLabelTextBlock.Text = T("启用日志导出", "Enable log export");
         AutomationExportBeforeShutdownLabelTextBlock.Text = T("关服前导出日志", "Export before shutdown");
         AutomationExportIncludeChatLabelTextBlock.Text = T("导出聊天", "Export chat");
@@ -493,6 +511,7 @@ public partial class LauncherMainWindow : Window
         AutomationAddBackupTimeButton.Content = T("添加", "Add");
         AutomationAddExportTimeButton.Content = T("添加", "Add");
         AutomationAddBroadcastButton.Content = T("添加", "Add");
+        AutomationAddCommandButton.Content = T("添加", "Add");
     }
 
     private void InitializeModStaticTexts()
@@ -701,6 +720,7 @@ public partial class LauncherMainWindow : Window
         AutomationActionsItemsControl.ItemsSource = _automationActionWindowItems;
         AutomationBackupTimesItemsControl.ItemsSource = _automationBackupTimeItems;
         AutomationBroadcastsItemsControl.ItemsSource = _automationBroadcastItems;
+        AutomationCommandsItemsControl.ItemsSource = _automationCommandItems;
         AutomationExportTimesItemsControl.ItemsSource = _automationExportTimeItems;
         AutomationRuntimeLogsListBox.ItemsSource = _automationRuntimeLogItems;
         ModProfileComboBox.ItemsSource = _modProfileItems;
@@ -792,6 +812,69 @@ public partial class LauncherMainWindow : Window
         HomeSloganTextBlock.Text = T(HomeSlogans[_homeSloganIndex].Zh, HomeSlogans[_homeSloganIndex].En);
         HomeSloganTextBlock.Opacity = 1;
         _homeSloganVisible = true;
+    }
+
+    private void ShowToast(string message)
+    {
+        var text = NormalizeToastMessage(message);
+        if (string.IsNullOrWhiteSpace(text))
+            return;
+
+        _logger.LogInformation("Toast: {Message}", text);
+        ToastMessageTextBlock.Text = text;
+        ToastHost.IsVisible = true;
+        RestartToastTimer();
+    }
+
+    private void RestartToastTimer()
+    {
+        _toastTimer.Stop();
+        if (!_toastPointerOver && ToastHost.IsVisible)
+        {
+            _toastTimer.Start();
+        }
+    }
+
+    private void HideToast()
+    {
+        _toastTimer.Stop();
+        ToastHost.IsVisible = false;
+    }
+
+    private void OnToastTimerTick(object? sender, EventArgs e)
+    {
+        if (_toastPointerOver)
+            return;
+
+        HideToast();
+    }
+
+    private void OnToastPointerEntered(object? sender, PointerEventArgs e)
+    {
+        _toastPointerOver = true;
+        _toastTimer.Stop();
+    }
+
+    private void OnToastPointerExited(object? sender, PointerEventArgs e)
+    {
+        _toastPointerOver = false;
+        RestartToastTimer();
+    }
+
+    private void OnToastCloseClick(object? sender, RoutedEventArgs e)
+    {
+        HideToast();
+    }
+
+    private static string NormalizeToastMessage(string message)
+    {
+        var text = message.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        if (text.StartsWith("[system]", StringComparison.OrdinalIgnoreCase))
+        {
+            text = text[8..].Trim();
+        }
+
+        return text;
     }
 
     private void UpdateCardValues(ServerRuntimeStatus status)
@@ -1194,12 +1277,12 @@ public partial class LauncherMainWindow : Window
 
             var settings = await _automationSettingsService.LoadAsync();
             ApplyAutomationSettings(settings);
-            AutomationStatusTextBlock.Text = T("自动化配置已加载。", "Automation settings loaded.");
+            SetAutomationStatus(T("自动化配置已加载。", "Automation settings loaded."), notify: false);
             await SyncAutomationRuntimeLogsAsync();
         }
         catch (Exception ex)
         {
-            AutomationStatusTextBlock.Text = T($"自动化加载失败：{ex.Message}", $"Automation load failed: {ex.Message}");
+            SetAutomationStatus(T($"自动化加载失败：{ex.Message}", $"Automation load failed: {ex.Message}"));
         }
         finally
         {
@@ -1213,6 +1296,7 @@ public partial class LauncherMainWindow : Window
         AutomationBackupEnabledCheckBox.IsChecked = settings.BackupEnabled;
         AutomationBackupBeforeShutdownCheckBox.IsChecked = settings.BackupBeforeShutdown;
         AutomationBroadcastEnabledCheckBox.IsChecked = settings.BroadcastEnabled;
+        AutomationCommandEnabledCheckBox.IsChecked = settings.CommandEnabled;
         AutomationExportEnabledCheckBox.IsChecked = settings.ExportLogEnabled;
         AutomationExportBeforeShutdownCheckBox.IsChecked = settings.ExportBeforeShutdown;
         AutomationExportIncludeChatCheckBox.IsChecked = settings.ExportIncludeChat;
@@ -1248,6 +1332,16 @@ public partial class LauncherMainWindow : Window
             _automationBroadcastItems.Add(new ScheduledBroadcastItem());
         }
 
+        _automationCommandItems.Clear();
+        foreach (var command in settings.ScheduledCommands ?? [])
+        {
+            _automationCommandItems.Add(ScheduledCommandItem.FromModel(command));
+        }
+        if (_automationCommandItems.Count == 0)
+        {
+            _automationCommandItems.Add(new ScheduledCommandItem());
+        }
+
         _automationExportTimeItems.Clear();
         foreach (var time in settings.ExportTimes ?? [])
         {
@@ -1269,6 +1363,7 @@ public partial class LauncherMainWindow : Window
             BackupEnabled = AutomationBackupEnabledCheckBox.IsChecked == true,
             BackupBeforeShutdown = AutomationBackupBeforeShutdownCheckBox.IsChecked == true,
             BroadcastEnabled = AutomationBroadcastEnabledCheckBox.IsChecked == true,
+            CommandEnabled = AutomationCommandEnabledCheckBox.IsChecked == true,
             ExportLogEnabled = AutomationExportEnabledCheckBox.IsChecked == true,
             ExportBeforeShutdown = AutomationExportBeforeShutdownCheckBox.IsChecked == true,
             ExportIncludeChat = AutomationExportIncludeChatCheckBox.IsChecked == true,
@@ -1282,6 +1377,10 @@ public partial class LauncherMainWindow : Window
             BroadcastMessages = _automationBroadcastItems
                 .Select(item => item.ToModel())
                 .Where(item => !string.IsNullOrWhiteSpace(item.Message) || !string.IsNullOrWhiteSpace(item.Time))
+                .ToList(),
+            ScheduledCommands = _automationCommandItems
+                .Select(item => item.ToModel())
+                .Where(item => !string.IsNullOrWhiteSpace(item.Command) || !string.IsNullOrWhiteSpace(item.Time))
                 .ToList(),
             ExportTimes = _automationExportTimeItems
                 .Select(item => item.Time?.Trim() ?? string.Empty)
@@ -1298,11 +1397,38 @@ public partial class LauncherMainWindow : Window
             var settings = CollectAutomationSettings();
             await _automationSettingsService.SaveAsync(settings);
             await _automationService.ReloadAsync();
-            AutomationStatusTextBlock.Text = T("自动化配置已保存。", "Automation settings saved.");
+            SetAutomationStatus(T("自动化配置已保存。", "Automation settings saved."));
         }
         catch (Exception ex)
         {
-            AutomationStatusTextBlock.Text = T($"自动化保存失败：{ex.Message}", $"Automation save failed: {ex.Message}");
+            SetAutomationStatus(T($"自动化保存失败：{ex.Message}", $"Automation save failed: {ex.Message}"));
+        }
+    }
+
+    private void SetAutomationStatus(string message, bool notify = true)
+    {
+        AutomationStatusTextBlock.Text = message;
+        if (notify)
+        {
+            ShowToast(message);
+        }
+    }
+
+    private void SetModStatus(string message, bool notify = true)
+    {
+        ModStatusTextBlock.Text = message;
+        if (notify)
+        {
+            ShowToast(message);
+        }
+    }
+
+    private void SetAuthStatus(string message, bool notify = true)
+    {
+        AuthStatusTextBlock.Text = message;
+        if (notify)
+        {
+            ShowToast(message);
         }
     }
 
@@ -1350,7 +1476,7 @@ public partial class LauncherMainWindow : Window
         }
         catch (Exception ex)
         {
-            ModStatusTextBlock.Text = T($"模组加载失败：{ex.Message}", $"Mod load failed: {ex.Message}");
+            SetModStatus(T($"模组加载失败：{ex.Message}", $"Mod load failed: {ex.Message}"));
         }
         finally
         {
@@ -1363,7 +1489,7 @@ public partial class LauncherMainWindow : Window
         if (ModProfileComboBox.SelectedItem is not InstanceProfile profile)
         {
             _modItems.Clear();
-            ModStatusTextBlock.Text = T("暂无档案，请先创建档案。", "No profile found. Create a profile first.");
+            SetModStatus(T("暂无档案，请先创建档案。", "No profile found. Create a profile first."), notify: false);
             return;
         }
 
@@ -1376,9 +1502,9 @@ public partial class LauncherMainWindow : Window
 
         var enabledCount = mods.Count(static mod => !mod.IsDisabled);
         var disabledCount = mods.Count - enabledCount;
-        ModStatusTextBlock.Text = T(
+        SetModStatus(T(
             $"已加载 {mods.Count} 个模组，启用 {enabledCount} 个，关闭 {disabledCount} 个。",
-            $"Loaded {mods.Count} mods, {enabledCount} enabled, {disabledCount} disabled.");
+            $"Loaded {mods.Count} mods, {enabledCount} enabled, {disabledCount} disabled."), notify: false);
     }
 
     private async Task RefreshAuthProfilesAsync()
@@ -1405,7 +1531,7 @@ public partial class LauncherMainWindow : Window
             if (_authProfileItems.Count == 0)
             {
                 _authPlayerItems.Clear();
-                AuthStatusTextBlock.Text = T("暂无档案，请先创建档案。", "No profile found. Create a profile first.");
+                SetAuthStatus(T("暂无档案，请先创建档案。", "No profile found. Create a profile first."), notify: false);
                 return;
             }
 
@@ -1421,7 +1547,7 @@ public partial class LauncherMainWindow : Window
         }
         catch (Exception ex)
         {
-            AuthStatusTextBlock.Text = T($"认证加载失败：{ex.Message}", $"Auth load failed: {ex.Message}");
+            SetAuthStatus(T($"认证加载失败：{ex.Message}", $"Auth load failed: {ex.Message}"));
         }
         finally
         {
@@ -1431,14 +1557,13 @@ public partial class LauncherMainWindow : Window
 
     private async Task LoadAuthForProfileAsync(InstanceProfile profile)
     {
-        await _serverAuthService.EnsureAuthModDeployedAsync(profile);
         var settings = await _serverAuthService.LoadSettingsAsync(profile);
         ApplyAuthSettings(settings);
         await LoadAuthPlayersAsync(profile);
         var authModEnabled = await _serverAuthService.GetAuthModEnabledAsync(profile);
-        AuthStatusTextBlock.Text = T(
-            $"已加载认证配置，模组{(authModEnabled ? "已部署" : "未部署")}。",
-            $"Auth settings loaded, mod {(authModEnabled ? "deployed" : "missing")}.");
+        SetAuthStatus(T(
+            $"已加载认证配置，认证模组{(authModEnabled ? "已启用" : "未启用或未部署")}。",
+            $"Auth settings loaded, auth mod {(authModEnabled ? "enabled" : "disabled or missing")}."), notify: false);
     }
 
     private void ApplyAuthSettings(ServerAuthSettings settings)
@@ -1568,14 +1693,16 @@ public partial class LauncherMainWindow : Window
             return;
         }
 
-        SetDownloadStatus(T("正在加载服务端版本列表...", "Loading server versions..."));
+        SetDownloadStatus(T("正在加载服务端版本列表...", "Loading server versions..."), notify: false);
         try
         {
             _catalogEntries.Clear();
             _catalogEntries.AddRange(await _serverPackageService.GetServerDownloadEntriesAsync());
             _downloadCatalogLoaded = true;
             RebuildDownloadVersionItems();
-            SetDownloadStatus(T($"已加载 {_catalogEntries.Count} 个服务端版本。", $"Loaded {_catalogEntries.Count} server versions."));
+            SetDownloadStatus(
+                T($"已加载 {_catalogEntries.Count} 个服务端版本。", $"Loaded {_catalogEntries.Count} server versions."),
+                notify: forceReload);
         }
         catch (Exception ex)
         {
@@ -1617,9 +1744,13 @@ public partial class LauncherMainWindow : Window
         RebuildDownloadVersionItems();
     }
 
-    private void SetDownloadStatus(string message)
+    private void SetDownloadStatus(string message, bool notify = true)
     {
         DownloadStatusTextBlock.Text = message;
+        if (notify)
+        {
+            ShowToast(message);
+        }
     }
 
     private void SelectTab(MainTab tab)
@@ -2886,10 +3017,50 @@ public partial class LauncherMainWindow : Window
         _isFrpRunning = frpStatus.IsRunning;
         _isThirdPartyFrpcRunning = thirdPartyStatus.IsRunning;
 
-        ConnectionFrpToggleButton.Content = frpStatus.IsRunning
-            ? T("停止常规", "Stop Regular")
-            : T("启动常规", "Start Regular");
-        ConnectionThirdPartyFrpcToggleButton.Content = thirdPartyStatus.IsRunning
+        if (!_isTogglingFrp)
+        {
+            ConnectionFrpToggleButton.Content = frpStatus.IsRunning
+                ? T("停止常规", "Stop Regular")
+                : T("启动常规", "Start Regular");
+        }
+
+        if (!_isTogglingThirdPartyFrpc)
+        {
+            ConnectionThirdPartyFrpcToggleButton.Content = thirdPartyStatus.IsRunning
+                ? T("停止第三方", "Stop Third-party")
+                : T("启动第三方", "Start Third-party");
+        }
+    }
+
+    private bool IsConnectionProcessToggling(ConnectionProcessKind kind)
+    {
+        return kind == ConnectionProcessKind.Frp ? _isTogglingFrp : _isTogglingThirdPartyFrpc;
+    }
+
+    private void SetConnectionProcessToggling(ConnectionProcessKind kind, bool toggling)
+    {
+        if (kind == ConnectionProcessKind.Frp)
+        {
+            _isTogglingFrp = toggling;
+            ConnectionFrpToggleButton.IsEnabled = !toggling;
+            return;
+        }
+
+        _isTogglingThirdPartyFrpc = toggling;
+        ConnectionThirdPartyFrpcToggleButton.IsEnabled = !toggling;
+    }
+
+    private void SetConnectionProcessToggleText(ConnectionProcessKind kind, bool runningText)
+    {
+        if (kind == ConnectionProcessKind.Frp)
+        {
+            ConnectionFrpToggleButton.Content = runningText
+                ? T("停止常规", "Stop Regular")
+                : T("启动常规", "Start Regular");
+            return;
+        }
+
+        ConnectionThirdPartyFrpcToggleButton.Content = runningText
             ? T("停止第三方", "Stop Third-party")
             : T("启动第三方", "Start Third-party");
     }
@@ -2920,7 +3091,7 @@ public partial class LauncherMainWindow : Window
             _ => string.Empty
         };
 
-        SetConnectionStatus(currentStatus);
+        SetConnectionStatus(currentStatus, notify: false);
         UpdateCardValues(_serverProcessService.GetCurrentStatus());
     }
 
@@ -2978,9 +3149,13 @@ public partial class LauncherMainWindow : Window
             : "--";
     }
 
-    private void SetConnectionStatus(string message)
+    private void SetConnectionStatus(string message, bool notify = true)
     {
         ConnectionStatusTextBlock.Text = message;
+        if (notify)
+        {
+            ShowToast(message);
+        }
     }
 
     private async Task ImportConnectionExecutableAsync(ConnectionProcessKind kind)
@@ -3047,14 +3222,31 @@ public partial class LauncherMainWindow : Window
 
     private async Task ToggleConnectionProcessAsync(ConnectionProcessKind kind)
     {
-        if (kind == ConnectionProcessKind.Frp ? _frpService.GetCurrentStatus().IsRunning : _thirdPartyFrpcService.GetCurrentStatus().IsRunning)
-        {
-            await StopConnectionProcessAsync(kind);
+        if (IsConnectionProcessToggling(kind))
             return;
-        }
 
-        SaveFrpSettings(updateStatus: false, refreshEditor: false);
-        await StartConnectionProcessAsync(kind);
+        SetConnectionProcessToggling(kind, true);
+        try
+        {
+            if (kind == ConnectionProcessKind.Frp
+                    ? _frpService.GetCurrentStatus().IsRunning
+                    : _thirdPartyFrpcService.GetCurrentStatus().IsRunning)
+            {
+                SetConnectionProcessToggleText(kind, runningText: false);
+                await StopConnectionProcessAsync(kind);
+                return;
+            }
+
+            SaveFrpSettings(updateStatus: false, refreshEditor: false);
+            SetConnectionProcessToggleText(kind, runningText: true);
+            await StartConnectionProcessAsync(kind);
+        }
+        finally
+        {
+            SetConnectionProcessToggling(kind, false);
+            UpdateConnectionFrpActionButtons();
+            UpdateCardValues(_serverProcessService.GetCurrentStatus());
+        }
     }
 
     private async Task EditConnectionTomlAsync(ConnectionProcessKind kind)
@@ -3317,7 +3509,7 @@ public partial class LauncherMainWindow : Window
         {
             if (_selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.OpenInfo)
             {
-                SetConnectionStatus(line);
+                SetConnectionStatus(line, notify: false);
             }
         });
     }
@@ -3438,6 +3630,7 @@ public partial class LauncherMainWindow : Window
     {
         if (IsSystemConsoleLine(line))
         {
+            ShowToast(line);
             return;
         }
 
@@ -3819,6 +4012,19 @@ public partial class LauncherMainWindow : Window
         }
     }
 
+    private void OnAutomationAddCommandClick(object? sender, RoutedEventArgs e)
+    {
+        _automationCommandItems.Add(new ScheduledCommandItem());
+    }
+
+    private void OnAutomationRemoveCommandClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: ScheduledCommandItem item })
+        {
+            _automationCommandItems.Remove(item);
+        }
+    }
+
     private void OnAutomationAddExportTimeClick(object? sender, RoutedEventArgs e)
     {
         _automationExportTimeItems.Add(new AutomationTimeItem("12:00"));
@@ -3868,14 +4074,14 @@ public partial class LauncherMainWindow : Window
     {
         if (ModProfileComboBox.SelectedItem is not InstanceProfile profile)
         {
-            ModStatusTextBlock.Text = T("请先选择档案。", "Select a profile first.");
+            SetModStatus(T("请先选择档案。", "Select a profile first."));
             return;
         }
 
         var path = ModZipPathTextBox.Text?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(path))
         {
-            ModStatusTextBlock.Text = T("请输入 Mod ZIP 路径。", "Enter a Mod ZIP path.");
+            SetModStatus(T("请输入 Mod ZIP 路径。", "Enter a Mod ZIP path."));
             return;
         }
 
@@ -3883,11 +4089,11 @@ public partial class LauncherMainWindow : Window
         {
             var imported = await _instanceModService.ImportModZipAsync(profile, path);
             await LoadModsForSelectedProfileAsync();
-            ModStatusTextBlock.Text = T($"已导入：{imported.ModId}", $"Imported: {imported.ModId}");
+            SetModStatus(T($"已导入：{imported.ModId}", $"Imported: {imported.ModId}"));
         }
         catch (Exception ex)
         {
-            ModStatusTextBlock.Text = T($"导入失败：{ex.Message}", $"Import failed: {ex.Message}");
+            SetModStatus(T($"导入失败：{ex.Message}", $"Import failed: {ex.Message}"));
         }
     }
 
@@ -3916,7 +4122,7 @@ public partial class LauncherMainWindow : Window
     {
         if (ModProfileComboBox.SelectedItem is not InstanceProfile profile)
         {
-            ModStatusTextBlock.Text = T("请先选择档案。", "Select a profile first.");
+            SetModStatus(T("请先选择档案。", "Select a profile first."));
             return;
         }
 
@@ -3926,7 +4132,7 @@ public partial class LauncherMainWindow : Window
             .ToList() ?? [];
         if (selected.Count == 0)
         {
-            ModStatusTextBlock.Text = T("请先选择模组。", "Select mods first.");
+            SetModStatus(T("请先选择模组。", "Select mods first."));
             return;
         }
 
@@ -3934,11 +4140,11 @@ public partial class LauncherMainWindow : Window
         {
             var deleted = await _instanceModService.DeleteModsAsync(profile, selected);
             await LoadModsForSelectedProfileAsync();
-            ModStatusTextBlock.Text = T($"已删除 {deleted} 个模组。", $"Deleted {deleted} mods.");
+            SetModStatus(T($"已删除 {deleted} 个模组。", $"Deleted {deleted} mods."));
         }
         catch (Exception ex)
         {
-            ModStatusTextBlock.Text = T($"删除失败：{ex.Message}", $"Delete failed: {ex.Message}");
+            SetModStatus(T($"删除失败：{ex.Message}", $"Delete failed: {ex.Message}"));
         }
     }
 
@@ -3963,7 +4169,7 @@ public partial class LauncherMainWindow : Window
         catch (Exception ex)
         {
             await LoadModsForSelectedProfileAsync();
-            ModStatusTextBlock.Text = T($"切换失败：{ex.Message}", $"Toggle failed: {ex.Message}");
+            SetModStatus(T($"切换失败：{ex.Message}", $"Toggle failed: {ex.Message}"));
         }
     }
 
@@ -3984,19 +4190,29 @@ public partial class LauncherMainWindow : Window
     {
         if (AuthProfileComboBox.SelectedItem is not InstanceProfile profile)
         {
-            AuthStatusTextBlock.Text = T("请先选择档案。", "Select a profile first.");
+            SetAuthStatus(T("请先选择档案。", "Select a profile first."));
             return;
         }
 
         try
         {
-            await _serverAuthService.SaveSettingsAsync(profile, CollectAuthSettings());
+            var settings = CollectAuthSettings();
+            await _serverAuthService.SaveSettingsAsync(profile, settings);
+            if (settings.Enabled)
+            {
+                await _serverAuthService.EnsureAuthModDeployedAsync(profile, enableMod: true);
+            }
+            else
+            {
+                await _serverAuthService.SetAuthModEnabledAsync(profile, enabled: false);
+            }
+
             await LoadAuthForProfileAsync(profile);
-            AuthStatusTextBlock.Text = T("认证配置已保存。", "Auth settings saved.");
+            SetAuthStatus(T("认证配置已保存。", "Auth settings saved."));
         }
         catch (Exception ex)
         {
-            AuthStatusTextBlock.Text = T($"保存失败：{ex.Message}", $"Save failed: {ex.Message}");
+            SetAuthStatus(T($"保存失败：{ex.Message}", $"Save failed: {ex.Message}"));
         }
     }
 
@@ -4009,19 +4225,22 @@ public partial class LauncherMainWindow : Window
     {
         if (AuthProfileComboBox.SelectedItem is not InstanceProfile profile)
         {
-            AuthStatusTextBlock.Text = T("请先选择档案。", "Select a profile first.");
+            SetAuthStatus(T("请先选择档案。", "Select a profile first."));
             return;
         }
 
         try
         {
-            await _serverAuthService.EnsureAuthModDeployedAsync(profile);
+            var settings = CollectAuthSettings();
+            await _serverAuthService.EnsureAuthModDeployedAsync(profile, enableMod: settings.Enabled);
             await LoadAuthForProfileAsync(profile);
-            AuthStatusTextBlock.Text = T("认证模组已部署。", "Auth mod deployed.");
+            SetAuthStatus(settings.Enabled
+                ? T("认证模组已部署并启用。", "Auth mod deployed and enabled.")
+                : T("认证模组已部署，但认证未启用，模组保持禁用。", "Auth mod deployed, but auth is disabled so the mod remains disabled."));
         }
         catch (Exception ex)
         {
-            AuthStatusTextBlock.Text = T($"部署失败：{ex.Message}", $"Deploy failed: {ex.Message}");
+            SetAuthStatus(T($"部署失败：{ex.Message}", $"Deploy failed: {ex.Message}"));
         }
     }
 
@@ -4044,13 +4263,13 @@ public partial class LauncherMainWindow : Window
         {
             var changed = await _serverAuthService.ClearPasswordAsync(profile, item.PlayerUid);
             await LoadAuthPlayersAsync(profile);
-            AuthStatusTextBlock.Text = changed
+            SetAuthStatus(changed
                 ? T($"已清空 {item.PlayerName} 的密码。", $"Cleared password for {item.PlayerName}.")
-                : T($"未找到玩家：{item.PlayerName}", $"Player not found: {item.PlayerName}");
+                : T($"未找到玩家：{item.PlayerName}", $"Player not found: {item.PlayerName}"));
         }
         catch (Exception ex)
         {
-            AuthStatusTextBlock.Text = T($"清空失败：{ex.Message}", $"Clear failed: {ex.Message}");
+            SetAuthStatus(T($"清空失败：{ex.Message}", $"Clear failed: {ex.Message}"));
         }
     }
 
@@ -4086,13 +4305,29 @@ public partial class LauncherMainWindow : Window
 
     private async void OnOsqToggleClick(object? sender, RoutedEventArgs e)
     {
-        if (_openServerQueryService.GetRuntimeStatus().IsListening)
-        {
-            await StopOpenInfoAsync();
+        if (_isTogglingOsq)
             return;
-        }
 
-        await StartOpenInfoAsync();
+        _isTogglingOsq = true;
+        OsqToggleButton.IsEnabled = false;
+        try
+        {
+            if (_openServerQueryService.GetRuntimeStatus().IsListening)
+            {
+                OsqToggleButton.Content = T("启动", "Start");
+                await StopOpenInfoAsync();
+                return;
+            }
+
+            OsqToggleButton.Content = T("停止", "Stop");
+            await StartOpenInfoAsync();
+        }
+        finally
+        {
+            _isTogglingOsq = false;
+            OsqToggleButton.IsEnabled = true;
+            UpdateOsqToggleButtonText();
+        }
     }
 
     private async Task StartOpenInfoAsync()
@@ -4143,13 +4378,29 @@ public partial class LauncherMainWindow : Window
 
     private async void OnRobotToggleClick(object? sender, RoutedEventArgs e)
     {
-        if (_robotService.GetCurrentStatus().IsRunning)
-        {
-            await StopRobotAsync();
+        if (_isTogglingRobot)
             return;
-        }
 
-        await StartRobotAsync();
+        _isTogglingRobot = true;
+        RobotToggleButton.IsEnabled = false;
+        try
+        {
+            if (_robotService.GetCurrentStatus().IsRunning)
+            {
+                RobotToggleButton.Content = T("启动", "Start");
+                await StopRobotAsync();
+                return;
+            }
+
+            RobotToggleButton.Content = T("停止", "Stop");
+            await StartRobotAsync();
+        }
+        finally
+        {
+            _isTogglingRobot = false;
+            RobotToggleButton.IsEnabled = true;
+            UpdateRobotToggleButtonText();
+        }
     }
 
     private async Task StartRobotAsync()
@@ -4988,9 +5239,13 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private void SetConfigStatus(string message)
+    private void SetConfigStatus(string message, bool notify = true)
     {
         ConfigStatusTextBlock.Text = message;
+        if (notify)
+        {
+            ShowToast(message);
+        }
     }
 
     private static void SetNumericValue(NumericUpDown control, int value)
@@ -5444,7 +5699,9 @@ public partial class LauncherMainWindow : Window
             DownloadVersionsListBox.IsEnabled = false;
             var progress = new Progress<double>(value =>
             {
-                SetDownloadStatus(T($"正在下载 {item.Entry.Version} {value:P0}", $"Downloading {item.Entry.Version} {value:P0}"));
+                SetDownloadStatus(
+                    T($"正在下载 {item.Entry.Version} {value:P0}", $"Downloading {item.Entry.Version} {value:P0}"),
+                    notify: false);
             });
             await _serverPackageService.DownloadByCdnAsync(item.Entry.CdnUrl, targetPath, progress);
             SetDownloadStatus(T($"下载完成：{item.Entry.Version}", $"Download completed: {item.Entry.Version}"));
@@ -6240,6 +6497,70 @@ public partial class LauncherMainWindow : Window
                 Enabled = model.Enabled,
                 Time = model.Time,
                 Message = model.Message
+            };
+        }
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+            {
+                return false;
+            }
+
+            field = value;
+            OnPropertyChanged(propertyName);
+            return true;
+        }
+    }
+
+    public sealed class ScheduledCommandItem : INotifyPropertyChanged
+    {
+        private string _time = "12:00";
+        private string _command = string.Empty;
+        private bool _enabled = true;
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public bool Enabled
+        {
+            get => _enabled;
+            set => SetField(ref _enabled, value);
+        }
+
+        public string Time
+        {
+            get => _time;
+            set => SetField(ref _time, value);
+        }
+
+        public string Command
+        {
+            get => _command;
+            set => SetField(ref _command, value);
+        }
+
+        public ScheduledServerCommand ToModel()
+        {
+            return new ScheduledServerCommand
+            {
+                Enabled = _enabled,
+                Time = _time?.Trim() ?? string.Empty,
+                Command = _command?.Trim() ?? string.Empty
+            };
+        }
+
+        public static ScheduledCommandItem FromModel(ScheduledServerCommand model)
+        {
+            return new ScheduledCommandItem
+            {
+                Enabled = model.Enabled,
+                Time = model.Time,
+                Command = model.Command
             };
         }
 

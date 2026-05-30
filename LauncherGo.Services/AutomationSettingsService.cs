@@ -49,6 +49,7 @@ public class AutomationSettingsService : IAutomationSettingsService
             RestartSchedulerEnabled = false,
             BackupEnabled = false,
             BroadcastEnabled = false,
+            CommandEnabled = false,
             ExportLogEnabled = false,
             BackupBeforeShutdown = true,
             ExportBeforeShutdown = true,
@@ -96,6 +97,15 @@ public class AutomationSettingsService : IAutomationSettingsService
                     Enabled = false
                 }
             ],
+            ScheduledCommands =
+            [
+                new ScheduledServerCommand
+                {
+                    Time = "12:00",
+                    Command = "/time",
+                    Enabled = false
+                }
+            ],
             ExportTimes = ["05:00"]
         };
     }
@@ -138,6 +148,17 @@ public class AutomationSettingsService : IAutomationSettingsService
             .Where(item => !string.IsNullOrWhiteSpace(item.Message))
             .ToList();
 
+        var normalizedCommands = (settings.ScheduledCommands ?? [])
+            .Where(item => item is not null)
+            .Select(item => new ScheduledServerCommand
+            {
+                Time = NormalizeTime(item.Time, "12:00"),
+                Command = item.Command?.Trim() ?? string.Empty,
+                Enabled = item.Enabled
+            })
+            .Where(item => !string.IsNullOrWhiteSpace(item.Command))
+            .ToList();
+
         var normalizedBackupTimes = (settings.BackupTimes ?? [])
             .Select(time => NormalizeTime(time, string.Empty))
             .Where(time => !string.IsNullOrWhiteSpace(time))
@@ -163,6 +184,8 @@ public class AutomationSettingsService : IAutomationSettingsService
             BackupBeforeShutdown = settings.BackupBeforeShutdown,
             BroadcastEnabled = settings.BroadcastEnabled,
             BroadcastMessages = normalizedMessages,
+            CommandEnabled = settings.CommandEnabled,
+            ScheduledCommands = normalizedCommands,
             ExportLogEnabled = settings.ExportLogEnabled,
             ExportTimes = normalizedExportTimes,
             ExportBeforeShutdown = settings.ExportBeforeShutdown,

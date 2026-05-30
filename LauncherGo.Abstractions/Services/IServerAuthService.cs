@@ -27,10 +27,16 @@ public interface IServerAuthService
 
     Task EnsureAuthModDeployedAsync(
         InstanceProfile profile,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool enableMod = true);
 
     Task<bool> GetAuthModEnabledAsync(
         InstanceProfile profile,
+        CancellationToken cancellationToken = default);
+
+    Task SetAuthModEnabledAsync(
+        InstanceProfile profile,
+        bool enabled,
         CancellationToken cancellationToken = default);
 }
 
