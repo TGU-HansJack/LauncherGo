@@ -1,46 +1,131 @@
 # LauncherGo
 
-LauncherGo 是一个基于 `Avalonia 12 + Semi.Avalonia` 的 Vintage Story 服务器启动器项目。  
-当前仓库阶段以“初次启动指导窗口”功能为主。
+<p align="center">
+  <strong>Vintage Story 第二代服务器启动器</strong><br/>
+  <span>由微尘工作室（Vintage Story CN Studio, VSCN）开发与维护</span>
+</p>
 
-## 界面预览
+## 项目定位
 
-![LauncherGo Guidance Interface](./guidance_interface.gif)
+LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标是把服务端下载、档案管理、存档管理、配置编辑、进程控制、自动化任务、模组管理、认证模组、开放信息传输、QQ 机器人和内网穿透整合到同一个桌面应用中。
 
-## 当前状态
+## 当前功能
 
-- 已实现：首次启动指导窗口（欢迎、外观、全局目录设置、下载、完成）
-- 已实现：中英文切换、主题切换、目录选择、服务端版本下载与导入
-- 正在完善：后续完整启动器功能
+| 模块 | 当前实现 |
+| --- | --- |
+| 初次启动 | 欢迎页、外观设置、目录设置、服务端下载、完成页 |
+| 主页 | 服务器状态、机器人状态、在线玩家、网络状态、事件轮播与实时图表 |
+| 控制台 | Relay 控制通道、LogTail 日志跟随、命令发送、自定义快捷命令、进程状态同步 |
+| 进程控制 | `ServerProcessRelay`、后台控制通道、接管已有进程、Relay 状态文件、孤儿进程处理 |
+| 档案管理 | 创建档案、导入档案、删除档案、刷新档案、服务端版本选择 |
+| 服务器配置 | 服务端基础配置、世界配置、世界规则、多列配置布局、自动保存 |
+| 存档管理 | 创建存档、导入存档、删除存档、默认启动存档锁定、点击存档路径打开文件夹 |
+| 自动化 | 定时开关服、定时备份、关服前备份、定时广播、日志导出 |
+| 模组管理 | 模组扫描、启用与禁用、依赖与问题展示、文件状态展示 |
+| 下载版本 | 服务端版本列表、搜索、下载、导入服务端压缩包、下载缓存清理 |
+| 连接功能 | 常规内网穿透、第三方 FRPC、OpenServerQuery 开放信息、QQ 机器人、ServerAuth 认证配置 |
+| 设置 | 服务器设置、外观、网络、高级、关于、赞助者、贡献者 |
+| 日志 | 软件日志文件、控制台日志、自动化运行日志、服务端日志导出 |
+| 国际化 | 中英文资源与运行时语言切换 |
+| 发布 | Windows 打包、预发布、正式发布、Afdian 信息注入、嵌入 ServerAuth 模组构建 |
+
+## 开发团队
+
+| 项目 | 内容 |
+| --- | --- |
+| 工作室名称 | 微尘工作室（Vintage Story CN Studio） |
+| 简称 | VSCN |
+| 主要方向 | Vintage Story 中文社区生态、服务器工具、模组工具、信息服务与社区基础设施 |
+
+## 工作室开发项目
+
+| 项目 | 说明 |
+| --- | --- |
+| VSMAP | 旧地图预览项目 |
+| LauncherGo | 第二代 Vintage Story 开服器 |
+| ServerAuth | 服务器认证模组 |
+| OpenServerQuery | 服务器信息传输与开放信息联结 |
+
+## 工作室维护内容
+
+| 内容 | 说明 |
+| --- | --- |
+| 复古物语中文社区 | 面向中文玩家与服务器管理员的社区维护 |
+| 复古物语中文模组网 | 中文模组发布、索引与相关内容维护 |
+| 中文社区游戏服务器 | 社区服务器运行、维护与配套服务 |
 
 ## 项目结构
 
-- `LauncherGo.App`：应用入口与宿主
-- `LauncherGo.Ui`：Avalonia 界面层
-- `LauncherGo.Services`：服务实现（下载、配置等）
-- `LauncherGo.Abstractions`：接口抽象
-- `LauncherGo.Domains`：领域模型与枚举
+| 路径 | 说明 |
+| --- | --- |
+| `LauncherGo.App` | Avalonia 应用入口、宿主、主题与全局资源 |
+| `LauncherGo.Ui` | 主窗口、指导窗口、UI 资源、平台窗口效果与界面逻辑 |
+| `LauncherGo.Services` | 服务端下载、档案、存档、进程、日志、自动化、FRP、OpenServerQuery、QQ 机器人与认证服务实现 |
+| `LauncherGo.Abstractions` | 服务接口与跨层抽象 |
+| `LauncherGo.Domains` | 领域模型、配置模型、枚举与数据结构 |
+| `LauncherGo.Services/EmbeddedMods/VsslAuthMod` | 嵌入式 ServerAuth 模组源码 |
+| `.github/workflows` | 发布打包与嵌入认证模组构建工作流 |
+
+## 开源项目使用
+
+| 项目 | 当前用途 | 当前引用版本 |
+| --- | --- | --- |
+| Avalonia | 跨平台桌面 UI 框架 | `12.0.1` |
+| Avalonia.Desktop | 桌面应用运行支持 | `12.0.1` |
+| Semi.Avalonia | Semi 风格 Avalonia 主题 | `12.0.1` |
+| AvaloniaUI.DiagnosticsSupport | Debug 环境诊断支持 | `2.2.1` |
+| Microsoft.Extensions.Hosting | 应用宿主与依赖注入基础 | `10.0.1` |
+| Microsoft.Extensions.DependencyInjection.Abstractions | 依赖注入抽象 | `10.0.1` |
+| Microsoft.Extensions.Hosting.Abstractions | 宿主抽象 | `10.0.1` |
+| Microsoft.Extensions.Logging.Abstractions | 日志抽象 | `10.0.1` |
+| Microsoft.Data.Sqlite | QQ 机器人等本地数据存储 | `10.0.7` |
+| Serilog | 软件日志记录 | `4.3.1` |
+| Serilog.Enrichers.Thread | 日志线程信息扩展 | `4.0.0` |
+| Serilog.Extensions.Logging | Microsoft Logging 与 Serilog 集成 | `10.0.0` |
+| Serilog.Sinks.File | 文件日志输出 | `7.0.0` |
+| protobuf-net | Vintage Story 与机器人相关数据处理 | `3.2.56` |
+| System.Management | Windows 管理信息访问 | `10.0.8` |
+| ZstdSharp.Port | Zstandard 压缩数据处理 | `0.8.6` |
+| actions/checkout | GitHub Actions 拉取仓库 | `v4` |
+| actions/setup-dotnet | GitHub Actions 配置 .NET SDK | `v4` |
+| actions/upload-artifact | GitHub Actions 上传构建产物 | `v4` |
+| softprops/action-gh-release | GitHub Release 创建与产物上传 | `v2` |
+
+以上开源项目的版权与许可归各自项目所有，实际许可证以对应项目仓库和 NuGet 包声明为准。
 
 ## 开发环境
 
-- `.NET SDK 10.0+`
-- Windows/macOS/Linux（Avalonia 跨平台）
+| 项目 | 要求 |
+| --- | --- |
+| .NET SDK | `10.0.x` |
+| 推荐系统 | Windows 10 或更高版本 |
+| 运行系统 | Avalonia 支持跨平台运行，但当前发布工作流主要面向 Windows x64 |
+| ServerAuth 构建 | 需要 Vintage Story 服务端目录或通过 `VINTAGE_STORY` 环境变量指定包含 `VintagestoryAPI.dll` 的目录 |
 
-## 快速启动
+## 本地运行
 
 ```powershell
 dotnet restore .\LauncherGo.slnx
 dotnet run --project .\LauncherGo.App\LauncherGo.App.csproj
 ```
 
-## 热重载（开发）
+## 热重载开发
 
 ```powershell
 dotnet watch run --project .\LauncherGo.App\LauncherGo.App.csproj
 ```
 
-如果热重载时出现程序集被占用，先结束正在运行的 `LauncherGo.App` 进程后再重试。
+如果热重载时程序集被占用，需要先结束正在运行的 `LauncherGo.App` 进程，再重新执行命令。
+
+## 构建嵌入式 ServerAuth 模组
+
+```powershell
+$env:VINTAGE_STORY="E:\\Path\\To\\VintageStoryServer"
+dotnet build .\LauncherGo.Services\EmbeddedMods\VsslAuthMod\VsslAuthMod.csproj -c Release
+```
+
+`VINTAGE_STORY` 指向的目录需要包含 `VintagestoryAPI.dll`、`VintagestoryLib.dll` 和 `Lib\protobuf-net.dll`。
 
 ## 许可证
 
-本项目使用 `GNU General Public License v3.0`（GPL-3.0），详见 [LICENSE](./LICENSE)。
+LauncherGo 使用 `GNU General Public License v3.0`。许可证全文见 [LICENSE](./LICENSE)。
