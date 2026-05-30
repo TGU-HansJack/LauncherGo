@@ -40,7 +40,8 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 | Settings | Server, appearance, network, advanced, about, sponsors, and contributors pages |
 | Logging | Application log files, console logs, automation runtime logs, and server log export |
 | Internationalization | Chinese and English resources with runtime language switching |
-| Release | Windows packaging, prerelease, official release, Afdian information injection, and embedded ServerAuth build |
+| Release | Windows packaging, prerelease, official release, and embedded ServerAuth build |
+| Sponsor data | Fetched from `https://vscn.studio/api/afdian/sponsors`; the client does not store Afdian USERID or Token |
 
 ## Development Team
 

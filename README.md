@@ -40,7 +40,8 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | 设置 | 服务器设置、外观、网络、高级、关于、赞助者、贡献者 |
 | 日志 | 软件日志文件、控制台日志、自动化运行日志、服务端日志导出 |
 | 国际化 | 中英文资源与运行时语言切换 |
-| 发布 | Windows 打包、预发布、正式发布、Afdian 信息注入、嵌入 ServerAuth 模组构建 |
+| 发布 | Windows 打包、预发布、正式发布、嵌入 ServerAuth 模组构建 |
+| 赞助者数据 | 通过 `https://vscn.studio/api/afdian/sponsors` 获取，客户端不保存爱发电 USERID 或 Token |
 
 ## 开发团队
 

@@ -2,8 +2,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
-using System.Reflection;
-using System.Security.Cryptography;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -42,7 +40,7 @@ public partial class LauncherMainWindow : Window
     private const double OsqEndpointColumnSpacing = 10;
     private const string DefaultServerDownloadCatalogUrl = "https://api.vintagestory.at/stable-unstable.json";
     private const string GitHubContributorsApiUrl = "https://api.github.com/repos/TGU-HansJack/LauncherGo/contributors?per_page=100";
-    private const string AfdianSponsorApiUrl = "https://afdian.com/api/open/query-sponsor";
+    private const string SponsorApiUrl = "https://vscn.studio/api/afdian/sponsors";
     private const string LaunchStartIconData =
         "M187.2 100.9C174.8 94.1 159.8 94.4 147.6 101.6C135.4 108.8 128 121.9 128 136L128 504C128 518.1 135.5 531.2 147.6 538.4C159.7 545.6 174.8 545.9 187.2 539.1L523.2 355.1C536 348.1 544 334.6 544 320C544 305.4 536 291.9 523.2 284.9L187.2 100.9z";
     private const string LaunchStopIconData =
@@ -2341,34 +2339,22 @@ public partial class LauncherMainWindow : Window
             return;
         }
 
-        var credentials = GetAfdianCredentials();
-        if (string.IsNullOrWhiteSpace(credentials.UserId) || string.IsNullOrWhiteSpace(credentials.Token))
-        {
-            _settingsSponsorItems.Clear();
-            return;
-        }
-
         try
         {
-            var requestJson = BuildAfdianSponsorRequestJson(credentials.UserId, credentials.Token);
-            using var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
-            using var response = await SharedHttpClient.PostAsync(AfdianSponsorApiUrl, content);
+            using var response = await SharedHttpClient.GetAsync(GetSponsorApiUrl());
             response.EnsureSuccessStatusCode();
             var json = await response.Content.ReadAsStringAsync();
             using var document = JsonDocument.Parse(json);
 
-            if (document.RootElement.TryGetProperty("ec", out var ecNode) &&
-                ecNode.TryGetInt32(out var ec) &&
-                ec != 200)
+            if (document.RootElement.TryGetProperty("ok", out var okNode) &&
+                okNode.ValueKind == JsonValueKind.False)
             {
-                var message = ReadJsonString(document.RootElement, "em");
-                throw new InvalidOperationException(string.IsNullOrWhiteSpace(message) ? $"Afdian ec={ec}" : message);
+                var message = ReadJsonString(document.RootElement, "message");
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(message) ? "Sponsor API failed." : message);
             }
 
             _settingsSponsorItems.Clear();
-            if (document.RootElement.TryGetProperty("data", out var dataNode) &&
-                dataNode.TryGetProperty("list", out var listNode) &&
-                listNode.ValueKind == JsonValueKind.Array)
+            if (TryGetSponsorList(document.RootElement, out var listNode))
             {
                 foreach (var sponsor in listNode.EnumerateArray())
                 {
@@ -5485,73 +5471,43 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private static string BuildAfdianSponsorRequestJson(string userId, string token)
+    private static string GetSponsorApiUrl()
     {
-        var parameters = JsonSerializer.Serialize(new
-        {
-            page = 1,
-            per_page = 100
-        });
-        var ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
-        var sign = ComputeMd5Hex($"{token}params{parameters}ts{ts}user_id{userId}");
-        return JsonSerializer.Serialize(new
-        {
-            user_id = userId,
-            @params = parameters,
-            ts,
-            sign
-        });
+        var overrideUrl = Environment.GetEnvironmentVariable("LAUNCHERGO_SPONSOR_API_URL");
+        return string.IsNullOrWhiteSpace(overrideUrl)
+            ? SponsorApiUrl
+            : overrideUrl.Trim();
     }
 
-    private static (string UserId, string Token) GetAfdianCredentials()
+    private static bool TryGetSponsorList(JsonElement root, out JsonElement listNode)
     {
-        var userId = GetBuildMetadata("LauncherGo.AfdianUserId");
-        var token = GetBuildMetadata("LauncherGo.AfdianToken");
-
-        if (string.IsNullOrWhiteSpace(userId))
+        if (root.TryGetProperty("sponsors", out listNode) &&
+            listNode.ValueKind == JsonValueKind.Array)
         {
-            userId = Environment.GetEnvironmentVariable("LAUNCHERGO_AFDIAN_USER_ID") ?? string.Empty;
+            return true;
         }
 
-        if (string.IsNullOrWhiteSpace(token))
+        if (root.TryGetProperty("data", out var dataNode) &&
+            dataNode.TryGetProperty("list", out listNode) &&
+            listNode.ValueKind == JsonValueKind.Array)
         {
-            token = Environment.GetEnvironmentVariable("LAUNCHERGO_AFDIAN_TOKEN") ?? string.Empty;
+            return true;
         }
 
-        return (userId.Trim(), token.Trim());
-    }
-
-    private static string GetBuildMetadata(string key)
-    {
-        return typeof(LauncherMainWindow)
-            .Assembly
-            .GetCustomAttributes<AssemblyMetadataAttribute>()
-            .FirstOrDefault(attribute => attribute.Key.Equals(key, StringComparison.OrdinalIgnoreCase))
-            ?.Value ?? string.Empty;
-    }
-
-    private static string ComputeMd5Hex(string value)
-    {
-        var hash = MD5.HashData(Encoding.UTF8.GetBytes(value));
-        var builder = new StringBuilder(hash.Length * 2);
-        foreach (var b in hash)
-        {
-            builder.Append(b.ToString("x2", CultureInfo.InvariantCulture));
-        }
-
-        return builder.ToString();
+        listNode = default;
+        return false;
     }
 
     private async Task<SettingsSponsorItem> BuildSponsorItemAsync(JsonElement sponsor)
     {
-        var name = ReadJsonString(sponsor, "name");
-        var avatarUrl = ReadFirstJsonString(sponsor, "avatar", "avatar_url", "pic", "url");
+        var name = ReadFirstJsonString(sponsor, "name", "userName");
+        var avatarUrl = ReadFirstJsonString(sponsor, "avatarUrl", "avatar", "avatar_url", "pic", "url");
         if (string.IsNullOrWhiteSpace(name) &&
             sponsor.TryGetProperty("user", out var userNode))
         {
             name = ReadJsonString(userNode, "name");
             avatarUrl = string.IsNullOrWhiteSpace(avatarUrl)
-                ? ReadFirstJsonString(userNode, "avatar", "avatar_url", "pic", "url")
+                ? ReadFirstJsonString(userNode, "avatarUrl", "avatar", "avatar_url", "pic", "url")
                 : avatarUrl;
         }
 
@@ -5560,16 +5516,14 @@ public partial class LauncherMainWindow : Window
             name = ReadJsonString(sponsor, "user_id");
         }
 
-        var amount = ReadJsonString(sponsor, "all_sum_amount");
-        if (string.IsNullOrWhiteSpace(amount))
-        {
-            amount = ReadJsonString(sponsor, "sum_amount");
-        }
+        var amount = ReadFirstJsonString(sponsor, "amount", "all_sum_amount", "sum_amount");
 
-        var plan = string.Empty;
+        var plan = ReadJsonString(sponsor, "plan");
         if (sponsor.TryGetProperty("current_plan", out var currentPlanNode))
         {
-            plan = ReadJsonString(currentPlanNode, "name");
+            plan = string.IsNullOrWhiteSpace(plan)
+                ? ReadJsonString(currentPlanNode, "name")
+                : plan;
         }
 
         if (string.IsNullOrWhiteSpace(plan) &&
