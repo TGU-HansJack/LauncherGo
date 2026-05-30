@@ -717,7 +717,10 @@ public partial class LauncherMainWindow : Window
         var robotStatus = _robotService.GetCurrentStatus();
         var robotResources = SampleRobotResources(robotStatus);
         PushNextSample(_serverCpuSamples, status.IsRunning ? status.CpuPercent : 0);
-        PushNextSample(_serverMemoryMbSamples, status.IsRunning ? BytesToMb(status.MemoryBytes) : 0);
+        var serverMemoryBytes = status.IsRunning
+            ? ResolveProcessMemory(status.ProcessId) ?? status.MemoryBytes
+            : 0;
+        PushNextSample(_serverMemoryMbSamples, BytesToMb(serverMemoryBytes));
         PushNextSample(_playersSamples, status.IsRunning ? status.OnlinePlayers : 0);
 
         PushNextSample(_robotCpuSamples, robotStatus.IsRunning ? robotResources.CpuPercent : 0);
@@ -878,21 +881,21 @@ public partial class LauncherMainWindow : Window
     {
         var cpu = _serverCpuSamples[^1];
         var memoryMb = _serverMemoryMbSamples[^1];
-        var yMax = NiceCeiling(Math.Max(100, Math.Max(_serverMemoryMbSamples.Max(), _serverCpuSamples.Max())));
+        var yMax = GetMemoryChartYMax(_serverMemoryMbSamples);
         var uptime = status.StartedAtUtc.HasValue
             ? FormatDuration(DateTimeOffset.UtcNow - status.StartedAtUtc.Value)
             : "--";
 
-        RenderDualLineChart(
+        RenderSingleLineChart(
             title: T("服务器状态", "Server Status"),
-            topValue: status.IsRunning ? $"{cpu:F1}% / {memoryMb:F0} MB" : T("未启动", "Stopped"),
-            summary: T("60 秒区间，蓝线为服务端进程 CPU%，绿线为服务端进程内存 MB", "60-second range. Blue is server process CPU%, green is memory MB."),
-            primary: _serverCpuSamples,
-            secondary: _serverMemoryMbSamples,
+            topValue: status.IsRunning ? $"{memoryMb:F0} MB" : T("未启动", "Stopped"),
+            summary: T("60 秒区间，蓝线为服务端进程内存 MB；CPU 仅在详情展示。", "60-second range. Blue is server process memory MB; CPU is shown in details only."),
+            primary: _serverMemoryMbSamples,
             yMin: 0,
             yMax: yMax,
             yAxisFormatter: value => $"{value:F0}",
             xHint: T("60 秒", "60 seconds"),
+            showTicker: false,
             details:
             [
                 (T("CPU", "CPU"), $"{cpu:F1}%"),
@@ -907,21 +910,21 @@ public partial class LauncherMainWindow : Window
         var status = _robotService.GetCurrentStatus();
         var cpu = _robotCpuSamples[^1];
         var memoryMb = _robotMemoryMbSamples[^1];
-        var yMax = NiceCeiling(Math.Max(100, Math.Max(_robotMemoryMbSamples.Max(), _robotCpuSamples.Max())));
+        var yMax = GetMemoryChartYMax(_robotMemoryMbSamples);
         var uptime = status.StartedAtUtc.HasValue
             ? FormatDuration(DateTimeOffset.UtcNow - status.StartedAtUtc.Value)
             : "--";
 
-        RenderDualLineChart(
+        RenderSingleLineChart(
             title: T("机器人状态", "Robot Status"),
-            topValue: status.IsRunning ? $"{cpu:F1}% / {memoryMb:F0} MB" : T("未启动", "Stopped"),
-            summary: T("60 秒区间，蓝线为 QQ 机器人 CPU%，绿线为内存 MB。", "60-second range. Blue is QQ robot CPU%, green is memory MB."),
-            primary: _robotCpuSamples,
-            secondary: _robotMemoryMbSamples,
+            topValue: status.IsRunning ? $"{memoryMb:F0} MB" : T("未启动", "Stopped"),
+            summary: T("60 秒区间，蓝线为 QQ 机器人内存 MB；CPU 仅在详情展示。", "60-second range. Blue is QQ robot memory MB; CPU is shown in details only."),
+            primary: _robotMemoryMbSamples,
             yMin: 0,
             yMax: yMax,
             yAxisFormatter: value => $"{value:F0}",
             xHint: T("60 秒", "60 seconds"),
+            showTicker: false,
             details:
             [
                 (T("CPU", "CPU"), $"{cpu:F1}%"),
@@ -1068,13 +1071,29 @@ public partial class LauncherMainWindow : Window
 
     private void RenderThumbnailCharts()
     {
-        var serverYMax = NiceCeiling(Math.Max(100, Math.Max(_serverMemoryMbSamples.Max(), _serverCpuSamples.Max())));
-        ServerStatusThumbLinePrimary.Points = BuildPolylinePoints(_serverCpuSamples, 0, serverYMax, ThumbnailWidth, ThumbnailHeight);
-        ServerStatusThumbLineSecondary.Points = BuildPolylinePoints(_serverMemoryMbSamples, 0, serverYMax, ThumbnailWidth, ThumbnailHeight);
-        RobotStatusThumbLinePrimary.Points = BuildPolylinePoints(_robotCpuSamples, 0, 100, ThumbnailWidth, ThumbnailHeight);
-        RobotStatusThumbLineSecondary.Points = BuildPolylinePoints(_robotMemoryMbSamples, 0, 100, ThumbnailWidth, ThumbnailHeight);
+        ServerStatusThumbLinePrimary.Points = BuildPolylinePoints(
+            _serverMemoryMbSamples,
+            0,
+            GetMemoryChartYMax(_serverMemoryMbSamples),
+            ThumbnailWidth,
+            ThumbnailHeight);
+        ServerStatusThumbLineSecondary.Points = [];
+        ServerStatusThumbLineSecondary.IsVisible = false;
+        RobotStatusThumbLinePrimary.Points = BuildPolylinePoints(
+            _robotMemoryMbSamples,
+            0,
+            GetMemoryChartYMax(_robotMemoryMbSamples),
+            ThumbnailWidth,
+            ThumbnailHeight);
+        RobotStatusThumbLineSecondary.Points = [];
+        RobotStatusThumbLineSecondary.IsVisible = false;
         OnlinePlayersThumbLinePrimary.Points = BuildPolylinePoints(_playersSamples, 0, NiceCeiling(Math.Max(4, _playersSamples.Max() + 1)), ThumbnailWidth, ThumbnailHeight);
         NetworkStatusThumbLinePrimary.Points = BuildPolylinePoints(_networkLatencySamples, 0, 100, ThumbnailWidth, ThumbnailHeight);
+    }
+
+    private static double GetMemoryChartYMax(IReadOnlyList<double> memoryMbSamples)
+    {
+        return NiceCeiling(Math.Max(1, memoryMbSamples.Max()));
     }
 
     private static IList<Point> BuildPolylinePoints(
@@ -5609,6 +5628,24 @@ public partial class LauncherMainWindow : Window
     private static double BytesToMb(long bytes)
     {
         return bytes <= 0 ? 0 : bytes / 1024.0 / 1024.0;
+    }
+
+    private static long? ResolveProcessMemory(int? processId)
+    {
+        if (!processId.HasValue || processId.Value <= 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var process = Process.GetProcessById(processId.Value);
+            return process.WorkingSet64;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static double NiceCeiling(double value)
