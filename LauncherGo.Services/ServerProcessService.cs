@@ -23,6 +23,7 @@ public partial class ServerProcessService : IServerProcessService
     private readonly SemaphoreSlim _processGate = new(1, 1);
     private readonly IInstanceProfileService? _profileService;
     private readonly IServerAuthService? _serverAuthService;
+    private readonly IServerMapService? _serverMapService;
     private readonly ILogger<ServerProcessService> _logger;
     private Process? _process;
     private InstanceProfile? _currentProfile;
@@ -43,17 +44,19 @@ public partial class ServerProcessService : IServerProcessService
     private double _lastCpuPercent;
 
     public ServerProcessService()
-        : this(null, null, NullLogger<ServerProcessService>.Instance)
+        : this(null, null, null, NullLogger<ServerProcessService>.Instance)
     {
     }
 
     public ServerProcessService(
         IInstanceProfileService? profileService,
         IServerAuthService? serverAuthService = null,
+        IServerMapService? serverMapService = null,
         ILogger<ServerProcessService>? logger = null)
     {
         _profileService = profileService;
         _serverAuthService = serverAuthService;
+        _serverMapService = serverMapService;
         _logger = logger ?? NullLogger<ServerProcessService>.Instance;
     }
 
@@ -176,6 +179,11 @@ public partial class ServerProcessService : IServerProcessService
             OutputReceived?.Invoke(this, "[system] 已在启动前检查并部署 ServerAuth 模组。");
         }
 
+        if (_serverMapService is not null && await _serverMapService.GetMapModEnabledAsync(profile, cancellationToken))
+        {
+            await _serverMapService.EnsureMapModDeployedAsync(profile, cancellationToken);
+            OutputReceived?.Invoke(this, "[system] 已在启动前检查并部署 ServerMap 地图模组。");
+        }
     }
 
     private async Task<bool> IsAuthEnabledAsync(

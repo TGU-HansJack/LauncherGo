@@ -28,6 +28,7 @@
     <None Update="EmbeddedMods\serverauth\modinfo.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\serverauth\README.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\serverauth\serverauth.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('EmbeddedMods\serverauth\serverauth.dll')" />
+    <None Update="EmbeddedMods\servermap\**\*.*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>

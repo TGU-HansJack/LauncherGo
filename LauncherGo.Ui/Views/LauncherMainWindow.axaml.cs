@@ -142,6 +142,7 @@ public partial class LauncherMainWindow : Window
     private readonly IThirdPartyFrpcService _thirdPartyFrpcService;
     private readonly IInstanceModService _instanceModService;
     private readonly IServerAuthService _serverAuthService;
+    private readonly IServerMapService _serverMapService;
     private readonly DispatcherTimer _dataTimer;
     private readonly DispatcherTimer _tickerTimer;
     private readonly DispatcherTimer _homeSloganTimer;
@@ -231,7 +232,8 @@ public partial class LauncherMainWindow : Window
             ServiceLocator.GetRequiredService<IFrpService>(),
             ServiceLocator.GetRequiredService<IThirdPartyFrpcService>(),
             ServiceLocator.GetRequiredService<IInstanceModService>(),
-            ServiceLocator.GetRequiredService<IServerAuthService>())
+            ServiceLocator.GetRequiredService<IServerAuthService>(),
+            ServiceLocator.GetRequiredService<IServerMapService>())
     {
     }
 
@@ -250,7 +252,8 @@ public partial class LauncherMainWindow : Window
         IFrpService frpService,
         IThirdPartyFrpcService thirdPartyFrpcService,
         IInstanceModService instanceModService,
-        IServerAuthService serverAuthService)
+        IServerAuthService serverAuthService,
+        IServerMapService serverMapService)
     {
         _preferencesService = preferencesService;
         _serverPackageService = serverPackageService;
@@ -267,6 +270,7 @@ public partial class LauncherMainWindow : Window
         _thirdPartyFrpcService = thirdPartyFrpcService;
         _instanceModService = instanceModService;
         _serverAuthService = serverAuthService;
+        _serverMapService = serverMapService;
 
         InitializeComponent();
         AddHandler(InputElement.PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -496,6 +500,7 @@ public partial class LauncherMainWindow : Window
         ModZipPathTextBox.PlaceholderText = T("Mod ZIP 路径", "Mod ZIP path");
         BrowseModZipButton.Content = T("浏览", "Browse");
         ImportModZipButton.Content = T("导入", "Import");
+        DeployMapModButton.Content = T("部署地图模组", "Deploy Map Mod");
         DeleteSelectedModsButton.Content = T("删除", "Delete");
         RefreshModsButton.Content = T("刷新", "Refresh");
     }
@@ -3883,6 +3888,27 @@ public partial class LauncherMainWindow : Window
         catch (Exception ex)
         {
             ModStatusTextBlock.Text = T($"导入失败：{ex.Message}", $"Import failed: {ex.Message}");
+        }
+    }
+
+    private async void OnDeployMapModClick(object? sender, RoutedEventArgs e)
+    {
+        if (!TryGetLockedLaunchTarget(out var profile, out _))
+        {
+            SetConnectionStatus(T("请先锁定默认存档后再部署地图模组。", "Lock a default save before deploying the map mod."));
+            return;
+        }
+
+        try
+        {
+            await _serverMapService.EnsureMapModDeployedAsync(profile);
+            SetConnectionStatus(T(
+                "地图模组已部署。默认只监听 127.0.0.1；远程 ServerMap 通过开放信息上报接收地图数据。首次完整渲染可在游戏内执行 /servermap colormap 后再执行 /servermap fullrender。",
+                "Map mod deployed. It listens on 127.0.0.1 by default; remote ServerMap receives map data through Open Info reports. For the first full render, run /servermap colormap in game, then /servermap fullrender."));
+        }
+        catch (Exception ex)
+        {
+            SetConnectionStatus(T($"部署地图模组失败：{ex.Message}", $"Map mod deploy failed: {ex.Message}"));
         }
     }
 

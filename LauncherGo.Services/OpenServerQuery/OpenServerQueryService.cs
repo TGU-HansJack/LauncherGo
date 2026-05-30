@@ -38,6 +38,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
     private const int MaxTailReadBytesPerLog = 512 * 1024;
     private const int MaxTailReadLinesPerLog = 600;
     private const int MaxOsqRequestBodyBytes = 8 * 1024 * 1024;
+    private const int EndpointGzipThresholdBytes = 32 * 1024;
 
     private static readonly JsonSerializerOptions JsonWriteOptions = new()
     {
@@ -62,6 +63,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
     private static readonly Regex MultiWhitespaceRegex = new(@"\s{2,}", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex HtmlTagRegex = new(@"<[^>]+>", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex NamespacedTypeLikeRegex = new(@"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*){2,}:?$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly string[] MapDataDirectoryNames = ["ServerMap", "LiveMap"];
     private static readonly TimeSpan NonceTtl = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan MaxClockDrift = TimeSpan.FromMinutes(10);
 
@@ -1290,11 +1292,11 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             Standard = "osq-server-map-v1",
             Enabled = true,
             FullSnapshot = true,
-            Source = "vssl-native-vcdb",
+            Source = "osq-native-vcdb",
             IncludeTilePayload = false,
             SavegameIdentifier = string.Empty,
-            LiveMapRoot = string.Empty,
-            LiveMapUrl = string.Empty,
+            ServerMapRoot = string.Empty,
+            ServerMapUrl = string.Empty,
             GeneratedAtUtc = now.ToString("O", CultureInfo.InvariantCulture),
             DataDigest = string.Empty,
             SkippedReason = string.Empty,
@@ -1306,38 +1308,24 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
 
         string? selectedMapRoot = null;
         string savegameIdentifier = string.Empty;
-        if (TryEnsureVsslMapExport(context, now, out var exportReason, out var osqMapRoot, out var saveIdFromExport))
+        var serverMapCandidate = TryFindServerMapRoot(context.Profile.DirectoryPath);
+        if (serverMapCandidate is not null)
         {
-            selectedMapRoot = osqMapRoot;
-            savegameIdentifier = saveIdFromExport;
-            FillServerMapSnapshotFromRoot(snapshot, selectedMapRoot, "vssl-native-vcdb", now);
+            selectedMapRoot = serverMapCandidate.RootPath;
+            savegameIdentifier = serverMapCandidate.SavegameIdentifier;
+            FillServerMapSnapshotFromRoot(snapshot, selectedMapRoot, "osq-servermap-disk", now);
+            snapshot.SavegameIdentifier = savegameIdentifier;
             if (snapshot.Settings.HasValue)
             {
-                snapshot.SavegameIdentifier = savegameIdentifier;
+                snapshot.DataDigest = ComputeMapPayloadDigest(snapshot);
                 return snapshot;
             }
 
-            snapshot.SkippedReason = "settings-json-missing";
+            snapshot.SkippedReason = "servermap-settings-json-missing";
         }
         else
         {
-            snapshot.SkippedReason = exportReason;
-        }
-
-        if (string.IsNullOrWhiteSpace(selectedMapRoot))
-        {
-            var liveMapCandidate = TryFindLiveMapRoot(context.Profile.DirectoryPath);
-            if (liveMapCandidate is not null)
-            {
-                selectedMapRoot = liveMapCandidate.RootPath;
-                savegameIdentifier = liveMapCandidate.SavegameIdentifier;
-                FillServerMapSnapshotFromRoot(snapshot, selectedMapRoot, "vssl-livemap-disk", now);
-                snapshot.SavegameIdentifier = savegameIdentifier;
-                if (snapshot.Settings.HasValue)
-                {
-                    return snapshot;
-                }
-            }
+            snapshot.SkippedReason = "servermap-disk-not-found";
         }
 
         snapshot.Enabled = false;
@@ -1345,8 +1333,8 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         snapshot.IncludeTilePayload = false;
         snapshot.Source = "map-source-not-found";
         snapshot.SavegameIdentifier = savegameIdentifier;
-        snapshot.LiveMapRoot = selectedMapRoot ?? string.Empty;
-        snapshot.LiveMapUrl = string.Empty;
+        snapshot.ServerMapRoot = selectedMapRoot ?? string.Empty;
+        snapshot.ServerMapUrl = string.Empty;
         snapshot.OverviewData = null;
         snapshot.Tiles = [];
         snapshot.MarkerLayers = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
@@ -1469,12 +1457,11 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         DateTimeOffset now)
     {
         snapshot.Source = source;
-        snapshot.LiveMapRoot = rootPath;
+        snapshot.ServerMapRoot = rootPath;
 
         string dataDir = Path.Combine(rootPath, "web", "data");
-        string liveMapConfigPath = Path.Combine(Path.GetDirectoryName(rootPath) ?? string.Empty, "ModConfig", "livemap.json");
 
-        snapshot.LiveMapConfig = TryReadJsonFileWithPath(liveMapConfigPath);
+        snapshot.ServerMapConfig = TryReadServerMapConfigForRoot(rootPath);
         snapshot.Settings = TryReadJsonFile(dataDir, "settings.json");
         snapshot.Players = TryReadJsonFile(dataDir, "players.json");
         snapshot.MarkersIndex = TryReadJsonFile(dataDir, "markers.json");
@@ -1482,9 +1469,94 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         snapshot.OverviewData = TryReadJsonFile(dataDir, "osq-overview.json");
         snapshot.PlayersCount = EstimatePlayersCount(snapshot.Players);
         snapshot.MarkersCount = EstimateMarkersCount(snapshot.MarkerLayers);
-        snapshot.LiveMapUrl = ResolveMapWebUrl(snapshot.LiveMapConfig, snapshot.Settings);
-        snapshot.IncludeTilePayload = false;
-        snapshot.Tiles = [];
+        snapshot.ServerMapUrl = ResolveMapWebUrl(snapshot.ServerMapConfig, snapshot.Settings);
+        snapshot.Tiles = ShouldIncludeServerMapTiles(source)
+            ? LoadInlineMapTiles(Path.Combine(rootPath, "web", "tiles"), now)
+            : [];
+        snapshot.IncludeTilePayload = snapshot.Tiles.Count > 0;
+        snapshot.DataDigest = ComputeMapPayloadDigest(snapshot);
+    }
+
+    private static bool ShouldIncludeServerMapTiles(string source)
+    {
+        return source.Contains("servermap-disk", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void MergeServerMapDynamicData(
+        OsqServerMapInfo snapshot,
+        string serverMapRoot,
+        DateTimeOffset now)
+    {
+        if (string.IsNullOrWhiteSpace(serverMapRoot))
+        {
+            return;
+        }
+
+        string dataDir = Path.Combine(serverMapRoot, "web", "data");
+        if (!Directory.Exists(dataDir))
+        {
+            return;
+        }
+
+        JsonElement? serverMapConfig = TryReadServerMapConfigForRoot(serverMapRoot);
+        if (serverMapConfig.HasValue)
+        {
+            snapshot.ServerMapConfig = serverMapConfig;
+        }
+
+        JsonElement? liveSettings = TryReadJsonFile(dataDir, "settings.json");
+        if (liveSettings.HasValue)
+        {
+            snapshot.Settings = liveSettings;
+        }
+
+        JsonElement? livePlayers = TryReadJsonFile(dataDir, "players.json");
+        if (livePlayers.HasValue &&
+            (EstimatePlayersCount(livePlayers) > 0 ||
+             !snapshot.Players.HasValue ||
+             EstimatePlayersCount(snapshot.Players) == 0))
+        {
+            snapshot.Players = livePlayers;
+        }
+
+        JsonElement? liveMarkersIndex = TryReadJsonFile(dataDir, "markers.json");
+        Dictionary<string, JsonElement> liveMarkerLayers = LoadMarkerLayerFiles(dataDir, MaxMapMarkersPerLayerInPayload);
+        if (liveMarkerLayers.Count > 0)
+        {
+            snapshot.MarkersIndex = liveMarkersIndex ?? snapshot.MarkersIndex;
+            Dictionary<string, JsonElement> merged = new(snapshot.MarkerLayers, StringComparer.OrdinalIgnoreCase);
+            foreach (KeyValuePair<string, JsonElement> pair in liveMarkerLayers)
+            {
+                merged[pair.Key] = pair.Value;
+            }
+
+            snapshot.MarkerLayers = merged;
+        }
+
+        if (string.IsNullOrWhiteSpace(snapshot.ServerMapUrl))
+        {
+            snapshot.ServerMapUrl = ResolveMapWebUrl(snapshot.ServerMapConfig, snapshot.Settings);
+        }
+
+        if (!string.IsNullOrWhiteSpace(snapshot.Source) &&
+            !snapshot.Source.Contains("servermap-disk", StringComparison.OrdinalIgnoreCase))
+        {
+            snapshot.Source += "+servermap-disk";
+        }
+
+        snapshot.DynamicDataRoot = serverMapRoot;
+        List<MapTileEntry> liveTiles = LoadInlineMapTiles(Path.Combine(serverMapRoot, "web", "tiles"), now);
+        if (liveTiles.Count > 0)
+        {
+            snapshot.IncludeTilePayload = true;
+            snapshot.Tiles = liveTiles;
+        }
+
+        snapshot.GeneratedAtUtc = string.IsNullOrWhiteSpace(snapshot.GeneratedAtUtc)
+            ? now.ToString("O", CultureInfo.InvariantCulture)
+            : snapshot.GeneratedAtUtc;
+        snapshot.PlayersCount = EstimatePlayersCount(snapshot.Players);
+        snapshot.MarkersCount = EstimateMarkersCount(snapshot.MarkerLayers);
         snapshot.DataDigest = ComputeMapPayloadDigest(snapshot);
     }
 
@@ -1542,7 +1614,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
                 error = "no-mapchunks";
                 WriteMapSettingsJson(dataDir, now, context, 0, 0, 0, 0, 0, 0);
                 WriteMapPlayersJson(dataDir);
-                WriteMapMarkersJson(dataDir);
+                WriteMapMarkersJson(dataDir, 0, 0);
                 return false;
             }
 
@@ -1601,7 +1673,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             WriteMapPlayersJson(dataDir);
 
             stage = "write-markers";
-            WriteMapMarkersJson(dataDir);
+            WriteMapMarkersJson(dataDir, centerX * 32, centerZ * 32);
             return true;
         }
         catch (Exception ex)
@@ -2278,15 +2350,13 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         writer.WritePropertyName("size");
         writer.WriteStartArray();
         writer.WriteNumberValue(Math.Max(1, context.MapSizeX));
-        writer.WriteNumberValue(Math.Max(1, context.MapSizeY));
         writer.WriteNumberValue(Math.Max(1, context.MapSizeZ));
         writer.WriteEndArray();
         writer.WritePropertyName("spawn");
-        writer.WriteStartObject();
-        writer.WriteNumber("x", spawnX);
-        writer.WriteNumber("y", 120);
-        writer.WriteNumber("z", spawnZ);
-        writer.WriteEndObject();
+        writer.WriteStartArray();
+        writer.WriteNumberValue(spawnX);
+        writer.WriteNumberValue(spawnZ);
+        writer.WriteEndArray();
         writer.WritePropertyName("web");
         writer.WriteStartObject();
         writer.WriteString("tiletype", "png");
@@ -2301,7 +2371,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         writer.WriteStartArray();
         writer.WriteStartObject();
         writer.WriteString("id", "basic");
-        writer.WriteString("icon", "");
+        writer.WriteString("icon", "basic");
         writer.WriteEndObject();
         writer.WriteEndArray();
         writer.WritePropertyName("osq");
@@ -2347,7 +2417,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         writer.WriteEndObject();
     }
 
-    private static void WriteMapMarkersJson(string dataDir)
+    private static void WriteMapMarkersJson(string dataDir, int spawnX, int spawnZ)
     {
         string markersRoot = Path.Combine(dataDir, "markers");
         Directory.CreateDirectory(markersRoot);
@@ -2358,11 +2428,52 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         writer.WriteStartObject();
         writer.WritePropertyName("markers");
         writer.WriteStartArray();
-        writer.WriteEndArray();
-        writer.WritePropertyName("layers");
-        writer.WriteStartArray();
+        writer.WriteStringValue("spawn");
         writer.WriteEndArray();
         writer.WriteEndObject();
+
+        string spawnPath = Path.Combine(markersRoot, "spawn.json");
+        using FileStream spawnStream = File.Create(spawnPath);
+        using Utf8JsonWriter spawnWriter = new(spawnStream, new JsonWriterOptions { Indented = false });
+        spawnWriter.WriteStartObject();
+        spawnWriter.WriteString("id", "spawn");
+        spawnWriter.WriteString("label", "Spawn");
+        spawnWriter.WriteNumber("interval", 30);
+        spawnWriter.WriteBoolean("hidden", false);
+        spawnWriter.WritePropertyName("markers");
+        spawnWriter.WriteStartArray();
+        spawnWriter.WriteStartObject();
+        spawnWriter.WriteString("type", "icon");
+        spawnWriter.WriteString("id", "servermap:spawn");
+        spawnWriter.WritePropertyName("point");
+        spawnWriter.WriteStartArray();
+        spawnWriter.WriteNumberValue(spawnX);
+        spawnWriter.WriteNumberValue(spawnZ);
+        spawnWriter.WriteEndArray();
+        spawnWriter.WritePropertyName("options");
+        spawnWriter.WriteStartObject();
+        spawnWriter.WriteString("title", "Spawn");
+        spawnWriter.WriteString("alt", "Spawn");
+        spawnWriter.WriteString("iconUrl", "#svg-house");
+        spawnWriter.WritePropertyName("iconSize");
+        spawnWriter.WriteStartArray();
+        spawnWriter.WriteNumberValue(16);
+        spawnWriter.WriteNumberValue(16);
+        spawnWriter.WriteEndArray();
+        spawnWriter.WritePropertyName("iconAnchor");
+        spawnWriter.WriteStartArray();
+        spawnWriter.WriteNumberValue(8);
+        spawnWriter.WriteNumberValue(16);
+        spawnWriter.WriteEndArray();
+        spawnWriter.WriteEndObject();
+        spawnWriter.WritePropertyName("tooltip");
+        spawnWriter.WriteStartObject();
+        spawnWriter.WriteString("direction", "top");
+        spawnWriter.WriteString("content", "Spawn");
+        spawnWriter.WriteEndObject();
+        spawnWriter.WriteEndObject();
+        spawnWriter.WriteEndArray();
+        spawnWriter.WriteEndObject();
     }
 
     private static void WriteMapOverviewJson(
@@ -2605,6 +2716,50 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         catch
         {
             return null;
+        }
+    }
+
+    private static JsonElement? TryReadServerMapConfigForRoot(string serverMapRoot)
+    {
+        foreach (string candidate in EnumerateServerMapConfigCandidates(serverMapRoot))
+        {
+            JsonElement? config = TryReadJsonFileWithPath(candidate);
+            if (config.HasValue)
+            {
+                return config;
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string> EnumerateServerMapConfigCandidates(string serverMapRoot)
+    {
+        var roots = new List<string>();
+        try
+        {
+            var rootInfo = new DirectoryInfo(Path.GetFullPath(serverMapRoot));
+            var profileRoot = rootInfo.Parent?.Parent?.Parent?.FullName;
+            if (!string.IsNullOrWhiteSpace(profileRoot))
+            {
+                roots.Add(Path.Combine(profileRoot, "ModConfig"));
+            }
+
+            var legacyRoot = rootInfo.Parent?.FullName;
+            if (!string.IsNullOrWhiteSpace(legacyRoot))
+            {
+                roots.Add(Path.Combine(legacyRoot, "ModConfig"));
+            }
+        }
+        catch
+        {
+            // ignore malformed roots
+        }
+
+        foreach (string root in roots.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            yield return Path.Combine(root, "servermap.json");
+            yield return Path.Combine(root, "livemap.json");
         }
     }
 
@@ -2917,9 +3072,9 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         }
     }
 
-    private static string ResolveMapWebUrl(JsonElement? liveMapConfig, JsonElement? settingsRoot)
+    private static string ResolveMapWebUrl(JsonElement? serverMapConfig, JsonElement? settingsRoot)
     {
-        string fromConfig = TryReadLiveMapUrl(liveMapConfig);
+        string fromConfig = TryReadServerMapUrl(serverMapConfig);
         if (!string.IsNullOrWhiteSpace(fromConfig))
         {
             return fromConfig;
@@ -2942,14 +3097,14 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         return string.Empty;
     }
 
-    private static string TryReadLiveMapUrl(JsonElement? liveMapConfigRoot)
+    private static string TryReadServerMapUrl(JsonElement? serverMapConfigRoot)
     {
-        if (!liveMapConfigRoot.HasValue || liveMapConfigRoot.Value.ValueKind != JsonValueKind.Object)
+        if (!serverMapConfigRoot.HasValue || serverMapConfigRoot.Value.ValueKind != JsonValueKind.Object)
         {
             return string.Empty;
         }
 
-        JsonElement root = liveMapConfigRoot.Value;
+        JsonElement root = serverMapConfigRoot.Value;
         if (!root.TryGetProperty("web", out JsonElement webNode) || webNode.ValueKind != JsonValueKind.Object)
         {
             return string.Empty;
@@ -2970,7 +3125,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         StringBuilder sb = new();
         sb.Append(snapshot.SavegameIdentifier ?? string.Empty).Append('|');
         sb.Append(snapshot.GeneratedAtUtc ?? string.Empty).Append('|');
-        sb.Append(snapshot.LiveMapUrl ?? string.Empty).Append('|');
+        sb.Append(snapshot.ServerMapUrl ?? string.Empty).Append('|');
         sb.Append(snapshot.PlayersCount.ToString(CultureInfo.InvariantCulture)).Append('|');
         sb.Append(snapshot.MarkersCount.ToString(CultureInfo.InvariantCulture)).Append('|');
         sb.Append(snapshot.MarkerLayers.Count.ToString(CultureInfo.InvariantCulture)).Append('|');
@@ -3009,7 +3164,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         }
     }
 
-    private static LiveMapRootCandidate? TryFindLiveMapRoot(string profileDataPath)
+    private static ServerMapRootCandidate? TryFindServerMapRoot(string profileDataPath)
     {
         string modDataRoot = Path.Combine(Path.GetFullPath(profileDataPath), "ModData");
         if (!Directory.Exists(modDataRoot))
@@ -3018,7 +3173,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         }
 
         DateTime latestUtc = DateTime.MinValue;
-        LiveMapRootCandidate? candidate = null;
+        ServerMapRootCandidate? candidate = null;
 
         foreach (var savegameDir in Directory.EnumerateDirectories(modDataRoot))
         {
@@ -3028,31 +3183,34 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
                 continue;
             }
 
-            var liveMapDir = Path.Combine(savegameDir, "LiveMap");
-            var settingsPath = Path.Combine(liveMapDir, "web", "data", "settings.json");
-            if (!File.Exists(settingsPath))
+            foreach (string mapDataName in MapDataDirectoryNames)
             {
-                continue;
-            }
-
-            DateTime writeUtc;
-            try
-            {
-                writeUtc = File.GetLastWriteTimeUtc(settingsPath);
-            }
-            catch
-            {
-                writeUtc = DateTime.MinValue;
-            }
-
-            if (writeUtc >= latestUtc)
-            {
-                latestUtc = writeUtc;
-                candidate = new LiveMapRootCandidate
+                var serverMapDir = Path.Combine(savegameDir, mapDataName);
+                var settingsPath = Path.Combine(serverMapDir, "web", "data", "settings.json");
+                if (!File.Exists(settingsPath))
                 {
-                    RootPath = liveMapDir,
-                    SavegameIdentifier = savegameIdentifier
-                };
+                    continue;
+                }
+
+                DateTime writeUtc;
+                try
+                {
+                    writeUtc = File.GetLastWriteTimeUtc(settingsPath);
+                }
+                catch
+                {
+                    writeUtc = DateTime.MinValue;
+                }
+
+                if (writeUtc >= latestUtc)
+                {
+                    latestUtc = writeUtc;
+                    candidate = new ServerMapRootCandidate
+                    {
+                        RootPath = serverMapDir,
+                        SavegameIdentifier = savegameIdentifier
+                    };
+                }
             }
         }
 
@@ -3222,17 +3380,22 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         string modDataRoot = Path.Combine(Path.GetFullPath(profile.DirectoryPath), "ModData");
         if (Directory.Exists(modDataRoot))
         {
-            var liveMapCandidates = Directory.EnumerateDirectories(modDataRoot)
-                .Where(saveDir => Directory.Exists(Path.Combine(saveDir, "LiveMap", "web", "data")))
+            var serverMapCandidates = Directory.EnumerateDirectories(modDataRoot)
+                .SelectMany(saveDir => MapDataDirectoryNames.Select(mapDataName => new
+                {
+                    SaveDir = saveDir,
+                    SettingsPath = Path.Combine(saveDir, mapDataName, "web", "data", "settings.json")
+                }))
+                .Where(candidate => File.Exists(candidate.SettingsPath))
                 .ToList();
-            if (liveMapCandidates.Count > 0)
+            if (serverMapCandidates.Count > 0)
             {
-                var best = liveMapCandidates
-                    .OrderByDescending(path =>
+                var best = serverMapCandidates
+                    .OrderByDescending(candidate =>
                     {
                         try
                         {
-                            return File.GetLastWriteTimeUtc(Path.Combine(path, "LiveMap", "web", "data", "settings.json"));
+                            return File.GetLastWriteTimeUtc(candidate.SettingsPath);
                         }
                         catch
                         {
@@ -3240,7 +3403,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
                         }
                     })
                     .First();
-                return Path.GetFileName(best) ?? string.Empty;
+                return Path.GetFileName(best.SaveDir) ?? string.Empty;
             }
         }
 
@@ -3399,7 +3562,10 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         int timeoutSeconds,
         CancellationToken outerToken)
     {
-        var signature = ComputeSignature(tokenValue, payloadJson);
+        byte[] payloadBytes = Encoding.UTF8.GetBytes(payloadJson ?? string.Empty);
+        bool useGzip = payloadBytes.Length >= EndpointGzipThresholdBytes;
+        byte[] bodyBytes = useGzip ? CompressGzipPayload(payloadBytes) : payloadBytes;
+        var signature = ComputeSignature(tokenValue, bodyBytes);
 
         using HttpRequestMessage req = new(HttpMethod.Post, endpoint);
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenValue);
@@ -3408,7 +3574,17 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         req.Headers.TryAddWithoutValidation("X-OSQ-Signature", signature);
         req.Headers.TryAddWithoutValidation("X-OSQ-Mod", "launchergo-osq");
         req.Headers.TryAddWithoutValidation("X-OSQ-Version", "1");
-        req.Content = new StringContent(payloadJson, Encoding.UTF8, "application/json");
+        req.Headers.TryAddWithoutValidation("User-Agent", "LauncherGo-OpenServerQuery/1.0");
+        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        req.Content = new ByteArrayContent(bodyBytes);
+        req.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json")
+        {
+            CharSet = "utf-8"
+        };
+        if (useGzip)
+        {
+            req.Content.Headers.ContentEncoding.Add("gzip");
+        }
 
         int timeout = timeoutSeconds <= 0 ? 8 : timeoutSeconds;
         using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(outerToken);
@@ -3431,12 +3607,22 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         }
     }
 
-    private static string ComputeSignature(string tokenValue, string payloadJson)
+    private static byte[] CompressGzipPayload(byte[] payload)
+    {
+        using MemoryStream output = new();
+        using (GZipStream gzip = new(output, CompressionLevel.Fastest, leaveOpen: true))
+        {
+            gzip.Write(payload, 0, payload.Length);
+        }
+
+        return output.ToArray();
+    }
+
+    private static string ComputeSignature(string tokenValue, byte[] payloadBytes)
     {
         byte[] key = Encoding.UTF8.GetBytes(tokenValue ?? string.Empty);
-        byte[] payload = Encoding.UTF8.GetBytes(payloadJson ?? string.Empty);
-        byte[] digest = HMACSHA256.HashData(key, payload);
-        return Convert.ToBase64String(digest);
+        byte[] digest = HMACSHA256.HashData(key, payloadBytes ?? Array.Empty<byte>());
+        return Convert.ToBase64String(digest).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 
     private async Task HandleRequestAsync(RuntimeState runtime, HttpListenerContext context, CancellationToken cancellationToken)
@@ -3646,11 +3832,57 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         try
         {
             var expected = HMACSHA256.HashData(Encoding.UTF8.GetBytes(token), Encoding.UTF8.GetBytes(rawBody ?? string.Empty));
-            var given = Convert.FromBase64String(givenSignature.Trim());
-            return given.Length == expected.Length && CryptographicOperations.FixedTimeEquals(given, expected);
+            return TryDecodeSignature(givenSignature.Trim(), out var given)
+                && given.Length == expected.Length
+                && CryptographicOperations.FixedTimeEquals(given, expected);
         }
         catch
         {
+            return false;
+        }
+    }
+
+    private static bool TryDecodeSignature(string signature, out byte[] bytes)
+    {
+        bytes = Array.Empty<byte>();
+        if (string.IsNullOrWhiteSpace(signature))
+        {
+            return false;
+        }
+
+        try
+        {
+            bytes = Convert.FromBase64String(signature);
+            return true;
+        }
+        catch
+        {
+            // Fall through and try base64url below.
+        }
+
+        string normalized = signature.Replace('-', '+').Replace('_', '/');
+        switch (normalized.Length % 4)
+        {
+            case 0:
+                break;
+            case 2:
+                normalized += "==";
+                break;
+            case 3:
+                normalized += "=";
+                break;
+            default:
+                return false;
+        }
+
+        try
+        {
+            bytes = Convert.FromBase64String(normalized);
+            return true;
+        }
+        catch
+        {
+            bytes = Array.Empty<byte>();
             return false;
         }
     }
@@ -4042,7 +4274,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         public List<OsqServerNotificationInfo> Notifications { get; init; } = [];
     }
 
-    private sealed class LiveMapRootCandidate
+    private sealed class ServerMapRootCandidate
     {
         public required string RootPath { get; init; }
         public required string SavegameIdentifier { get; init; }
@@ -4131,14 +4363,15 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         public bool IncludeTilePayload { get; set; }
         public string Source { get; set; } = string.Empty;
         public string SavegameIdentifier { get; set; } = string.Empty;
-        public string LiveMapRoot { get; set; } = string.Empty;
-        public string LiveMapUrl { get; set; } = string.Empty;
+        public string ServerMapRoot { get; set; } = string.Empty;
+        public string DynamicDataRoot { get; set; } = string.Empty;
+        public string ServerMapUrl { get; set; } = string.Empty;
         public string GeneratedAtUtc { get; set; } = string.Empty;
         public string DataDigest { get; set; } = string.Empty;
         public string SkippedReason { get; set; } = string.Empty;
         public int PlayersCount { get; set; }
         public int MarkersCount { get; set; }
-        public JsonElement? LiveMapConfig { get; set; }
+        public JsonElement? ServerMapConfig { get; set; }
         public JsonElement? Settings { get; set; }
         public JsonElement? Players { get; set; }
         public JsonElement? MarkersIndex { get; set; }
