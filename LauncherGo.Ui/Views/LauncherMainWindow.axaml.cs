@@ -186,6 +186,7 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<AuthPlayerListItem> _authPlayerItems = [];
     private readonly List<ServerDownloadEntry> _catalogEntries = [];
     private readonly List<OsqEndpointEditorRow> _osqEndpointEditors = [];
+    private readonly Dictionary<string, string> _configGameLanguageZh = new(StringComparer.OrdinalIgnoreCase);
 
     private MainTab _selectedTab = MainTab.Home;
     private HomeMetric _selectedMetric = HomeMetric.Server;
@@ -225,6 +226,7 @@ public partial class LauncherMainWindow : Window
     private TimeSpan _robotLastProcessorTime;
     private DateTimeOffset _robotLastCpuSampleUtc = DateTimeOffset.UtcNow;
     private double _robotLastCpuPercent;
+    private string _configGameLanguageZhPath = string.Empty;
     private string _configSaveFileLocation = string.Empty;
     public LauncherMainWindow()
         : this(
@@ -4758,6 +4760,7 @@ public partial class LauncherMainWindow : Window
             var worldSettings = await _instanceServerConfigService.LoadWorldSettingsAsync(profile);
             var worldRules = await _instanceServerConfigService.LoadWorldRulesAsync(profile);
 
+            LoadConfigGameLanguageZh(profile);
             ApplyConfigServerSettings(serverSettings);
             await LoadConfigSavesAsync(profile, worldSettings.SaveFileLocation);
             ApplyConfigWorldSettings(worldSettings);
@@ -5135,13 +5138,141 @@ public partial class LauncherMainWindow : Window
         SelectConfigChoiceByValue(ConfigWorldTypeComboBox, _configWorldTypeOptions, selectedWorldType ?? "standard");
     }
 
+    private void LoadConfigGameLanguageZh(InstanceProfile profile)
+    {
+        if (!_isChinese)
+        {
+            _configGameLanguageZh.Clear();
+            _configGameLanguageZhPath = string.Empty;
+            return;
+        }
+
+        var languagePath = ResolveConfigGameLanguageZhPath(profile) ?? string.Empty;
+        if (languagePath.Equals(_configGameLanguageZhPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _configGameLanguageZh.Clear();
+        _configGameLanguageZhPath = languagePath;
+        if (string.IsNullOrWhiteSpace(languagePath))
+        {
+            return;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(languagePath));
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return;
+            }
+
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (!property.Name.StartsWith("worldattribute-", StringComparison.OrdinalIgnoreCase) &&
+                    !property.Name.StartsWith("worldconfig-", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var text = property.Value.ValueKind == JsonValueKind.String
+                    ? NormalizeGameLanguageText(property.Value.GetString())
+                    : string.Empty;
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    _configGameLanguageZh[property.Name] = text;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load Vintage Story Chinese language file: {Path}", languagePath);
+        }
+    }
+
+    private string? ResolveConfigGameLanguageZhPath(InstanceProfile profile)
+    {
+        var preferences = _preferencesService.Load();
+        var candidates = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(preferences.ServerDirectory) &&
+            !string.IsNullOrWhiteSpace(profile.Version))
+        {
+            var installedRoot = Path.Combine(preferences.ServerDirectory, "installed");
+            var versionDirectory = Path.Combine(installedRoot, SanitizeConfigPathSegment(profile.Version));
+            candidates.Add(Path.Combine(versionDirectory, "assets", "game", "lang", "zh-cn.json"));
+
+            if (Directory.Exists(installedRoot))
+            {
+                foreach (var directory in Directory.EnumerateDirectories(installedRoot))
+                {
+                    if (Path.GetFileName(directory).Equals(profile.Version, StringComparison.OrdinalIgnoreCase) ||
+                        Path.GetFileName(directory).Equals(SanitizeConfigPathSegment(profile.Version), StringComparison.OrdinalIgnoreCase))
+                    {
+                        candidates.Add(Path.Combine(directory, "assets", "game", "lang", "zh-cn.json"));
+                    }
+                }
+            }
+        }
+
+        var current = string.IsNullOrWhiteSpace(profile.DirectoryPath)
+            ? null
+            : new DirectoryInfo(profile.DirectoryPath);
+        for (var depth = 0; current is not null && depth < 6; depth++, current = current.Parent)
+        {
+            candidates.Add(Path.Combine(current.FullName, "assets", "game", "lang", "zh-cn.json"));
+        }
+
+        return candidates.FirstOrDefault(File.Exists);
+    }
+
+    private static string SanitizeConfigPathSegment(string value)
+    {
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var sanitized = string.Join('_', value.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
+        return string.IsNullOrWhiteSpace(sanitized) ? value.Trim() : sanitized.Trim();
+    }
+
+    private static string NormalizeGameLanguageText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        var normalized = text
+            .Replace("<br>", " ", StringComparison.OrdinalIgnoreCase)
+            .Replace("</font>", string.Empty, StringComparison.OrdinalIgnoreCase);
+        normalized = Regex.Replace(normalized, "<font[^>]*>", string.Empty, RegexOptions.IgnoreCase);
+        return normalized.Trim();
+    }
+
+    private bool TryGetConfigGameLanguageText(string key, out string text)
+    {
+        return _configGameLanguageZh.TryGetValue(key, out text!) &&
+               !string.IsNullOrWhiteSpace(text);
+    }
+
+    private string ResolveConfigRuleLabelZh(WorldRuleDefinition definition)
+    {
+        return TryGetConfigGameLanguageText($"worldattribute-{definition.Key}", out var label)
+            ? label
+            : definition.LabelZh;
+    }
+
     private void RebuildConfigWorldRules(IReadOnlyList<WorldRuleValue> rules)
     {
         _configWorldRuleItems.Clear();
         foreach (var rule in rules)
         {
             var value = rule.Value ?? string.Empty;
-            var item = new ConfigWorldRuleItem(rule.Definition, value, _isChinese, BuildConfigRuleChoiceOptions(rule.Definition, value))
+            var item = new ConfigWorldRuleItem(
+                rule.Definition,
+                value,
+                _isChinese,
+                BuildConfigRuleChoiceOptions(rule.Definition, value),
+                ResolveConfigRuleLabelZh(rule.Definition))
             {
                 IsOnlyDuringWorldCreate = ConfigOnlyDuringWorldCreateRuleKeys.Contains(rule.Definition.Key)
             };
@@ -5180,6 +5311,11 @@ public partial class LauncherMainWindow : Window
             return name;
         }
 
+        if (TryGetConfigGameLanguageText($"worldconfig-{key}-{name}", out var localizedName))
+        {
+            return localizedName;
+        }
+
         if (value.Equals("true", StringComparison.OrdinalIgnoreCase))
         {
             return "启用";
@@ -5192,6 +5328,7 @@ public partial class LauncherMainWindow : Window
 
         return key.ToLowerInvariant() switch
         {
+            "bodytemperatureresistance" when double.TryParse(name, NumberStyles.Float, CultureInfo.InvariantCulture, out _) => $"{name}°C",
             "gamemode" when value.Equals("survival", StringComparison.OrdinalIgnoreCase) => "生存",
             "gamemode" when value.Equals("creative", StringComparison.OrdinalIgnoreCase) => "创造",
             "playerlives" when value == "-1" => "无限",
@@ -5213,6 +5350,12 @@ public partial class LauncherMainWindow : Window
 
     private static string ResolveCommonConfigChoiceName(string name)
     {
+        var normalized = name.Trim();
+        if (TryResolveCommonConfigChoicePattern(normalized, out var patterned))
+        {
+            return patterned;
+        }
+
         return name switch
         {
             "Enabled" => "启用",
@@ -5231,16 +5374,160 @@ public partial class LauncherMainWindow : Window
             "Uncommon" => "不常见",
             "Rare" => "稀有",
             "Very Rare" => "非常稀有",
+            "Extremly rare" => "极其稀有",
             "Never" => "不存在",
+            "None" => "无",
+            "Survival" => "生存",
+            "Creative" => "创造",
+            "Aggressive" => "主动",
+            "Passive" => "被动",
+            "Never hostile" => "友好",
+            "Hot (28-32°C)" => "炎热 (28~32°C)",
+            "Warm (19-23 °C)" => "温暖 (19~23°C)",
+            "Temperate (6-14 °C)" => "温和 (6~14°C)",
+            "Cool (-5 to 1 °C)" => "寒冷 (-5~1°C)",
+            "Icy (-15 to -10°C)" => "严寒 (-15~-10°C)",
+            "Sand and gravel" => "沙子和砂砾",
+            "Sand, gravel and soil with sideways instability" => "沙子、砂砾和边缘不稳定泥土",
+            "Stone and Wood" => "石头、木头和石砖",
+            "Most cubic blocks" => "大部分方形方块",
+            "ifrepaired" => "只有先用胶水修补时可获取",
+            "yes" => "可以，拆除即可获取",
+            "no" => "否，拆除总会碎掉",
+            "Realistic" => "真实",
+            "Patchy" => "片状",
+            "Blocked" => "被阻挡",
+            "Traversable (Can fall down)" => "可越过/可掉落",
+            "Scorching hot" => "灼热",
+            "Very hot" => "炎热",
+            "Hot" => "热",
+            "Cold" => "冷",
+            "Very Cold" => "很冷",
+            "Snowball earth" => "雪球地球",
+            "Super humid" => "潮湿",
+            "Very humid" => "湿润",
+            "Humid" => "湿",
+            "Semi-Arid" => "半干旱",
+            "Arid" => "干旱",
+            "Hyperarid" => "干燥",
+            "Forest World (+100%)" => "森林世界/+100%",
+            "Extremely forested (+90%)" => "极多树木/+90%",
+            "Very highly forested (+75%)" => "很多树木/+75%",
+            "Highly forested (+50%)" => "较多树木/+50%",
+            "Somewhat more forest (+25%)" => "略多树木/+25%",
+            "Somewhat less forest (-25%)" => "略少树木/-25%",
+            "Significantly less forested (-50%)" => "较少树木/-50%",
+            "Much less forested (-75%)" => "很少树木/-75%",
+            "Near Tree-less (-90%)" => "极少树木/-90%",
+            "Tree-less World (-100%)" => "无树世界/-100%",
             _ => name
         };
+    }
+
+    private static bool TryResolveCommonConfigChoicePattern(string name, out string label)
+    {
+        label = string.Empty;
+        var blocksMatch = Regex.Match(name, @"^(?<value>[0-9.]+)\s*(?<unit>k|mil)? blocks$", RegexOptions.IgnoreCase);
+        if (blocksMatch.Success)
+        {
+            var value = blocksMatch.Groups["value"].Value;
+            var unit = blocksMatch.Groups["unit"].Value.ToLowerInvariant();
+            label = unit switch
+            {
+                "mil" => $"{value}百万个方块",
+                "k" => $"{value}千个方块",
+                _ => $"{value}个方块"
+            };
+            return true;
+        }
+
+        var hpMatch = Regex.Match(name, @"^(?<value>[0-9.]+) hp$", RegexOptions.IgnoreCase);
+        if (hpMatch.Success)
+        {
+            label = $"{hpMatch.Groups["value"].Value}hp";
+            return true;
+        }
+
+        var secondsMatch = Regex.Match(name, @"^(?<value>[0-9.]+) seconds?$", RegexOptions.IgnoreCase);
+        if (secondsMatch.Success)
+        {
+            label = $"{secondsMatch.Groups["value"].Value} 秒";
+            return true;
+        }
+
+        var minutesMatch = Regex.Match(name, @"^(?<value>[0-9.]+) minutes?$", RegexOptions.IgnoreCase);
+        if (minutesMatch.Success)
+        {
+            label = $"{minutesMatch.Groups["value"].Value} 分钟";
+            return true;
+        }
+
+        if (name.Equals("1 hour", StringComparison.OrdinalIgnoreCase))
+        {
+            label = "1 小时";
+            return true;
+        }
+
+        var timesMatch = Regex.Match(name, @"^(?<value>[0-9]+) times?$", RegexOptions.IgnoreCase);
+        if (timesMatch.Success)
+        {
+            label = $"{timesMatch.Groups["value"].Value}次";
+            return true;
+        }
+
+        if (name.Equals("One time", StringComparison.OrdinalIgnoreCase))
+        {
+            label = "1次";
+            return true;
+        }
+
+        if (name.Equals("Infinite", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("infinite", StringComparison.OrdinalIgnoreCase))
+        {
+            label = "无限";
+            return true;
+        }
+
+        var speedMatch = Regex.Match(name, @"^(?<label>Very fast|Fast|Slightly faster|Normal|Slightly slower|Slower|Much slower|Deadly|Very Strong|Strong|Weak|Very weak|Much longer|Longer|Slightly longer|Slightly shorter|Shorter|Much Shorter)\s*\((?<value>[^)]+)\)$", RegexOptions.IgnoreCase);
+        if (speedMatch.Success)
+        {
+            var zh = speedMatch.Groups["label"].Value switch
+            {
+                "Very fast" => "很快",
+                "Fast" => "较快",
+                "Slightly faster" => "稍快",
+                "Normal" => "正常",
+                "Slightly slower" => "稍慢",
+                "Slower" => "较慢",
+                "Much slower" => "很慢",
+                "Deadly" => "致命",
+                "Very Strong" => "很强",
+                "Strong" => "强力",
+                "Weak" => "弱小",
+                "Very weak" => "很弱",
+                "Much longer" => "很长",
+                "Longer" => "较长",
+                "Slightly longer" => "稍长",
+                "Slightly shorter" => "稍短",
+                "Shorter" => "较短",
+                "Much Shorter" => "很短",
+                _ => speedMatch.Groups["label"].Value
+            };
+            label = $"{zh}（{speedMatch.Groups["value"].Value}）";
+            return true;
+        }
+
+        return false;
     }
 
     private void RefreshConfigWorldRuleLabels()
     {
         foreach (var item in _configWorldRuleItems)
         {
-            item.SetLanguage(_isChinese, BuildConfigRuleChoiceOptions(item.Definition, item.Value));
+            item.SetLanguage(
+                _isChinese,
+                BuildConfigRuleChoiceOptions(item.Definition, item.Value),
+                ResolveConfigRuleLabelZh(item.Definition));
         }
     }
 
@@ -6828,14 +7115,15 @@ public partial class LauncherMainWindow : Window
             WorldRuleDefinition definition,
             string value,
             bool isChinese,
-            IReadOnlyList<ConfigChoiceOption> choiceOptions)
+            IReadOnlyList<ConfigChoiceOption> choiceOptions,
+            string? labelZhOverride = null)
         {
             Definition = definition;
             Key = definition.Key;
             Type = definition.Type;
             ChoiceOptions = choiceOptions;
             _value = value;
-            SetLanguage(isChinese, choiceOptions);
+            SetLanguage(isChinese, choiceOptions, labelZhOverride);
             _selectedChoiceOption = ChoiceOptions.FirstOrDefault(option =>
                 option.Value.Equals(value, StringComparison.OrdinalIgnoreCase));
         }
@@ -6906,11 +7194,11 @@ public partial class LauncherMainWindow : Window
             }
         }
 
-        public void SetLanguage(bool isChinese, IReadOnlyList<ConfigChoiceOption> choiceOptions)
+        public void SetLanguage(bool isChinese, IReadOnlyList<ConfigChoiceOption> choiceOptions, string? labelZhOverride = null)
         {
             var selectedValue = SelectedChoiceOption?.Value ?? Value;
             ChoiceOptions = choiceOptions;
-            Label = isChinese ? Definition.LabelZh : Definition.LabelEn;
+            Label = isChinese ? labelZhOverride ?? Definition.LabelZh : Definition.LabelEn;
             Description = isChinese ? Definition.DescriptionZh ?? string.Empty : Definition.DescriptionEn ?? string.Empty;
             BooleanLabel = isChinese ? "启用" : "Enabled";
             _selectedChoiceOption = ChoiceOptions.FirstOrDefault(option =>
