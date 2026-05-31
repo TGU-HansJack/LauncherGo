@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.IO.Compression;
 using System.Net;
 using System.Net.WebSockets;
 using System.Security.Cryptography;
@@ -35,6 +36,8 @@ public sealed class Vs2QQProcessService
 
     private const int MaxOsqStatusHistoryPerHost = 30;
     private const int MaxServerStatusQueryCount = 10;
+    private const int MaxOneBotMessageLength = 1800;
+    private const int MaxOsqRequestBodyBytes = 8 * 1024 * 1024;
     private const int ServerAuthMinPasswordLength = 6;
     private const int ServerAuthMaxPasswordLength = 128;
     private const int RequiredQqBindingVersion = 2;
@@ -416,7 +419,7 @@ public sealed class Vs2QQProcessService
         {
             try
             {
-                var groups = runtime.Storage.ListGroupsForRemoteServer(args.ServerHost);
+                var host = ResolveBoundRemoteServerHostForSnapshot(runtime, args.ServerHost, out var groups);
                 if (groups.Count == 0)
                 {
                     // 未绑定任何QQ群时忽略共享快照，避免无意义落库与外键告警刷屏。
@@ -431,8 +434,8 @@ public sealed class Vs2QQProcessService
                     return;
                 }
 
-                runtime.Storage.AddOsqSnapshot(args.ServerHost, payload);
-                await ForwardOsqSnapshotAsync(runtime, args.ServerHost, payload, CancellationToken.None);
+                runtime.Storage.AddOsqSnapshot(host, payload);
+                await ForwardOsqSnapshotAsync(runtime, host, payload, CancellationToken.None);
             }
             catch (Exception ex)
             {
@@ -968,6 +971,11 @@ public sealed class Vs2QQProcessService
         }
 
         var snapshot = runtime.Storage.GetLatestOsqSnapshot(host, index);
+        if (snapshot is null && index == 1)
+        {
+            snapshot = TryImportLatestSharedOsqSnapshot(runtime, host);
+        }
+
         if (snapshot is null)
         {
             await ReplyAsync(runtime, eventPayload, $"No server status #{index} for {host}.", cancellationToken);
@@ -1089,6 +1097,11 @@ public sealed class Vs2QQProcessService
         }
 
         var snapshot = runtime.Storage.GetLatestOsqSnapshot(host, index);
+        if (snapshot is null && index == 1)
+        {
+            snapshot = TryImportLatestSharedOsqSnapshot(runtime, host);
+        }
+
         if (snapshot is null)
         {
             await ReplyAsync(runtime, eventPayload, $"No server status #{index} for {host}.", cancellationToken);
@@ -1141,6 +1154,7 @@ public sealed class Vs2QQProcessService
 
         runtime.Storage.UpsertRemoteServer(host, token, userId);
         runtime.Storage.BindGroupRemoteServer(groupId, host);
+        TryImportLatestSharedOsqSnapshot(runtime, host);
 
         await ReplyAsync(runtime, eventPayload, $"已绑定远程服务器：{host} -> 群 {groupId}", cancellationToken);
     }
@@ -1700,10 +1714,20 @@ public sealed class Vs2QQProcessService
                 return;
             }
 
-            string body;
-            using (var reader = new StreamReader(context.Request.InputStream, Encoding.UTF8, true, 8192, leaveOpen: false))
+            if (context.Request.ContentLength64 > MaxOsqRequestBodyBytes)
             {
-                body = await reader.ReadToEndAsync(cancellationToken);
+                await WriteOsqResponseAsync(context, 413, "payload too large");
+                return;
+            }
+
+            var rawBody = await ReadStreamBytesWithLimitAsync(
+                context.Request.InputStream,
+                MaxOsqRequestBodyBytes,
+                cancellationToken);
+            if (rawBody is null)
+            {
+                await WriteOsqResponseAsync(context, 413, "payload too large");
+                return;
             }
 
             var token = ParseAuthorizationToken(context.Request.Headers["Authorization"]);
@@ -1729,9 +1753,19 @@ public sealed class Vs2QQProcessService
                 return;
             }
 
-            if (!VerifyOsqSignature(token, body, signature))
+            if (!VerifyOsqSignature(token, rawBody, signature))
             {
                 await WriteOsqResponseAsync(context, 401, "invalid signature");
+                return;
+            }
+
+            var body = await DecodeOsqRequestBodyAsync(
+                rawBody,
+                context.Request.Headers["Content-Encoding"],
+                cancellationToken);
+            if (body is null)
+            {
+                await WriteOsqResponseAsync(context, 400, "invalid content encoding");
                 return;
             }
 
@@ -1836,12 +1870,18 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        var message = string.Join('\n', lines);
+        var messages = SplitOneBotMessages(lines);
+        var successfulGroups = 0;
         foreach (var groupId in groups)
         {
             try
             {
-                await runtime.OneBot.SendGroupMsgAsync(groupId, message, cancellationToken);
+                foreach (var message in messages)
+                {
+                    await runtime.OneBot.SendGroupMsgAsync(groupId, message, cancellationToken);
+                }
+
+                successfulGroups++;
             }
             catch (Exception ex)
             {
@@ -1849,7 +1889,63 @@ public sealed class Vs2QQProcessService
             }
         }
 
-        runtime.Storage.UpsertOsqForwardState(host, lastChatSignature, lastEventSignature, lastNotificationSignature);
+        if (successfulGroups == groups.Count)
+        {
+            runtime.Storage.UpsertOsqForwardState(host, lastChatSignature, lastEventSignature, lastNotificationSignature);
+        }
+        else
+        {
+            EmitOutput($"[warn] OSQ 转发未全部成功 host={host}: success={successfulGroups}/{groups.Count}，保留游标等待下次重试。");
+        }
+    }
+
+    private static IReadOnlyList<string> SplitOneBotMessages(IReadOnlyList<string> lines)
+    {
+        if (lines.Count == 0)
+        {
+            return [];
+        }
+
+        var result = new List<string>();
+        var builder = new StringBuilder();
+        foreach (var line in lines)
+        {
+            var safeLine = line ?? string.Empty;
+            if (builder.Length > 0 &&
+                builder.Length + Environment.NewLine.Length + safeLine.Length > MaxOneBotMessageLength)
+            {
+                result.Add(builder.ToString());
+                builder.Clear();
+            }
+
+            if (safeLine.Length > MaxOneBotMessageLength)
+            {
+                if (builder.Length > 0)
+                {
+                    result.Add(builder.ToString());
+                    builder.Clear();
+                }
+
+                for (var offset = 0; offset < safeLine.Length; offset += MaxOneBotMessageLength)
+                {
+                    result.Add(safeLine.Substring(offset, Math.Min(MaxOneBotMessageLength, safeLine.Length - offset)));
+                }
+                continue;
+            }
+
+            if (builder.Length > 0)
+            {
+                builder.AppendLine();
+            }
+            builder.Append(safeLine);
+        }
+
+        if (builder.Length > 0)
+        {
+            result.Add(builder.ToString());
+        }
+
+        return result;
     }
 
     private static string BuildOsqSummaryMessage(string host, OsqSnapshotEnvelope payload)
@@ -2232,6 +2328,110 @@ public sealed class Vs2QQProcessService
         return ServerRelayEchoRegex.IsMatch(normalized);
     }
 
+    private OsqSnapshotEnvelope? TryImportLatestSharedOsqSnapshot(Vs2QQRuntimeContext runtime, string boundHost)
+    {
+        foreach (var candidate in BuildServerHostCandidates(boundHost))
+        {
+            var cachedPayload = _osqSnapshotCacheService.GetLatestPayload(candidate);
+            if (cachedPayload is null)
+            {
+                continue;
+            }
+
+            var payload = DeserializeOsqSnapshot(cachedPayload);
+            if (payload?.Server is null)
+            {
+                continue;
+            }
+
+            runtime.Storage.AddOsqSnapshot(boundHost, payload);
+            return payload;
+        }
+
+        return null;
+    }
+
+    private static string ResolveBoundRemoteServerHostForSnapshot(
+        Vs2QQRuntimeContext runtime,
+        string reportedHost,
+        out IReadOnlyList<long> groups)
+    {
+        foreach (var candidate in BuildServerHostCandidates(reportedHost))
+        {
+            var candidateGroups = runtime.Storage.ListGroupsForRemoteServer(candidate);
+            if (candidateGroups.Count > 0)
+            {
+                groups = candidateGroups;
+                return candidate;
+            }
+        }
+
+        var normalized = NormalizeServerHost(reportedHost);
+        groups = [];
+        return string.IsNullOrWhiteSpace(normalized)
+            ? (reportedHost ?? string.Empty).Trim()
+            : normalized;
+    }
+
+    private static OsqSnapshotEnvelope? DeserializeOsqSnapshot(JsonObject payload)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<OsqSnapshotEnvelope>(
+                payload.ToJsonString(),
+                OsqJsonOptions);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static IReadOnlyList<string> BuildServerHostCandidates(string? host)
+    {
+        var result = new List<string>();
+        AddServerHostCandidate(result, host);
+
+        var raw = (host ?? string.Empty).Trim();
+        if (raw.Length == 0)
+        {
+            return result;
+        }
+
+        AddServerHostCandidate(result, NormalizeServerHost(raw));
+        if (raw.Contains("://", StringComparison.Ordinal) &&
+            Uri.TryCreate(raw.EndsWith('/') ? raw : raw + '/', UriKind.Absolute, out var uri))
+        {
+            var authority = uri.IsDefaultPort ? uri.Host.ToLowerInvariant() : $"{uri.Host.ToLowerInvariant()}:{uri.Port}";
+            AddServerHostCandidate(result, authority);
+            AddServerHostCandidate(result, $"{uri.Scheme.ToLowerInvariant()}://{authority}");
+            var path = uri.AbsolutePath.TrimEnd('/');
+            if (!string.IsNullOrWhiteSpace(path) && path != "/")
+            {
+                AddServerHostCandidate(result, $"{uri.Scheme.ToLowerInvariant()}://{authority}{path}");
+            }
+        }
+        else
+        {
+            AddServerHostCandidate(result, "https://" + raw.TrimEnd('/').ToLowerInvariant());
+            AddServerHostCandidate(result, "http://" + raw.TrimEnd('/').ToLowerInvariant());
+        }
+
+        return result;
+    }
+
+    private static void AddServerHostCandidate(List<string> candidates, string? host)
+    {
+        var value = (host ?? string.Empty).Trim().TrimEnd('/');
+        if (value.Length == 0 ||
+            candidates.Any(existing => existing.Equals(value, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        candidates.Add(value);
+    }
+
     private static string ParseAuthorizationToken(string? authorizationHeader)
     {
         var header = (authorizationHeader ?? string.Empty).Trim();
@@ -2243,7 +2443,76 @@ public sealed class Vs2QQProcessService
         return header[7..].Trim();
     }
 
-    private static bool VerifyOsqSignature(string token, string rawBody, string givenSignature)
+    private static async Task<byte[]?> ReadStreamBytesWithLimitAsync(Stream stream, int maxBytes, CancellationToken cancellationToken)
+    {
+        using var output = new MemoryStream();
+        var buffer = new byte[81920];
+        while (true)
+        {
+            var read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+            if (read <= 0)
+            {
+                break;
+            }
+
+            if (output.Length + read > maxBytes)
+            {
+                return null;
+            }
+
+            output.Write(buffer, 0, read);
+        }
+
+        return output.ToArray();
+    }
+
+    private static async Task<string?> DecodeOsqRequestBodyAsync(
+        byte[] rawBody,
+        string? contentEncoding,
+        CancellationToken cancellationToken)
+    {
+        var encodings = (contentEncoding ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        byte[]? current = rawBody;
+        try
+        {
+            for (var i = encodings.Length - 1; i >= 0; i--)
+            {
+                var encoding = encodings[i].ToLowerInvariant();
+                if (encoding is "identity")
+                {
+                    continue;
+                }
+
+                using var input = new MemoryStream(current);
+                Stream decoder = encoding switch
+                {
+                    "gzip" or "x-gzip" => new GZipStream(input, CompressionMode.Decompress),
+                    "deflate" => new DeflateStream(input, CompressionMode.Decompress),
+                    _ => throw new InvalidDataException($"Unsupported content encoding: {encoding}")
+                };
+
+                using (decoder)
+                {
+                    current = await ReadStreamBytesWithLimitAsync(decoder, MaxOsqRequestBodyBytes, cancellationToken);
+                }
+
+                if (current is null)
+                {
+                    return null;
+                }
+            }
+        }
+        catch
+        {
+            return null;
+        }
+
+        return Encoding.UTF8.GetString(current);
+    }
+
+    private static bool VerifyOsqSignature(string token, byte[] rawBody, string givenSignature)
     {
         if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(givenSignature))
         {
@@ -2252,12 +2521,48 @@ public sealed class Vs2QQProcessService
 
         try
         {
-            var expected = HMACSHA256.HashData(Encoding.UTF8.GetBytes(token), Encoding.UTF8.GetBytes(rawBody ?? string.Empty));
-            var given = Convert.FromBase64String(givenSignature.Trim());
-            return given.Length == expected.Length && CryptographicOperations.FixedTimeEquals(given, expected);
+            var expected = HMACSHA256.HashData(Encoding.UTF8.GetBytes(token), rawBody ?? Array.Empty<byte>());
+            return TryDecodeOsqSignature(givenSignature, out var given)
+                && given.Length == expected.Length
+                && CryptographicOperations.FixedTimeEquals(given, expected);
         }
         catch
         {
+            return false;
+        }
+    }
+
+    private static bool TryDecodeOsqSignature(string signature, out byte[] bytes)
+    {
+        bytes = Array.Empty<byte>();
+        var normalized = (signature ?? string.Empty)
+            .Trim()
+            .Replace('-', '+')
+            .Replace('_', '/');
+        if (normalized.Length == 0)
+        {
+            return false;
+        }
+
+        var remainder = normalized.Length % 4;
+        if (remainder == 1)
+        {
+            return false;
+        }
+
+        if (remainder > 0)
+        {
+            normalized = normalized.PadRight(normalized.Length + (4 - remainder), '=');
+        }
+
+        try
+        {
+            bytes = Convert.FromBase64String(normalized);
+            return true;
+        }
+        catch
+        {
+            bytes = Array.Empty<byte>();
             return false;
         }
     }

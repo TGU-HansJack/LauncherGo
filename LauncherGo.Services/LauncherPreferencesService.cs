@@ -128,7 +128,8 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             {
                 ServerHost = source.EndpointHost.Trim(),
                 Token = source.EndpointToken.Trim(),
-                Enabled = true
+                Enabled = true,
+                OutputTarget = OpenServerQueryEndpointTarget.MapWebsite
             });
         }
 
@@ -167,7 +168,8 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             {
                 ServerHost = host,
                 Token = token,
-                Enabled = endpoint.Enabled
+                Enabled = endpoint.Enabled,
+                OutputTarget = OpenServerQueryEndpointTarget.Normalize(endpoint.OutputTarget)
             });
         }
 

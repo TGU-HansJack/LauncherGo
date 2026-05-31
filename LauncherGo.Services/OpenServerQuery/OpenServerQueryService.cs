@@ -8,6 +8,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 using ProtoBuf;
@@ -239,6 +240,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
                 {
                     ServerHost = x.Key,
                     Enabled = x.Value.Settings.Enabled,
+                    OutputTarget = x.Value.Settings.OutputTarget,
                     LastServerName = x.Value.LastServerName,
                     LastServerStatus = x.Value.LastServerStatus,
                     LastOnlinePlayers = x.Value.LastOnlinePlayers,
@@ -531,9 +533,24 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
 
         var now = DateTimeOffset.UtcNow;
         var nonce = GenerateNonce();
-        var payload = await BuildLocalServerSnapshotAsync(context, runtime.Settings, now, nonce, cancellationToken);
-        var json = JsonSerializer.Serialize(payload, OutboundJsonOptions);
-        var cachedNode = JsonNode.Parse(json)?.AsObject();
+        var needsMapPayload = runtime.Settings.IncludeMapData &&
+            runtime.EndpointsByHost.Values.Any(endpoint =>
+                endpoint.Settings.Enabled &&
+                OpenServerQueryEndpointTarget.IsMapWebsite(endpoint.Settings.OutputTarget));
+        var payload = await BuildLocalServerSnapshotAsync(
+            context,
+            runtime.Settings,
+            now,
+            nonce,
+            needsMapPayload,
+            cancellationToken);
+        var qqPayload = CreateSnapshotForOutputTarget(payload, runtime.Settings, includeMapData: false);
+        var qqJson = JsonSerializer.Serialize(qqPayload, OutboundJsonOptions);
+        var mapJson = needsMapPayload
+            ? JsonSerializer.Serialize(payload, OutboundJsonOptions)
+            : qqJson;
+
+        var cachedNode = JsonNode.Parse(qqJson)?.AsObject();
         if (cachedNode is not null)
         {
             _osqSnapshotCacheService?.AddSnapshot("local", cachedNode, now);
@@ -568,6 +585,11 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
 
             try
             {
+                var includeEndpointMap = runtime.Settings.IncludeMapData &&
+                    OpenServerQueryEndpointTarget.IsMapWebsite(endpoint.Settings.OutputTarget);
+                var endpointPayload = includeEndpointMap ? payload : qqPayload;
+                var json = includeEndpointMap ? mapJson : qqJson;
+
                 await SendEndpointAsync(
                     reportUri,
                     endpoint.Settings.Token,
@@ -579,11 +601,11 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
 
                 lock (_stateSync)
                 {
-                    endpoint.LastPayloadTimeUtc = payload.TimestampUtc;
-                    endpoint.LastServerName = payload.Server.Name;
-                    endpoint.LastServerStatus = payload.Server.Status;
-                    endpoint.LastOnlinePlayers = payload.Server.OnlinePlayerCount;
-                    endpoint.LastMaxPlayers = payload.Server.MaxPlayers;
+                    endpoint.LastPayloadTimeUtc = endpointPayload.TimestampUtc;
+                    endpoint.LastServerName = endpointPayload.Server.Name;
+                    endpoint.LastServerStatus = endpointPayload.Server.Status;
+                    endpoint.LastOnlinePlayers = endpointPayload.Server.OnlinePlayerCount;
+                    endpoint.LastMaxPlayers = endpointPayload.Server.MaxPlayers;
                     endpoint.LastReceivedUtc = DateTimeOffset.UtcNow;
                     endpoint.LastError = string.Empty;
 
@@ -648,6 +670,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         OpenServerQueryRuntimeSettings settings,
         DateTimeOffset now,
         string nonce,
+        bool includeMapData,
         CancellationToken cancellationToken)
     {
         var serverVersion = ResolveDisplayServerVersion(context.Profile.Version);
@@ -662,7 +685,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             TimestampUtc = now.ToString("O", CultureInfo.InvariantCulture),
             UnixTime = now.ToUnixTimeSeconds(),
             Nonce = nonce,
-            Capabilities = BuildSnapshotCapabilities(settings),
+            Capabilities = BuildSnapshotCapabilities(settings, includeMapData),
             Server = new OsqServerInfo
             {
                 Name = context.ServerSettings.ServerName ?? string.Empty,
@@ -720,18 +743,33 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             snapshot.PlayerEvents = activity.PlayerEvents;
         }
 
-        snapshot.ServerMap = settings.IncludeMapData
+        snapshot.ServerMap = includeMapData
             ? await BuildServerMapSnapshotAsync(context, now, cancellationToken)
-            : new OsqServerMapInfo
-            {
-                Standard = "osq-server-map-v1",
-                Enabled = false,
-                FullSnapshot = false,
-                Source = "disabled-by-config",
-                IncludeTilePayload = false
-            };
+            : null;
 
         return snapshot;
+    }
+
+    private static OsqSnapshotEnvelope CreateSnapshotForOutputTarget(
+        OsqSnapshotEnvelope source,
+        OpenServerQueryRuntimeSettings settings,
+        bool includeMapData)
+    {
+        return new OsqSnapshotEnvelope
+        {
+            ModId = source.ModId,
+            SchemaVersion = source.SchemaVersion,
+            TimestampUtc = source.TimestampUtc,
+            UnixTime = source.UnixTime,
+            Nonce = source.Nonce,
+            Capabilities = BuildSnapshotCapabilities(settings, includeMapData && source.ServerMap is not null),
+            Server = source.Server,
+            Players = source.Players,
+            PlayerEvents = source.PlayerEvents,
+            RecentChats = source.RecentChats,
+            ServerNotifications = source.ServerNotifications,
+            ServerMap = includeMapData ? source.ServerMap : null
+        };
     }
 
     private static LocalServerActivitySnapshot BuildRecentServerActivitySnapshot(
@@ -814,7 +852,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         };
     }
 
-    private static List<string> BuildSnapshotCapabilities(OpenServerQueryRuntimeSettings settings)
+    private static List<string> BuildSnapshotCapabilities(OpenServerQueryRuntimeSettings settings, bool includeMapData)
     {
         var capabilities = new List<string> { "serverInfo" };
         if (settings.IncludePlayers)
@@ -832,7 +870,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             capabilities.Add("playerEvents");
         }
 
-        if (settings.IncludeMapData)
+        if (includeMapData)
         {
             capabilities.Add("map");
         }
@@ -3738,10 +3776,11 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
                 return;
             }
 
-            var payloadNode = JsonNode.Parse(body)?.AsObject();
-            if (payloadNode is not null)
+            var cachePayload = CreateSnapshotForOutputTarget(payload, runtime.Settings, includeMapData: false);
+            var cachePayloadNode = JsonSerializer.SerializeToNode(cachePayload, OutboundJsonOptions)?.AsObject();
+            if (cachePayloadNode is not null)
             {
-                _osqSnapshotCacheService?.AddSnapshot(serverHost, payloadNode, DateTimeOffset.UtcNow);
+                _osqSnapshotCacheService?.AddSnapshot(serverHost, cachePayloadNode, DateTimeOffset.UtcNow);
             }
 
             lock (_stateSync)
@@ -3931,7 +3970,8 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             {
                 ServerHost = NormalizeServerHost(x.ServerHost),
                 Token = x.Token?.Trim() ?? string.Empty,
-                Enabled = x.Enabled
+                Enabled = x.Enabled,
+                OutputTarget = OpenServerQueryEndpointTarget.Normalize(x.OutputTarget)
             })
             .Where(x => !string.IsNullOrWhiteSpace(x.ServerHost) && IsValidToken(x.Token))
             .GroupBy(x => x.ServerHost, StringComparer.OrdinalIgnoreCase)
@@ -4293,7 +4333,9 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         public List<OsqPlayerEventInfo> PlayerEvents { get; set; } = [];
         public List<OsqChatInfo> RecentChats { get; set; } = [];
         public List<OsqServerNotificationInfo> ServerNotifications { get; set; } = [];
-        public OsqServerMapInfo ServerMap { get; set; } = new();
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public OsqServerMapInfo? ServerMap { get; set; }
     }
 
     private sealed class OsqServerInfo

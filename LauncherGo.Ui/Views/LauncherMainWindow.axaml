@@ -2297,15 +2297,16 @@
                                                         </StackPanel>
                                                     </WrapPanel>
                                                     <StackPanel Spacing="8">
-                                                        <Grid ColumnDefinitions="420,420" ColumnSpacing="10">
+                                                        <Grid ColumnDefinitions="420,205,160" ColumnSpacing="10">
                                                             <TextBlock x:Name="OsqEndpointHostLabelTextBlock" Classes="ConfigFieldLabel" Text="上报端点" />
                                                             <TextBlock x:Name="OsqEndpointTokenLabelTextBlock" Grid.Column="1" Classes="ConfigFieldLabel" Text="端点令牌" />
+                                                            <TextBlock x:Name="OsqEndpointTargetLabelTextBlock" Grid.Column="2" Classes="ConfigFieldLabel" Text="输出对象" />
                                                         </Grid>
                                                         <StackPanel x:Name="OsqEndpointRowsHost" Spacing="8" />
                                                         <Button
                                                             x:Name="OsqEndpointAddButton"
                                                             Classes="SecondaryActionButton"
-                                                            Width="850"
+                                                            Width="795"
                                                             HorizontalAlignment="Left"
                                                             Content="添加"
                                                             Click="OnOsqEndpointAddClick" />
