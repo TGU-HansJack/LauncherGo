@@ -46,7 +46,7 @@ public partial class LauncherMainWindow : Window
     private const double OsqEndpointTargetColumnWidth = 160;
     private const double OsqEndpointColumnSpacing = 10;
     private const string DefaultServerDownloadCatalogUrl = "https://api.vintagestory.at/stable-unstable.json";
-    private const string GitHubContributorsApiUrl = "https://api.github.com/repos/TGU-HansJack/LauncherGo/contributors?per_page=100";
+    private const string GitHubContributorsApiUrl = "https://api.github.com/repos/vscn-studio/LauncherGo/contributors?per_page=100";
     private const string SponsorApiUrl = "https://vscn.studio/api/afdian/sponsors";
     private const string LaunchStartIconData =
         "M187.2 100.9C174.8 94.1 159.8 94.4 147.6 101.6C135.4 108.8 128 121.9 128 136L128 504C128 518.1 135.5 531.2 147.6 538.4C159.7 545.6 174.8 545.9 187.2 539.1L523.2 355.1C536 348.1 544 334.6 544 320C544 305.4 536 291.9 523.2 284.9L187.2 100.9z";
@@ -4021,11 +4021,11 @@ public partial class LauncherMainWindow : Window
 
     private string T(string zh, string en) => _isChinese ? zh : en;
 
-    private void OnRepositoryClick(object? sender, RoutedEventArgs e) => OpenUrl("https://github.com/TGU-HansJack/LauncherGo");
+    private void OnRepositoryClick(object? sender, RoutedEventArgs e) => OpenUrl("https://github.com/vscn-studio/LauncherGo");
 
-    private void OnFeedbackClick(object? sender, RoutedEventArgs e) => OpenUrl("https://github.com/TGU-HansJack/LauncherGo/issues");
+    private void OnFeedbackClick(object? sender, RoutedEventArgs e) => OpenUrl("https://github.com/vscn-studio/LauncherGo/issues");
 
-    private void OnSponsorClick(object? sender, RoutedEventArgs e) => OpenUrl("https://afdian.com/a/hansjack");
+    private void OnSponsorClick(object? sender, RoutedEventArgs e) => OpenUrl("https://vscn.studio/sponsors");
 
     private void OnMinimizeClick(object? sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
