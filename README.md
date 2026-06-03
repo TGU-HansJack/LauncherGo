@@ -17,7 +17,7 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | 产品阶段 | 第二代开服器，持续开发中 |
 | 目标框架 | `.NET net10.0` |
 | 桌面 UI | `Avalonia 12.0.1` 与 `Semi.Avalonia 12.0.1` |
-| 默认运行平台 | 当前发布工作流打包 `win-x64`，产出自包含安装包、便携单文件包和嵌入 ServerAuth 模组包 |
+| 默认运行平台 | 当前发布工作流打包 `win-x64`，产出自包含安装包、便携单文件包、框架依赖小体积包和嵌入 ServerAuth 模组包 |
 | Vintage Story 服务端版本 | 由官方或第三方服务端索引下载，实例档案按选择的服务端版本运行 |
 | 嵌入认证模组 | `serverauth.dll`，当前服务端侧集成版本常量为 `1.0.0` |
 | 认证模组构建参考 | GitHub Actions 默认使用 Vintage Story `1.22.2` 的服务端 API 引用构建，可在工作流输入中修改 |
@@ -40,7 +40,7 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | 设置 | 服务器设置、外观、网络、高级、关于、赞助者、贡献者 |
 | 日志 | 软件日志文件、控制台日志、自动化运行日志、服务端日志导出 |
 | 国际化 | 中英文资源与运行时语言切换 |
-| 发布 | Windows 打包、预发布、正式发布、嵌入 ServerAuth 模组构建 |
+| 发布 | Windows 打包、框架依赖小体积分发、预发布、正式发布、嵌入 ServerAuth 模组构建 |
 | 赞助者数据 | 通过 `https://vscn.studio/api/afdian/sponsors` 获取，客户端不保存爱发电 USERID 或 Token |
 
 ## 开发团队
@@ -79,7 +79,7 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | `LauncherGo.Domains` | 领域模型、配置模型、枚举与数据结构 |
 | `LauncherGo.Services/EmbeddedMods/VsslAuthMod` | 嵌入式 ServerAuth 模组源码 |
 | `installer` | Inno Setup Windows 安装包脚本 |
-| `.github/workflows` | Windows 打包、Release 发布与嵌入认证模组构建工作流 |
+| `.github/workflows` | Windows 打包、小体积分发打包、Release 发布与嵌入认证模组构建工作流 |
 
 ## 开源项目使用
 
@@ -132,6 +132,16 @@ dotnet watch run --project .\LauncherGo.App\LauncherGo.App.csproj
 ```
 
 如果热重载时程序集被占用，需要先结束正在运行的 `LauncherGo.App` 进程，再重新执行命令。
+
+## 小体积分发打包
+
+```powershell
+dotnet publish .\LauncherGo.App\LauncherGo.App.csproj -c Release -p:PublishProfile=SmallPackage-win-x64 -p:Version=0.0.0 -p:InformationalVersion=0.0.0 -o .\artifacts\publish\small-package
+```
+
+`SmallPackage-win-x64` 发布配置会生成 `framework-dependent` 的 Windows x64 分发目录，并在发布结束后自动移除 `.pdb` 调试符号。
+
+`.github/workflows/windows-small-package.yml` 会把该目录打成 zip，适合发布小于自包含安装包的分发文件。使用这个包时，需要在下载页或说明文件中提示用户先安装 `.NET 10 Desktop Runtime (x64)`。
 
 ## 构建嵌入式 ServerAuth 模组
 

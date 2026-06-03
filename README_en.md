@@ -17,7 +17,7 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 | Product stage | Second-generation server launcher, under active development |
 | Target framework | `.NET net10.0` |
 | Desktop UI | `Avalonia 12.0.1` and `Semi.Avalonia 12.0.1` |
-| Default release platform | The current release workflows package `win-x64` as a self-contained installer, portable single-file package, and embedded ServerAuth mod package |
+| Default release platform | The current release workflows package `win-x64` as a self-contained installer, portable single-file package, framework-dependent small package, and embedded ServerAuth mod package |
 | Vintage Story server version | Server versions are downloaded from the official or configured third-party server catalog, and each profile runs the selected version |
 | Embedded authentication mod | `serverauth.dll`, with the current server-side integration version constant set to `1.0.0` |
 | Auth mod build reference | GitHub Actions defaults to Vintage Story `1.22.2` server API references, and the version can be changed in workflow inputs |
@@ -40,7 +40,7 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 | Settings | Server, appearance, network, advanced, about, sponsors, and contributors pages |
 | Logging | Application log files, console logs, automation runtime logs, and server log export |
 | Internationalization | Chinese and English resources with runtime language switching |
-| Release | Windows packaging, prerelease, official release, and embedded ServerAuth build |
+| Release | Windows packaging, framework-dependent small-package distribution, prerelease, official release, and embedded ServerAuth build |
 | Sponsor data | Fetched from `https://vscn.studio/api/afdian/sponsors`; the client does not store Afdian USERID or Token |
 
 ## Development Team
@@ -79,7 +79,7 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 | `LauncherGo.Domains` | Domain models, configuration models, enums, and data structures |
 | `LauncherGo.Services/EmbeddedMods/VsslAuthMod` | Embedded ServerAuth mod source code |
 | `installer` | Inno Setup script for Windows installer packages |
-| `.github/workflows` | Windows packaging, Release publishing, and embedded authentication mod build workflows |
+| `.github/workflows` | Windows packaging, small-package distribution, Release publishing, and embedded authentication mod build workflows |
 
 ## Open Source Projects Used
 
@@ -132,6 +132,16 @@ dotnet watch run --project .\LauncherGo.App\LauncherGo.App.csproj
 ```
 
 If hot reload fails because assemblies are locked, stop the running `LauncherGo.App` process and run the command again.
+
+## Small Package Publishing
+
+```powershell
+dotnet publish .\LauncherGo.App\LauncherGo.App.csproj -c Release -p:PublishProfile=SmallPackage-win-x64 -p:Version=0.0.0 -p:InformationalVersion=0.0.0 -o .\artifacts\publish\small-package
+```
+
+The `SmallPackage-win-x64` publish profile produces a framework-dependent Windows x64 distribution folder and automatically removes `.pdb` debug symbols after publish.
+
+`.github/workflows/windows-small-package.yml` packages that output as a zip so you can distribute a smaller download than the self-contained installer. Users of this package must install `.NET 10 Desktop Runtime (x64)` before launching the app.
 
 ## Building the Embedded ServerAuth Mod
 

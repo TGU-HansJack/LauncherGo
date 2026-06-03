@@ -35,4 +35,14 @@
     <ProjectReference Include="..\LauncherGo.Services\LauncherGo.Services.csproj" />
     <ProjectReference Include="..\LauncherGo.Ui\LauncherGo.Ui.csproj" />
   </ItemGroup>
+
+  <Target Name="RemovePublishSymbolsFromOutput"
+          AfterTargets="Publish"
+          Condition="'$(StripPublishSymbols)' == 'true' and Exists('$(PublishDir)')">
+    <ItemGroup>
+      <_PublishSymbols Include="$(PublishDir)**\*.pdb" />
+    </ItemGroup>
+
+    <Delete Files="@(_PublishSymbols)" />
+  </Target>
 </Project>

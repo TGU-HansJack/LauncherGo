@@ -36,6 +36,7 @@ jobs:
       EMBEDDED_AUTH_PROJECT: LauncherGo.Services/EmbeddedMods/VsslAuthMod/VsslAuthMod.csproj
       CONFIGURATION: Release
       RUNTIME: win-x64
+      SMALL_PACKAGE_PUBLISH_PROFILE: SmallPackage-win-x64
       VINTAGE_STORY_VERSION: 1.22.2
 
     steps:
@@ -176,6 +177,9 @@ jobs:
       - name: Publish portable single-file
         run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.meta.outputs.version }} -p:InformationalVersion=${{ steps.meta.outputs.version }} -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o artifacts/publish/portable
 
+      - name: Publish framework-dependent small package
+        run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -p:PublishProfile=$env:SMALL_PACKAGE_PUBLISH_PROFILE -p:Version=${{ steps.meta.outputs.version }} -p:InformationalVersion=${{ steps.meta.outputs.version }} -o artifacts/publish/small-package
+
       - name: Copy embedded ServerAuth payload to publish outputs
         shell: pwsh
         run: |
@@ -189,7 +193,7 @@ jobs:
             }
           }
 
-          foreach ($publishRoot in @("artifacts/publish/win-x64", "artifacts/publish/portable")) {
+          foreach ($publishRoot in @("artifacts/publish/win-x64", "artifacts/publish/portable", "artifacts/publish/small-package")) {
             $targetRoot = Join-Path $publishRoot "EmbeddedMods/serverauth"
             New-Item -ItemType Directory -Force -Path $targetRoot | Out-Null
 
@@ -207,13 +211,22 @@ jobs:
             "artifacts/publish/win-x64/EmbeddedMods/serverauth/README.txt",
             "artifacts/publish/portable/EmbeddedMods/serverauth/serverauth.dll",
             "artifacts/publish/portable/EmbeddedMods/serverauth/modinfo.json",
-            "artifacts/publish/portable/EmbeddedMods/serverauth/README.txt"
+            "artifacts/publish/portable/EmbeddedMods/serverauth/README.txt",
+            "artifacts/publish/small-package/EmbeddedMods/serverauth/serverauth.dll",
+            "artifacts/publish/small-package/EmbeddedMods/serverauth/modinfo.json",
+            "artifacts/publish/small-package/EmbeddedMods/serverauth/README.txt"
           )
 
           foreach ($path in $requiredPaths) {
             if (!(Test-Path $path)) {
               throw "Missing embedded ServerAuth payload: $path"
             }
+          }
+
+          $unexpectedSymbols = Get-ChildItem "artifacts/publish/small-package" -Recurse -Filter *.pdb -ErrorAction SilentlyContinue
+          if ($unexpectedSymbols) {
+            $unexpectedList = $unexpectedSymbols | ForEach-Object { $_.FullName }
+            throw "Unexpected .pdb files found in small package publish output:`n$($unexpectedList -join "`n")"
           }
 
       - name: Prepare embedded ServerAuth artifact
@@ -263,6 +276,42 @@ jobs:
 
           Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $zipPath -CompressionLevel Optimal
 
+      - name: Prepare small package artifact
+        shell: pwsh
+        run: |
+          $version = "${{ steps.meta.outputs.version }}"
+          $staging = "artifacts/small-package/LauncherGo-small-package-$version-win-x64"
+          $zipPath = "artifacts/small-package/LauncherGo-small-package-$version-win-x64.zip"
+          $publishRoot = "artifacts/publish/small-package"
+          $runtimeNote = Join-Path $staging "README-runtime.txt"
+
+          if (Test-Path $staging) {
+            Remove-Item -LiteralPath $staging -Recurse -Force
+          }
+
+          New-Item -ItemType Directory -Force -Path $staging | Out-Null
+          Copy-Item -Path (Join-Path $publishRoot "*") -Destination $staging -Recurse -Force
+
+          if (!(Test-Path (Join-Path $staging "LauncherGo.App.exe"))) {
+            throw "Missing small package executable."
+          }
+
+          @'
+LauncherGo Small Package
+
+This build is framework-dependent.
+Install .NET 10 Desktop Runtime (x64) before running LauncherGo.App.exe.
+
+Download:
+https://dotnet.microsoft.com/en-us/download/dotnet/10.0
+'@ | Set-Content -Path $runtimeNote -Encoding ascii
+
+          if (Test-Path $zipPath) {
+            Remove-Item -LiteralPath $zipPath -Force
+          }
+
+          Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $zipPath -CompressionLevel Optimal
+
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
 
@@ -293,4 +342,5 @@ jobs:
           files: |
             artifacts/installer/*.exe
             artifacts/portable/LauncherGo-portable-${{ steps.meta.outputs.version }}-win-x64.zip
+            artifacts/small-package/LauncherGo-small-package-${{ steps.meta.outputs.version }}-win-x64.zip
             artifacts/embedded-mods/*.zip

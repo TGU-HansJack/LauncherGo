@@ -1,0 +1,245 @@
+name: Build Windows Small Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version number (for example: 1.2.3)"
+        required: true
+        default: "0.0.0"
+        type: string
+      vintage_story_version:
+        description: "Vintage Story server version used to build embedded ServerAuth mod"
+        required: true
+        default: "1.22.2"
+        type: string
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-windows-small-package:
+    runs-on: windows-latest
+
+    env:
+      PROJECT_PATH: LauncherGo.App/LauncherGo.App.csproj
+      EMBEDDED_AUTH_PROJECT: LauncherGo.Services/EmbeddedMods/VsslAuthMod/VsslAuthMod.csproj
+      CONFIGURATION: Release
+      PUBLISH_PROFILE: SmallPackage-win-x64
+      VINTAGE_STORY_VERSION: 1.22.2
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Prepare Vintage Story API refs
+        shell: pwsh
+        run: |
+          $inputVsVersion = "${{ inputs.vintage_story_version }}"
+          $vsVersion = if ([string]::IsNullOrWhiteSpace($inputVsVersion)) { $env:VINTAGE_STORY_VERSION } else { $inputVsVersion.Trim() }
+          if ([string]::IsNullOrWhiteSpace($vsVersion)) { throw "VINTAGE_STORY_VERSION is empty." }
+
+          $vsRoot = Join-Path $pwd ".vintagestory-runtime"
+          $apiDll = Join-Path $vsRoot "VintagestoryAPI.dll"
+          $libDll = Join-Path $vsRoot "VintagestoryLib.dll"
+          $protobufDll = Join-Path $vsRoot "Lib/protobuf-net.dll"
+
+          if (!(Test-Path $apiDll) -or !(Test-Path $libDll) -or !(Test-Path $protobufDll)) {
+            New-Item -ItemType Directory -Force -Path $vsRoot | Out-Null
+            $zipPath = Join-Path $vsRoot "vs_server_win-x64_$vsVersion.zip"
+            $downloadUrl = "https://cdn.vintagestory.at/gamefiles/stable/vs_server_win-x64_$vsVersion.zip"
+
+            Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+            try {
+              $requiredEntries = @(
+                "VintagestoryAPI.dll",
+                "VintagestoryLib.dll",
+                "Lib/protobuf-net.dll"
+              )
+
+              foreach ($entryName in $requiredEntries) {
+                $entry = $zip.GetEntry($entryName)
+                if ($null -eq $entry) {
+                  throw "Missing required file '$entryName' in $downloadUrl"
+                }
+
+                $targetPath = Join-Path $vsRoot $entryName
+                $targetDir = Split-Path -Parent $targetPath
+                if (!(Test-Path $targetDir)) {
+                  New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+                }
+
+                $entryStream = $entry.Open()
+                $fileStream = [System.IO.File]::Open($targetPath, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
+                try {
+                  $entryStream.CopyTo($fileStream)
+                }
+                finally {
+                  $entryStream.Dispose()
+                  $fileStream.Dispose()
+                }
+              }
+            }
+            finally {
+              $zip.Dispose()
+            }
+
+            if (Test-Path $zipPath) {
+              Remove-Item -LiteralPath $zipPath -Force
+            }
+          }
+
+          "VINTAGE_STORY_VERSION=$vsVersion" >> $env:GITHUB_ENV
+          "VINTAGE_STORY=$vsRoot" >> $env:GITHUB_ENV
+          Write-Host "Using VINTAGE_STORY=$vsRoot"
+
+      - name: Restore
+        run: dotnet restore LauncherGo.slnx
+
+      - name: Restore embedded ServerAuth mod project
+        run: dotnet restore $env:EMBEDDED_AUTH_PROJECT
+
+      - name: Resolve package version
+        id: resolve_version
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $version = "${{ inputs.version }}"
+          }
+          elseif ("${{ github.ref_type }}" -eq "tag") {
+            $version = "${{ github.ref_name }}"
+          }
+          else {
+            $version = "0.0.0-${{ github.run_number }}"
+          }
+
+          if ($version.StartsWith("v")) { $version = $version.Substring(1) }
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "Resolved version is empty."
+          }
+
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Build embedded ServerAuth mod
+        shell: pwsh
+        run: |
+          dotnet build $env:EMBEDDED_AUTH_PROJECT -c $env:CONFIGURATION --no-restore
+          if ($LASTEXITCODE -ne 0) {
+            throw "Build failed: $env:EMBEDDED_AUTH_PROJECT"
+          }
+
+          $dllPath = "LauncherGo.Services/EmbeddedMods/VsslAuthMod/bin/$env:CONFIGURATION/net10.0/serverauth.dll"
+          $targetDir = "LauncherGo.Services/EmbeddedMods/serverauth"
+          $targetPath = Join-Path $targetDir "serverauth.dll"
+
+          if (!(Test-Path $dllPath)) {
+            throw "Missing built ServerAuth DLL: $dllPath"
+          }
+
+          New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+          Copy-Item -LiteralPath $dllPath -Destination $targetPath -Force
+
+      - name: Publish framework-dependent small package
+        run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -p:PublishProfile=$env:PUBLISH_PROFILE -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -o artifacts/publish/small-package
+
+      - name: Copy embedded ServerAuth payload to publish output
+        shell: pwsh
+        run: |
+          $sourceRoot = "LauncherGo.Services/EmbeddedMods/serverauth"
+          $requiredFiles = @("serverauth.dll", "modinfo.json", "README.txt")
+          $targetRoot = "artifacts/publish/small-package/EmbeddedMods/serverauth"
+
+          foreach ($fileName in $requiredFiles) {
+            $sourcePath = Join-Path $sourceRoot $fileName
+            if (!(Test-Path $sourcePath)) {
+              throw "Missing embedded ServerAuth source payload: $sourcePath"
+            }
+          }
+
+          New-Item -ItemType Directory -Force -Path $targetRoot | Out-Null
+          foreach ($fileName in $requiredFiles) {
+            Copy-Item -LiteralPath (Join-Path $sourceRoot $fileName) -Destination (Join-Path $targetRoot $fileName) -Force
+          }
+
+      - name: Verify small package publish output
+        shell: pwsh
+        run: |
+          $requiredPaths = @(
+            "artifacts/publish/small-package/LauncherGo.App.exe",
+            "artifacts/publish/small-package/LauncherGo.App.deps.json",
+            "artifacts/publish/small-package/LauncherGo.App.runtimeconfig.json",
+            "artifacts/publish/small-package/EmbeddedMods/serverauth/serverauth.dll",
+            "artifacts/publish/small-package/EmbeddedMods/serverauth/modinfo.json",
+            "artifacts/publish/small-package/EmbeddedMods/serverauth/README.txt"
+          )
+
+          foreach ($path in $requiredPaths) {
+            if (!(Test-Path $path)) {
+              throw "Missing small package payload: $path"
+            }
+          }
+
+          $unexpectedSymbols = Get-ChildItem "artifacts/publish/small-package" -Recurse -Filter *.pdb -ErrorAction SilentlyContinue
+          if ($unexpectedSymbols) {
+            $unexpectedList = $unexpectedSymbols | ForEach-Object { $_.FullName }
+            throw "Unexpected .pdb files found in publish output:`n$($unexpectedList -join "`n")"
+          }
+
+      - name: Prepare small package artifact
+        shell: pwsh
+        run: |
+          $version = "${{ steps.resolve_version.outputs.value }}"
+          $publishRoot = "artifacts/publish/small-package"
+          $staging = "artifacts/small-package/LauncherGo-small-package-$version-win-x64"
+          $zipPath = "artifacts/small-package/LauncherGo-small-package-$version-win-x64.zip"
+          $runtimeNote = Join-Path $staging "README-runtime.txt"
+
+          if (Test-Path $staging) {
+            Remove-Item -LiteralPath $staging -Recurse -Force
+          }
+
+          New-Item -ItemType Directory -Force -Path $staging | Out-Null
+          Copy-Item -Path (Join-Path $publishRoot "*") -Destination $staging -Recurse -Force
+
+          @'
+LauncherGo Small Package
+
+This build is framework-dependent.
+Install .NET 10 Desktop Runtime (x64) before running LauncherGo.App.exe.
+
+Download:
+https://dotnet.microsoft.com/en-us/download/dotnet/10.0
+'@ | Set-Content -Path $runtimeNote -Encoding ascii
+
+          if (Test-Path $zipPath) {
+            Remove-Item -LiteralPath $zipPath -Force
+          }
+
+          Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $zipPath -CompressionLevel Optimal
+
+      - name: Report package size
+        shell: pwsh
+        run: |
+          $publishRoot = "artifacts/publish/small-package"
+          $zipPath = "artifacts/small-package/LauncherGo-small-package-${{ steps.resolve_version.outputs.value }}-win-x64.zip"
+
+          $publishFiles = Get-ChildItem $publishRoot -Recurse -File
+          $publishSize = ($publishFiles | Measure-Object Length -Sum).Sum
+          $zipFile = Get-Item $zipPath
+
+          Write-Host ("Publish size: {0:N2} MB" -f ($publishSize / 1MB))
+          Write-Host ("Zip size: {0:N2} MB" -f ($zipFile.Length / 1MB))
+
+      - name: Upload small package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LauncherGo-small-package-${{ steps.resolve_version.outputs.value }}-win-x64
+          path: artifacts/small-package/LauncherGo-small-package-${{ steps.resolve_version.outputs.value }}-win-x64.zip
+          if-no-files-found: error
