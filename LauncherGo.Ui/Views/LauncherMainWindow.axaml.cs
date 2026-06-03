@@ -34,7 +34,8 @@ public partial class LauncherMainWindow : Window
 {
     private const int RealtimeRangeSeconds = 60;
     private const int NetworkRangeCount = 144;
-    private const int MaxConsoleLines = 3000;
+    private const int MaxConsoleLines = 800;
+    private const double ConsoleAutoScrollThreshold = 12;
     private const int RunningServerLogReplayGraceSeconds = 5;
     private const double ChartWidth = 640;
     private const double ChartHeight = 248;
@@ -213,6 +214,7 @@ public partial class LauncherMainWindow : Window
     private bool _aboutMarkdownLoaded;
     private bool _contributorsLoaded;
     private bool _sponsorsLoaded;
+    private bool _consoleAutoScroll = true;
     private bool _isFrpRunning;
     private bool _isThirdPartyFrpcRunning;
     private bool _isTogglingFrp;
@@ -709,6 +711,7 @@ public partial class LauncherMainWindow : Window
     private void InitializeCollections()
     {
         ConsoleOutputTextBlock.Text = string.Empty;
+        _consoleAutoScroll = true;
         RefreshQuickCommandItems(_preferencesService.Load().QuickCommands);
         ProfilesListBox.ItemsSource = _profileItems;
         SavesListBox.ItemsSource = _saveItems;
@@ -3588,13 +3591,15 @@ public partial class LauncherMainWindow : Window
 
     private void OnServerOutputReceived(object? sender, string line)
     {
+        if (string.IsNullOrWhiteSpace(line)
+            || IsSystemConsoleLine(line)
+            || ShouldSuppressConsoleLineForUi(line))
+        {
+            return;
+        }
+
         Dispatcher.UIThread.Post(() =>
         {
-            if (IsSystemConsoleLine(line))
-            {
-                return;
-            }
-
             AppendConsoleLine(line);
             TrackPlayerEventText(line);
         });
@@ -3683,16 +3688,23 @@ public partial class LauncherMainWindow : Window
 
     private void OnLogTailLineReceived(object? sender, string line)
     {
+        if (string.IsNullOrWhiteSpace(line)
+            || IsSystemConsoleLine(line)
+            || ShouldSuppressConsoleLineForUi(line))
+        {
+            return;
+        }
+
         Dispatcher.UIThread.Post(() =>
         {
-            if (IsSystemConsoleLine(line))
-            {
-                return;
-            }
-
             AppendConsoleLine($"[log] {line}");
             TrackPlayerEventText(line);
         });
+    }
+
+    private void OnConsoleOutputScrollChanged(object? sender, ScrollChangedEventArgs e)
+    {
+        _consoleAutoScroll = IsConsoleScrolledToBottom();
     }
 
     private void OnAutomationRuntimeLogReceived(object? sender, string line)
@@ -3752,12 +3764,23 @@ public partial class LauncherMainWindow : Window
 
     private void AppendConsoleLine(string line)
     {
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            return;
+        }
+
         if (IsSystemConsoleLine(line))
         {
             ShowToast(line);
             return;
         }
 
+        if (ShouldSuppressConsoleLineForUi(line))
+        {
+            return;
+        }
+
+        var shouldAutoScroll = _consoleAutoScroll || IsConsoleScrolledToBottom();
         _consoleLines.Add(line);
         while (_consoleLines.Count > MaxConsoleLines)
         {
@@ -3766,13 +3789,106 @@ public partial class LauncherMainWindow : Window
 
         var text = string.Join(Environment.NewLine, _consoleLines);
         ConsoleOutputTextBlock.Text = text;
-        ConsoleOutputScrollViewer.ScrollToEnd();
+        if (shouldAutoScroll)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                ConsoleOutputScrollViewer.ScrollToEnd();
+                _consoleAutoScroll = true;
+            }, DispatcherPriority.Background);
+        }
     }
 
     private static bool IsSystemConsoleLine(string? line)
     {
         return !string.IsNullOrWhiteSpace(line) &&
                line.TrimStart().StartsWith("[system]", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ShouldSuppressConsoleLineForUi(string? line)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            return false;
+        }
+
+        var normalized = StripLauncherConsolePrefix(line.Trim());
+        if (normalized.Length == 0)
+        {
+            return false;
+        }
+
+        var lower = normalized.ToLowerInvariant();
+
+        if (lower.Contains("[audit]", StringComparison.Ordinal))
+        {
+            if (lower.Contains("shift clicked slot", StringComparison.Ordinal)
+                || lower.Contains("left clicked slot", StringComparison.Ordinal)
+                || lower.Contains("right clicked slot", StringComparison.Ordinal)
+                || lower.Contains("middle clicked slot", StringComparison.Ordinal)
+                || lower.Contains("slot ", StringComparison.Ordinal) && lower.Contains(" in ", StringComparison.Ordinal)
+                || lower.Contains("before: (", StringComparison.Ordinal)
+                || lower.Contains("after: (", StringComparison.Ordinal)
+                || lower.Contains("harvestablecontents-", StringComparison.Ordinal)
+                || lower.Contains("backpack-", StringComparison.Ordinal)
+                || lower.Contains("hotbar-", StringComparison.Ordinal)
+                || lower.Contains("ground-", StringComparison.Ordinal)
+                || lower.Contains("mouse-", StringComparison.Ordinal)
+                || lower.Contains(" killed game:", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        if (lower.Contains("[talk]", StringComparison.Ordinal)
+            || lower.Contains("[chat]", StringComparison.Ordinal)
+            || ConsoleChatLineRegex().IsMatch(normalized)
+            || ConsoleNotificationLineRegex().IsMatch(normalized)
+            || ConsoleJoinLeaveLineRegex().IsMatch(normalized)
+            || ConsoleDeathLineRegex().IsMatch(normalized)
+            || ConsoleAdminLineRegex().IsMatch(normalized)
+            || ConsoleLifecycleLineRegex().IsMatch(normalized)
+            || ConsoleSpecialEventLineRegex().IsMatch(normalized))
+        {
+            return false;
+        }
+
+        if (lower.Contains("[warning]", StringComparison.Ordinal)
+            || lower.Contains("[error]", StringComparison.Ordinal)
+            || lower.Contains("exception", StringComparison.Ordinal)
+            || lower.Contains("fatal", StringComparison.Ordinal)
+            || lower.Contains("unhandled", StringComparison.Ordinal)
+            || lower.Contains("stack trace", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (lower.Contains(" killed ", StringComparison.Ordinal)
+            && !lower.Contains(" killed game:", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static string StripLauncherConsolePrefix(string line)
+    {
+        const string prefix = "[log]";
+        return line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            ? line[prefix.Length..].TrimStart()
+            : line;
+    }
+
+    private bool IsConsoleScrolledToBottom()
+    {
+        var scrollableHeight = Math.Max(0, ConsoleOutputScrollViewer.Extent.Height - ConsoleOutputScrollViewer.Viewport.Height);
+        if (scrollableHeight <= ConsoleAutoScrollThreshold)
+        {
+            return true;
+        }
+
+        return scrollableHeight - ConsoleOutputScrollViewer.Offset.Y <= ConsoleAutoScrollThreshold;
     }
 
     private void TrackPlayerEventText(string line)
@@ -6412,7 +6528,28 @@ public partial class LauncherMainWindow : Window
         return nice * magnitude;
     }
 
-    [GeneratedRegex(@"joins\.|left\.|leaves\.|离开|进入|加入|玩家", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\[(?:Talk|Chat)\]|<[^>]+>\s*.+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ConsoleChatLineRegex();
+
+    [GeneratedRegex(@"\[(?:Server\s+)?Notification\]|服务器通知|message to all in group", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ConsoleNotificationLineRegex();
+
+    [GeneratedRegex(@"joins\.|joined\.|left\.|leaves\.|加入了服务器|离开了服务器|进入服务器|离开服务器|加入游戏|离开游戏", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ConsoleJoinLeaveLineRegex();
+
+    [GeneratedRegex(@"died|has died|death message|death reason|fell from a high place|fell to (?:his|her|their) death|plummeted|已死亡|死亡消息|死因|摔死|从高处坠落而亡|坠落身亡", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ConsoleDeathLineRegex();
+
+    [GeneratedRegex(@"kick(?:ed|ing)?|ban(?:ned|ning)?|whitelist|auth(?:entication)?.*(?:failed|failure|required|denied)|login.*failed|rejected|denied|白名单|认证失败|登录失败|踢出|封禁", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ConsoleAdminLineRegex();
+
+    [GeneratedRegex(@"start(?:ing|ed)?|stop(?:ping|ped)?|shut(?:ting)?\s*down|shutdown|crash(?:ed)?|sav(?:e|ed|ing)|backup|正在保存|保存完成|备份完成|备份失败", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ConsoleLifecycleLineRegex();
+
+    [GeneratedRegex(@"temporal|rift|storm|boss|特殊事件|时空|裂隙|风暴|首领", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ConsoleSpecialEventLineRegex();
+
+    [GeneratedRegex(@"joins\.|left\.|leaves\.|died|死亡|摔死|killed|离开|进入|加入|玩家", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex PlayerEventHintRegex();
 
     private enum MainTab

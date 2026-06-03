@@ -9,8 +9,8 @@ namespace LauncherGo.Services;
 /// </summary>
 public class LogTailService : ILogTailService
 {
-    private const int MaxReplayLogBytes = 512 * 1024;
-    private const int MaxReplayLogLines = 500;
+    private const int MaxReplayLogBytes = 256 * 1024;
+    private const int MaxReplayLogLines = 200;
     private CancellationTokenSource? _cts;
     private Task? _tailTask;
     private IReadOnlyList<string> _trackedLogPaths = [];
