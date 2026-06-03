@@ -208,15 +208,16 @@ jobs:
           New-Item -ItemType Directory -Force -Path $staging | Out-Null
           Copy-Item -Path (Join-Path $publishRoot "*") -Destination $staging -Recurse -Force
 
-          @'
-LauncherGo Small Package
-
-This build is framework-dependent.
-Install .NET 10 Desktop Runtime (x64) before running LauncherGo.App.exe.
-
-Download:
-https://dotnet.microsoft.com/en-us/download/dotnet/10.0
-'@ | Set-Content -Path $runtimeNote -Encoding ascii
+          $runtimeMessage = @(
+            "LauncherGo Small Package",
+            "",
+            "This build is framework-dependent.",
+            "Install .NET 10 Desktop Runtime (x64) before running LauncherGo.App.exe.",
+            "",
+            "Download:",
+            "https://dotnet.microsoft.com/en-us/download/dotnet/10.0"
+          )
+          $runtimeMessage | Set-Content -Path $runtimeNote -Encoding ascii
 
           if (Test-Path $zipPath) {
             Remove-Item -LiteralPath $zipPath -Force
