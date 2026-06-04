@@ -147,8 +147,8 @@ public partial class ServerProcessService : IServerProcessService
             Directory.CreateDirectory(logsPath);
             await EnsureBuiltInModsBeforeStartAsync(profile, cancellationToken);
 
-            // 自动修复旧版 Launcher 生成的极简配置（会导致 suplayer 组缺失并秒退）。
-            ServerConfigBootstrapper.EnsureGenerated(installPath, profile.DirectoryPath);
+            // 缺失配置时自动生成；已有配置仅做必要的非破坏性归一化。
+            ServerConfigBootstrapper.EnsureGenerated(installPath, profile);
             RepairLaunchModPaths(profile);
             PrepareSaveFileForStart(profile);
             SqliteConnection.ClearAllPools();
@@ -214,18 +214,31 @@ public partial class ServerProcessService : IServerProcessService
 
             var modsPath = WorkspacePathHelper.GetProfileModsPath(profile.DirectoryPath);
             Directory.CreateDirectory(modsPath);
-
-            var raw = File.ReadAllText(configPath);
-            if (JsonNode.Parse(raw) is not JsonObject root)
-                return;
-
-            root["ModPaths"] = new JsonArray
+            var normalizedModsPath = NormalizePath(modsPath);
+            ServerConfigFileIO.UpdateTextFile(configPath, currentJson =>
             {
-                "Mods",
-                NormalizePath(modsPath)
-            };
+                if (string.IsNullOrWhiteSpace(currentJson) ||
+                    JsonNode.Parse(currentJson) is not JsonObject root)
+                {
+                    return null;
+                }
 
-            File.WriteAllText(configPath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+                if (root["ModPaths"] is JsonArray currentPaths &&
+                    currentPaths.Count == 2 &&
+                    string.Equals(currentPaths[0]?.GetValue<string>(), "Mods", StringComparison.Ordinal) &&
+                    string.Equals(currentPaths[1]?.GetValue<string>(), normalizedModsPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+
+                root["ModPaths"] = new JsonArray
+                {
+                    "Mods",
+                    normalizedModsPath
+                };
+
+                return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            });
         }
         catch
         {

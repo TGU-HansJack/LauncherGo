@@ -9,6 +9,11 @@ namespace LauncherGo.Services;
 
 internal static class ServerConfigBootstrapper
 {
+    private static readonly JsonSerializerOptions JsonWriteOptions = new()
+    {
+        WriteIndented = true
+    };
+
     public static void EnsureGenerated(string installPath, string profileDataPath, bool forceRegenerate = false)
     {
         var saveDirectory = Path.Combine(profileDataPath, "Saves");
@@ -19,14 +24,15 @@ internal static class ServerConfigBootstrapper
             DirectoryPath = profileDataPath,
             SaveDirectory = saveDirectory,
             ActiveSaveFile = Path.Combine(saveDirectory, "default.vcdbs")
-        });
+        }, forceRegenerate);
     }
 
-    public static void EnsureGenerated(string installPath, InstanceProfile profile)
+    public static void EnsureGenerated(string installPath, InstanceProfile profile, bool forceRegenerate = false)
     {
         var configPath = Path.Combine(profile.DirectoryPath, "serverconfig.json");
-        if (!NeedsRegeneration(configPath))
+        if (File.Exists(configPath) && !forceRegenerate)
         {
+            ApplyLocalizedLanguage(configPath);
             ApplySaveLocation(configPath, profile.ActiveSaveFile);
             return;
         }
@@ -97,20 +103,30 @@ internal static class ServerConfigBootstrapper
 
         try
         {
-            var root = JsonNode.Parse(File.ReadAllText(configPath)) as JsonObject;
-            if (root is null)
+            var normalizedSavePath = Path.GetFullPath(saveFilePath);
+            ServerConfigFileIO.UpdateTextFile(configPath, currentJson =>
             {
-                return;
-            }
+                if (string.IsNullOrWhiteSpace(currentJson) ||
+                    JsonNode.Parse(currentJson) is not JsonObject root)
+                {
+                    return null;
+                }
 
-            if (root["WorldConfig"] is not JsonObject worldConfig)
-            {
-                worldConfig = [];
-                root["WorldConfig"] = worldConfig;
-            }
+                if (root["WorldConfig"] is not JsonObject worldConfig)
+                {
+                    worldConfig = [];
+                    root["WorldConfig"] = worldConfig;
+                }
 
-            worldConfig["SaveFileLocation"] = Path.GetFullPath(saveFilePath);
-            File.WriteAllText(configPath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+                var currentSavePath = worldConfig["SaveFileLocation"]?.GetValue<string>() ?? string.Empty;
+                if (normalizedSavePath.Equals(currentSavePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+
+                worldConfig["SaveFileLocation"] = normalizedSavePath;
+                return root.ToJsonString(JsonWriteOptions);
+            });
         }
         catch
         {
@@ -118,51 +134,37 @@ internal static class ServerConfigBootstrapper
         }
     }
 
-    private static bool NeedsRegeneration(string configPath)
-    {
-        if (!File.Exists(configPath))
-        {
-            return true;
-        }
-
-        try
-        {
-            var json = File.ReadAllText(configPath);
-            if (json.Length < 1500)
-            {
-                return true;
-            }
-
-            var root = JsonNode.Parse(json) as JsonObject;
-            return root is null || !root.ContainsKey("WorldConfig");
-        }
-        catch
-        {
-            return true;
-        }
-    }
-
     private static void ApplyLocalizedLanguage(string configPath)
     {
         try
         {
-            var root = JsonNode.Parse(File.ReadAllText(configPath)) as JsonObject;
-            if (root is null)
-            {
-                return;
-            }
-
-            var current = root["ServerLanguage"]?.GetValue<string>() ?? string.Empty;
             var language = CultureInfo.CurrentUICulture.Name.StartsWith("zh", StringComparison.OrdinalIgnoreCase)
                 ? "zh-cn"
                 : "en";
-            if (string.IsNullOrWhiteSpace(current) ||
-                language.Equals("zh-cn", StringComparison.OrdinalIgnoreCase) &&
-                current.Equals("en", StringComparison.OrdinalIgnoreCase))
+            ServerConfigFileIO.UpdateTextFile(configPath, currentJson =>
             {
+                if (string.IsNullOrWhiteSpace(currentJson) ||
+                    JsonNode.Parse(currentJson) is not JsonObject root)
+                {
+                    return null;
+                }
+
+                var current = root["ServerLanguage"]?.GetValue<string>() ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(current) &&
+                    (!language.Equals("zh-cn", StringComparison.OrdinalIgnoreCase) ||
+                     !current.Equals("en", StringComparison.OrdinalIgnoreCase)))
+                {
+                    return null;
+                }
+
+                if (language.Equals(current, StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+
                 root["ServerLanguage"] = language;
-                File.WriteAllText(configPath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
-            }
+                return root.ToJsonString(JsonWriteOptions);
+            });
         }
         catch
         {

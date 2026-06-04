@@ -281,9 +281,7 @@ public sealed class InstanceServerConfigService(ILauncherPreferencesService pref
 
         if (!File.Exists(configPath))
         {
-            var defaultRoot = BuildDefaultRoot(profile);
-            await File.WriteAllTextAsync(configPath, defaultRoot.ToJsonString(JsonWriteOptions), cancellationToken);
-            return defaultRoot;
+            return BuildDefaultRoot(profile);
         }
 
         var parsedRoot = await TryParseRootAsync(configPath, cancellationToken);
@@ -292,14 +290,18 @@ public sealed class InstanceServerConfigService(ILauncherPreferencesService pref
             return parsedRoot;
         }
 
-        var fallbackRoot = BuildDefaultRoot(profile);
-        await File.WriteAllTextAsync(configPath, fallbackRoot.ToJsonString(JsonWriteOptions), cancellationToken);
-        return fallbackRoot;
+        throw new InvalidOperationException($"配置文件无法解析，已保留原文件未覆盖：{configPath}");
     }
 
     private async Task EnsureGeneratedConfigAsync(InstanceProfile profile, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+
+        var configPath = LauncherWorkspacePathHelper.ProfileConfigPath(profile);
+        if (File.Exists(configPath))
+        {
+            return;
+        }
 
         var lockKey = string.IsNullOrWhiteSpace(profile.DirectoryPath) ? profile.Id : profile.DirectoryPath;
         var gate = EnsureConfigLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
@@ -307,6 +309,11 @@ public sealed class InstanceServerConfigService(ILauncherPreferencesService pref
         await gate.WaitAsync(cancellationToken);
         try
         {
+            if (File.Exists(configPath))
+            {
+                return;
+            }
+
             await Task.Run(() =>
             {
                 try
@@ -347,8 +354,10 @@ public sealed class InstanceServerConfigService(ILauncherPreferencesService pref
     private static async Task SaveRootAsync(InstanceProfile profile, JsonObject root, CancellationToken cancellationToken)
     {
         var configPath = LauncherWorkspacePathHelper.ProfileConfigPath(profile);
-        Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
-        await File.WriteAllTextAsync(configPath, root.ToJsonString(JsonWriteOptions), cancellationToken);
+        await ServerConfigFileIO.WriteAllTextAtomicAsync(
+            configPath,
+            root.ToJsonString(JsonWriteOptions),
+            cancellationToken);
     }
 
     private static JsonObject BuildDefaultRoot(InstanceProfile profile)
