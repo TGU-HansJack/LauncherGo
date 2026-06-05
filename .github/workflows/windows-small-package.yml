@@ -48,8 +48,9 @@ jobs:
           $apiDll = Join-Path $vsRoot "VintagestoryAPI.dll"
           $libDll = Join-Path $vsRoot "VintagestoryLib.dll"
           $protobufDll = Join-Path $vsRoot "Lib/protobuf-net.dll"
+          $survivalDll = Join-Path $vsRoot "Mods/VSSurvivalMod.dll"
 
-          if (!(Test-Path $apiDll) -or !(Test-Path $libDll) -or !(Test-Path $protobufDll)) {
+          if (!(Test-Path $apiDll) -or !(Test-Path $libDll) -or !(Test-Path $protobufDll) -or !(Test-Path $survivalDll)) {
             New-Item -ItemType Directory -Force -Path $vsRoot | Out-Null
             $zipPath = Join-Path $vsRoot "vs_server_win-x64_$vsVersion.zip"
             $downloadUrl = "https://cdn.vintagestory.at/gamefiles/stable/vs_server_win-x64_$vsVersion.zip"
@@ -61,7 +62,8 @@ jobs:
               $requiredEntries = @(
                 "VintagestoryAPI.dll",
                 "VintagestoryLib.dll",
-                "Lib/protobuf-net.dll"
+                "Lib/protobuf-net.dll",
+                "Mods/VSSurvivalMod.dll"
               )
 
               foreach ($entryName in $requiredEntries) {
@@ -136,7 +138,7 @@ jobs:
           }
 
           $dllPath = "LauncherGo.Services/EmbeddedMods/VsslAuthMod/bin/$env:CONFIGURATION/net10.0/serverauth.dll"
-          $targetDir = "LauncherGo.Services/EmbeddedMods/serverauth"
+          $targetDir = "LauncherGo.Services/EmbeddedMods/launchergoauth"
           $targetPath = Join-Path $targetDir "serverauth.dll"
 
           if (!(Test-Path $dllPath)) {
@@ -152,9 +154,9 @@ jobs:
       - name: Copy embedded ServerAuth payload to publish output
         shell: pwsh
         run: |
-          $sourceRoot = "LauncherGo.Services/EmbeddedMods/serverauth"
+          $sourceRoot = "LauncherGo.Services/EmbeddedMods/launchergoauth"
           $requiredFiles = @("serverauth.dll", "modinfo.json", "README.txt")
-          $targetRoot = "artifacts/publish/small-package/EmbeddedMods/serverauth"
+          $targetRoot = "artifacts/publish/small-package/EmbeddedMods/launchergoauth"
 
           foreach ($fileName in $requiredFiles) {
             $sourcePath = Join-Path $sourceRoot $fileName
@@ -175,9 +177,9 @@ jobs:
             "artifacts/publish/small-package/LauncherGo.App.exe",
             "artifacts/publish/small-package/LauncherGo.App.deps.json",
             "artifacts/publish/small-package/LauncherGo.App.runtimeconfig.json",
-            "artifacts/publish/small-package/EmbeddedMods/serverauth/serverauth.dll",
-            "artifacts/publish/small-package/EmbeddedMods/serverauth/modinfo.json",
-            "artifacts/publish/small-package/EmbeddedMods/serverauth/README.txt"
+            "artifacts/publish/small-package/EmbeddedMods/launchergoauth/serverauth.dll",
+            "artifacts/publish/small-package/EmbeddedMods/launchergoauth/modinfo.json",
+            "artifacts/publish/small-package/EmbeddedMods/launchergoauth/README.txt"
           )
 
           foreach ($path in $requiredPaths) {

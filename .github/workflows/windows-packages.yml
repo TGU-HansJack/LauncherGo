@@ -48,8 +48,9 @@ jobs:
           $apiDll = Join-Path $vsRoot "VintagestoryAPI.dll"
           $libDll = Join-Path $vsRoot "VintagestoryLib.dll"
           $protobufDll = Join-Path $vsRoot "Lib/protobuf-net.dll"
+          $survivalDll = Join-Path $vsRoot "Mods/VSSurvivalMod.dll"
 
-          if (!(Test-Path $apiDll) -or !(Test-Path $libDll) -or !(Test-Path $protobufDll)) {
+          if (!(Test-Path $apiDll) -or !(Test-Path $libDll) -or !(Test-Path $protobufDll) -or !(Test-Path $survivalDll)) {
             New-Item -ItemType Directory -Force -Path $vsRoot | Out-Null
             $zipPath = Join-Path $vsRoot "vs_server_win-x64_$vsVersion.zip"
             $downloadUrl = "https://cdn.vintagestory.at/gamefiles/stable/vs_server_win-x64_$vsVersion.zip"
@@ -61,7 +62,8 @@ jobs:
               $requiredEntries = @(
                 "VintagestoryAPI.dll",
                 "VintagestoryLib.dll",
-                "Lib/protobuf-net.dll"
+                "Lib/protobuf-net.dll",
+                "Mods/VSSurvivalMod.dll"
               )
 
               foreach ($entryName in $requiredEntries) {
@@ -136,7 +138,7 @@ jobs:
           }
 
           $dllPath = "LauncherGo.Services/EmbeddedMods/VsslAuthMod/bin/$env:CONFIGURATION/net10.0/serverauth.dll"
-          $targetDir = "LauncherGo.Services/EmbeddedMods/serverauth"
+          $targetDir = "LauncherGo.Services/EmbeddedMods/launchergoauth"
           $targetPath = Join-Path $targetDir "serverauth.dll"
 
           if (!(Test-Path $dllPath)) {
@@ -155,7 +157,7 @@ jobs:
       - name: Copy embedded ServerAuth payload to publish outputs
         shell: pwsh
         run: |
-          $sourceRoot = "LauncherGo.Services/EmbeddedMods/serverauth"
+          $sourceRoot = "LauncherGo.Services/EmbeddedMods/launchergoauth"
           $requiredFiles = @("serverauth.dll", "modinfo.json", "README.txt")
 
           foreach ($fileName in $requiredFiles) {
@@ -166,7 +168,7 @@ jobs:
           }
 
           foreach ($publishRoot in @("artifacts/publish/win-x64", "artifacts/publish/portable")) {
-            $targetRoot = Join-Path $publishRoot "EmbeddedMods/serverauth"
+            $targetRoot = Join-Path $publishRoot "EmbeddedMods/launchergoauth"
             New-Item -ItemType Directory -Force -Path $targetRoot | Out-Null
 
             foreach ($fileName in $requiredFiles) {
@@ -178,12 +180,12 @@ jobs:
         shell: pwsh
         run: |
           $requiredPaths = @(
-            "artifacts/publish/win-x64/EmbeddedMods/serverauth/serverauth.dll",
-            "artifacts/publish/win-x64/EmbeddedMods/serverauth/modinfo.json",
-            "artifacts/publish/win-x64/EmbeddedMods/serverauth/README.txt",
-            "artifacts/publish/portable/EmbeddedMods/serverauth/serverauth.dll",
-            "artifacts/publish/portable/EmbeddedMods/serverauth/modinfo.json",
-            "artifacts/publish/portable/EmbeddedMods/serverauth/README.txt"
+            "artifacts/publish/win-x64/EmbeddedMods/launchergoauth/serverauth.dll",
+            "artifacts/publish/win-x64/EmbeddedMods/launchergoauth/modinfo.json",
+            "artifacts/publish/win-x64/EmbeddedMods/launchergoauth/README.txt",
+            "artifacts/publish/portable/EmbeddedMods/launchergoauth/serverauth.dll",
+            "artifacts/publish/portable/EmbeddedMods/launchergoauth/modinfo.json",
+            "artifacts/publish/portable/EmbeddedMods/launchergoauth/README.txt"
           )
 
           foreach ($path in $requiredPaths) {
@@ -195,9 +197,9 @@ jobs:
       - name: Prepare embedded ServerAuth artifact
         shell: pwsh
         run: |
-          $modRoot = "artifacts/publish/win-x64/EmbeddedMods/serverauth"
+          $modRoot = "artifacts/publish/win-x64/EmbeddedMods/launchergoauth"
           $outputRoot = "artifacts/embedded-mods"
-          $zipPath = Join-Path $outputRoot "serverauth.zip"
+          $zipPath = Join-Path $outputRoot "launchergoauth.zip"
 
           New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
 

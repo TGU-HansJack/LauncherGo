@@ -36,8 +36,9 @@ jobs:
           $apiDll = Join-Path $vsRoot "VintagestoryAPI.dll"
           $libDll = Join-Path $vsRoot "VintagestoryLib.dll"
           $protobufDll = Join-Path $vsRoot "Lib/protobuf-net.dll"
+          $survivalDll = Join-Path $vsRoot "Mods/VSSurvivalMod.dll"
 
-          if (!(Test-Path $apiDll) -or !(Test-Path $libDll) -or !(Test-Path $protobufDll)) {
+          if (!(Test-Path $apiDll) -or !(Test-Path $libDll) -or !(Test-Path $protobufDll) -or !(Test-Path $survivalDll)) {
             New-Item -ItemType Directory -Force -Path $vsRoot | Out-Null
             $zipPath = Join-Path $vsRoot "vs_server_win-x64_$vsVersion.zip"
             $downloadUrl = "https://cdn.vintagestory.at/gamefiles/stable/vs_server_win-x64_$vsVersion.zip"
@@ -46,7 +47,7 @@ jobs:
             Add-Type -AssemblyName System.IO.Compression.FileSystem
             $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
             try {
-              foreach ($entryName in @("VintagestoryAPI.dll", "VintagestoryLib.dll", "Lib/protobuf-net.dll")) {
+              foreach ($entryName in @("VintagestoryAPI.dll", "VintagestoryLib.dll", "Lib/protobuf-net.dll", "Mods/VSSurvivalMod.dll")) {
                 $entry = $zip.GetEntry($entryName)
                 if ($null -eq $entry) { throw "Missing required file '$entryName' in $downloadUrl" }
 
@@ -82,9 +83,9 @@ jobs:
         shell: pwsh
         run: |
           $projectDir = "LauncherGo.Services/EmbeddedMods/VsslAuthMod"
-          $metadataDir = "LauncherGo.Services/EmbeddedMods/serverauth"
-          $outputDir = "artifacts/embedded-mods/serverauth"
-          $zipPath = "artifacts/embedded-mods/serverauth.zip"
+          $metadataDir = "LauncherGo.Services/EmbeddedMods/launchergoauth"
+          $outputDir = "artifacts/embedded-mods/launchergoauth"
+          $zipPath = "artifacts/embedded-mods/launchergoauth.zip"
           $dllPath = Join-Path $projectDir "bin/$env:CONFIGURATION/net10.0/serverauth.dll"
 
           if (!(Test-Path $dllPath)) { throw "Missing built DLL: $dllPath" }
@@ -102,6 +103,6 @@ jobs:
       - name: Upload auth mod artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LauncherGo-serverauth
-          path: artifacts/embedded-mods/serverauth.zip
+          name: LauncherGo-launchergoauth
+          path: artifacts/embedded-mods/launchergoauth.zip
           if-no-files-found: error
