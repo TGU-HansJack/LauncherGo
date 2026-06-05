@@ -8,6 +8,8 @@ using Vintagestory.API.Config;
 using Vintagestory.API.Datastructures;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
+using Vintagestory.GameContent;
+using Vintagestory.API.Util;
 using VsslAuth.Network;
 
 namespace VsslAuth.Server;
@@ -16,6 +18,8 @@ public sealed class VsslAuthServerSystem : ModSystem
 {
     private const string SettingsFileName = "serverauth.json";
     private const string StoreRelativePath = "ServerAuth/players.json";
+    private const string CharacterSelectionChannelName = "charselection";
+    private const string DeferredCharacterSelectionModDataKey = "serverauth.deferCharacterSelection";
     private const int MinPasswordLength = 6;
     private const int MaxPasswordLength = 128;
     private const int DiscourseChallengeMinutes = 10;
@@ -47,7 +51,7 @@ public sealed class VsslAuthServerSystem : ModSystem
 
     public override double ExecuteOrder()
     {
-        return 0.12;
+        return 0.0011;
     }
 
     public override void StartServerSide(ICoreServerAPI api)
@@ -79,6 +83,7 @@ public sealed class VsslAuthServerSystem : ModSystem
             .WithArgs(api.ChatCommands.Parsers.OptionalAll("args"))
             .HandleWith(CmdServerAuthAdmin);
 
+        api.Event.PlayerJoin += OnPlayerJoin;
         api.Event.PlayerNowPlaying += OnPlayerNowPlaying;
         api.Event.PlayerDisconnect += OnPlayerDisconnect;
         api.Event.PlayerChat += OnPlayerChat;
@@ -155,7 +160,7 @@ public sealed class VsslAuthServerSystem : ModSystem
             SaveStoreUnsafe();
         }
 
-        Authenticate(player, "注册成功，已通过认证。");
+        Authenticate(player, "注册成功，已通过认证。", triggeredByRegistration: true);
         return TextCommandResult.Success("注册成功，已通过认证。", null);
     }
 
@@ -258,6 +263,26 @@ public sealed class VsslAuthServerSystem : ModSystem
                     return TextCommandResult.Error("Unknown ServerAuth admin command.", "");
             }
         }
+    }
+
+    private void OnPlayerJoin(IServerPlayer player)
+    {
+        if (!_settings.Enabled)
+        {
+            if (HasDeferredCharacterSelection(player))
+            {
+                player.RemoveModdata(DeferredCharacterSelectionModDataKey);
+                player.RemoveModdata("createCharacter");
+            }
+
+            return;
+        }
+
+        if (HasCompletedCharacterSelection(player) || HasDeferredCharacterSelection(player))
+            return;
+
+        player.SetModdata("createCharacter", SerializerUtil.Serialize(true));
+        player.SetModdata(DeferredCharacterSelectionModDataKey, SerializerUtil.Serialize(true));
     }
 
     private void OnPlayerNowPlaying(IServerPlayer player)
@@ -416,11 +441,13 @@ public sealed class VsslAuthServerSystem : ModSystem
                 ? 1f
                 : player.WorldData.MoveSpeedMultiplier;
 
+            var shouldDeferCharacterSelection = HasDeferredCharacterSelection(player);
             _pendingByUid[player.PlayerUID] = new PendingAuthState
             {
                 PlayerUid = player.PlayerUID,
                 DeadlineUtc = now.AddSeconds(_settings.LoginTimeoutSeconds),
-                OriginalMoveSpeed = originalMoveSpeed
+                OriginalMoveSpeed = originalMoveSpeed,
+                DeferredCharacterSelection = shouldDeferCharacterSelection
             };
             RestrictPlayer(player, _pendingByUid[player.PlayerUID]);
         }
@@ -434,7 +461,7 @@ public sealed class VsslAuthServerSystem : ModSystem
         player.BroadcastPlayerData(false);
     }
 
-    private void Authenticate(IServerPlayer player, string message)
+    private void Authenticate(IServerPlayer player, string message, bool triggeredByRegistration = false)
     {
         PendingAuthState? pending = null;
         lock (_authLock)
@@ -451,12 +478,54 @@ public sealed class VsslAuthServerSystem : ModSystem
             player.BroadcastPlayerData(false);
         }
 
-        player.SendMessage(GlobalConstants.GeneralChatGroup, message, SystemChatType, null);
+        var openedCharacterSelection = false;
+        if (pending?.DeferredCharacterSelection == true || HasDeferredCharacterSelection(player))
+            openedCharacterSelection = ReleaseDeferredCharacterSelection(player);
+
+        var finalMessage = ComposeAuthMessage(message, openedCharacterSelection);
+        player.SendMessage(GlobalConstants.GeneralChatGroup, finalMessage, SystemChatType, null);
         _channel?.SendPacket(new AuthStatePacket
         {
             IsAuthenticated = true,
-            Message = message
+            Message = finalMessage,
+            OpenCharacterSelection = openedCharacterSelection
         }, player);
+    }
+
+    private static string ComposeAuthMessage(string message, bool openedCharacterSelection)
+    {
+        if (!openedCharacterSelection)
+            return message;
+
+        return message + " 现在可以选择职业了，请完成角色创建。";
+    }
+
+    private static bool HasDeferredCharacterSelection(IServerPlayer player)
+    {
+        return SerializerUtil.Deserialize<bool>(player.GetModdata(DeferredCharacterSelectionModDataKey), false);
+    }
+
+    private static bool HasCompletedCharacterSelection(IServerPlayer player)
+    {
+        return SerializerUtil.Deserialize<bool>(player.GetModdata("createCharacter"), false);
+    }
+
+    private bool ReleaseDeferredCharacterSelection(IServerPlayer player)
+    {
+        var deferred = SerializerUtil.Deserialize<bool>(player.GetModdata(DeferredCharacterSelectionModDataKey), false);
+        player.RemoveModdata(DeferredCharacterSelectionModDataKey);
+        if (!deferred || _api is null)
+            return false;
+
+        player.RemoveModdata("createCharacter");
+
+        var channel = _api.Network.GetChannel(CharacterSelectionChannelName);
+        channel.SendPacket(new CharacterSelectedState
+        {
+            DidSelect = false
+        }, player);
+
+        return true;
     }
 
     private bool IsAuthenticated(IServerPlayer player)
@@ -899,6 +968,7 @@ public sealed class VsslAuthServerSystem : ModSystem
         public string PlayerUid { get; init; } = string.Empty;
         public DateTimeOffset DeadlineUtc { get; init; }
         public float OriginalMoveSpeed { get; init; } = 1f;
+        public bool DeferredCharacterSelection { get; init; }
     }
 
     private sealed class DiscourseChallengeState

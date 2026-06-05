@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
+using Vintagestory.API.Datastructures;
+using Vintagestory.GameContent;
 using VsslAuth.Network;
 
 namespace VsslAuth.Client;
@@ -62,10 +64,38 @@ public sealed class VsslAuthClientSystem : ModSystem
 
     private void OnAuthState(AuthStatePacket packet)
     {
-        if (_clientApi is null || packet is null || string.IsNullOrWhiteSpace(packet.Message))
+        if (_clientApi is null || packet is null)
             return;
 
-        _clientApi.ShowChatMessage(packet.Message);
+        if (!string.IsNullOrWhiteSpace(packet.Message))
+            _clientApi.ShowChatMessage(packet.Message);
+
+        if (!packet.OpenCharacterSelection)
+            return;
+
+        _clientApi.Event.EnqueueMainThreadTask(OpenCharacterSelection, "serverauth-open-character-selection");
+    }
+
+    private void OpenCharacterSelection()
+    {
+        if (_clientApi is null)
+            return;
+
+        var modSystem = _clientApi.ModLoader.GetModSystem<CharacterSystem>(true);
+        if (modSystem is null)
+        {
+            _clientApi.ShowChatMessage("注册已完成，但无法打开职业选择界面，请输入 /charsel 再试一次。");
+            return;
+        }
+
+        if (_clientApi.Gui.LoadedGuis.Any(dialog => dialog is GuiDialogCreateCharacter && dialog.IsOpened()))
+            return;
+
+        var dialog = new GuiDialogCreateCharacter(_clientApi, modSystem);
+        dialog.PrepAndOpen();
+        dialog.OnClosed += () => _clientApi.PauseGame(false);
+        _clientApi.Event.EnqueueMainThreadTask(() => _clientApi.PauseGame(true), "serverauth-pause-character-selection");
+        _clientApi.Event.PushEvent("begincharacterselection", null);
     }
 
     private static void OpenUrlInBrowser(string rawUrl)
