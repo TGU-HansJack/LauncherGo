@@ -4393,6 +4393,32 @@ public partial class LauncherMainWindow : Window
         await RefreshModsAsync();
     }
 
+    private void OnOpenModConfigPathClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string path } || string.IsNullOrWhiteSpace(path))
+        {
+            SetModStatus(T("配置路径无效。", "Invalid config path."));
+            return;
+        }
+
+        try
+        {
+            var primaryPath = path.Split(" | ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(primaryPath) || (!File.Exists(primaryPath) && !Directory.Exists(primaryPath)))
+            {
+                SetModStatus(T($"配置路径不存在：{path}", $"Config path not found: {path}"));
+                return;
+            }
+
+            OpenLocalFile(primaryPath);
+        }
+        catch (Exception ex)
+        {
+            SetModStatus(T($"打开配置路径失败：{ex.Message}", $"Failed to open config path: {ex.Message}"));
+        }
+    }
+
     private async void OnModEnabledSwitchClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not ToggleSwitch { Tag: ModListItem item } toggleSwitch ||
@@ -6131,6 +6157,23 @@ public partial class LauncherMainWindow : Window
         Process.Start(new ProcessStartInfo { FileName = directoryPath, UseShellExecute = true });
     }
 
+    private void OnOpenProfileDirectoryClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string directoryPath } || string.IsNullOrWhiteSpace(directoryPath))
+        {
+            AppendConsoleLine(T("[system] 档案目录无效。", "[system] Invalid profile directory."));
+            return;
+        }
+
+        if (!Directory.Exists(directoryPath))
+        {
+            AppendConsoleLine(T($"[system] 档案目录不存在：{directoryPath}", $"[system] Profile directory not found: {directoryPath}"));
+            return;
+        }
+
+        OpenLocalFile(directoryPath);
+    }
+
     private async void OnToggleDefaultSaveClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: SaveListItem item })
@@ -7168,6 +7211,8 @@ public partial class LauncherMainWindow : Window
 
         public required string FilePath { get; init; }
 
+        public required string ConfigPath { get; init; }
+
         public bool IsDisabled { get; init; }
 
         public bool ModEnabled => !IsDisabled;
@@ -7191,6 +7236,7 @@ public partial class LauncherMainWindow : Window
                 ModId = model.ModId,
                 Version = model.Version,
                 FilePath = model.FilePath,
+                ConfigPath = model.ConfigPath,
                 IsDisabled = model.IsDisabled,
                 DependenciesText = model.DependenciesText,
                 IssuesText = BuildModIssuesText(model)
@@ -7204,6 +7250,7 @@ public partial class LauncherMainWindow : Window
                 ModId = item.ModId,
                 Version = item.Version,
                 FilePath = item.FilePath,
+                ConfigPath = item.ConfigPath,
                 Status = item.IsDisabled ? "Disabled" : "OK",
                 IsDisabled = item.IsDisabled,
                 Dependencies = [],

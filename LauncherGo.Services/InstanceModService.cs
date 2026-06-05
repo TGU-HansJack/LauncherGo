@@ -11,22 +11,32 @@ namespace LauncherGo.Services;
 /// </summary>
 public class InstanceModService(IInstanceServerConfigService serverConfigService) : IInstanceModService
 {
+    private static readonly HashSet<string> BuiltInDependencyIds = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "game",
+        "creative",
+        "survival",
+        "vssurvivalmod",
+        "vsessentials"
+    };
+
     /// <inheritdoc />
     public async Task<IReadOnlyList<ModEntry>> GetModsAsync(
         InstanceProfile profile,
         CancellationToken cancellationToken = default)
     {
         var modsPath = WorkspacePathHelper.GetProfileModsPath(profile.DirectoryPath);
+        var modConfigPath = Path.Combine(WorkspacePathHelper.ResolveProfileDataPath(profile.DirectoryPath), "ModConfig");
         Directory.CreateDirectory(modsPath);
 
         var disabledSet = await LoadDisabledModSetAsync(profile, cancellationToken);
         var entries = new List<ModEntry>();
 
         foreach (var file in Directory.EnumerateFiles(modsPath, "*.zip", SearchOption.TopDirectoryOnly))
-            entries.Add(ReadModFromZip(file, disabledSet));
+            entries.Add(ReadModFromZip(file, disabledSet, modConfigPath));
 
         foreach (var directory in Directory.EnumerateDirectories(modsPath, "*", SearchOption.TopDirectoryOnly))
-            entries.Add(ReadModFromDirectory(directory, disabledSet));
+            entries.Add(ReadModFromDirectory(directory, disabledSet, modConfigPath));
 
         var enabledModIds = entries
             .Where(static mod => !mod.IsDisabled)
@@ -38,6 +48,7 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
             var issues = new List<string>(mod.DependencyIssues);
             foreach (var dependency in mod.Dependencies)
             {
+                if (BuiltInDependencyIds.Contains(dependency.ModId)) continue;
                 if (enabledModIds.Contains(dependency.ModId)) continue;
 
                 issues.Add(
@@ -51,6 +62,7 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
                 ModId = mod.ModId,
                 Version = mod.Version,
                 FilePath = mod.FilePath,
+                ConfigPath = mod.ConfigPath,
                 Status = status,
                 IsDisabled = mod.IsDisabled,
                 Dependencies = mod.Dependencies,
@@ -80,7 +92,8 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
         File.Copy(zipPath, destinationPath, overwrite: true);
 
         var disabledSet = await LoadDisabledModSetAsync(profile, cancellationToken);
-        return ReadModFromZip(destinationPath, disabledSet);
+        var modConfigPath = Path.Combine(WorkspacePathHelper.ResolveProfileDataPath(profile.DirectoryPath), "ModConfig");
+        return ReadModFromZip(destinationPath, disabledSet, modConfigPath);
     }
 
     /// <inheritdoc />
@@ -176,7 +189,7 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
         return deleted;
     }
 
-    private static ModEntry ReadModFromZip(string zipPath, HashSet<string> disabledSet)
+    private static ModEntry ReadModFromZip(string zipPath, HashSet<string> disabledSet, string modConfigPath)
     {
         try
         {
@@ -184,41 +197,45 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
             var modInfo = archive.Entries.FirstOrDefault(entry =>
                 entry.FullName.EndsWith("modinfo.json", StringComparison.OrdinalIgnoreCase));
             if (modInfo is null)
-                return BuildFallbackEntry(zipPath, "InvalidMetadata", disabledSet);
+                return BuildFallbackEntry(zipPath, "InvalidMetadata", disabledSet, modConfigPath);
 
             using var stream = modInfo.Open();
             using var reader = new StreamReader(stream);
             var json = reader.ReadToEnd();
-            return BuildEntryFromModInfo(json, zipPath, disabledSet);
+            return BuildEntryFromModInfo(json, zipPath, disabledSet, modConfigPath);
         }
         catch
         {
-            return BuildFallbackEntry(zipPath, "InvalidMetadata", disabledSet);
+            return BuildFallbackEntry(zipPath, "InvalidMetadata", disabledSet, modConfigPath);
         }
     }
 
-    private static ModEntry ReadModFromDirectory(string directoryPath, HashSet<string> disabledSet)
+    private static ModEntry ReadModFromDirectory(string directoryPath, HashSet<string> disabledSet, string modConfigPath)
     {
         try
         {
             var modInfoPath = Path.Combine(directoryPath, "modinfo.json");
             if (!File.Exists(modInfoPath))
-                return BuildFallbackEntry(directoryPath, "InvalidMetadata", disabledSet);
+                return BuildFallbackEntry(directoryPath, "InvalidMetadata", disabledSet, modConfigPath);
 
             var json = File.ReadAllText(modInfoPath);
-            return BuildEntryFromModInfo(json, directoryPath, disabledSet);
+            return BuildEntryFromModInfo(json, directoryPath, disabledSet, modConfigPath);
         }
         catch
         {
-            return BuildFallbackEntry(directoryPath, "InvalidMetadata", disabledSet);
+            return BuildFallbackEntry(directoryPath, "InvalidMetadata", disabledSet, modConfigPath);
         }
     }
 
-    private static ModEntry BuildEntryFromModInfo(string modInfoJson, string filePath, HashSet<string> disabledSet)
+    private static ModEntry BuildEntryFromModInfo(
+        string modInfoJson,
+        string filePath,
+        HashSet<string> disabledSet,
+        string modConfigPath)
     {
         var node = JsonNode.Parse(modInfoJson) as JsonObject;
         if (node is null)
-            return BuildFallbackEntry(filePath, "InvalidMetadata", disabledSet);
+            return BuildFallbackEntry(filePath, "InvalidMetadata", disabledSet, modConfigPath);
 
         var modId = node["modid"]?.GetValue<string>() ?? Path.GetFileNameWithoutExtension(filePath);
         var version = node["version"]?.GetValue<string>() ?? "unknown";
@@ -230,6 +247,7 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
             ModId = modId,
             Version = version,
             FilePath = filePath,
+            ConfigPath = ResolveModConfigPath(modConfigPath, modId),
             Status = "OK",
             IsDisabled = disabled,
             Dependencies = dependencies,
@@ -237,7 +255,11 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
         };
     }
 
-    private static ModEntry BuildFallbackEntry(string filePath, string status, HashSet<string> disabledSet)
+    private static ModEntry BuildFallbackEntry(
+        string filePath,
+        string status,
+        HashSet<string> disabledSet,
+        string modConfigPath)
     {
         var fallbackId = Path.GetFileNameWithoutExtension(filePath);
         return new ModEntry
@@ -245,6 +267,7 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
             ModId = fallbackId,
             Version = "unknown",
             FilePath = filePath,
+            ConfigPath = ResolveModConfigPath(modConfigPath, fallbackId),
             Status = status,
             IsDisabled = disabledSet.Contains(fallbackId),
             Dependencies = [],
@@ -254,23 +277,91 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
 
     private static IReadOnlyList<ModDependency> ReadDependencies(JsonNode? dependenciesNode)
     {
-        if (dependenciesNode is not JsonArray dependenciesArray) return [];
-
         var dependencies = new List<ModDependency>();
-        foreach (var dependencyNode in dependenciesArray)
+        switch (dependenciesNode)
         {
-            if (dependencyNode is not JsonObject dependencyObject) continue;
-            var modId = dependencyObject["modid"]?.GetValue<string>();
-            if (string.IsNullOrWhiteSpace(modId)) continue;
+            case JsonObject dependencyObject:
+                foreach (var pair in dependencyObject)
+                {
+                    if (string.IsNullOrWhiteSpace(pair.Key)) continue;
+                    dependencies.Add(new ModDependency
+                    {
+                        ModId = pair.Key,
+                        Version = pair.Value?.GetValue<string>()
+                    });
+                }
 
-            dependencies.Add(new ModDependency
-            {
-                ModId = modId,
-                Version = dependencyObject["version"]?.GetValue<string>()
-            });
+                break;
+            case JsonArray dependenciesArray:
+                foreach (var dependencyNode in dependenciesArray)
+                {
+                    if (dependencyNode is not JsonObject dependencyItem) continue;
+                    var modId = dependencyItem["modid"]?.GetValue<string>();
+                    if (string.IsNullOrWhiteSpace(modId)) continue;
+
+                    dependencies.Add(new ModDependency
+                    {
+                        ModId = modId,
+                        Version = dependencyItem["version"]?.GetValue<string>()
+                    });
+                }
+
+                break;
         }
 
         return dependencies;
+    }
+
+    private static string ResolveModConfigPath(string modConfigPath, string modId)
+    {
+        try
+        {
+            var fullModConfigPath = Path.GetFullPath(modConfigPath);
+            if (!Directory.Exists(fullModConfigPath))
+            {
+                return fullModConfigPath;
+            }
+
+            var candidates = Directory
+                .EnumerateFileSystemEntries(fullModConfigPath, "*", SearchOption.TopDirectoryOnly)
+                .Where(path => IsModConfigMatch(path, modId))
+                .OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return candidates.Count switch
+            {
+                0 => fullModConfigPath,
+                1 => candidates[0],
+                _ => string.Join(" | ", candidates)
+            };
+        }
+        catch
+        {
+            return modConfigPath;
+        }
+    }
+
+    private static bool IsModConfigMatch(string candidatePath, string modId)
+    {
+        var candidateName = Path.GetFileNameWithoutExtension(candidatePath);
+        if (string.IsNullOrWhiteSpace(candidateName)) return false;
+
+        var normalizedCandidate = NormalizeConfigToken(candidateName);
+        var normalizedModId = NormalizeConfigToken(modId);
+        if (normalizedCandidate.Equals(normalizedModId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return normalizedCandidate.Contains(normalizedModId, StringComparison.OrdinalIgnoreCase) ||
+               normalizedModId.Contains(normalizedCandidate, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeConfigToken(string value)
+    {
+        return new string(value
+            .Where(static ch => char.IsLetterOrDigit(ch))
+            .ToArray());
     }
 
     private async Task<HashSet<string>> LoadDisabledModSetAsync(InstanceProfile profile, CancellationToken cancellationToken)

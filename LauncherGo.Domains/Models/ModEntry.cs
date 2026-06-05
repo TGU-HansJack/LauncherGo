@@ -11,6 +11,8 @@ public class ModEntry
 
     public required string FilePath { get; init; }
 
+    public string ConfigPath { get; init; } = "-";
+
     public required string Status { get; init; }
 
     public bool IsDisabled { get; init; }
