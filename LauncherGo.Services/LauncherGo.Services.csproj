@@ -3,7 +3,7 @@
   <PropertyGroup>
     <EmbeddedAuthModProject>$(MSBuildThisFileDirectory)EmbeddedMods\VsslAuthMod\VsslAuthMod.csproj</EmbeddedAuthModProject>
     <EmbeddedAuthModBuildOutput>$(MSBuildThisFileDirectory)EmbeddedMods\VsslAuthMod\bin\$(Configuration)\net10.0\</EmbeddedAuthModBuildOutput>
-    <EmbeddedAuthRoot>$(MSBuildThisFileDirectory)EmbeddedMods\serverauth\</EmbeddedAuthRoot>
+    <EmbeddedAuthRoot>$(MSBuildThisFileDirectory)EmbeddedMods\launchergoauth\</EmbeddedAuthRoot>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,9 +25,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="EmbeddedMods\serverauth\modinfo.json" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="EmbeddedMods\serverauth\README.txt" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="EmbeddedMods\serverauth\serverauth.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('EmbeddedMods\serverauth\serverauth.dll')" />
+    <None Update="EmbeddedMods\launchergoauth\modinfo.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="EmbeddedMods\launchergoauth\README.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="EmbeddedMods\launchergoauth\serverauth.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('EmbeddedMods\launchergoauth\serverauth.dll')" />
     <None Update="EmbeddedMods\servermap\**\*.*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
@@ -48,7 +48,7 @@
 
   <Target Name="CopyBuiltEmbeddedAuthModToOutput" AfterTargets="Build" Condition="'$(BuildEmbeddedAuthMod)' == 'true' and Exists('$(EmbeddedAuthModBuildOutput)serverauth.dll')">
     <PropertyGroup>
-      <_EmbeddedAuthOutputDir>$(TargetDir)EmbeddedMods\serverauth\</_EmbeddedAuthOutputDir>
+      <_EmbeddedAuthOutputDir>$(TargetDir)EmbeddedMods\launchergoauth\</_EmbeddedAuthOutputDir>
     </PropertyGroup>
     <MakeDir Directories="$(_EmbeddedAuthOutputDir)" />
     <Copy SourceFiles="$(EmbeddedAuthModBuildOutput)serverauth.dll"

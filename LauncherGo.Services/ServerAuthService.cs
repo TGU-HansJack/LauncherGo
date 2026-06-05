@@ -10,10 +10,13 @@ namespace LauncherGo.Services;
 /// </summary>
 public sealed class ServerAuthService : IServerAuthService
 {
-    private const string AuthModId = "serverauth";
+    private const string AuthModId = "launchergoauth";
+    private const string LegacyAuthModId = "serverauth";
     private const string AuthModVersion = "1.0.0";
-    private const string AuthModFolderName = "serverauth";
-    private const string AuthModZipName = "serverauth.zip";
+    private const string AuthModFolderName = "launchergoauth";
+    private const string LegacyAuthModFolderName = "serverauth";
+    private const string AuthModZipName = "launchergoauth.zip";
+    private const string LegacyAuthModZipName = "serverauth.zip";
     private const string AuthModDllName = "serverauth.dll";
     private const string SettingsRelativePath = "ModConfig/serverauth.json";
     private const string StoreRelativePath = "ServerAuth/players.json";
@@ -145,11 +148,14 @@ public sealed class ServerAuthService : IServerAuthService
 
         var zipPath = Path.Combine(modsPath, AuthModZipName);
         TryDeleteFile(zipPath);
+        TryDeleteFile(Path.Combine(modsPath, LegacyAuthModZipName));
 
         var destination = Path.Combine(modsPath, AuthModFolderName);
         var sourceRoot = ResolveEmbeddedAuthSourceRoot();
 
+        MigrateLegacyAuthModDirectory(modsPath, destination);
         SyncDirectory(sourceRoot, destination);
+        CleanupLegacyAuthModDirectory(modsPath, destination);
         await SetAuthModEnabledAsync(profile, enableMod, cancellationToken);
     }
 
@@ -183,7 +189,9 @@ public sealed class ServerAuthService : IServerAuthService
             var cleanupSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 AuthModId,
-                $"{AuthModId}@{AuthModVersion}"
+                LegacyAuthModId,
+                $"{AuthModId}@{AuthModVersion}",
+                $"{LegacyAuthModId}@{AuthModVersion}"
             };
 
             var remain = disabledMods
@@ -332,6 +340,10 @@ public sealed class ServerAuthService : IServerAuthService
         if (Directory.Exists(primary))
             return primary;
 
+        var legacyPrimary = Path.Combine(AppContext.BaseDirectory, "EmbeddedMods", LegacyAuthModFolderName);
+        if (Directory.Exists(legacyPrimary))
+            return legacyPrimary;
+
         var fallback = Path.GetFullPath(
             Path.Combine(
                 AppContext.BaseDirectory,
@@ -345,16 +357,82 @@ public sealed class ServerAuthService : IServerAuthService
         if (Directory.Exists(fallback))
             return fallback;
 
+        var legacyFallback = Path.GetFullPath(
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "..",
+                "..",
+                "..",
+                "..",
+                "LauncherGo.Services",
+                "EmbeddedMods",
+                LegacyAuthModFolderName));
+        if (Directory.Exists(legacyFallback))
+            return legacyFallback;
+
         throw new InvalidOperationException(
-            $"未找到内置认证模组文件，请先重新构建启动器。查找路径：{primary}；{fallback}");
+            $"未找到内置认证模组文件，请先重新构建启动器。查找路径：{primary}；{legacyPrimary}；{fallback}；{legacyFallback}");
     }
 
     private static bool IsAuthModPresent(InstanceProfile profile)
     {
         var modsPath = WorkspacePathHelper.GetProfileModsPath(profile.DirectoryPath);
         var folderPath = Path.Combine(modsPath, AuthModFolderName);
+        var legacyFolderPath = Path.Combine(modsPath, LegacyAuthModFolderName);
         var zipPath = Path.Combine(modsPath, AuthModZipName);
-        return Directory.Exists(folderPath) || File.Exists(zipPath);
+        var legacyZipPath = Path.Combine(modsPath, LegacyAuthModZipName);
+        return Directory.Exists(folderPath) ||
+               Directory.Exists(legacyFolderPath) ||
+               File.Exists(zipPath) ||
+               File.Exists(legacyZipPath);
+    }
+
+    private static void MigrateLegacyAuthModDirectory(string modsPath, string destinationPath)
+    {
+        var legacyPath = Path.Combine(modsPath, LegacyAuthModFolderName);
+        if (!Directory.Exists(legacyPath) ||
+            string.Equals(legacyPath, destinationPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (!Directory.Exists(destinationPath))
+        {
+            try
+            {
+                Directory.Move(legacyPath, destinationPath);
+                return;
+            }
+            catch
+            {
+                // 退化为复制迁移。
+            }
+        }
+
+        SyncDirectory(legacyPath, destinationPath);
+    }
+
+    private static void CleanupLegacyAuthModDirectory(string modsPath, string destinationPath)
+    {
+        var legacyPath = Path.Combine(modsPath, LegacyAuthModFolderName);
+        if (!Directory.Exists(legacyPath) ||
+            string.Equals(legacyPath, destinationPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.Delete(legacyPath, true);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // 旧目录中若有被占用文件，保留以免影响运行中的服务端。
+        }
+        catch (IOException)
+        {
+            // 旧目录中若有被占用文件，保留以免影响运行中的服务端。
+        }
     }
 
     private async Task<bool> IsAuthModDisabledAsync(
@@ -404,7 +482,9 @@ public sealed class ServerAuthService : IServerAuthService
     {
         return (exactKeys?.Contains(item) ?? false) ||
                item.Equals(AuthModId, StringComparison.OrdinalIgnoreCase) ||
-               item.StartsWith($"{AuthModId}@", StringComparison.OrdinalIgnoreCase);
+               item.Equals(LegacyAuthModId, StringComparison.OrdinalIgnoreCase) ||
+               item.StartsWith($"{AuthModId}@", StringComparison.OrdinalIgnoreCase) ||
+               item.StartsWith($"{LegacyAuthModId}@", StringComparison.OrdinalIgnoreCase);
     }
 
     private static ServerAuthSettings NormalizeSettings(ServerAuthSettings settings)

@@ -20,6 +20,11 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
         "vsessentials"
     };
 
+    private static readonly Dictionary<string, string[]> ModConfigAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["launchergoauth"] = ["serverauth"]
+    };
+
     /// <inheritdoc />
     public async Task<IReadOnlyList<ModEntry>> GetModsAsync(
         InstanceProfile profile,
@@ -347,14 +352,21 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
         if (string.IsNullOrWhiteSpace(candidateName)) return false;
 
         var normalizedCandidate = NormalizeConfigToken(candidateName);
-        var normalizedModId = NormalizeConfigToken(modId);
-        if (normalizedCandidate.Equals(normalizedModId, StringComparison.OrdinalIgnoreCase))
+        foreach (var token in EnumerateConfigMatchTokens(modId))
         {
-            return true;
+            if (normalizedCandidate.Equals(token, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (normalizedCandidate.Contains(token, StringComparison.OrdinalIgnoreCase) ||
+                token.Contains(normalizedCandidate, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
         }
 
-        return normalizedCandidate.Contains(normalizedModId, StringComparison.OrdinalIgnoreCase) ||
-               normalizedModId.Contains(normalizedCandidate, StringComparison.OrdinalIgnoreCase);
+        return false;
     }
 
     private static string NormalizeConfigToken(string value)
@@ -362,6 +374,26 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
         return new string(value
             .Where(static ch => char.IsLetterOrDigit(ch))
             .ToArray());
+    }
+
+    private static IEnumerable<string> EnumerateConfigMatchTokens(string modId)
+    {
+        yield return NormalizeConfigToken(modId);
+
+        if (!ModConfigAliases.TryGetValue(modId, out var aliases))
+        {
+            yield break;
+        }
+
+        foreach (var alias in aliases)
+        {
+            if (string.IsNullOrWhiteSpace(alias))
+            {
+                continue;
+            }
+
+            yield return NormalizeConfigToken(alias);
+        }
     }
 
     private async Task<HashSet<string>> LoadDisabledModSetAsync(InstanceProfile profile, CancellationToken cancellationToken)
