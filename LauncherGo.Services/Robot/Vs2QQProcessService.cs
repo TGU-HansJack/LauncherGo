@@ -31,12 +31,8 @@ public sealed class Vs2QQProcessService
     private const int MaxOsqStatusHistoryPerHost = 30;
     private const int MaxServerStatusQueryCount = 10;
     private const int MaxOneBotMessageLength = 1800;
-    private const int MaxOsqRequestBodyBytes = 8 * 1024 * 1024;
     private const int MaxInitialSnapshotBacklogPerCategory = 3;
     private static readonly TimeSpan PlayerJoinRelayDedupeWindow = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan OsqListenerRetryDelay = TimeSpan.FromSeconds(10);
-
-    private static readonly Regex NonceRegex = new("^[a-z0-9]{8,64}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex OsqBindServerPattern = new(@"^(\S+)\s+(\S+)\s+(\d{5,20})$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex CqImageRegex = new(@"\[CQ:image,[^\]]+\]", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex CqCodeRegex = new(@"\[CQ:[^\]]+\]", RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -157,15 +153,6 @@ public sealed class Vs2QQProcessService
 
         try
         {
-            runtime?.OsqListener?.Close();
-        }
-        catch
-        {
-            // ignore shutdown errors.
-        }
-
-        try
-        {
             var timeoutTask = Task.Delay(gracefulTimeout, cancellationToken);
             var completed = await Task.WhenAny(runTask!, timeoutTask);
             cancellationToken.ThrowIfCancellationRequested();
@@ -192,17 +179,7 @@ public sealed class Vs2QQProcessService
     {
         try
         {
-            var tasks = new List<Task>
-            {
-                runtime.OneBot.RunForeverAsync(cancellationToken)
-            };
-
-            if (runtime.Settings.EnableOsqListener)
-            {
-                tasks.Add(Task.Run(() => OsqListenLoopAsync(runtime, cancellationToken), CancellationToken.None));
-            }
-
-            await Task.WhenAll(tasks);
+            await runtime.OneBot.RunForeverAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -1026,301 +1003,83 @@ public sealed class Vs2QQProcessService
         OutputReceived?.Invoke(this, message);
     }
 
-    private async Task OsqListenLoopAsync(Vs2QQRuntimeContext runtime, CancellationToken cancellationToken)
-    {
-        var prefix = runtime.Settings.OsqListenPrefix;
-        if (string.IsNullOrWhiteSpace(prefix))
-        {
-            prefix = "http://127.0.0.1:18089/";
-        }
-
-        string? lastStartError = null;
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            using var listener = new HttpListener();
-            listener.Prefixes.Add(prefix);
-
-            try
-            {
-                listener.Start();
-                runtime.OsqListener = listener;
-                if (!string.IsNullOrWhiteSpace(lastStartError))
-                {
-                    EmitOutput($"[osq] 监听已恢复：{prefix}");
-                    lastStartError = null;
-                }
-                else
-                {
-                    EmitOutput($"[osq] 监听已启动：{prefix}");
-                }
-
-                using var cancellationRegistration = cancellationToken.Register(() =>
-                {
-                    try
-                    {
-                        listener.Close();
-                    }
-                    catch
-                    {
-                        // ignore
-                    }
-                });
-
-                while (!cancellationToken.IsCancellationRequested)
-                {
-                    HttpListenerContext? context = null;
-                    try
-                    {
-                        context = await listener.GetContextAsync();
-                        _ = Task.Run(() => HandleOsqRequestAsync(runtime, context, cancellationToken), cancellationToken);
-                    }
-                    catch (ObjectDisposedException)
-                    {
-                        break;
-                    }
-                    catch (HttpListenerException)
-                    {
-                        if (cancellationToken.IsCancellationRequested)
-                        {
-                            break;
-                        }
-
-                        break;
-                    }
-                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                    {
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        EmitOutput($"[warn] OSQ 监听异常：{ex.Message}");
-                        await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
-                    }
-                }
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                if (!string.Equals(lastStartError, ex.Message, StringComparison.Ordinal))
-                {
-                    EmitOutput($"[warn] OSQ 监听启动失败：{ex.Message}");
-                    lastStartError = ex.Message;
-                }
-            }
-            finally
-            {
-                if (ReferenceEquals(runtime.OsqListener, listener))
-                {
-                    runtime.OsqListener = null;
-                }
-            }
-
-            await Task.Delay(OsqListenerRetryDelay, cancellationToken);
-        }
-    }
-
-    private async Task HandleOsqRequestAsync(Vs2QQRuntimeContext runtime, HttpListenerContext context, CancellationToken cancellationToken)
-    {
-        try
-        {
-            if (!string.Equals(context.Request.HttpMethod, "POST", StringComparison.OrdinalIgnoreCase))
-            {
-                await WriteOsqResponseAsync(context, 405, "method not allowed");
-                return;
-            }
-
-            var path = context.Request.Url?.AbsolutePath ?? "/";
-            if (!string.Equals(path.TrimEnd('/'), "/api/osq/report", StringComparison.OrdinalIgnoreCase))
-            {
-                await WriteOsqResponseAsync(context, 404, "not found");
-                return;
-            }
-
-            if (context.Request.ContentLength64 > MaxOsqRequestBodyBytes)
-            {
-                await WriteOsqResponseAsync(context, 413, "payload too large");
-                return;
-            }
-
-            var rawBody = await ReadStreamBytesWithLimitAsync(
-                context.Request.InputStream,
-                MaxOsqRequestBodyBytes,
-                cancellationToken);
-            if (rawBody is null)
-            {
-                await WriteOsqResponseAsync(context, 413, "payload too large");
-                return;
-            }
-
-            var token = ParseAuthorizationToken(context.Request.Headers["Authorization"]);
-            if (string.IsNullOrEmpty(token))
-            {
-                await WriteOsqResponseAsync(context, 401, "missing bearer token");
-                return;
-            }
-
-            var host = runtime.Storage.FindHostByToken(token);
-            if (string.IsNullOrWhiteSpace(host))
-            {
-                await WriteOsqResponseAsync(context, 403, "unknown token");
-                return;
-            }
-
-            var timestampRaw = context.Request.Headers["X-OSQ-Timestamp"] ?? string.Empty;
-            var nonce = context.Request.Headers["X-OSQ-Nonce"] ?? string.Empty;
-            var signature = context.Request.Headers["X-OSQ-Signature"] ?? string.Empty;
-            if (!long.TryParse(timestampRaw, out var timestamp))
-            {
-                await WriteOsqResponseAsync(context, 401, "invalid timestamp");
-                return;
-            }
-
-            if (!VerifyOsqSignature(token, rawBody, signature))
-            {
-                await WriteOsqResponseAsync(context, 401, "invalid signature");
-                return;
-            }
-
-            var body = await DecodeOsqRequestBodyAsync(
-                rawBody,
-                context.Request.Headers["Content-Encoding"],
-                cancellationToken);
-            if (body is null)
-            {
-                await WriteOsqResponseAsync(context, 400, "invalid content encoding");
-                return;
-            }
-
-            var drift = Math.Abs(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - timestamp);
-            if (drift > 600)
-            {
-                await WriteOsqResponseAsync(context, 401, "timestamp drift too large");
-                return;
-            }
-
-            if (!NonceRegex.IsMatch(nonce))
-            {
-                await WriteOsqResponseAsync(context, 401, "invalid nonce");
-                return;
-            }
-
-            if (!runtime.Storage.TryUseOsqNonce(host, nonce, DateTimeOffset.FromUnixTimeSeconds(timestamp).AddMinutes(10)))
-            {
-                await WriteOsqResponseAsync(context, 409, "replay detected");
-                return;
-            }
-
-            OsqSnapshotEnvelope? payload;
-            try
-            {
-                payload = JsonSerializer.Deserialize<OsqSnapshotEnvelope>(body, OsqJsonOptions);
-            }
-            catch (Exception ex)
-            {
-                EmitOutput($"[warn] OSQ JSON 解析失败 host={host}: {ex.Message}");
-                await WriteOsqResponseAsync(context, 400, "invalid json");
-                return;
-            }
-
-            if (payload is null || payload.Server is null)
-            {
-                await WriteOsqResponseAsync(context, 400, "missing server payload");
-                return;
-            }
-
-            runtime.Storage.AddOsqSnapshot(host, payload);
-            await ForwardOsqSnapshotAsync(runtime, host, payload, cancellationToken);
-            await WriteOsqResponseAsync(context, 200, "ok");
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            // ignore
-        }
-        catch (Exception ex)
-        {
-            EmitOutput($"[warn] OSQ 请求处理异常：{ex.Message}");
-            try
-            {
-                await WriteOsqResponseAsync(context, 500, "internal error");
-            }
-            catch
-            {
-                // ignore
-            }
-        }
-    }
-
     private async Task ForwardOsqSnapshotAsync(Vs2QQRuntimeContext runtime, string host, OsqSnapshotEnvelope payload, CancellationToken cancellationToken)
     {
-        var groups = runtime.Storage.ListGroupsForRemoteServer(host);
-        if (groups.Count == 0)
+        var forwardGate = runtime.GetOsqForwardGate(host);
+        await forwardGate.WaitAsync(cancellationToken);
+        try
         {
-            return;
-        }
-
-        var forwardState = runtime.Storage.GetOsqForwardState(host);
-        var chats = payload.RecentChats ?? [];
-        var events = payload.PlayerEvents ?? [];
-        var notifications = payload.ServerNotifications ?? [];
-
-        var skipCurrentSnapshotWhenNoState = forwardState is null;
-        var newChatLines = CollectNewChatLines(
-            chats,
-            forwardState?.LastChatSignature,
-            skipCurrentSnapshotWhenNoState,
-            out var lastChatSignature);
-        var newEventLines = CollectNewEventLines(
-            runtime,
-            host,
-            events,
-            forwardState?.LastEventSignature,
-            skipCurrentSnapshotWhenNoState,
-            out var lastEventSignature);
-        var newNotificationLines = CollectNewNotificationLines(
-            notifications,
-            forwardState?.LastNotificationSignature,
-            skipCurrentSnapshotWhenNoState,
-            out var lastNotificationSignature);
-
-        var lines = new List<string>();
-        lines.AddRange(newEventLines);
-        lines.AddRange(newNotificationLines);
-        lines.AddRange(newChatLines);
-        if (lines.Count == 0)
-        {
-            runtime.Storage.UpsertOsqForwardState(host, lastChatSignature, lastEventSignature, lastNotificationSignature);
-            return;
-        }
-
-        var messages = SplitOneBotMessages(lines);
-        var successfulGroups = 0;
-        foreach (var groupId in groups)
-        {
-            try
+            var groups = runtime.Storage.ListGroupsForRemoteServer(host);
+            if (groups.Count == 0)
             {
-                foreach (var message in messages)
+                return;
+            }
+
+            var forwardState = runtime.Storage.GetOsqForwardState(host);
+            var chats = payload.RecentChats ?? [];
+            var events = payload.PlayerEvents ?? [];
+            var notifications = payload.ServerNotifications ?? [];
+
+            var skipCurrentSnapshotWhenNoState = forwardState is null;
+            var newChatLines = CollectNewChatLines(
+                chats,
+                forwardState?.LastChatSignature,
+                skipCurrentSnapshotWhenNoState,
+                out var lastChatSignature);
+            var newEventLines = CollectNewEventLines(
+                runtime,
+                host,
+                events,
+                forwardState?.LastEventSignature,
+                skipCurrentSnapshotWhenNoState,
+                out var lastEventSignature);
+            var newNotificationLines = CollectNewNotificationLines(
+                notifications,
+                forwardState?.LastNotificationSignature,
+                skipCurrentSnapshotWhenNoState,
+                out var lastNotificationSignature);
+
+            var lines = new List<string>();
+            lines.AddRange(newEventLines);
+            lines.AddRange(newNotificationLines);
+            lines.AddRange(newChatLines);
+            if (lines.Count == 0)
+            {
+                runtime.Storage.UpsertOsqForwardState(host, lastChatSignature, lastEventSignature, lastNotificationSignature);
+                return;
+            }
+
+            var messages = SplitOneBotMessages(lines);
+            var successfulGroups = 0;
+            foreach (var groupId in groups)
+            {
+                try
                 {
-                    await runtime.OneBot.SendGroupMsgAsync(groupId, message, cancellationToken);
+                    foreach (var message in messages)
+                    {
+                        await runtime.OneBot.SendGroupMsgAsync(groupId, message, cancellationToken);
+                    }
+
+                    successfulGroups++;
                 }
-
-                successfulGroups++;
+                catch (Exception ex)
+                {
+                    EmitOutput($"[warn] OSQ 转发失败 host={host} group={groupId}: {ex.Message}");
+                }
             }
-            catch (Exception ex)
+
+            if (successfulGroups == groups.Count)
             {
-                EmitOutput($"[warn] OSQ 转发失败 host={host} group={groupId}: {ex.Message}");
+                runtime.Storage.UpsertOsqForwardState(host, lastChatSignature, lastEventSignature, lastNotificationSignature);
+            }
+            else
+            {
+                EmitOutput($"[warn] OSQ 转发未全部成功 host={host}: success={successfulGroups}/{groups.Count}，保留游标等待下次重试。");
             }
         }
-
-        if (successfulGroups == groups.Count)
+        finally
         {
-            runtime.Storage.UpsertOsqForwardState(host, lastChatSignature, lastEventSignature, lastNotificationSignature);
-        }
-        else
-        {
-            EmitOutput($"[warn] OSQ 转发未全部成功 host={host}: success={successfulGroups}/{groups.Count}，保留游标等待下次重试。");
+            forwardGate.Release();
         }
     }
 
@@ -1860,152 +1619,6 @@ public sealed class Vs2QQProcessService
         candidates.Add(value);
     }
 
-    private static string ParseAuthorizationToken(string? authorizationHeader)
-    {
-        var header = (authorizationHeader ?? string.Empty).Trim();
-        if (!header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-        {
-            return string.Empty;
-        }
-
-        return header[7..].Trim();
-    }
-
-    private static async Task<byte[]?> ReadStreamBytesWithLimitAsync(Stream stream, int maxBytes, CancellationToken cancellationToken)
-    {
-        using var output = new MemoryStream();
-        var buffer = new byte[81920];
-        while (true)
-        {
-            var read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
-            if (read <= 0)
-            {
-                break;
-            }
-
-            if (output.Length + read > maxBytes)
-            {
-                return null;
-            }
-
-            output.Write(buffer, 0, read);
-        }
-
-        return output.ToArray();
-    }
-
-    private static async Task<string?> DecodeOsqRequestBodyAsync(
-        byte[] rawBody,
-        string? contentEncoding,
-        CancellationToken cancellationToken)
-    {
-        var encodings = (contentEncoding ?? string.Empty)
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        byte[]? current = rawBody;
-        try
-        {
-            for (var i = encodings.Length - 1; i >= 0; i--)
-            {
-                var encoding = encodings[i].ToLowerInvariant();
-                if (encoding is "identity")
-                {
-                    continue;
-                }
-
-                using var input = new MemoryStream(current);
-                Stream decoder = encoding switch
-                {
-                    "gzip" or "x-gzip" => new GZipStream(input, CompressionMode.Decompress),
-                    "deflate" => new DeflateStream(input, CompressionMode.Decompress),
-                    _ => throw new InvalidDataException($"Unsupported content encoding: {encoding}")
-                };
-
-                using (decoder)
-                {
-                    current = await ReadStreamBytesWithLimitAsync(decoder, MaxOsqRequestBodyBytes, cancellationToken);
-                }
-
-                if (current is null)
-                {
-                    return null;
-                }
-            }
-        }
-        catch
-        {
-            return null;
-        }
-
-        return Encoding.UTF8.GetString(current);
-    }
-
-    private static bool VerifyOsqSignature(string token, byte[] rawBody, string givenSignature)
-    {
-        if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(givenSignature))
-        {
-            return false;
-        }
-
-        try
-        {
-            var expected = HMACSHA256.HashData(Encoding.UTF8.GetBytes(token), rawBody ?? Array.Empty<byte>());
-            return TryDecodeOsqSignature(givenSignature, out var given)
-                && given.Length == expected.Length
-                && CryptographicOperations.FixedTimeEquals(given, expected);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static bool TryDecodeOsqSignature(string signature, out byte[] bytes)
-    {
-        bytes = Array.Empty<byte>();
-        var normalized = (signature ?? string.Empty)
-            .Trim()
-            .Replace('-', '+')
-            .Replace('_', '/');
-        if (normalized.Length == 0)
-        {
-            return false;
-        }
-
-        var remainder = normalized.Length % 4;
-        if (remainder == 1)
-        {
-            return false;
-        }
-
-        if (remainder > 0)
-        {
-            normalized = normalized.PadRight(normalized.Length + (4 - remainder), '=');
-        }
-
-        try
-        {
-            bytes = Convert.FromBase64String(normalized);
-            return true;
-        }
-        catch
-        {
-            bytes = Array.Empty<byte>();
-            return false;
-        }
-    }
-
-    private static async Task WriteOsqResponseAsync(HttpListenerContext context, int statusCode, string message)
-    {
-        context.Response.StatusCode = statusCode;
-        context.Response.ContentType = "application/json; charset=utf-8";
-        var json = $"{{\"ok\":{(statusCode >= 200 && statusCode < 300 ? "true" : "false")},\"message\":\"{EscapeJson(message)}\"}}";
-        var bytes = Encoding.UTF8.GetBytes(json);
-        context.Response.ContentLength64 = bytes.Length;
-        await context.Response.OutputStream.WriteAsync(bytes, 0, bytes.Length);
-        context.Response.OutputStream.Close();
-    }
-
     private static string EscapeJson(string value)
     {
         return value
@@ -2251,7 +1864,7 @@ public sealed class Vs2QQProcessService
             OsqRequestTimeoutSec = settings.OsqRequestTimeoutSec <= 0 ? 8 : settings.OsqRequestTimeoutSec,
             OsqAllowInsecureHttp = settings.OsqAllowInsecureHttp,
             OsqListenPrefix = osqListenPrefix,
-            EnableOsqListener = settings.EnableOsqListener
+            EnableOsqListener = false
         });
     }
 
@@ -2348,11 +1961,17 @@ public sealed class Vs2QQProcessService
 
         public Vs2QQOneBotClient OneBot { get; set; } = null!;
 
-        public HttpListener? OsqListener { get; set; }
-
         public EventHandler<OsqSnapshotReceivedEventArgs>? OsqSnapshotHandler { get; set; }
 
         public Dictionary<string, DateTimeOffset> RecentJoinRelays { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        private readonly ConcurrentDictionary<string, SemaphoreSlim> _osqForwardGates = new(StringComparer.OrdinalIgnoreCase);
+
+        public SemaphoreSlim GetOsqForwardGate(string host)
+        {
+            var key = string.IsNullOrWhiteSpace(host) ? "local" : host.Trim();
+            return _osqForwardGates.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
+        }
 
         public async ValueTask DisposeAsync()
         {
@@ -2361,16 +1980,12 @@ public sealed class Vs2QQProcessService
                 return;
             }
 
-            try
+            await OneBot.DisposeAsync();
+            foreach (var gate in _osqForwardGates.Values)
             {
-                OsqListener?.Close();
-            }
-            catch
-            {
-                // ignore
+                gate.Dispose();
             }
 
-            await OneBot.DisposeAsync();
             Storage.Dispose();
         }
     }

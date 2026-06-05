@@ -3112,7 +3112,7 @@ public partial class LauncherMainWindow : Window
             OsqRequestTimeoutSec = settings.OsqRequestTimeoutSec,
             OsqAllowInsecureHttp = osqSettings.AllowInsecureHttp,
             OsqListenPrefix = osqSettings.ListenPrefix,
-            EnableOsqListener = true
+            EnableOsqListener = false
         };
     }
 

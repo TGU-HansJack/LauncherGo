@@ -482,7 +482,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         {
             try
             {
-                if (runtime.Settings.Enabled)
+                if (ShouldPushLocalSnapshot(runtime))
                 {
                     await PushLocalSnapshotAsync(runtime, cancellationToken);
                 }
@@ -509,6 +509,11 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
                 break;
             }
         }
+    }
+
+    private static bool ShouldPushLocalSnapshot(RuntimeState runtime)
+    {
+        return runtime.Settings.Enabled || GetQqRobotSnapshotHosts(runtime).Count > 0;
     }
 
     private async Task PushLocalSnapshotAsync(RuntimeState runtime, CancellationToken cancellationToken)
@@ -629,14 +634,25 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
 
     private static IReadOnlyList<string> GetQqRobotSnapshotHosts(RuntimeState runtime)
     {
-        return runtime.EndpointsByHost.Values
+        var result = runtime.EndpointsByHost.Values
             .Where(endpoint =>
                 endpoint.Settings.Enabled &&
                 OpenServerQueryEndpointTarget.Normalize(endpoint.Settings.OutputTarget) == OpenServerQueryEndpointTarget.QqRobot &&
                 !string.IsNullOrWhiteSpace(endpoint.Settings.ServerHost))
             .Select(endpoint => endpoint.Settings.ServerHost.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        foreach (var binding in EnumerateQqRobotRemoteServers())
+        {
+            if (result.Any(existing => existing.Equals(binding.ServerHost, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            result.Add(binding.ServerHost);
+        }
+
+        return result;
     }
 
     private async Task<LocalServerContext?> TryBuildLocalServerContextAsync(CancellationToken cancellationToken)
@@ -3733,7 +3749,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
                 return;
             }
 
-            if (!runtime.HostByToken.TryGetValue(token, out var serverHost))
+            if (!TryResolveServerHostByToken(runtime, token, out var serverHost))
             {
                 await RejectAsync(runtime, context, 403, "unknown token");
                 return;
@@ -3963,6 +3979,105 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         context.Response.ContentLength64 = bytes.Length;
         await context.Response.OutputStream.WriteAsync(bytes, 0, bytes.Length);
         context.Response.OutputStream.Close();
+    }
+
+    private static bool TryResolveServerHostByToken(RuntimeState runtime, string token, out string serverHost)
+    {
+        if (runtime.HostByToken.TryGetValue(token, out serverHost!))
+        {
+            return true;
+        }
+
+        foreach (var binding in EnumerateQqRobotRemoteServers())
+        {
+            if (string.Equals(binding.Token, token, StringComparison.Ordinal))
+            {
+                serverHost = binding.ServerHost;
+                return true;
+            }
+        }
+
+        serverHost = string.Empty;
+        return false;
+    }
+
+    private static IReadOnlyList<QqRobotRemoteServerBinding> EnumerateQqRobotRemoteServers()
+    {
+        var dbPath = ResolveRobotDatabasePath();
+        if (string.IsNullOrWhiteSpace(dbPath) || !File.Exists(dbPath))
+        {
+            return [];
+        }
+
+        try
+        {
+            using var connection = new SqliteConnection($"Data Source={dbPath}");
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                SELECT server_host, token
+                FROM remote_servers
+                WHERE enabled = 1
+                  AND server_host IS NOT NULL
+                  AND token IS NOT NULL
+                  AND TRIM(server_host) <> ''
+                  AND TRIM(token) <> '';
+                """;
+
+            using var reader = command.ExecuteReader();
+            var result = new List<QqRobotRemoteServerBinding>();
+            while (reader.Read())
+            {
+                var host = NormalizeServerHost(reader.GetString(0));
+                var token = reader.GetString(1).Trim();
+                if (string.IsNullOrWhiteSpace(host) ||
+                    string.IsNullOrWhiteSpace(token) ||
+                    result.Any(existing => existing.ServerHost.Equals(host, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                result.Add(new QqRobotRemoteServerBinding(host, token));
+            }
+
+            return result;
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private static string ResolveRobotDatabasePath()
+    {
+        var fallback = Path.Combine(WorkspacePathHelper.RobotRoot, "vs2qq.db");
+        if (!File.Exists(WorkspacePathHelper.RobotSettingsPath))
+        {
+            return fallback;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(WorkspacePathHelper.RobotSettingsPath);
+            var settings = JsonSerializer.Deserialize<RobotSettings>(json, JsonReadOptions);
+            var dbPath = settings?.DatabasePath?.Trim();
+            if (string.IsNullOrWhiteSpace(dbPath))
+            {
+                return fallback;
+            }
+
+            if (!Path.IsPathRooted(dbPath))
+            {
+                dbPath = Path.Combine(WorkspacePathHelper.WorkspaceRoot, dbPath);
+            }
+
+            return Path.GetFullPath(dbPath);
+        }
+        catch
+        {
+            return fallback;
+        }
     }
 
     private static string EscapeJson(string value)
@@ -4201,6 +4316,8 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         public DateTimeOffset? LastReceivedUtc { get; set; }
         public string LastError { get; set; } = string.Empty;
     }
+
+    private readonly record struct QqRobotRemoteServerBinding(string ServerHost, string Token);
 
     private sealed class NonceState
     {
