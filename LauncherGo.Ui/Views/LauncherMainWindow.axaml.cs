@@ -396,6 +396,11 @@ public partial class LauncherMainWindow : Window
 
     private async Task StartConfiguredConnectionServicesAsync(LauncherPreferences preferences)
     {
+        if (preferences.AutoStartServerOnLaunch)
+        {
+            await StartConfiguredServerAsync(preferences);
+        }
+
         if (preferences.AutoStartOpenServerQueryOnLaunch && preferences.OpenServerQuery.Enabled)
         {
             try
@@ -431,6 +436,49 @@ public partial class LauncherMainWindow : Window
         }
 
         RefreshConnectionRuntimeStatus();
+    }
+
+    private async Task StartConfiguredServerAsync(LauncherPreferences preferences)
+    {
+        try
+        {
+            if (_serverProcessService.GetCurrentStatus().IsRunning)
+            {
+                return;
+            }
+
+            var profileId = !string.IsNullOrWhiteSpace(preferences.AutoStartServerProfileId)
+                ? preferences.AutoStartServerProfileId
+                : preferences.DefaultLaunchProfileId;
+            if (string.IsNullOrWhiteSpace(profileId))
+            {
+                LaunchSelectionSummaryTextBlock.Text = T("未设置自启动服务器档案", "No auto-start server profile configured");
+                return;
+            }
+
+            var profile = _profileService.GetProfileById(profileId.Trim());
+            if (profile is null)
+            {
+                LaunchSelectionSummaryTextBlock.Text = T("自启动服务器档案不存在", "Auto-start server profile not found");
+                return;
+            }
+
+            var reloadedProfile = await EnsureLaunchableProfileSaveAsync(profile, preferences.DefaultLaunchSaveFile);
+            SetLaunchOperationBusy(T("启动中...", "Starting..."));
+            try
+            {
+                SelectTab(MainTab.Console);
+                await _serverProcessService.StartAsync(reloadedProfile);
+            }
+            finally
+            {
+                ClearLaunchOperationBusy();
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendConsoleLine(T($"[system] 自启动服务器失败：{ex.Message}", $"[system] Auto-start server failed: {ex.Message}"));
+        }
     }
 
     private void InitializeStaticTexts()
@@ -593,6 +641,8 @@ public partial class LauncherMainWindow : Window
         SettingsStartWithWindowsLabelTextBlock.Text = T("开机启动启动器", "Start launcher with Windows");
         SettingsCloseToTrayLabelTextBlock.Text = T("关闭时隐藏到托盘，不直接退出", "Hide to tray on close instead of exiting");
         SettingsStartHiddenLabelTextBlock.Text = T("启动时隐藏到托盘", "Start hidden to tray");
+        SettingsAutoStartServerLabelTextBlock.Text = T("启动时自动启动服务器", "Auto-start server on launch");
+        SettingsAutoStartServerProfileLabelTextBlock.Text = T("自启动服务器档案", "Auto-start server profile");
         SettingsAutoStartOsqLabelTextBlock.Text = T("启动时自动启动开放信息", "Auto-start Open Info on launch");
         SettingsAutoStartRobotLabelTextBlock.Text = T("启动时自动启动QQ机器人", "Auto-start QQ robot on launch");
         SettingsAutoStartFrpLabelTextBlock.Text = T("启动时自动开启内网穿透（常规）", "Auto-start FRP (regular) on launch");
@@ -2014,6 +2064,7 @@ public partial class LauncherMainWindow : Window
                      SettingsStartWithWindowsCheckBox,
                      SettingsCloseToTrayCheckBox,
                      SettingsStartHiddenCheckBox,
+                     SettingsAutoStartServerCheckBox,
                      SettingsAutoStartOsqCheckBox,
                      SettingsAutoStartRobotCheckBox,
                      SettingsAutoStartFrpCheckBox,
@@ -2153,15 +2204,23 @@ public partial class LauncherMainWindow : Window
         try
         {
             var preferences = _preferencesService.Load();
+            var profiles = _profileService.GetProfiles();
             SettingsWorkspaceDirectoryTextBox.Text = preferences.WorkspaceRoot;
             SettingsQuickCommandsTextBox.Text = FormatQuickCommands(preferences.QuickCommands);
             SettingsStartWithWindowsCheckBox.IsChecked = preferences.StartWithWindows;
             SettingsCloseToTrayCheckBox.IsChecked = preferences.CloseToTrayOnExit;
             SettingsStartHiddenCheckBox.IsChecked = preferences.StartHiddenOnLaunch;
+            SettingsAutoStartServerCheckBox.IsChecked = preferences.AutoStartServerOnLaunch;
             SettingsAutoStartOsqCheckBox.IsChecked = preferences.AutoStartOpenServerQueryOnLaunch;
             SettingsAutoStartRobotCheckBox.IsChecked = preferences.AutoStartRobotOnLaunch;
             SettingsAutoStartFrpCheckBox.IsChecked = preferences.AutoStartFrpOnLaunch;
             SettingsAutoStartThirdPartyFrpcCheckBox.IsChecked = preferences.AutoStartThirdPartyFrpcOnLaunch;
+            SettingsAutoStartServerProfileComboBox.ItemsSource = profiles;
+            SettingsAutoStartServerProfileComboBox.SelectedItem = profiles.FirstOrDefault(profile =>
+                profile.Id.Equals(preferences.AutoStartServerProfileId, StringComparison.OrdinalIgnoreCase))
+                ?? profiles.FirstOrDefault(profile =>
+                    profile.Id.Equals(preferences.DefaultLaunchProfileId, StringComparison.OrdinalIgnoreCase))
+                ?? profiles.FirstOrDefault();
             SettingsServerStatusTextBlock.Text = T("已加载服务器设置。", "Server settings loaded.");
         }
         finally
@@ -2173,11 +2232,14 @@ public partial class LauncherMainWindow : Window
     private void SaveServerSettings(bool refreshEditor = true)
     {
         var preferences = _preferencesService.Load();
+        var selectedAutoStartProfile = SettingsAutoStartServerProfileComboBox.SelectedItem as InstanceProfile;
         preferences.WorkspaceRoot = SettingsWorkspaceDirectoryTextBox.Text?.Trim() ?? string.Empty;
         preferences.QuickCommands = ParseQuickCommands(SettingsQuickCommandsTextBox.Text);
         preferences.StartWithWindows = SettingsStartWithWindowsCheckBox.IsChecked == true;
         preferences.CloseToTrayOnExit = SettingsCloseToTrayCheckBox.IsChecked == true;
         preferences.StartHiddenOnLaunch = SettingsStartHiddenCheckBox.IsChecked == true;
+        preferences.AutoStartServerOnLaunch = SettingsAutoStartServerCheckBox.IsChecked == true;
+        preferences.AutoStartServerProfileId = selectedAutoStartProfile?.Id ?? string.Empty;
         preferences.AutoStartOpenServerQueryOnLaunch = SettingsAutoStartOsqCheckBox.IsChecked == true;
         preferences.AutoStartRobotOnLaunch = SettingsAutoStartRobotCheckBox.IsChecked == true;
         preferences.AutoStartFrpOnLaunch = SettingsAutoStartFrpCheckBox.IsChecked == true;
@@ -4097,6 +4159,16 @@ public partial class LauncherMainWindow : Window
         RefreshServerSettingsEditor();
     }
 
+    private void OnSettingsAutoStartServerProfileSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_isApplyingServerSettings)
+        {
+            return;
+        }
+
+        SaveServerSettings(refreshEditor: false);
+    }
+
     private async void OnSettingsBrowseWorkspaceDirectoryClick(object? sender, RoutedEventArgs e)
     {
         await BrowseFolderToTextBoxAsync(SettingsWorkspaceDirectoryTextBox, T("选择工作目录", "Select workspace directory"));
@@ -4794,32 +4866,10 @@ public partial class LauncherMainWindow : Window
             return;
         }
 
-        var saves = await _saveService.GetSavesAsync(profile);
-        var lockedSave = saves.FirstOrDefault(save =>
-            NormalizeFullPath(save.FullPath).Equals(lockedSavePath, StringComparison.OrdinalIgnoreCase));
-        if (lockedSave is null)
-        {
-            SelectTab(MainTab.InstanceManage);
-            SelectInstanceManageTab(InstanceManageTab.Saves);
-            LaunchSelectionSummaryTextBlock.Text = T("请先锁定默认存档", "Set default save first");
-            return;
-        }
-
-        var normalizedLockedSavePath = NormalizeFullPath(lockedSave.FullPath);
-        if (!string.IsNullOrWhiteSpace(normalizedLockedSavePath) && File.Exists(normalizedLockedSavePath))
-        {
-            var fileInfo = new FileInfo(normalizedLockedSavePath);
-            if (fileInfo.Length == 0)
-            {
-                File.Delete(normalizedLockedSavePath);
-            }
-        }
-
         SetLaunchOperationBusy(T("启动中...", "Starting..."));
         try
         {
-            profile.ActiveSaveFile = lockedSave.FullPath;
-            _profileService.UpdateProfile(profile);
+            profile = await EnsureLaunchableProfileSaveAsync(profile, lockedSavePath);
             SelectTab(MainTab.Console);
             await _serverProcessService.StartAsync(profile);
         }
@@ -4831,6 +4881,55 @@ public partial class LauncherMainWindow : Window
         {
             ClearLaunchOperationBusy();
         }
+    }
+
+    private async Task<InstanceProfile> EnsureLaunchableProfileSaveAsync(InstanceProfile profile, string preferredSavePath)
+    {
+        var normalizedPreferredSavePath = NormalizeFullPath(preferredSavePath);
+        if (!string.IsNullOrWhiteSpace(normalizedPreferredSavePath))
+        {
+            var saves = await _saveService.GetSavesAsync(profile);
+            var preferredSave = saves.FirstOrDefault(save =>
+                NormalizeFullPath(save.FullPath).Equals(normalizedPreferredSavePath, StringComparison.OrdinalIgnoreCase));
+            if (preferredSave is not null)
+            {
+                await PrepareProfileSaveForLaunchAsync(profile, preferredSave.FullPath);
+                return _profileService.GetProfileById(profile.Id) ?? profile;
+            }
+        }
+
+        var currentSavePath = NormalizeFullPath(profile.ActiveSaveFile);
+        if (string.IsNullOrWhiteSpace(currentSavePath))
+        {
+            currentSavePath = NormalizeFullPath(_profileService.GetDefaultSaveFilePath(profile.Id));
+        }
+
+        if (!string.IsNullOrWhiteSpace(currentSavePath))
+        {
+            await PrepareProfileSaveForLaunchAsync(profile, currentSavePath);
+        }
+
+        return _profileService.GetProfileById(profile.Id) ?? profile;
+    }
+
+    private async Task PrepareProfileSaveForLaunchAsync(InstanceProfile profile, string savePath)
+    {
+        var normalizedSavePath = NormalizeFullPath(savePath);
+        if (string.IsNullOrWhiteSpace(normalizedSavePath))
+        {
+            return;
+        }
+
+        if (File.Exists(normalizedSavePath))
+        {
+            var fileInfo = new FileInfo(normalizedSavePath);
+            if (fileInfo.Length == 0)
+            {
+                File.Delete(normalizedSavePath);
+            }
+        }
+
+        await _saveService.SetActiveSaveAsync(profile, normalizedSavePath);
     }
 
     private void SetLaunchOperationBusy(string text)

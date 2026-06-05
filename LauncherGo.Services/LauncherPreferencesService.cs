@@ -90,6 +90,10 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             StartWithWindows = source.StartWithWindows,
             CloseToTrayOnExit = source.CloseToTrayOnExit,
             StartHiddenOnLaunch = source.StartHiddenOnLaunch,
+            AutoStartServerOnLaunch = source.AutoStartServerOnLaunch,
+            AutoStartServerProfileId = string.IsNullOrWhiteSpace(source.AutoStartServerProfileId)
+                ? string.Empty
+                : source.AutoStartServerProfileId.Trim(),
             AutoStartOpenServerQueryOnLaunch = source.AutoStartOpenServerQueryOnLaunch,
             AutoStartRobotOnLaunch = source.AutoStartRobotOnLaunch,
             AutoStartFrpOnLaunch = source.AutoStartFrpOnLaunch,

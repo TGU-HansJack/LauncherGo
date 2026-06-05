@@ -45,6 +45,10 @@ public class LauncherPreferences
 
     public bool StartHiddenOnLaunch { get; set; }
 
+    public bool AutoStartServerOnLaunch { get; set; }
+
+    public string AutoStartServerProfileId { get; set; } = string.Empty;
+
     public bool AutoStartOpenServerQueryOnLaunch { get; set; }
 
     public bool AutoStartRobotOnLaunch { get; set; }
