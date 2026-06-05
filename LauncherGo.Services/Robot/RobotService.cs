@@ -131,7 +131,7 @@ public class RobotService : IRobotService
             OsqRequestTimeoutSec = 8,
             OsqAllowInsecureHttp = false,
             OsqListenPrefix = "http://127.0.0.1:18089/",
-            EnableOsqListener = false
+            EnableOsqListener = true
         };
     }
 
@@ -186,7 +186,7 @@ public class RobotService : IRobotService
             OsqRequestTimeoutSec = osqRequestTimeoutSec,
             OsqAllowInsecureHttp = settings.OsqAllowInsecureHttp,
             OsqListenPrefix = osqListenPrefix,
-            EnableOsqListener = false
+            EnableOsqListener = settings.EnableOsqListener
         };
     }
 

@@ -554,6 +554,10 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         if (cachedNode is not null)
         {
             _osqSnapshotCacheService?.AddSnapshot("local", cachedNode, now);
+            foreach (var snapshotHost in GetQqRobotSnapshotHosts(runtime))
+            {
+                _osqSnapshotCacheService?.AddSnapshot(snapshotHost, cachedNode, now);
+            }
         }
 
         foreach (var pair in runtime.EndpointsByHost)
@@ -621,6 +625,18 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
                 }
             }
         }
+    }
+
+    private static IReadOnlyList<string> GetQqRobotSnapshotHosts(RuntimeState runtime)
+    {
+        return runtime.EndpointsByHost.Values
+            .Where(endpoint =>
+                endpoint.Settings.Enabled &&
+                OpenServerQueryEndpointTarget.Normalize(endpoint.Settings.OutputTarget) == OpenServerQueryEndpointTarget.QqRobot &&
+                !string.IsNullOrWhiteSpace(endpoint.Settings.ServerHost))
+            .Select(endpoint => endpoint.Settings.ServerHost.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private async Task<LocalServerContext?> TryBuildLocalServerContextAsync(CancellationToken cancellationToken)

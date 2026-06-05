@@ -32,7 +32,9 @@ public sealed class Vs2QQProcessService
     private const int MaxServerStatusQueryCount = 10;
     private const int MaxOneBotMessageLength = 1800;
     private const int MaxOsqRequestBodyBytes = 8 * 1024 * 1024;
+    private const int MaxInitialSnapshotBacklogPerCategory = 3;
     private static readonly TimeSpan PlayerJoinRelayDedupeWindow = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan OsqListenerRetryDelay = TimeSpan.FromSeconds(10);
 
     private static readonly Regex NonceRegex = new("^[a-z0-9]{8,64}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex OsqBindServerPattern = new(@"^(\S+)\s+(\S+)\s+(\d{5,20})$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -190,7 +192,17 @@ public sealed class Vs2QQProcessService
     {
         try
         {
-            await runtime.OneBot.RunForeverAsync(cancellationToken);
+            var tasks = new List<Task>
+            {
+                runtime.OneBot.RunForeverAsync(cancellationToken)
+            };
+
+            if (runtime.Settings.EnableOsqListener)
+            {
+                tasks.Add(Task.Run(() => OsqListenLoopAsync(runtime, cancellationToken), CancellationToken.None));
+            }
+
+            await Task.WhenAll(tasks);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -709,7 +721,38 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        await _serverProcessService.SendCommandAsync($"/announce {outbound}", cancellationToken);
+        Exception? lastError = null;
+        for (var attempt = 1; attempt <= 2; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                _serverProcessService.GetCurrentStatus();
+                await _serverProcessService.SendCommandAsync($"/announce {outbound}", cancellationToken);
+                if (attempt > 1)
+                {
+                    EmitOutput($"[vs2qq] 群消息补发成功 group={groupId} host={host}");
+                }
+
+                return;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                lastError = ex;
+                EmitOutput($"[warn] 群消息转发到服务器失败 group={groupId} host={host} attempt={attempt}: {ex.Message}");
+                if (attempt < 2)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
+                }
+            }
+        }
+
+        throw new InvalidOperationException($"群消息转发到服务器失败 host={host}", lastError);
     }
 
     private static bool TryBuildOutboundGroupMessage(Vs2QQRuntimeContext runtime, JsonObject eventPayload, string rawMessage, out string outboundMessage)
@@ -991,49 +1034,68 @@ public sealed class Vs2QQProcessService
             prefix = "http://127.0.0.1:18089/";
         }
 
-        using var listener = new HttpListener();
-        listener.Prefixes.Add(prefix);
-
-        try
-        {
-            listener.Start();
-            runtime.OsqListener = listener;
-            using var cancellationRegistration = cancellationToken.Register(() =>
-            {
-                try
-                {
-                    listener.Close();
-                }
-                catch
-                {
-                    // ignore
-                }
-            });
-            EmitOutput($"[osq] 监听已启动：{prefix}");
-        }
-        catch (Exception ex)
-        {
-            EmitOutput($"[warn] OSQ 监听启动失败：{ex.Message}");
-            return;
-        }
-
+        string? lastStartError = null;
         while (!cancellationToken.IsCancellationRequested)
         {
-            HttpListenerContext? context = null;
+            using var listener = new HttpListener();
+            listener.Prefixes.Add(prefix);
+
             try
             {
-                context = await listener.GetContextAsync();
-                _ = Task.Run(() => HandleOsqRequestAsync(runtime, context, cancellationToken), cancellationToken);
-            }
-            catch (ObjectDisposedException)
-            {
-                break;
-            }
-            catch (HttpListenerException)
-            {
-                if (cancellationToken.IsCancellationRequested)
+                listener.Start();
+                runtime.OsqListener = listener;
+                if (!string.IsNullOrWhiteSpace(lastStartError))
                 {
-                    break;
+                    EmitOutput($"[osq] 监听已恢复：{prefix}");
+                    lastStartError = null;
+                }
+                else
+                {
+                    EmitOutput($"[osq] 监听已启动：{prefix}");
+                }
+
+                using var cancellationRegistration = cancellationToken.Register(() =>
+                {
+                    try
+                    {
+                        listener.Close();
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+                });
+
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    HttpListenerContext? context = null;
+                    try
+                    {
+                        context = await listener.GetContextAsync();
+                        _ = Task.Run(() => HandleOsqRequestAsync(runtime, context, cancellationToken), cancellationToken);
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        break;
+                    }
+                    catch (HttpListenerException)
+                    {
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            break;
+                        }
+
+                        break;
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        EmitOutput($"[warn] OSQ 监听异常：{ex.Message}");
+                        await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                    }
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -1042,9 +1104,21 @@ public sealed class Vs2QQProcessService
             }
             catch (Exception ex)
             {
-                EmitOutput($"[warn] OSQ 监听异常：{ex.Message}");
-                await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                if (!string.Equals(lastStartError, ex.Message, StringComparison.Ordinal))
+                {
+                    EmitOutput($"[warn] OSQ 监听启动失败：{ex.Message}");
+                    lastStartError = ex.Message;
+                }
             }
+            finally
+            {
+                if (ReferenceEquals(runtime.OsqListener, listener))
+                {
+                    runtime.OsqListener = null;
+                }
+            }
+
+            await Task.Delay(OsqListenerRetryDelay, cancellationToken);
         }
     }
 
@@ -1509,7 +1583,9 @@ public sealed class Vs2QQProcessService
 
         if (string.IsNullOrWhiteSpace(previousSignature))
         {
-            return skipWhenNoPreviousSignature ? signatures.Count : 0;
+            return skipWhenNoPreviousSignature
+                ? Math.Max(0, signatures.Count - MaxInitialSnapshotBacklogPerCategory)
+                : 0;
         }
 
         for (var i = signatures.Count - 1; i >= 0; i--)
@@ -1521,8 +1597,9 @@ public sealed class Vs2QQProcessService
         }
 
         // If the previous marker aged out of the OSQ recent window, forwarding the
-        // whole snapshot would replay stale chat history into QQ. Re-baseline here.
-        return signatures.Count;
+        // whole snapshot would replay stale chat history into QQ. Keep a small
+        // recent backlog so restart/reconnect windows do not look like total silence.
+        return Math.Max(0, signatures.Count - MaxInitialSnapshotBacklogPerCategory);
     }
 
     private static string BuildChatSignature(OsqChatInfo chat)
@@ -2174,7 +2251,7 @@ public sealed class Vs2QQProcessService
             OsqRequestTimeoutSec = settings.OsqRequestTimeoutSec <= 0 ? 8 : settings.OsqRequestTimeoutSec,
             OsqAllowInsecureHttp = settings.OsqAllowInsecureHttp,
             OsqListenPrefix = osqListenPrefix,
-            EnableOsqListener = false
+            EnableOsqListener = settings.EnableOsqListener
         });
     }
 
