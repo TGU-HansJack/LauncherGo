@@ -31,8 +31,7 @@ public sealed class Vs2QQProcessService
     private const int MaxOsqStatusHistoryPerHost = 30;
     private const int MaxServerStatusQueryCount = 10;
     private const int MaxOneBotMessageLength = 1800;
-    private const int MaxInitialSnapshotBacklogPerCategory = 3;
-    private static readonly TimeSpan PlayerJoinRelayDedupeWindow = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan RecentRelaySignatureWindow = TimeSpan.FromMinutes(10);
     private static readonly Regex OsqBindServerPattern = new(@"^(\S+)\s+(\S+)\s+(\d{5,20})$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex CqImageRegex = new(@"\[CQ:image,[^\]]+\]", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex CqCodeRegex = new(@"\[CQ:[^\]]+\]", RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -1015,66 +1014,59 @@ public sealed class Vs2QQProcessService
                 return;
             }
 
-            var forwardState = runtime.Storage.GetOsqForwardState(host);
             var chats = payload.RecentChats ?? [];
             var events = payload.PlayerEvents ?? [];
             var notifications = payload.ServerNotifications ?? [];
-
-            var skipCurrentSnapshotWhenNoState = forwardState is null;
-            var newChatLines = CollectNewChatLines(
-                chats,
-                forwardState?.LastChatSignature,
-                skipCurrentSnapshotWhenNoState,
-                out var lastChatSignature);
-            var newEventLines = CollectNewEventLines(
-                runtime,
-                host,
-                events,
-                forwardState?.LastEventSignature,
-                skipCurrentSnapshotWhenNoState,
-                out var lastEventSignature);
-            var newNotificationLines = CollectNewNotificationLines(
-                notifications,
-                forwardState?.LastNotificationSignature,
-                skipCurrentSnapshotWhenNoState,
-                out var lastNotificationSignature);
-
-            var lines = new List<string>();
-            lines.AddRange(newEventLines);
-            lines.AddRange(newNotificationLines);
-            lines.AddRange(newChatLines);
-            if (lines.Count == 0)
-            {
-                runtime.Storage.UpsertOsqForwardState(host, lastChatSignature, lastEventSignature, lastNotificationSignature);
-                return;
-            }
-
-            var messages = SplitOneBotMessages(lines);
-            var successfulGroups = 0;
             foreach (var groupId in groups)
             {
+                var forwardState = runtime.Storage.GetOsqForwardState(host, groupId);
+                var skipCurrentSnapshotWhenNoState = forwardState is null;
+
+                var newChatLines = CollectNewChatLines(
+                    runtime,
+                    groupId,
+                    chats,
+                    forwardState?.LastChatSignature,
+                    skipCurrentSnapshotWhenNoState,
+                    out var lastChatSignature);
+                var newEventLines = CollectNewEventLines(
+                    runtime,
+                    groupId,
+                    events,
+                    forwardState?.LastEventSignature,
+                    skipCurrentSnapshotWhenNoState,
+                    out var lastEventSignature);
+                var newNotificationLines = CollectNewNotificationLines(
+                    runtime,
+                    groupId,
+                    notifications,
+                    forwardState?.LastNotificationSignature,
+                    skipCurrentSnapshotWhenNoState,
+                    out var lastNotificationSignature);
+
+                if (newChatLines.Count == 0 && newEventLines.Count == 0 && newNotificationLines.Count == 0)
+                {
+                    runtime.Storage.UpsertOsqForwardState(host, groupId, lastChatSignature, lastEventSignature, lastNotificationSignature);
+                    continue;
+                }
+
+                var lines = new List<string>();
+                lines.AddRange(newEventLines);
+                lines.AddRange(newNotificationLines);
+                lines.AddRange(newChatLines);
+                var messages = SplitOneBotMessages(lines);
                 try
                 {
                     foreach (var message in messages)
                     {
                         await runtime.OneBot.SendGroupMsgAsync(groupId, message, cancellationToken);
                     }
-
-                    successfulGroups++;
+                    runtime.Storage.UpsertOsqForwardState(host, groupId, lastChatSignature, lastEventSignature, lastNotificationSignature);
                 }
                 catch (Exception ex)
                 {
                     EmitOutput($"[warn] OSQ 转发失败 host={host} group={groupId}: {ex.Message}");
                 }
-            }
-
-            if (successfulGroups == groups.Count)
-            {
-                runtime.Storage.UpsertOsqForwardState(host, lastChatSignature, lastEventSignature, lastNotificationSignature);
-            }
-            else
-            {
-                EmitOutput($"[warn] OSQ 转发未全部成功 host={host}: success={successfulGroups}/{groups.Count}，保留游标等待下次重试。");
             }
         }
         finally
@@ -1219,6 +1211,8 @@ public sealed class Vs2QQProcessService
     }
 
     private static IReadOnlyList<string> CollectNewChatLines(
+        Vs2QQRuntimeContext runtime,
+        long groupId,
         IReadOnlyList<OsqChatInfo> chats,
         string? previousSignature,
         bool skipWhenNoPreviousSignature,
@@ -1248,7 +1242,13 @@ public sealed class Vs2QQProcessService
                 continue;
             }
             var timeLabel = FormatDisplayTime(chat.TimestampUtc);
-            result.Add($"[服务器 {timeLabel}]{sender}：{Safe(content)}");
+            var line = $"[服务器 {timeLabel}]{sender}：{Safe(content)}";
+            if (ShouldSkipRecentRelaySignature(runtime, groupId, BuildRelaySignature("chat", signatures[i]), chat.TimestampUtc))
+            {
+                continue;
+            }
+
+            result.Add(line);
         }
 
         return result;
@@ -1256,7 +1256,7 @@ public sealed class Vs2QQProcessService
 
     private static IReadOnlyList<string> CollectNewEventLines(
         Vs2QQRuntimeContext runtime,
-        string host,
+        long groupId,
         IReadOnlyList<OsqPlayerEventInfo> events,
         string? previousSignature,
         bool skipWhenNoPreviousSignature,
@@ -1286,7 +1286,7 @@ public sealed class Vs2QQProcessService
             var playerName = Safe(entry.PlayerName);
             var timeLabel = FormatDisplayTime(entry.TimestampUtc);
             var line = $"[服务器 {timeLabel}]{playerName} {mapped}";
-            if (ShouldSkipDuplicateJoinRelay(runtime, line, entry.TimestampUtc))
+            if (ShouldSkipRecentRelaySignature(runtime, groupId, BuildRelaySignature("event", signatures[i]), entry.TimestampUtc))
             {
                 continue;
             }
@@ -1298,6 +1298,8 @@ public sealed class Vs2QQProcessService
     }
 
     private static IReadOnlyList<string> CollectNewNotificationLines(
+        Vs2QQRuntimeContext runtime,
+        long groupId,
         IReadOnlyList<OsqServerNotificationInfo> notifications,
         string? previousSignature,
         bool skipWhenNoPreviousSignature,
@@ -1324,7 +1326,13 @@ public sealed class Vs2QQProcessService
                 continue;
             }
             var timeLabel = FormatDisplayTime(notification.TimestampUtc);
-            result.Add($"[服务器 {timeLabel}]{Safe(content)}");
+            var line = $"[服务器 {timeLabel}]{Safe(content)}";
+            if (ShouldSkipRecentRelaySignature(runtime, groupId, BuildRelaySignature("notification", signatures[i]), notification.TimestampUtc))
+            {
+                continue;
+            }
+
+            result.Add(line);
         }
 
         return result;
@@ -1342,9 +1350,7 @@ public sealed class Vs2QQProcessService
 
         if (string.IsNullOrWhiteSpace(previousSignature))
         {
-            return skipWhenNoPreviousSignature
-                ? Math.Max(0, signatures.Count - MaxInitialSnapshotBacklogPerCategory)
-                : 0;
+            return skipWhenNoPreviousSignature ? signatures.Count : 0;
         }
 
         for (var i = signatures.Count - 1; i >= 0; i--)
@@ -1355,10 +1361,9 @@ public sealed class Vs2QQProcessService
             }
         }
 
-        // If the previous marker aged out of the OSQ recent window, forwarding the
-        // whole snapshot would replay stale chat history into QQ. Keep a small
-        // recent backlog so restart/reconnect windows do not look like total silence.
-        return Math.Max(0, signatures.Count - MaxInitialSnapshotBacklogPerCategory);
+        // If the previous marker cannot be found, prefer silence over replaying
+        // stale history into QQ groups.
+        return signatures.Count;
     }
 
     private static string BuildChatSignature(OsqChatInfo chat)
@@ -1391,12 +1396,18 @@ public sealed class Vs2QQProcessService
         };
     }
 
-    private static bool ShouldSkipDuplicateJoinRelay(
+    private static string BuildRelaySignature(string category, string itemSignature)
+    {
+        return $"{category}|{itemSignature}";
+    }
+
+    private static bool ShouldSkipRecentRelaySignature(
         Vs2QQRuntimeContext runtime,
-        string payload,
+        long groupId,
+        string signature,
         string? timestamp)
     {
-        if (!TryParseJoinRelayPayload(payload, out var playerName))
+        if (string.IsNullOrWhiteSpace(signature))
         {
             return false;
         }
@@ -1407,60 +1418,35 @@ public sealed class Vs2QQProcessService
             return false;
         }
 
-        var key = $"join|{playerName.Trim().ToLowerInvariant()}";
-        lock (runtime.RecentJoinRelays)
+        var key = $"{groupId}|{signature}";
+        lock (runtime.RecentRelaySignatures)
         {
-            PruneRecentJoinRelays(runtime.RecentJoinRelays, eventTime.Value);
-            if (runtime.RecentJoinRelays.TryGetValue(key, out var previous)
-                && (eventTime.Value - previous).Duration() <= PlayerJoinRelayDedupeWindow)
+            PruneRecentRelaySignatures(runtime.RecentRelaySignatures, eventTime.Value);
+            if (runtime.RecentRelaySignatures.TryGetValue(key, out var previous)
+                && (eventTime.Value - previous).Duration() <= RecentRelaySignatureWindow)
             {
                 if (eventTime.Value > previous)
                 {
-                    runtime.RecentJoinRelays[key] = eventTime.Value;
+                    runtime.RecentRelaySignatures[key] = eventTime.Value;
                 }
 
                 return true;
             }
 
-            runtime.RecentJoinRelays[key] = eventTime.Value;
+            runtime.RecentRelaySignatures[key] = eventTime.Value;
             return false;
         }
     }
 
-    private static void PruneRecentJoinRelays(Dictionary<string, DateTimeOffset> recentJoinRelays, DateTimeOffset now)
+    private static void PruneRecentRelaySignatures(Dictionary<string, DateTimeOffset> recentRelaySignatures, DateTimeOffset now)
     {
-        foreach (var item in recentJoinRelays.ToArray())
+        foreach (var item in recentRelaySignatures.ToArray())
         {
-            if ((now - item.Value).Duration() > TimeSpan.FromMinutes(5))
+            if ((now - item.Value).Duration() > RecentRelaySignatureWindow)
             {
-                recentJoinRelays.Remove(item.Key);
+                recentRelaySignatures.Remove(item.Key);
             }
         }
-    }
-
-    private static bool TryParseJoinRelayPayload(string? payload, out string playerName)
-    {
-        playerName = string.Empty;
-        var normalized = NormalizeDisplayText(payload);
-        if (normalized.Length == 0)
-        {
-            return false;
-        }
-
-        var closeIndex = normalized.IndexOf(']');
-        if (closeIndex >= 0 && closeIndex + 1 < normalized.Length)
-        {
-            normalized = normalized[(closeIndex + 1)..].Trim();
-        }
-
-        const string joinSuffix = " 进入服务器";
-        if (!normalized.EndsWith(joinSuffix, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        playerName = normalized[..^joinSuffix.Length].Trim();
-        return playerName.Length > 0;
     }
 
     private static DateTimeOffset? ParseRelayEventTime(string? timestamp)
@@ -1963,7 +1949,7 @@ public sealed class Vs2QQProcessService
 
         public EventHandler<OsqSnapshotReceivedEventArgs>? OsqSnapshotHandler { get; set; }
 
-        public Dictionary<string, DateTimeOffset> RecentJoinRelays { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, DateTimeOffset> RecentRelaySignatures { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         private readonly ConcurrentDictionary<string, SemaphoreSlim> _osqForwardGates = new(StringComparer.OrdinalIgnoreCase);
 
@@ -2550,7 +2536,7 @@ public sealed class Vs2QQProcessService
             }
         }
 
-        public OsqForwardState? GetOsqForwardState(string serverHost)
+        public OsqForwardState? GetOsqForwardState(string serverHost, long groupId)
         {
             lock (_sync)
             {
@@ -2559,10 +2545,11 @@ public sealed class Vs2QQProcessService
                     """
                     SELECT last_chat_signature, last_event_signature, last_notification_signature
                     FROM osq_forward_state
-                    WHERE server_host = $serverHost
+                    WHERE server_host = $serverHost AND group_id = $groupId
                     LIMIT 1;
                     """;
                 command.Parameters.AddWithValue("$serverHost", serverHost);
+                command.Parameters.AddWithValue("$groupId", groupId);
                 using var reader = command.ExecuteReader();
                 if (!reader.Read())
                 {
@@ -2576,22 +2563,23 @@ public sealed class Vs2QQProcessService
             }
         }
 
-        public void UpsertOsqForwardState(string serverHost, string? lastChatSignature, string? lastEventSignature, string? lastNotificationSignature)
+        public void UpsertOsqForwardState(string serverHost, long groupId, string? lastChatSignature, string? lastEventSignature, string? lastNotificationSignature)
         {
             lock (_sync)
             {
                 using var command = _connection.CreateCommand();
                 command.CommandText =
                     """
-                    INSERT INTO osq_forward_state (server_host, last_chat_signature, last_event_signature, last_notification_signature, updated_at)
-                    VALUES ($serverHost, $lastChatSignature, $lastEventSignature, $lastNotificationSignature, $updatedAt)
-                    ON CONFLICT(server_host) DO UPDATE SET
+                    INSERT INTO osq_forward_state (server_host, group_id, last_chat_signature, last_event_signature, last_notification_signature, updated_at)
+                    VALUES ($serverHost, $groupId, $lastChatSignature, $lastEventSignature, $lastNotificationSignature, $updatedAt)
+                    ON CONFLICT(server_host, group_id) DO UPDATE SET
                         last_chat_signature = excluded.last_chat_signature,
                         last_event_signature = excluded.last_event_signature,
                         last_notification_signature = excluded.last_notification_signature,
                         updated_at = excluded.updated_at;
                     """;
                 command.Parameters.AddWithValue("$serverHost", serverHost);
+                command.Parameters.AddWithValue("$groupId", groupId);
                 command.Parameters.AddWithValue("$lastChatSignature", (object?)lastChatSignature ?? DBNull.Value);
                 command.Parameters.AddWithValue("$lastEventSignature", (object?)lastEventSignature ?? DBNull.Value);
                 command.Parameters.AddWithValue("$lastNotificationSignature", (object?)lastNotificationSignature ?? DBNull.Value);
@@ -2733,11 +2721,13 @@ public sealed class Vs2QQProcessService
                         ON osq_snapshots (server_host, snapshot_id DESC);
 
                     CREATE TABLE IF NOT EXISTS osq_forward_state (
-                        server_host TEXT PRIMARY KEY,
+                        server_host TEXT NOT NULL,
+                        group_id INTEGER NOT NULL,
                         last_chat_signature TEXT,
                         last_event_signature TEXT,
                         last_notification_signature TEXT,
                         updated_at TEXT NOT NULL,
+                        PRIMARY KEY (server_host, group_id),
                         FOREIGN KEY (server_host) REFERENCES remote_servers(server_host) ON DELETE CASCADE
                     );
 
@@ -2753,12 +2743,173 @@ public sealed class Vs2QQProcessService
                 command.ExecuteNonQuery();
             }
 
-            EnsureColumn("osq_forward_state", "last_notification_signature", "TEXT");
+            EnsureOsqForwardStateSchema();
         }
 
         private static string GetUtcNowIso()
         {
             return DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture);
+        }
+
+        private void EnsureOsqForwardStateSchema()
+        {
+            lock (_sync)
+            {
+                if (!TableExists("osq_forward_state"))
+                {
+                    return;
+                }
+
+                var columns = GetTableColumns("osq_forward_state");
+                var primaryKeyColumns = GetPrimaryKeyColumns("osq_forward_state");
+                var hasGroupId = columns.Contains("group_id");
+                var hasLastNotificationSignature = columns.Contains("last_notification_signature");
+                var hasCompositePrimaryKey =
+                    primaryKeyColumns.Count == 2 &&
+                    string.Equals(primaryKeyColumns[0], "server_host", StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(primaryKeyColumns[1], "group_id", StringComparison.OrdinalIgnoreCase);
+
+                if (hasGroupId && hasLastNotificationSignature && hasCompositePrimaryKey)
+                {
+                    return;
+                }
+
+                using var transaction = _connection.BeginTransaction();
+
+                using (var create = _connection.CreateCommand())
+                {
+                    create.Transaction = transaction;
+                    create.CommandText =
+                        """
+                        CREATE TABLE osq_forward_state_new (
+                            server_host TEXT NOT NULL,
+                            group_id INTEGER NOT NULL,
+                            last_chat_signature TEXT,
+                            last_event_signature TEXT,
+                            last_notification_signature TEXT,
+                            updated_at TEXT NOT NULL,
+                            PRIMARY KEY (server_host, group_id),
+                            FOREIGN KEY (server_host) REFERENCES remote_servers(server_host) ON DELETE CASCADE
+                        );
+                        """;
+                    create.ExecuteNonQuery();
+                }
+
+                var lastNotificationProjection = hasLastNotificationSignature
+                    ? "src.last_notification_signature"
+                    : "NULL";
+                var copySql = hasGroupId
+                    ? $"""
+                       INSERT INTO osq_forward_state_new (
+                           server_host,
+                           group_id,
+                           last_chat_signature,
+                           last_event_signature,
+                           last_notification_signature,
+                           updated_at
+                       )
+                       SELECT
+                           src.server_host,
+                           COALESCE(src.group_id, 0),
+                           src.last_chat_signature,
+                           src.last_event_signature,
+                           {lastNotificationProjection},
+                           src.updated_at
+                       FROM osq_forward_state src;
+                       """
+                    : $"""
+                       INSERT INTO osq_forward_state_new (
+                           server_host,
+                           group_id,
+                           last_chat_signature,
+                           last_event_signature,
+                           last_notification_signature,
+                           updated_at
+                       )
+                       SELECT
+                           src.server_host,
+                           COALESCE(grs.group_id, 0),
+                           src.last_chat_signature,
+                           src.last_event_signature,
+                           {lastNotificationProjection},
+                           src.updated_at
+                       FROM osq_forward_state src
+                       LEFT JOIN group_remote_servers grs ON grs.server_host = src.server_host;
+                       """;
+
+                using (var copy = _connection.CreateCommand())
+                {
+                    copy.Transaction = transaction;
+                    copy.CommandText = copySql;
+                    copy.ExecuteNonQuery();
+                }
+
+                using (var drop = _connection.CreateCommand())
+                {
+                    drop.Transaction = transaction;
+                    drop.CommandText = "DROP TABLE osq_forward_state;";
+                    drop.ExecuteNonQuery();
+                }
+
+                using (var rename = _connection.CreateCommand())
+                {
+                    rename.Transaction = transaction;
+                    rename.CommandText = "ALTER TABLE osq_forward_state_new RENAME TO osq_forward_state;";
+                    rename.ExecuteNonQuery();
+                }
+
+                transaction.Commit();
+            }
+        }
+
+        private bool TableExists(string tableName)
+        {
+            using var command = _connection.CreateCommand();
+            command.CommandText =
+                """
+                SELECT 1
+                FROM sqlite_master
+                WHERE type = 'table' AND name = $tableName
+                LIMIT 1;
+                """;
+            command.Parameters.AddWithValue("$tableName", tableName);
+            var value = command.ExecuteScalar();
+            return value is not null && value != DBNull.Value;
+        }
+
+        private HashSet<string> GetTableColumns(string tableName)
+        {
+            var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            using var command = _connection.CreateCommand();
+            command.CommandText = $"PRAGMA table_info({tableName});";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                columns.Add(reader.GetString(1));
+            }
+
+            return columns;
+        }
+
+        private List<string> GetPrimaryKeyColumns(string tableName)
+        {
+            var columns = new List<(int Order, string Name)>();
+            using var command = _connection.CreateCommand();
+            command.CommandText = $"PRAGMA table_info({tableName});";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var order = reader.GetInt32(5);
+                if (order > 0)
+                {
+                    columns.Add((order, reader.GetString(1)));
+                }
+            }
+
+            return columns
+                .OrderBy(item => item.Order)
+                .Select(item => item.Name)
+                .ToList();
         }
 
         private void EnsureColumn(string tableName, string columnName, string columnDefinition)
