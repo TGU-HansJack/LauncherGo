@@ -93,6 +93,7 @@ internal static class ServerConfigFileIO
         try
         {
             await File.WriteAllTextAsync(tempPath, content, Utf8NoBom, cancellationToken).ConfigureAwait(false);
+            BackupExistingServerConfig(path);
             ReplaceTempFile(tempPath, path);
         }
         catch
@@ -112,6 +113,7 @@ internal static class ServerConfigFileIO
         try
         {
             File.WriteAllText(tempPath, content, Utf8NoBom);
+            BackupExistingServerConfig(path);
             ReplaceTempFile(tempPath, path);
         }
         catch
@@ -130,6 +132,29 @@ internal static class ServerConfigFileIO
         }
 
         File.Move(tempPath, destinationPath);
+    }
+
+    private static void BackupExistingServerConfig(string destinationPath)
+    {
+        if (!File.Exists(destinationPath) ||
+            !Path.GetFileName(destinationPath).Equals("serverconfig.json", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var directory = Path.GetDirectoryName(destinationPath)
+                        ?? throw new InvalidOperationException($"无效配置路径：{destinationPath}");
+        var backupDirectory = Path.Combine(directory, "ConfigBackups");
+        Directory.CreateDirectory(backupDirectory);
+
+        var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss-fffffff");
+        var backupPath = Path.Combine(backupDirectory, $"serverconfig-{stamp}.json");
+        if (File.Exists(backupPath))
+        {
+            backupPath = Path.Combine(backupDirectory, $"serverconfig-{stamp}-{Guid.NewGuid():N}.json");
+        }
+
+        File.Copy(destinationPath, backupPath, overwrite: false);
     }
 
     private static string BuildTempPath(string path)

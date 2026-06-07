@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -8,11 +7,8 @@ using LauncherGo.Services.Paths;
 
 namespace LauncherGo.Services;
 
-public sealed class InstanceServerConfigService(ILauncherPreferencesService preferencesService) : IInstanceServerConfigService
+public sealed class InstanceServerConfigService : IInstanceServerConfigService
 {
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> EnsureConfigLocks =
-        new(StringComparer.OrdinalIgnoreCase);
-
     private static readonly JsonSerializerOptions JsonWriteOptions = new()
     {
         WriteIndented = true
@@ -277,77 +273,29 @@ public sealed class InstanceServerConfigService(ILauncherPreferencesService pref
         var configPath = LauncherWorkspacePathHelper.ProfileConfigPath(profile);
         Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
 
-        await EnsureGeneratedConfigAsync(profile, cancellationToken);
-
         if (!File.Exists(configPath))
         {
-            return BuildDefaultRoot(profile);
+            throw new FileNotFoundException($"配置文件不存在：{configPath}", configPath);
         }
 
-        var parsedRoot = await TryParseRootAsync(configPath, cancellationToken);
-        if (parsedRoot is not null)
-        {
-            return parsedRoot;
-        }
-
-        throw new InvalidOperationException($"配置文件无法解析，已保留原文件未覆盖：{configPath}");
-    }
-
-    private async Task EnsureGeneratedConfigAsync(InstanceProfile profile, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var configPath = LauncherWorkspacePathHelper.ProfileConfigPath(profile);
-        if (File.Exists(configPath))
-        {
-            return;
-        }
-
-        var lockKey = string.IsNullOrWhiteSpace(profile.DirectoryPath) ? profile.Id : profile.DirectoryPath;
-        var gate = EnsureConfigLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
-
-        await gate.WaitAsync(cancellationToken);
-        try
-        {
-            if (File.Exists(configPath))
-            {
-                return;
-            }
-
-            await Task.Run(() =>
-            {
-                try
-                {
-                    var preferences = preferencesService.Load();
-                    var installPath = LauncherWorkspacePathHelper.ServerInstallPath(preferences, profile.Version);
-                    if (File.Exists(Path.Combine(installPath, "VintagestoryServer.exe")))
-                    {
-                        ServerConfigBootstrapper.EnsureGenerated(installPath, profile);
-                    }
-                }
-                catch
-                {
-                    // 配置页仍然可以用内置默认值打开。
-                }
-            }, cancellationToken);
-        }
-        finally
-        {
-            gate.Release();
-        }
-    }
-
-    private static async Task<JsonObject?> TryParseRootAsync(string configPath, CancellationToken cancellationToken)
-    {
         try
         {
             await using var stream = new FileStream(configPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             var node = await JsonNode.ParseAsync(stream, cancellationToken: cancellationToken);
-            return node as JsonObject;
+            return node as JsonObject
+                   ?? throw new InvalidDataException($"配置根节点必须是 JSON 对象：{configPath}");
         }
-        catch
+        catch (JsonException ex)
         {
-            return null;
+            throw new InvalidDataException($"配置文件无法解析，已保留原文件未覆盖：{configPath}", ex);
+        }
+        catch (InvalidDataException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new IOException($"配置文件读取失败：{configPath}。{ex.Message}", ex);
         }
     }
 
@@ -358,66 +306,6 @@ public sealed class InstanceServerConfigService(ILauncherPreferencesService pref
             configPath,
             root.ToJsonString(JsonWriteOptions),
             cancellationToken);
-    }
-
-    private static JsonObject BuildDefaultRoot(InstanceProfile profile)
-    {
-        var root = new JsonObject
-        {
-            ["ServerName"] = "Vintage Story Server",
-            ["ServerDescription"] = null,
-            ["ServerUrl"] = null,
-            ["Ip"] = null,
-            ["Port"] = 42420,
-            ["MaxClients"] = 16,
-            ["MaxClientsInQueue"] = 0,
-            ["Password"] = null,
-            ["AdvertiseServer"] = false,
-            ["WhitelistMode"] = 0,
-            ["Upnp"] = false,
-            ["AllowPvP"] = true,
-            ["AllowFireSpread"] = true,
-            ["AllowFallingBlocks"] = true,
-            ["PassTimeWhenEmpty"] = false,
-            ["WarnClientsAfterAfkSeconds"] = 0,
-            ["KickClientsAfterAfkSeconds"] = 0,
-            ["ClientConnectionTimeout"] = 150,
-            ["MaxChunkRadius"] = 12,
-            ["DieBelowDiskSpaceMb"] = 400,
-            ["CorruptionProtection"] = true,
-            ["RegenerateCorruptChunks"] = false,
-            ["StartupCommands"] = string.Empty,
-            ["VerifyPlayerAuth"] = true,
-            ["ServerLanguage"] = ResolveDefaultServerLanguage(),
-            ["DefaultRoleCode"] = "suplayer",
-            ["WelcomeMessage"] = string.Empty,
-            ["ModPaths"] = BuildDefaultModPaths(profile)
-        };
-
-        var worldConfig = new JsonObject
-        {
-            ["Seed"] = "123456789",
-            ["WorldName"] = "A new world",
-            ["SaveFileLocation"] = ResolveCurrentSaveFilePath(profile),
-            ["PlayStyle"] = "surviveandbuild",
-            ["WorldType"] = "standard",
-            ["MapSizeY"] = 256,
-            ["WorldConfiguration"] = new JsonObject
-            {
-                ["gameMode"] = "survival",
-                ["allowMap"] = true,
-                ["allowCoordinateHud"] = true,
-                ["colorAccurateWorldmap"] = false,
-                ["allowLandClaiming"] = true,
-                ["worldWidth"] = 1024000,
-                ["worldLength"] = 1024000,
-                ["worldEdge"] = "blocked",
-                ["snowAccum"] = true
-            }
-        };
-
-        root["WorldConfig"] = worldConfig;
-        return root;
     }
 
     private static void NormalizeImportedConfigPaths(InstanceProfile profile, JsonObject root)

@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Avalonia;
 using Avalonia.Controls;
@@ -208,6 +209,7 @@ public partial class LauncherMainWindow : Window
     private bool _isRefreshingSaves;
     private bool _isRefreshingConfigProfiles;
     private bool _isLoadingConfig;
+    private bool _isConfigLoaded;
     private bool _isApplyingServerSettings;
     private bool _isApplyingNetworkSettings;
     private bool _isApplyingConnectionSettings;
@@ -228,6 +230,7 @@ public partial class LauncherMainWindow : Window
     private bool _toastPointerOver;
     private string _tailedProfileId = string.Empty;
     private string _replayedLogProfileId = string.Empty;
+    private string _loadedConfigProfileId = string.Empty;
     private TimeSpan _robotLastProcessorTime;
     private DateTimeOffset _robotLastCpuSampleUtc = DateTimeOffset.UtcNow;
     private double _robotLastCpuPercent;
@@ -584,6 +587,7 @@ public partial class LauncherMainWindow : Window
         ConfigRefreshButton.Content = T("刷新", "Refresh");
         ConfigImportButton.Content = T("导入", "Import");
         ConfigSaveButton.Content = T("保存", "Save");
+        ConfigPathTextBlock.Text = T("配置路径：未选择档案", "Config path: no profile selected");
         ConfigBasicInfoTitleTextBlock.Text = T("基础信息", "Basic Info");
         ConfigServerNameLabelTextBlock.Text = T("服务器名称", "Server Name");
         ConfigServerLanguageLabelTextBlock.Text = T("服务器语言", "Server Language");
@@ -5029,6 +5033,9 @@ public partial class LauncherMainWindow : Window
         if (targetProfile is null)
         {
             ClearConfigForm();
+            SetConfigPath(null);
+            ConfigContentHost.IsEnabled = false;
+            ConfigSaveButton.IsEnabled = false;
             SetConfigStatus(T("暂无档案，请先创建档案。", "No profile found. Create a profile first."));
             return;
         }
@@ -5042,7 +5049,8 @@ public partial class LauncherMainWindow : Window
         ConfigEmptyPanel.IsVisible = !hasProfiles;
         ConfigRefreshButton.IsEnabled = true;
         ConfigImportButton.IsEnabled = hasProfiles;
-        ConfigSaveButton.IsEnabled = hasProfiles;
+        ConfigSaveButton.IsEnabled = hasProfiles && _isConfigLoaded;
+        ConfigContentHost.IsEnabled = hasProfiles && _isConfigLoaded;
     }
 
     private async Task LoadConfigForProfileAsync(InstanceProfile selectedProfile)
@@ -5053,13 +5061,20 @@ public partial class LauncherMainWindow : Window
         }
 
         var profile = _profileService.GetProfileById(selectedProfile.Id) ?? selectedProfile;
+        var configPath = GetConfigPath(profile);
         _isLoadingConfig = true;
+        _isConfigLoaded = false;
+        _loadedConfigProfileId = string.Empty;
+        ConfigSaveButton.IsEnabled = false;
         ConfigContentHost.IsEnabled = false;
+        SetConfigPath(profile);
         try
         {
-            var serverSettings = await _instanceServerConfigService.LoadServerSettingsAsync(profile);
-            var worldSettings = await _instanceServerConfigService.LoadWorldSettingsAsync(profile);
-            var worldRules = await _instanceServerConfigService.LoadWorldRulesAsync(profile);
+            var rawJson = await _instanceServerConfigService.LoadRawJsonAsync(profile);
+            var root = ParseConfigRootForUi(rawJson, configPath);
+            var serverSettings = BuildConfigServerSettings(root);
+            var worldSettings = BuildConfigWorldSettings(profile, root);
+            var worldRules = BuildConfigWorldRules(root);
 
             LoadConfigGameLanguageZh(profile);
             ApplyConfigServerSettings(serverSettings);
@@ -5067,15 +5082,24 @@ public partial class LauncherMainWindow : Window
             ApplyConfigWorldSettings(worldSettings);
             RebuildConfigWorldRules(worldRules);
             UpdateConfigWorldGeneratedState();
-            SetConfigStatus(T($"已加载配置：{profile.Name}", $"Loaded configuration: {profile.Name}"));
+            _isConfigLoaded = true;
+            _loadedConfigProfileId = profile.Id;
+            ConfigSaveButton.IsEnabled = true;
+            ConfigContentHost.IsEnabled = true;
+            SetConfigStatus(
+                T($"已加载配置：{profile.Name}", $"Loaded configuration: {profile.Name}") + Environment.NewLine +
+                T($"配置路径：{configPath}", $"Config path: {configPath}"));
         }
         catch (Exception ex)
         {
-            SetConfigStatus(T($"加载配置失败：{ex.Message}", $"Failed to load configuration: {ex.Message}"));
+            ClearConfigForm();
+            ConfigContentHost.IsEnabled = false;
+            ConfigSaveButton.IsEnabled = false;
+            SetConfigStatus(FormatConfigLoadFailure(profile, ex));
         }
         finally
         {
-            ConfigContentHost.IsEnabled = true;
+            ConfigContentHost.IsEnabled = _isConfigLoaded;
             _isLoadingConfig = false;
         }
     }
@@ -5152,8 +5176,91 @@ public partial class LauncherMainWindow : Window
         SetNumericValue(ConfigWorldHeightNumericUpDown, settings.WorldHeight ?? 256);
     }
 
+    private static JsonObject ParseConfigRootForUi(string rawJson, string configPath)
+    {
+        try
+        {
+            return JsonNode.Parse(rawJson) as JsonObject
+                   ?? throw new InvalidDataException($"配置根节点必须是 JSON 对象：{configPath}");
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException($"配置文件无法解析：{configPath}", ex);
+        }
+    }
+
+    private ServerCommonSettings BuildConfigServerSettings(JsonObject root)
+    {
+        return new ServerCommonSettings
+        {
+            ServerName = ReadConfigString(root["ServerName"], "Vintage Story Server"),
+            ServerDescription = ReadConfigNullableString(root["ServerDescription"]),
+            ServerUrl = ReadConfigNullableString(root["ServerUrl"]),
+            Ip = ReadConfigNullableString(root["Ip"]),
+            Port = ReadConfigInt(root["Port"], 42420),
+            MaxClients = ReadConfigInt(root["MaxClients"], 16),
+            MaxClientsInQueue = ReadConfigInt(root["MaxClientsInQueue"], 0),
+            Password = ReadConfigNullableString(root["Password"]),
+            AdvertiseServer = ReadConfigBool(root["AdvertiseServer"], false),
+            WhitelistMode = ReadConfigInt(root["WhitelistMode"], 0),
+            Upnp = ReadConfigBool(root["Upnp"], false),
+            AllowPvP = ReadConfigBool(root["AllowPvP"], true),
+            AllowFireSpread = ReadConfigBool(root["AllowFireSpread"], true),
+            AllowFallingBlocks = ReadConfigBool(root["AllowFallingBlocks"], true),
+            PassTimeWhenEmpty = ReadConfigBool(root["PassTimeWhenEmpty"], false),
+            WarnClientsAfterAfkSeconds = ReadConfigInt(root["WarnClientsAfterAfkSeconds"], 0),
+            KickClientsAfterAfkSeconds = ReadConfigInt(root["KickClientsAfterAfkSeconds"], 0),
+            ClientConnectionTimeout = ReadConfigInt(root["ClientConnectionTimeout"], 150),
+            MaxChunkRadius = ReadConfigInt(root["MaxChunkRadius"], 12),
+            DieBelowDiskSpaceMb = ReadConfigInt(root["DieBelowDiskSpaceMb"], 400),
+            CorruptionProtection = ReadConfigBool(root["CorruptionProtection"], true),
+            RegenerateCorruptChunks = ReadConfigBool(root["RegenerateCorruptChunks"], false),
+            StartupCommands = ReadConfigString(root["StartupCommands"], string.Empty),
+            VerifyPlayerAuth = ReadConfigBool(root["VerifyPlayerAuth"], true),
+            ServerLanguage = ReadConfigString(root["ServerLanguage"], ResolveDefaultServerLanguage()),
+            DefaultRoleCode = ReadConfigString(root["DefaultRoleCode"], "suplayer"),
+            WelcomeMessage = ReadConfigString(root["WelcomeMessage"], string.Empty)
+        };
+    }
+
+    private static WorldSettings BuildConfigWorldSettings(InstanceProfile profile, JsonObject root)
+    {
+        var worldConfig = root["WorldConfig"] as JsonObject ?? [];
+        var worldRules = worldConfig["WorldConfiguration"] as JsonObject ?? [];
+        var mapSizeY = ReadConfigNullableInt(worldConfig["MapSizeY"]) ?? ReadConfigNullableInt(worldRules["worldHeight"]);
+
+        return new WorldSettings
+        {
+            Seed = ReadConfigString(worldConfig["Seed"], "123456789"),
+            WorldName = ReadConfigString(worldConfig["WorldName"], "A new world"),
+            SaveFileLocation = ReadConfigString(worldConfig["SaveFileLocation"], ResolveCurrentConfigSaveFilePath(profile)),
+            PlayStyle = ReadConfigString(worldConfig["PlayStyle"], "surviveandbuild"),
+            WorldType = ReadConfigString(worldConfig["WorldType"], "standard"),
+            WorldHeight = mapSizeY ?? 256
+        };
+    }
+
+    private static IReadOnlyList<WorldRuleValue> BuildConfigWorldRules(JsonObject root)
+    {
+        var worldConfig = root["WorldConfig"] as JsonObject ?? [];
+        var worldRules = worldConfig["WorldConfiguration"] as JsonObject ?? [];
+
+        return WorldRuleCatalog.DefaultRules
+            .Select(rule => new WorldRuleValue
+            {
+                Definition = rule,
+                Value = ReadConfigFlexibleString(worldRules[rule.Key])
+                        ?? ReadConfigRuleFallbackValue(rule.Key, root, worldConfig)
+                        ?? rule.DefaultValue
+            })
+            .ToList();
+    }
+
     private void ClearConfigForm()
     {
+        _isConfigLoaded = false;
+        _loadedConfigProfileId = string.Empty;
+        ConfigSaveButton.IsEnabled = false;
         ConfigServerNameTextBox.Text = "Vintage Story Server";
         ConfigServerDescriptionTextBox.Text = string.Empty;
         ConfigServerUrlTextBox.Text = string.Empty;
@@ -5240,7 +5347,10 @@ public partial class LauncherMainWindow : Window
         {
             await _instanceServerConfigService.ImportRawJsonAsync(profile, path);
             await LoadConfigForProfileAsync(profile);
-            SetConfigStatus(T($"已导入配置：{Path.GetFileName(path)}", $"Configuration imported: {Path.GetFileName(path)}"));
+            SetConfigStatus(
+                T($"已导入配置：{Path.GetFileName(path)}", $"Configuration imported: {Path.GetFileName(path)}") +
+                Environment.NewLine +
+                T($"配置路径：{GetConfigPath(profile)}", $"Config path: {GetConfigPath(profile)}"));
         }
         catch (Exception ex)
         {
@@ -5284,6 +5394,16 @@ public partial class LauncherMainWindow : Window
         if (profile is null)
         {
             SetConfigStatus(T("请先选择档案。", "Select a profile first."));
+            return;
+        }
+
+        if (!_isConfigLoaded || !_loadedConfigProfileId.Equals(profile.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            ConfigSaveButton.IsEnabled = false;
+            SetConfigStatus(
+                T("配置尚未成功加载，已禁止保存以避免覆盖原文件。", "Configuration has not loaded successfully; saving is disabled to avoid overwriting the original file.") +
+                Environment.NewLine +
+                T($"配置路径：{GetConfigPath(profile)}", $"Config path: {GetConfigPath(profile)}"));
             return;
         }
 
@@ -5338,15 +5458,22 @@ public partial class LauncherMainWindow : Window
             await RefreshSavesAsync();
             RefreshLaunchOptions();
             RefreshProfiles();
-            SetConfigStatus(T("配置已保存。", "Configuration saved."));
+            _isConfigLoaded = true;
+            _loadedConfigProfileId = profile.Id;
+            SetConfigStatus(
+                T("配置已保存。", "Configuration saved.") + Environment.NewLine +
+                T($"配置路径：{GetConfigPath(profile)}", $"Config path: {GetConfigPath(profile)}"));
         }
         catch (Exception ex)
         {
+            _isConfigLoaded = false;
+            _loadedConfigProfileId = string.Empty;
             SetConfigStatus(T($"保存配置失败：{ex.Message}", $"Failed to save configuration: {ex.Message}"));
         }
         finally
         {
-            ConfigSaveButton.IsEnabled = true;
+            ConfigSaveButton.IsEnabled = _isConfigLoaded;
+            ConfigContentHost.IsEnabled = _isConfigLoaded;
         }
     }
 
@@ -5910,6 +6037,43 @@ public partial class LauncherMainWindow : Window
         }
     }
 
+    private static string GetConfigPath(InstanceProfile profile)
+    {
+        var configPath = Path.Combine(profile.DirectoryPath, "serverconfig.json");
+        try
+        {
+            return Path.GetFullPath(configPath);
+        }
+        catch
+        {
+            return configPath;
+        }
+    }
+
+    private void SetConfigPath(InstanceProfile? profile)
+    {
+        ConfigPathTextBlock.Text = profile is null
+            ? T("配置路径：未选择档案", "Config path: no profile selected")
+            : T($"配置路径：{GetConfigPath(profile)}", $"Config path: {GetConfigPath(profile)}");
+    }
+
+    private string FormatConfigLoadFailure(InstanceProfile profile, Exception exception)
+    {
+        var configPath = GetConfigPath(profile);
+        var status = exception switch
+        {
+            FileNotFoundException => T("配置状态：缺失", "Config status: missing"),
+            InvalidDataException => T("配置状态：解析失败", "Config status: parse failed"),
+            JsonException => T("配置状态：解析失败", "Config status: parse failed"),
+            IOException => T("配置状态：读取失败", "Config status: read failed"),
+            _ => T("配置状态：加载失败", "Config status: load failed")
+        };
+
+        return status + Environment.NewLine +
+               T($"配置路径：{configPath}", $"Config path: {configPath}") + Environment.NewLine +
+               T($"原因：{exception.Message}", $"Reason: {exception.Message}");
+    }
+
     private void SetConfigStatus(string message, bool notify = true)
     {
         ConfigStatusTextBlock.Text = message;
@@ -5917,6 +6081,116 @@ public partial class LauncherMainWindow : Window
         {
             ShowToast(message);
         }
+    }
+
+    private static string ReadConfigString(JsonNode? node, string defaultValue)
+    {
+        return ReadConfigFlexibleString(node) ?? defaultValue;
+    }
+
+    private static string? ReadConfigNullableString(JsonNode? node)
+    {
+        return node is null ? null : ReadConfigFlexibleString(node);
+    }
+
+    private static int ReadConfigInt(JsonNode? node, int defaultValue)
+    {
+        if (ReadConfigNullableInt(node) is { } value)
+        {
+            return value;
+        }
+
+        return defaultValue;
+    }
+
+    private static int? ReadConfigNullableInt(JsonNode? node)
+    {
+        if (node is null)
+        {
+            return null;
+        }
+
+        if (node.GetValueKind() == JsonValueKind.Number &&
+            node is JsonValue numericValue &&
+            numericValue.TryGetValue<int>(out var numeric))
+        {
+            return numeric;
+        }
+
+        if (node.GetValueKind() == JsonValueKind.String &&
+            int.TryParse(node.GetValue<string>(), NumberStyles.Integer, CultureInfo.InvariantCulture, out numeric))
+        {
+            return numeric;
+        }
+
+        return null;
+    }
+
+    private static bool ReadConfigBool(JsonNode? node, bool defaultValue)
+    {
+        if (node is null)
+        {
+            return defaultValue;
+        }
+
+        if (node.GetValueKind() == JsonValueKind.True || node.GetValueKind() == JsonValueKind.False)
+        {
+            return node.GetValue<bool>();
+        }
+
+        if (node.GetValueKind() == JsonValueKind.String &&
+            bool.TryParse(node.GetValue<string>(), out var parsed))
+        {
+            return parsed;
+        }
+
+        return defaultValue;
+    }
+
+    private static string? ReadConfigFlexibleString(JsonNode? node)
+    {
+        if (node is null)
+        {
+            return null;
+        }
+
+        return node.GetValueKind() switch
+        {
+            JsonValueKind.String => node.GetValue<string>(),
+            JsonValueKind.True => bool.TrueString.ToLowerInvariant(),
+            JsonValueKind.False => bool.FalseString.ToLowerInvariant(),
+            JsonValueKind.Number => node.ToString(),
+            _ => node.ToJsonString()
+        };
+    }
+
+    private static string? ReadConfigRuleFallbackValue(string key, JsonObject root, JsonObject worldConfig)
+    {
+        return key switch
+        {
+            "worldWidth" => ReadConfigFlexibleString(root["MapSizeX"]) ?? ReadConfigFlexibleString(worldConfig["MapSizeX"]),
+            "worldLength" => ReadConfigFlexibleString(root["MapSizeZ"]) ?? ReadConfigFlexibleString(worldConfig["MapSizeZ"]),
+            "colorAccurateWorldmap" => ReadConfigFlexibleString(worldConfig["colorAccurateWorldmap"]),
+            _ => null
+        };
+    }
+
+    private static string ResolveCurrentConfigSaveFilePath(InstanceProfile profile)
+    {
+        var activeSaveFile = NormalizeFullPath(profile.ActiveSaveFile);
+        var saveRoot = NormalizeFullPath(profile.SaveDirectory);
+        if (!string.IsNullOrWhiteSpace(activeSaveFile) &&
+            IsSameOrChildPath(activeSaveFile, saveRoot))
+        {
+            return activeSaveFile;
+        }
+
+        if (!string.IsNullOrWhiteSpace(saveRoot))
+        {
+            return Path.Combine(saveRoot, "default.vcdbs");
+        }
+
+        return Path.Combine(profile.DirectoryPath, "Saves", "default.vcdbs");
     }
 
     private static void SetNumericValue(NumericUpDown control, int value)
