@@ -13,6 +13,7 @@ public static class ServiceCollectionExtension
         services.AddSingleton<IInstanceSaveService, InstanceSaveService>();
         services.AddSingleton<IInstanceServerConfigService, InstanceServerConfigService>();
         services.AddSingleton<IServerProcessService, ServerProcessService>();
+        services.AddSingleton<IServerTransport, LocalServerTransport>();
         services.AddSingleton<ILogTailService, LogTailService>();
         services.AddSingleton<IAutomationSettingsService, AutomationSettingsService>();
         services.AddSingleton<IAutomationService, AutomationService>();

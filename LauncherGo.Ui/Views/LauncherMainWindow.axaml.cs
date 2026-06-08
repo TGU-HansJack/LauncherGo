@@ -43,8 +43,7 @@ public partial class LauncherMainWindow : Window
     private const double ThumbnailWidth = 76;
     private const double ThumbnailHeight = 50;
     private const double OsqEndpointHostColumnWidth = 420;
-    private const double OsqEndpointTokenColumnWidth = 205;
-    private const double OsqEndpointTargetColumnWidth = 160;
+    private const double OsqEndpointTokenColumnWidth = 365;
     private const double OsqEndpointColumnSpacing = 10;
     private const string DefaultServerDownloadCatalogUrl = "https://api.vintagestory.at/stable-unstable.json";
     private const string GitHubContributorsApiUrl = "https://api.github.com/repos/vscn-studio/LauncherGo/contributors?per_page=100";
@@ -175,7 +174,6 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<ConfigSaveFileItem> _configSaveItems = [];
     private readonly ObservableCollection<ConfigWorldRuleItem> _configWorldRuleItems = [];
     private readonly ObservableCollection<ConfigChoiceOption> _thirdPartyFrpcModeOptions = [];
-    private readonly ObservableCollection<ConfigChoiceOption> _osqEndpointTargetOptions = [];
     private readonly ObservableCollection<SettingsContributorItem> _settingsContributorItems = [];
     private readonly ObservableCollection<SettingsSponsorItem> _settingsSponsorItems = [];
     private readonly ObservableCollection<InstanceProfile> _automationProfileItems = [];
@@ -711,16 +709,15 @@ public partial class LauncherMainWindow : Window
         OsqIncludeChatsLabelTextBlock.Text = T("聊天", "Chats");
         OsqIncludeNotificationsLabelTextBlock.Text = T("通知", "Notifications");
         OsqIncludeMapLabelTextBlock.Text = T("地图数据", "Map Data");
-        OsqEndpointHostLabelTextBlock.Text = T("上报端点", "Report Endpoint");
-        OsqEndpointTokenLabelTextBlock.Text = T("端点令牌", "Endpoint Token");
-        OsqEndpointTargetLabelTextBlock.Text = T("输出对象", "Output Target");
+        OsqEndpointHostLabelTextBlock.Text = T("地图网站地址", "Map Website Address");
+        OsqEndpointTokenLabelTextBlock.Text = T("地图网站密钥", "Map Website Token");
         OsqEndpointAddButton.Content = T("添加", "Add");
-        RebuildOsqEndpointTargetOptions();
 
         UpdateRobotToggleButtonText();
         RobotConfigTitleTextBlock.Text = T("QQ机器人配置", "QQ Robot Configuration");
         RobotOneBotLabelTextBlock.Text = T("OneBot WebSocket", "OneBot WebSocket");
         RobotAccessTokenLabelTextBlock.Text = T("访问令牌", "Access Token");
+        RobotBoundGroupsLabelTextBlock.Text = T("绑定群号", "Bound Group IDs");
         RobotReconnectLabelTextBlock.Text = T("重连间隔秒数", "Reconnect Interval Seconds");
         RobotPollIntervalLabelTextBlock.Text = T("轮询间隔秒数", "Poll Interval Seconds");
         RobotDatabasePathLabelTextBlock.Text = T("数据库路径", "Database Path");
@@ -793,7 +790,6 @@ public partial class LauncherMainWindow : Window
         AuthPlayersListBox.ItemsSource = _authPlayerItems;
         RebuildConfigChoiceOptions();
         RebuildThirdPartyFrpcModeOptions();
-        RebuildOsqEndpointTargetOptions();
     }
 
     private static void FillWithZero(List<double> target, int count)
@@ -2104,6 +2100,7 @@ public partial class LauncherMainWindow : Window
 
         RobotOneBotTextBox.LostFocus += OnRobotAutoSaveChanged;
         RobotAccessTokenTextBox.LostFocus += OnRobotAutoSaveChanged;
+        RobotBoundGroupsTextBox.LostFocus += OnRobotAutoSaveChanged;
         RobotDatabasePathTextBox.LostFocus += OnRobotAutoSaveChanged;
         RobotDefaultEncodingTextBox.LostFocus += OnRobotAutoSaveChanged;
         RobotFallbackEncodingTextBox.LostFocus += OnRobotAutoSaveChanged;
@@ -2815,8 +2812,7 @@ public partial class LauncherMainWindow : Window
             {
                 ServerHost = endpoint.ServerHost?.Trim() ?? string.Empty,
                 Token = endpoint.Token?.Trim() ?? string.Empty,
-                Enabled = endpoint.Enabled,
-                OutputTarget = OpenServerQueryEndpointTarget.Normalize(endpoint.OutputTarget)
+                Enabled = endpoint.Enabled
             })
             .Where(endpoint => !string.IsNullOrWhiteSpace(endpoint.ServerHost) || !string.IsNullOrWhiteSpace(endpoint.Token))
             .ToList();
@@ -2828,8 +2824,7 @@ public partial class LauncherMainWindow : Window
             {
                 ServerHost = settings.EndpointHost?.Trim() ?? string.Empty,
                 Token = settings.EndpointToken?.Trim() ?? string.Empty,
-                Enabled = true,
-                OutputTarget = OpenServerQueryEndpointTarget.MapWebsite
+                Enabled = true
             });
         }
 
@@ -2848,18 +2843,18 @@ public partial class LauncherMainWindow : Window
 
         foreach (var endpoint in endpoints)
         {
-            AddOsqEndpointEditorRow(endpoint.ServerHost, endpoint.Token, endpoint.Enabled, endpoint.OutputTarget);
+            AddOsqEndpointEditorRow(endpoint.ServerHost, endpoint.Token, endpoint.Enabled);
         }
     }
 
-    private void AddOsqEndpointEditorRow(string serverHost, string token, bool enabled = true, string? outputTarget = null)
+    private void AddOsqEndpointEditorRow(string serverHost, string token, bool enabled = true)
     {
-        var rowWidth = OsqEndpointHostColumnWidth + OsqEndpointTokenColumnWidth + OsqEndpointTargetColumnWidth + OsqEndpointColumnSpacing * 2;
+        var rowWidth = OsqEndpointHostColumnWidth + OsqEndpointTokenColumnWidth + OsqEndpointColumnSpacing;
         var row = new Grid
         {
             Width = rowWidth,
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
-            ColumnDefinitions = new ColumnDefinitions($"{OsqEndpointHostColumnWidth},{OsqEndpointTokenColumnWidth},{OsqEndpointTargetColumnWidth}"),
+            ColumnDefinitions = new ColumnDefinitions($"{OsqEndpointHostColumnWidth},{OsqEndpointTokenColumnWidth}"),
             ColumnSpacing = OsqEndpointColumnSpacing
         };
 
@@ -2880,27 +2875,15 @@ public partial class LauncherMainWindow : Window
         Grid.SetColumn(tokenTextBox, 1);
         row.Children.Add(tokenTextBox);
 
-        var targetComboBox = new ComboBox
-        {
-            ItemsSource = _osqEndpointTargetOptions
-        };
-        targetComboBox.Classes.Add("CompactCombo");
-        SelectConfigChoiceByValue(
-            targetComboBox,
-            _osqEndpointTargetOptions,
-            OpenServerQueryEndpointTarget.Normalize(outputTarget));
-        targetComboBox.SelectionChanged += OnOpenInfoAutoSaveChanged;
-        Grid.SetColumn(targetComboBox, 2);
-        row.Children.Add(targetComboBox);
-
         OsqEndpointRowsHost.Children.Add(row);
-        _osqEndpointEditors.Add(new OsqEndpointEditorRow(hostTextBox, tokenTextBox, targetComboBox, enabled));
+        _osqEndpointEditors.Add(new OsqEndpointEditorRow(hostTextBox, tokenTextBox, enabled));
     }
 
     private void ApplyRobotSettings(RobotIntegrationSettings settings)
     {
         RobotOneBotTextBox.Text = settings.OneBotWsUrl;
         RobotAccessTokenTextBox.Text = settings.AccessToken;
+        RobotBoundGroupsTextBox.Text = settings.BoundGroupIdsText;
         SetNumericValue(RobotReconnectNumericUpDown, settings.ReconnectIntervalSec);
         SetNumericValue(RobotPollIntervalNumericUpDown, settings.PollIntervalSec);
         RobotDatabasePathTextBox.Text = settings.DatabasePath;
@@ -3018,9 +3001,7 @@ public partial class LauncherMainWindow : Window
             {
                 ServerHost = host,
                 Token = token,
-                Enabled = row.Enabled,
-                OutputTarget = OpenServerQueryEndpointTarget.Normalize(
-                    (row.TargetComboBox.SelectedItem as ConfigChoiceOption)?.Value)
+                Enabled = row.Enabled
             });
         }
 
@@ -3035,6 +3016,7 @@ public partial class LauncherMainWindow : Window
                 ? "ws://127.0.0.1:3001/"
                 : RobotOneBotTextBox.Text.Trim(),
             AccessToken = RobotAccessTokenTextBox.Text?.Trim() ?? string.Empty,
+            BoundGroupIdsText = RobotBoundGroupsTextBox.Text?.Trim() ?? string.Empty,
             ReconnectIntervalSec = GetNumericValue(RobotReconnectNumericUpDown, 5),
             DatabasePath = RobotDatabasePathTextBox.Text?.Trim() ?? string.Empty,
             PollIntervalSec = GetNumericDoubleValue(RobotPollIntervalNumericUpDown, 1.0),
@@ -3066,8 +3048,7 @@ public partial class LauncherMainWindow : Window
             {
                 ServerHost = host,
                 Token = token,
-                Enabled = endpoint.Enabled,
-                OutputTarget = OpenServerQueryEndpointTarget.Normalize(endpoint.OutputTarget)
+                Enabled = endpoint.Enabled
             });
         }
 
@@ -3079,8 +3060,7 @@ public partial class LauncherMainWindow : Window
             {
                 ServerHost = settings.EndpointHost.Trim(),
                 Token = settings.EndpointToken.Trim(),
-                Enabled = true,
-                OutputTarget = OpenServerQueryEndpointTarget.MapWebsite
+                Enabled = true
             });
         }
 
@@ -3106,6 +3086,7 @@ public partial class LauncherMainWindow : Window
         {
             OneBotWsUrl = settings.OneBotWsUrl,
             AccessToken = settings.AccessToken,
+            BoundGroupIds = ParseQqIds(settings.BoundGroupIdsText),
             ReconnectIntervalSec = settings.ReconnectIntervalSec,
             DatabasePath = settings.DatabasePath,
             PollIntervalSec = settings.PollIntervalSec,
@@ -3149,41 +3130,6 @@ public partial class LauncherMainWindow : Window
             ConnectionThirdPartyFrpcModeComboBox,
             _thirdPartyFrpcModeOptions,
             selectedValue ?? ThirdPartyFrpcLaunchMode.ConfigFile.ToString());
-    }
-
-    private void RebuildOsqEndpointTargetOptions()
-    {
-        var wasApplyingConnectionSettings = _isApplyingConnectionSettings;
-        _isApplyingConnectionSettings = true;
-        var selectedValues = _osqEndpointEditors
-            .Select(row => (row.TargetComboBox.SelectedItem as ConfigChoiceOption)?.Value)
-            .ToList();
-
-        try
-        {
-            _osqEndpointTargetOptions.Clear();
-            _osqEndpointTargetOptions.Add(new ConfigChoiceOption(
-                OpenServerQueryEndpointTarget.QqRobot,
-                T("QQ机器人", "QQ Robot")));
-            _osqEndpointTargetOptions.Add(new ConfigChoiceOption(
-                OpenServerQueryEndpointTarget.MapWebsite,
-                T("地图网站", "Map Website")));
-
-            for (var i = 0; i < _osqEndpointEditors.Count; i++)
-            {
-                var value = i < selectedValues.Count
-                    ? selectedValues[i]
-                    : OpenServerQueryEndpointTarget.MapWebsite;
-                SelectConfigChoiceByValue(
-                    _osqEndpointEditors[i].TargetComboBox,
-                    _osqEndpointTargetOptions,
-                    OpenServerQueryEndpointTarget.Normalize(value));
-            }
-        }
-        finally
-        {
-            _isApplyingConnectionSettings = wasApplyingConnectionSettings;
-        }
     }
 
     private ThirdPartyFrpcLaunchMode GetSelectedThirdPartyFrpcMode()
@@ -4641,7 +4587,7 @@ public partial class LauncherMainWindow : Window
 
     private void OnOsqEndpointAddClick(object? sender, RoutedEventArgs e)
     {
-        AddOsqEndpointEditorRow(string.Empty, string.Empty, outputTarget: OpenServerQueryEndpointTarget.MapWebsite);
+        AddOsqEndpointEditorRow(string.Empty, string.Empty);
         _osqEndpointEditors[^1].HostTextBox.Focus();
     }
 
@@ -7028,13 +6974,11 @@ public partial class LauncherMainWindow : Window
         Error
     }
 
-    private sealed class OsqEndpointEditorRow(TextBox hostTextBox, TextBox tokenTextBox, ComboBox targetComboBox, bool enabled = true)
+    private sealed class OsqEndpointEditorRow(TextBox hostTextBox, TextBox tokenTextBox, bool enabled = true)
     {
         public TextBox HostTextBox { get; } = hostTextBox;
 
         public TextBox TokenTextBox { get; } = tokenTextBox;
-
-        public ComboBox TargetComboBox { get; } = targetComboBox;
 
         public bool Enabled { get; set; } = enabled;
     }

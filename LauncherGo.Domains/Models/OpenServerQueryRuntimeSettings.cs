@@ -35,8 +35,6 @@ public sealed class OpenServerQueryEndpointSettings
     public string Token { get; init; } = string.Empty;
 
     public bool Enabled { get; init; } = true;
-
-    public string OutputTarget { get; init; } = OpenServerQueryEndpointTarget.MapWebsite;
 }
 
 public sealed class OpenServerQueryRuntimeStatus
@@ -65,8 +63,6 @@ public sealed class OpenServerQueryEndpointRuntime
     public string ServerHost { get; init; } = string.Empty;
 
     public bool Enabled { get; init; }
-
-    public string OutputTarget { get; init; } = OpenServerQueryEndpointTarget.MapWebsite;
 
     public string LastServerName { get; init; } = string.Empty;
 

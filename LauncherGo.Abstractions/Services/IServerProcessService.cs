@@ -12,6 +12,8 @@ public interface IServerProcessService
 
     ServerRuntimeStatus GetCachedStatus();
 
+    IReadOnlyList<string> GetOnlinePlayerNames();
+
     Task StartAsync(InstanceProfile profile, CancellationToken cancellationToken = default);
 
     Task StopAsync(TimeSpan gracefulTimeout, CancellationToken cancellationToken = default);

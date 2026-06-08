@@ -1,9 +1,7 @@
 using System.Collections.Concurrent;
 using System.Globalization;
-using System.IO.Compression;
 using System.Net;
 using System.Net.WebSockets;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -23,16 +21,11 @@ public sealed class Vs2QQProcessService
         PropertyNameCaseInsensitive = true
     };
 
-    private static readonly JsonSerializerOptions RobotJsonOptions = new()
-    {
-        WriteIndented = false
-    };
-
+    private const string LocalServerSnapshotHost = "local";
     private const int MaxOsqStatusHistoryPerHost = 30;
     private const int MaxServerStatusQueryCount = 10;
     private const int MaxOneBotMessageLength = 1800;
     private static readonly TimeSpan RecentRelaySignatureWindow = TimeSpan.FromMinutes(10);
-    private static readonly Regex OsqBindServerPattern = new(@"^(\S+)\s+(\S+)\s+(\d{5,20})$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex CqImageRegex = new(@"\[CQ:image,[^\]]+\]", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex CqCodeRegex = new(@"\[CQ:[^\]]+\]", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex HtmlTagRegex = new(@"<[^>]+>", RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -43,6 +36,7 @@ public sealed class Vs2QQProcessService
 
     private readonly SemaphoreSlim _runtimeGate = new(1, 1);
     private readonly IServerProcessService _serverProcessService;
+    private readonly IServerTransport _serverTransport;
     private readonly IInstanceProfileService _instanceProfileService;
     private readonly IInstanceServerConfigService _instanceServerConfigService;
     private readonly IOsqSnapshotCacheService _osqSnapshotCacheService;
@@ -58,11 +52,13 @@ public sealed class Vs2QQProcessService
 
     public Vs2QQProcessService(
         IServerProcessService serverProcessService,
+        IServerTransport serverTransport,
         IInstanceProfileService instanceProfileService,
         IInstanceServerConfigService instanceServerConfigService,
         IOsqSnapshotCacheService osqSnapshotCacheService)
     {
         _serverProcessService = serverProcessService;
+        _serverTransport = serverTransport;
         _instanceProfileService = instanceProfileService;
         _instanceServerConfigService = instanceServerConfigService;
         _osqSnapshotCacheService = osqSnapshotCacheService;
@@ -100,6 +96,7 @@ public sealed class Vs2QQProcessService
             runtime.OneBot = oneBot;
             runtime.OsqSnapshotHandler = (_, args) => OnSharedOsqSnapshotReceived(runtime, args);
             _osqSnapshotCacheService.SnapshotReceived += runtime.OsqSnapshotHandler;
+            TryImportLatestSharedOsqSnapshot(runtime, LocalServerSnapshotHost);
 
             _runCts = new CancellationTokenSource();
             _runtime = runtime;
@@ -249,9 +246,8 @@ public sealed class Vs2QQProcessService
             try
             {
                 var host = ResolveBoundRemoteServerHostForSnapshot(runtime, args.ServerHost, out var groups);
-                if (groups.Count == 0)
+                if (!string.Equals(host, LocalServerSnapshotHost, StringComparison.OrdinalIgnoreCase))
                 {
-                    // 未绑定任何QQ群时忽略共享快照，避免无意义落库与外键告警刷屏。
                     return;
                 }
 
@@ -340,18 +336,6 @@ public sealed class Vs2QQProcessService
             case "/help":
                 await ReplyAsync(runtime, eventPayload, BuildHelpText(), cancellationToken);
                 return;
-            case "/bindserver":
-            case "/绑定服务器":
-                await HandleBindRemoteServerAsync(runtime, eventPayload, args, cancellationToken);
-                return;
-            case "/unbindserver":
-            case "/解绑服务器":
-                await HandleUnbindRemoteServerAsync(runtime, eventPayload, args, cancellationToken);
-                return;
-            case "/listserver":
-            case "/查看服务器":
-                await HandleListRemoteServerAsync(runtime, eventPayload, cancellationToken);
-                return;
             case "/server":
                 await HandleServerCommandAsync(runtime, eventPayload, args, cancellationToken);
                 return;
@@ -411,26 +395,25 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        var host = runtime.Storage.FindRemoteServerHostByGroup(groupId);
-        if (string.IsNullOrWhiteSpace(host))
+        if (!runtime.BoundGroupIds.Contains(groupId))
         {
-            await ReplyAsync(runtime, eventPayload, "This group has no remote server binding.", cancellationToken);
+            await ReplyAsync(runtime, eventPayload, "This group is not bound in robot settings.", cancellationToken);
             return;
         }
 
-        var snapshot = runtime.Storage.GetLatestOsqSnapshot(host, index);
+        var snapshot = runtime.Storage.GetLatestOsqSnapshot(LocalServerSnapshotHost, index);
         if (snapshot is null && index == 1)
         {
-            snapshot = TryImportLatestSharedOsqSnapshot(runtime, host);
+            snapshot = TryImportLatestSharedOsqSnapshot(runtime, LocalServerSnapshotHost);
         }
 
         if (snapshot is null)
         {
-            await ReplyAsync(runtime, eventPayload, $"No server status #{index} for {host}.", cancellationToken);
+            await ReplyAsync(runtime, eventPayload, $"No server status #{index}.", cancellationToken);
             return;
         }
 
-        await ReplyAsync(runtime, eventPayload, BuildOsqSummaryMessage(host, snapshot), cancellationToken);
+        await ReplyAsync(runtime, eventPayload, BuildOsqSummaryMessage(snapshot), cancellationToken);
     }
 
     private async Task HandleServerPasswordCommandAsync(
@@ -537,156 +520,30 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        var host = runtime.Storage.FindRemoteServerHostByGroup(groupId);
-        if (string.IsNullOrWhiteSpace(host))
+        if (!runtime.BoundGroupIds.Contains(groupId))
         {
-            await ReplyAsync(runtime, eventPayload, "This group has no remote server binding.", cancellationToken);
+            await ReplyAsync(runtime, eventPayload, "This group is not bound in robot settings.", cancellationToken);
             return;
         }
 
-        var snapshot = runtime.Storage.GetLatestOsqSnapshot(host, index);
+        var snapshot = runtime.Storage.GetLatestOsqSnapshot(LocalServerSnapshotHost, index);
         if (snapshot is null && index == 1)
         {
-            snapshot = TryImportLatestSharedOsqSnapshot(runtime, host);
+            snapshot = TryImportLatestSharedOsqSnapshot(runtime, LocalServerSnapshotHost);
         }
 
         if (snapshot is null)
         {
-            await ReplyAsync(runtime, eventPayload, $"No server status #{index} for {host}.", cancellationToken);
+            await ReplyAsync(runtime, eventPayload, $"No server status #{index}.", cancellationToken);
             return;
         }
 
-        await ReplyAsync(runtime, eventPayload, BuildOsqPlayersMessage(host, snapshot), cancellationToken);
-    }
-
-    private async Task HandleBindRemoteServerAsync(Vs2QQRuntimeContext runtime, JsonObject eventPayload, string args, CancellationToken cancellationToken)
-    {
-        var userId = GetInt64(eventPayload, "user_id");
-        if (userId <= 0)
-        {
-            await ReplyAsync(runtime, eventPayload, "Cannot identify user.", cancellationToken);
-            return;
-        }
-
-        var match = OsqBindServerPattern.Match(args.Trim());
-        if (!match.Success)
-        {
-            await ReplyAsync(
-                runtime,
-                eventPayload,
-                "Usage: /bindserver <host> <token> <group_id>. 中文：绑定远程服务器",
-                cancellationToken);
-            return;
-        }
-
-        var host = NormalizeServerHost(match.Groups[1].Value);
-        var token = match.Groups[2].Value.Trim();
-        var groupId = ParseLong(match.Groups[3].Value);
-        if (groupId <= 0)
-        {
-            await ReplyAsync(runtime, eventPayload, "Invalid QQ group id.", cancellationToken);
-            return;
-        }
-
-        if (!TryValidateToken(token, out var tokenError))
-        {
-            await ReplyAsync(runtime, eventPayload, $"Invalid token: {tokenError}", cancellationToken);
-            return;
-        }
-
-        if (!HasRemoteBindPermission(runtime, eventPayload, groupId))
-        {
-            await ReplyAsync(runtime, eventPayload, "Permission denied. Group admin/owner or super admin only.", cancellationToken);
-            return;
-        }
-
-        runtime.Storage.UpsertRemoteServer(host, token, userId);
-        runtime.Storage.BindGroupRemoteServer(groupId, host);
-        TryImportLatestSharedOsqSnapshot(runtime, host);
-
-        await ReplyAsync(runtime, eventPayload, $"已绑定远程服务器：{host} -> 群 {groupId}", cancellationToken);
-    }
-
-    private async Task HandleUnbindRemoteServerAsync(Vs2QQRuntimeContext runtime, JsonObject eventPayload, string args, CancellationToken cancellationToken)
-    {
-        var userId = GetInt64(eventPayload, "user_id");
-        if (userId <= 0)
-        {
-            await ReplyAsync(runtime, eventPayload, "Cannot identify user.", cancellationToken);
-            return;
-        }
-
-        var parts = args.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length < 2)
-        {
-            await ReplyAsync(runtime, eventPayload, "Usage: /unbindserver <host> <group_id>. 中文：解绑远程服务器", cancellationToken);
-            return;
-        }
-
-        var host = NormalizeServerHost(parts[0]);
-        var groupId = ParseLong(parts[1]);
-        if (groupId <= 0)
-        {
-            await ReplyAsync(runtime, eventPayload, "Invalid QQ group id.", cancellationToken);
-            return;
-        }
-
-        if (!HasRemoteBindPermission(runtime, eventPayload, groupId))
-        {
-            await ReplyAsync(runtime, eventPayload, "Permission denied. Group admin/owner or super admin only.", cancellationToken);
-            return;
-        }
-
-        var removed = runtime.Storage.UnbindGroupRemoteServer(groupId, host);
-        if (!removed)
-        {
-            await ReplyAsync(runtime, eventPayload, $"Group {groupId} is not bound to {host}.", cancellationToken);
-            return;
-        }
-
-        await ReplyAsync(runtime, eventPayload, $"已解绑：群 {groupId} <-> {host}", cancellationToken);
-    }
-
-    private async Task HandleListRemoteServerAsync(Vs2QQRuntimeContext runtime, JsonObject eventPayload, CancellationToken cancellationToken)
-    {
-        var userId = GetInt64(eventPayload, "user_id");
-        if (userId <= 0)
-        {
-            await ReplyAsync(runtime, eventPayload, "Cannot identify user.", cancellationToken);
-            return;
-        }
-
-        IReadOnlyList<Vs2QQRemoteGroupServerRecord> records;
-        if (runtime.SuperUsers.Contains(userId))
-        {
-            records = runtime.Storage.ListGroupRemoteServersForAdmin();
-        }
-        else if (IsGroupMessage(eventPayload) && HasAdminPermission(runtime, eventPayload))
-        {
-            var groupId = GetInt64(eventPayload, "group_id");
-            records = runtime.Storage.ListGroupRemoteServersForGroup(groupId);
-        }
-        else
-        {
-            await ReplyAsync(runtime, eventPayload, "Permission denied. Group admin/owner or super admin only.", cancellationToken);
-            return;
-        }
-
-        if (records.Count == 0)
-        {
-            await ReplyAsync(runtime, eventPayload, "No remote server bindings.", cancellationToken);
-            return;
-        }
-
-        var lines = new List<string> { "远程服务器：" };
-        lines.AddRange(records.Select(x => $"- 群 {x.GroupId}: {x.ServerHost}"));
-        await ReplyAsync(runtime, eventPayload, string.Join('\n', lines), cancellationToken);
+        await ReplyAsync(runtime, eventPayload, BuildOsqPlayersMessage(snapshot), cancellationToken);
     }
 
     private async Task SendToGameServerAsync(Vs2QQRuntimeContext runtime, long groupId, string message, CancellationToken cancellationToken)
     {
-        var host = runtime.Storage.FindRemoteServerHostByGroup(groupId);
-        if (string.IsNullOrWhiteSpace(host))
+        if (!runtime.BoundGroupIds.Contains(groupId))
         {
             return;
         }
@@ -705,10 +562,10 @@ public sealed class Vs2QQProcessService
             try
             {
                 _serverProcessService.GetCurrentStatus();
-                await _serverProcessService.SendCommandAsync($"/announce {outbound}", cancellationToken);
+                await _serverTransport.SendGroupMessageToServerAsync(groupId, outbound, cancellationToken);
                 if (attempt > 1)
                 {
-                    EmitOutput($"[vs2qq] 群消息补发成功 group={groupId} host={host}");
+                    EmitOutput($"[vs2qq] 群消息补发成功 group={groupId}");
                 }
 
                 return;
@@ -720,7 +577,7 @@ public sealed class Vs2QQProcessService
             catch (Exception ex)
             {
                 lastError = ex;
-                EmitOutput($"[warn] 群消息转发到服务器失败 group={groupId} host={host} attempt={attempt}: {ex.Message}");
+                EmitOutput($"[warn] 群消息转发到服务器失败 group={groupId} attempt={attempt}: {ex.Message}");
                 if (attempt < 2)
                 {
                     await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
@@ -728,7 +585,7 @@ public sealed class Vs2QQProcessService
             }
         }
 
-        throw new InvalidOperationException($"群消息转发到服务器失败 host={host}", lastError);
+        throw new InvalidOperationException($"群消息转发到服务器失败 group={groupId}", lastError);
     }
 
     private static bool TryBuildOutboundGroupMessage(Vs2QQRuntimeContext runtime, JsonObject eventPayload, string rawMessage, out string outboundMessage)
@@ -745,8 +602,7 @@ public sealed class Vs2QQProcessService
             return false;
         }
 
-        var host = runtime.Storage.FindRemoteServerHostByGroup(groupId);
-        if (string.IsNullOrWhiteSpace(host))
+        if (!runtime.BoundGroupIds.Contains(groupId))
         {
             return false;
         }
@@ -902,11 +758,6 @@ public sealed class Vs2QQProcessService
         return string.Equals(GetString(eventPayload, "message_type"), "group", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsPrivateMessage(JsonObject eventPayload)
-    {
-        return string.Equals(GetString(eventPayload, "message_type"), "private", StringComparison.OrdinalIgnoreCase);
-    }
-
     private static bool HasAdminPermission(Vs2QQRuntimeContext runtime, JsonObject eventPayload)
     {
         var userId = GetInt64(eventPayload, "user_id");
@@ -929,40 +780,11 @@ public sealed class Vs2QQProcessService
         return """
             VS2QQ Commands
             /help - 帮助
-            /bindserver <host> <token> <group_id> - 绑定远程服务器
-            /unbindserver <host> <group_id> - 解绑远程服务器
-            /listserver - 查看远程服务器绑定
             /server status [n] - 获取最近第 n 次服务器状态（默认1）
             /server players [n] - 获取最近第 n 次在线玩家列表（默认1）
             /server password get - 获取服务器密码
             /server password set <new_password> - 修改服务器密码（- 表示清空）
             """;
-    }
-
-    private bool TryGetCurrentRunningProfile(out InstanceProfile profile, out string error)
-    {
-        profile = new InstanceProfile();
-        error = string.Empty;
-
-        var status = _serverProcessService.GetCurrentStatus();
-        var profileId = status.ProfileId?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(profileId))
-        {
-            error = "当前没有正在运行的本地档案，命令仅支持当前运行档案。";
-            return false;
-        }
-
-        profile = _instanceProfileService.GetProfileById(profileId) ??
-                  _instanceProfileService.GetProfiles()
-                      .FirstOrDefault(item => item.Id.Equals(profileId, StringComparison.OrdinalIgnoreCase)) ??
-                  new InstanceProfile();
-        if (string.IsNullOrWhiteSpace(profile.Id))
-        {
-            error = "无法定位当前运行档案。";
-            return false;
-        }
-
-        return true;
     }
 
     private static string GetString(JsonObject obj, string key)
@@ -1008,7 +830,7 @@ public sealed class Vs2QQProcessService
         await forwardGate.WaitAsync(cancellationToken);
         try
         {
-            var groups = runtime.Storage.ListGroupsForRemoteServer(host);
+            var groups = runtime.BoundGroupIds.ToList();
             if (groups.Count == 0)
             {
                 return;
@@ -1124,37 +946,38 @@ public sealed class Vs2QQProcessService
         return result;
     }
 
-    private static string BuildOsqSummaryMessage(string host, OsqSnapshotEnvelope payload)
+    private static string BuildOsqSummaryMessage(OsqSnapshotEnvelope payload)
     {
         var server = payload.Server ?? new OsqServerInfo();
         var players = payload.Players ?? [];
         var events = payload.PlayerEvents ?? [];
         var chats = payload.RecentChats ?? [];
+        var onlinePlayers = players
+            .Where(p => p.IsOnline && !string.IsNullOrWhiteSpace(p.PlayerName))
+            .Select(p => Safe(p.PlayerName))
+            .Where(name => name != "-")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var onlinePlayerCount = onlinePlayers.Count > 0
+            ? onlinePlayers.Count
+            : Math.Max(0, server.OnlinePlayerCount > 0 ? server.OnlinePlayerCount : server.PlayerCount);
+        var timeLabel = FormatDisplayTime(payload.TimestampUtc);
 
         var lines = new List<string>
         {
-            $"[OSQ:{host}]",
-            FormatOsqSummaryTimestamp(payload.TimestampUtc),
+            $"[服务器状态 {timeLabel}]",
             $"服务器：{Safe(server.Name)}",
             $"状态：{FormatOsqServerStatus(server.Status)}",
             $"版本：{Safe(server.Version)}",
-            $"人数：{server.PlayerCount}/{server.MaxPlayers}",
+            $"人数：{onlinePlayerCount}/{server.MaxPlayers}",
             $"世界：{Safe(server.WorldName)}",
             $"地址：{Safe(server.ServerIp)}:{server.ServerPort}"
         };
 
-        if (players.Count > 0)
+        if (onlinePlayers.Count > 0)
         {
-            var topPlayers = players
-                .Select(p => Safe(p.PlayerName))
-                .Where(name => name != "-")
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Take(6)
-                .ToList();
-            if (topPlayers.Count > 0)
-            {
-                lines.Add("玩家：" + string.Join("、", topPlayers));
-            }
+            lines.Add("玩家：" + string.Join("、", onlinePlayers));
         }
 
         if (events.Count > 0)
@@ -1180,7 +1003,7 @@ public sealed class Vs2QQProcessService
         return string.Join('\n', lines.Where(line => !string.IsNullOrWhiteSpace(line)));
     }
 
-    private static string BuildOsqPlayersMessage(string host, OsqSnapshotEnvelope payload)
+    private static string BuildOsqPlayersMessage(OsqSnapshotEnvelope payload)
     {
         var server = payload.Server ?? new OsqServerInfo();
         var players = payload.Players ?? [];
@@ -1192,7 +1015,7 @@ public sealed class Vs2QQProcessService
         var timeLabel = FormatDisplayTime(payload.TimestampUtc);
         var lines = new List<string>
         {
-            $"[OSQ:{host}] 在线玩家 {onlinePlayers.Count}/{server.MaxPlayers} @ {timeLabel}"
+            $"[在线玩家 {timeLabel}] {onlinePlayers.Count}/{server.MaxPlayers}"
         };
 
         if (onlinePlayers.Count == 0)
@@ -1531,10 +1354,9 @@ public sealed class Vs2QQProcessService
     {
         foreach (var candidate in BuildServerHostCandidates(reportedHost))
         {
-            var candidateGroups = runtime.Storage.ListGroupsForRemoteServer(candidate);
-            if (candidateGroups.Count > 0)
+            if (string.Equals(candidate, LocalServerSnapshotHost, StringComparison.OrdinalIgnoreCase))
             {
-                groups = candidateGroups;
+                groups = runtime.BoundGroupIds.ToList();
                 return candidate;
             }
         }
@@ -1563,6 +1385,7 @@ public sealed class Vs2QQProcessService
     private static IReadOnlyList<string> BuildServerHostCandidates(string? host)
     {
         var result = new List<string>();
+        AddServerHostCandidate(result, LocalServerSnapshotHost);
         AddServerHostCandidate(result, host);
 
         var raw = (host ?? string.Empty).Trim();
@@ -1605,15 +1428,6 @@ public sealed class Vs2QQProcessService
         candidates.Add(value);
     }
 
-    private static string EscapeJson(string value)
-    {
-        return value
-            .Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("\"", "\\\"", StringComparison.Ordinal)
-            .Replace("\r", " ", StringComparison.Ordinal)
-            .Replace("\n", " ", StringComparison.Ordinal);
-    }
-
     private static string NormalizeServerHost(string input)
     {
         var raw = (input ?? string.Empty).Trim();
@@ -1635,35 +1449,6 @@ public sealed class Vs2QQProcessService
         var host = uri.Host.ToLowerInvariant();
         var port = uri.IsDefaultPort ? string.Empty : $":{uri.Port}";
         return host + port;
-    }
-
-    private static bool TryValidateToken(string token, out string error)
-    {
-        var value = token?.Trim() ?? string.Empty;
-        if (value.Length < 16 || value.Length > 256)
-        {
-            error = "长度必须在 16 到 256 之间。";
-            return false;
-        }
-
-        for (var i = 0; i < value.Length; i++)
-        {
-            var c = value[i];
-            var ok = char.IsLetterOrDigit(c) || c is '_' or '-';
-            if (!ok)
-            {
-                error = "仅允许字符 A-Z a-z 0-9 _ -";
-                return false;
-            }
-        }
-
-        error = string.Empty;
-        return true;
-    }
-
-    private static long ParseLong(string value)
-    {
-        return long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : 0;
     }
 
     private static string NormalizeInboundServerText(string? senderName, string? rawText)
@@ -1738,33 +1523,6 @@ public sealed class Vs2QQProcessService
                || Regex.IsMatch(trimmed, @"[+-]\d{2}:?\d{2}$", RegexOptions.CultureInvariant);
     }
 
-    private static string FormatOsqSummaryTimestamp(string? rawTimestamp)
-    {
-        if (!string.IsNullOrWhiteSpace(rawTimestamp))
-        {
-            var value = rawTimestamp.Trim();
-            if (DateTimeOffset.TryParse(
-                    value,
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeUniversal,
-                    out var offsetParsed))
-            {
-                return offsetParsed.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
-            }
-
-            if (DateTime.TryParse(
-                    value,
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeUniversal,
-                    out var parsed))
-            {
-                return parsed.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
-            }
-        }
-
-        return DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
-    }
-
     private static string FormatOsqServerStatus(string? status)
     {
         var normalized = Safe(status);
@@ -1785,22 +1543,6 @@ public sealed class Vs2QQProcessService
     private static string Safe(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
-    }
-
-    private static bool HasRemoteBindPermission(Vs2QQRuntimeContext runtime, JsonObject eventPayload, long targetGroupId)
-    {
-        var userId = GetInt64(eventPayload, "user_id");
-        if (runtime.SuperUsers.Contains(userId))
-        {
-            return true;
-        }
-
-        if (!IsGroupMessage(eventPayload) || GetInt64(eventPayload, "group_id") != targetGroupId)
-        {
-            return false;
-        }
-
-        return HasAdminPermission(runtime, eventPayload);
     }
 
     private static OperationResult<RobotSettings> NormalizeLaunchSettings(RobotSettings settings)
@@ -1937,11 +1679,14 @@ public sealed class Vs2QQProcessService
             Settings = settings;
             Storage = storage;
             SuperUsers = settings.SuperUsers?.ToHashSet() ?? [];
+            BoundGroupIds = settings.BoundGroupIds?.Where(id => id > 0).ToHashSet() ?? [];
         }
 
         public RobotSettings Settings { get; }
 
         public HashSet<long> SuperUsers { get; }
+
+        public HashSet<long> BoundGroupIds { get; }
 
         public Vs2QQStorage Storage { get; }
 
@@ -2303,6 +2048,10 @@ public sealed class Vs2QQProcessService
         private readonly object _sync = new();
         private readonly SqliteConnection _connection;
         private bool _disposed;
+        private const string LegacyOsqSnapshotsTable = "osq_snapshots";
+        private const string LegacyOsqForwardStateTable = "osq_forward_state";
+        private const string OsqSnapshotsTable = "osq_snapshots_v2";
+        private const string OsqForwardStateTable = "osq_forward_state_v2";
 
         public Vs2QQStorage(string dbPath)
         {
@@ -2336,126 +2085,6 @@ public sealed class Vs2QQProcessService
             }
         }
 
-        public void UpsertRemoteServer(string serverHost, string token, long boundByQqId)
-        {
-            lock (_sync)
-            {
-                using var command = _connection.CreateCommand();
-                command.CommandText =
-                    """
-                    INSERT INTO remote_servers (server_host, token, bound_by_qq_id, enabled, created_at, updated_at)
-                    VALUES ($serverHost, $token, $boundByQqId, 1, $createdAt, $updatedAt)
-                    ON CONFLICT(server_host) DO UPDATE SET
-                        token = excluded.token,
-                        bound_by_qq_id = excluded.bound_by_qq_id,
-                        enabled = 1,
-                        updated_at = excluded.updated_at;
-                    """;
-                command.Parameters.AddWithValue("$serverHost", serverHost);
-                command.Parameters.AddWithValue("$token", token);
-                command.Parameters.AddWithValue("$boundByQqId", boundByQqId);
-                command.Parameters.AddWithValue("$createdAt", GetUtcNowIso());
-                command.Parameters.AddWithValue("$updatedAt", GetUtcNowIso());
-                command.ExecuteNonQuery();
-            }
-        }
-
-        public void BindGroupRemoteServer(long groupId, string serverHost)
-        {
-            lock (_sync)
-            {
-                using var command = _connection.CreateCommand();
-                command.CommandText =
-                    """
-                    INSERT OR IGNORE INTO group_remote_servers (group_id, server_host, created_at)
-                    VALUES ($groupId, $serverHost, $createdAt);
-                    """;
-                command.Parameters.AddWithValue("$groupId", groupId);
-                command.Parameters.AddWithValue("$serverHost", serverHost);
-                command.Parameters.AddWithValue("$createdAt", GetUtcNowIso());
-                command.ExecuteNonQuery();
-            }
-        }
-
-        public bool UnbindGroupRemoteServer(long groupId, string serverHost)
-        {
-            lock (_sync)
-            {
-                using var command = _connection.CreateCommand();
-                command.CommandText = "DELETE FROM group_remote_servers WHERE group_id = $groupId AND server_host = $serverHost;";
-                command.Parameters.AddWithValue("$groupId", groupId);
-                command.Parameters.AddWithValue("$serverHost", serverHost);
-                return command.ExecuteNonQuery() > 0;
-            }
-        }
-
-        public string? FindHostByToken(string token)
-        {
-            lock (_sync)
-            {
-                using var command = _connection.CreateCommand();
-                command.CommandText =
-                    """
-                    SELECT rs.server_host
-                    FROM remote_servers rs
-                    LEFT JOIN group_remote_servers grs ON grs.server_host = rs.server_host
-                    WHERE rs.token = $token AND rs.enabled = 1
-                    GROUP BY rs.server_host, rs.updated_at
-                    ORDER BY
-                        CASE WHEN COUNT(grs.group_id) > 0 THEN 1 ELSE 0 END DESC,
-                        rs.updated_at DESC,
-                        rs.server_host ASC
-                    LIMIT 1;
-                    """;
-                command.Parameters.AddWithValue("$token", token);
-                var value = command.ExecuteScalar();
-                return value is null || value == DBNull.Value ? null : value.ToString();
-            }
-        }
-
-        public IReadOnlyList<long> ListGroupsForRemoteServer(string serverHost)
-        {
-            lock (_sync)
-            {
-                using var command = _connection.CreateCommand();
-                command.CommandText =
-                    """
-                    SELECT group_id
-                    FROM group_remote_servers
-                    WHERE server_host = $serverHost
-                    ORDER BY group_id;
-                    """;
-                command.Parameters.AddWithValue("$serverHost", serverHost);
-                using var reader = command.ExecuteReader();
-                var result = new List<long>();
-                while (reader.Read())
-                {
-                    result.Add(reader.GetInt64(0));
-                }
-
-                return result;
-            }
-        }
-
-        public string? FindRemoteServerHostByGroup(long groupId)
-        {
-            lock (_sync)
-            {
-                using var command = _connection.CreateCommand();
-                command.CommandText =
-                    """
-                    SELECT server_host
-                    FROM group_remote_servers
-                    WHERE group_id = $groupId
-                    ORDER BY created_at DESC
-                    LIMIT 1;
-                    """;
-                command.Parameters.AddWithValue("$groupId", groupId);
-                var value = command.ExecuteScalar();
-                return value is null || value == DBNull.Value ? null : value.ToString();
-            }
-        }
-
         public void AddOsqSnapshot(string serverHost, OsqSnapshotEnvelope payload)
         {
             lock (_sync)
@@ -2464,7 +2093,7 @@ public sealed class Vs2QQProcessService
                 {
                     command.CommandText =
                         """
-                        INSERT INTO osq_snapshots (server_host, payload_json, created_at)
+                        INSERT INTO osq_snapshots_v2 (server_host, payload_json, created_at)
                         VALUES ($serverHost, $payloadJson, $createdAt);
                         """;
                     command.Parameters.AddWithValue("$serverHost", serverHost);
@@ -2477,11 +2106,11 @@ public sealed class Vs2QQProcessService
                 {
                     cleanup.CommandText =
                         """
-                        DELETE FROM osq_snapshots
+                        DELETE FROM osq_snapshots_v2
                         WHERE server_host = $serverHost
                           AND snapshot_id NOT IN (
                               SELECT snapshot_id
-                              FROM osq_snapshots
+                              FROM osq_snapshots_v2
                               WHERE server_host = $serverHost
                               ORDER BY snapshot_id DESC
                               LIMIT $maxRows
@@ -2513,7 +2142,7 @@ public sealed class Vs2QQProcessService
             command.CommandText =
                 """
                 SELECT payload_json
-                FROM osq_snapshots
+                FROM osq_snapshots_v2
                 WHERE server_host = $serverHost
                 ORDER BY snapshot_id DESC
                 LIMIT 1 OFFSET $offset;
@@ -2544,7 +2173,7 @@ public sealed class Vs2QQProcessService
                 command.CommandText =
                     """
                     SELECT last_chat_signature, last_event_signature, last_notification_signature
-                    FROM osq_forward_state
+                    FROM osq_forward_state_v2
                     WHERE server_host = $serverHost AND group_id = $groupId
                     LIMIT 1;
                     """;
@@ -2570,7 +2199,7 @@ public sealed class Vs2QQProcessService
                 using var command = _connection.CreateCommand();
                 command.CommandText =
                     """
-                    INSERT INTO osq_forward_state (server_host, group_id, last_chat_signature, last_event_signature, last_notification_signature, updated_at)
+                    INSERT INTO osq_forward_state_v2 (server_host, group_id, last_chat_signature, last_event_signature, last_notification_signature, updated_at)
                     VALUES ($serverHost, $groupId, $lastChatSignature, $lastEventSignature, $lastNotificationSignature, $updatedAt)
                     ON CONFLICT(server_host, group_id) DO UPDATE SET
                         last_chat_signature = excluded.last_chat_signature,
@@ -2588,94 +2217,6 @@ public sealed class Vs2QQProcessService
             }
         }
 
-        public IReadOnlyList<Vs2QQRemoteGroupServerRecord> ListGroupRemoteServersForGroup(long groupId)
-        {
-            lock (_sync)
-            {
-                using var command = _connection.CreateCommand();
-                command.CommandText =
-                    """
-                    SELECT grs.group_id, rs.server_host, rs.bound_by_qq_id
-                    FROM group_remote_servers grs
-                    JOIN remote_servers rs ON rs.server_host = grs.server_host
-                    WHERE grs.group_id = $groupId AND rs.enabled = 1
-                    ORDER BY rs.server_host;
-                    """;
-                command.Parameters.AddWithValue("$groupId", groupId);
-                using var reader = command.ExecuteReader();
-                var result = new List<Vs2QQRemoteGroupServerRecord>();
-                while (reader.Read())
-                {
-                    result.Add(new Vs2QQRemoteGroupServerRecord(
-                        reader.GetInt64(0),
-                        reader.GetString(1),
-                        reader.GetInt64(2)));
-                }
-
-                return result;
-            }
-        }
-
-        public IReadOnlyList<Vs2QQRemoteGroupServerRecord> ListGroupRemoteServersForAdmin()
-        {
-            lock (_sync)
-            {
-                using var command = _connection.CreateCommand();
-                command.CommandText =
-                    """
-                    SELECT grs.group_id, rs.server_host, rs.bound_by_qq_id
-                    FROM group_remote_servers grs
-                    JOIN remote_servers rs ON rs.server_host = grs.server_host
-                    WHERE rs.enabled = 1
-                    ORDER BY grs.group_id, rs.server_host;
-                    """;
-                using var reader = command.ExecuteReader();
-                var result = new List<Vs2QQRemoteGroupServerRecord>();
-                while (reader.Read())
-                {
-                    result.Add(new Vs2QQRemoteGroupServerRecord(
-                        reader.GetInt64(0),
-                        reader.GetString(1),
-                        reader.GetInt64(2)));
-                }
-
-                return result;
-            }
-        }
-
-        public bool TryUseOsqNonce(string serverHost, string nonce, DateTimeOffset expiresAt)
-        {
-            lock (_sync)
-            {
-                using (var cleanup = _connection.CreateCommand())
-                {
-                    cleanup.CommandText = "DELETE FROM osq_replay_nonce WHERE expires_at < $now;";
-                    cleanup.Parameters.AddWithValue("$now", GetUtcNowIso());
-                    cleanup.ExecuteNonQuery();
-                }
-
-                try
-                {
-                    using var command = _connection.CreateCommand();
-                    command.CommandText =
-                        """
-                        INSERT INTO osq_replay_nonce (server_host, nonce, expires_at, created_at)
-                        VALUES ($serverHost, $nonce, $expiresAt, $createdAt);
-                        """;
-                    command.Parameters.AddWithValue("$serverHost", serverHost);
-                    command.Parameters.AddWithValue("$nonce", nonce);
-                    command.Parameters.AddWithValue("$expiresAt", expiresAt.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture));
-                    command.Parameters.AddWithValue("$createdAt", GetUtcNowIso());
-                    command.ExecuteNonQuery();
-                    return true;
-                }
-                catch (SqliteException ex) when (ex.SqliteErrorCode == 19)
-                {
-                    return false;
-                }
-            }
-        }
-
         private void InitializeSchema()
         {
             lock (_sync)
@@ -2683,67 +2224,30 @@ public sealed class Vs2QQProcessService
                 using var command = _connection.CreateCommand();
                 command.CommandText =
                     """
-                    CREATE TABLE IF NOT EXISTS remote_servers (
-                        server_host TEXT PRIMARY KEY,
-                        token TEXT NOT NULL,
-                        bound_by_qq_id INTEGER NOT NULL,
-                        enabled INTEGER NOT NULL DEFAULT 1,
-                        created_at TEXT NOT NULL,
-                        updated_at TEXT NOT NULL
-                    );
-
-                    CREATE TABLE IF NOT EXISTS group_remote_servers (
-                        group_id INTEGER NOT NULL,
-                        server_host TEXT NOT NULL,
-                        created_at TEXT NOT NULL,
-                        PRIMARY KEY (group_id, server_host),
-                        FOREIGN KEY (server_host) REFERENCES remote_servers(server_host) ON DELETE CASCADE
-                    );
-
-                    CREATE TABLE IF NOT EXISTS osq_replay_nonce (
-                        server_host TEXT NOT NULL,
-                        nonce TEXT NOT NULL,
-                        expires_at TEXT NOT NULL,
-                        created_at TEXT NOT NULL,
-                        PRIMARY KEY (server_host, nonce),
-                        FOREIGN KEY (server_host) REFERENCES remote_servers(server_host) ON DELETE CASCADE
-                    );
-
-                    CREATE TABLE IF NOT EXISTS osq_snapshots (
+                    CREATE TABLE IF NOT EXISTS osq_snapshots_v2 (
                         snapshot_id INTEGER PRIMARY KEY AUTOINCREMENT,
                         server_host TEXT NOT NULL,
                         payload_json TEXT NOT NULL,
-                        created_at TEXT NOT NULL,
-                        FOREIGN KEY (server_host) REFERENCES remote_servers(server_host) ON DELETE CASCADE
+                        created_at TEXT NOT NULL
                     );
 
                     CREATE INDEX IF NOT EXISTS idx_osq_snapshots_host_id
-                        ON osq_snapshots (server_host, snapshot_id DESC);
+                        ON osq_snapshots_v2 (server_host, snapshot_id DESC);
 
-                    CREATE TABLE IF NOT EXISTS osq_forward_state (
+                    CREATE TABLE IF NOT EXISTS osq_forward_state_v2 (
                         server_host TEXT NOT NULL,
                         group_id INTEGER NOT NULL,
                         last_chat_signature TEXT,
                         last_event_signature TEXT,
                         last_notification_signature TEXT,
                         updated_at TEXT NOT NULL,
-                        PRIMARY KEY (server_host, group_id),
-                        FOREIGN KEY (server_host) REFERENCES remote_servers(server_host) ON DELETE CASCADE
+                        PRIMARY KEY (server_host, group_id)
                     );
-
-                    CREATE INDEX IF NOT EXISTS idx_remote_servers_token
-                        ON remote_servers (token);
-
-                    CREATE INDEX IF NOT EXISTS idx_group_remote_servers_host
-                        ON group_remote_servers (server_host);
-
-                    CREATE INDEX IF NOT EXISTS idx_osq_replay_nonce_expires_at
-                        ON osq_replay_nonce (expires_at);
                     """;
                 command.ExecuteNonQuery();
             }
 
-            EnsureOsqForwardStateSchema();
+            MigrateLegacySchema();
         }
 
         private static string GetUtcNowIso()
@@ -2751,115 +2255,99 @@ public sealed class Vs2QQProcessService
             return DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture);
         }
 
-        private void EnsureOsqForwardStateSchema()
+        private void MigrateLegacySchema()
         {
             lock (_sync)
             {
-                if (!TableExists("osq_forward_state"))
-                {
-                    return;
-                }
-
-                var columns = GetTableColumns("osq_forward_state");
-                var primaryKeyColumns = GetPrimaryKeyColumns("osq_forward_state");
-                var hasGroupId = columns.Contains("group_id");
-                var hasLastNotificationSignature = columns.Contains("last_notification_signature");
-                var hasCompositePrimaryKey =
-                    primaryKeyColumns.Count == 2 &&
-                    string.Equals(primaryKeyColumns[0], "server_host", StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(primaryKeyColumns[1], "group_id", StringComparison.OrdinalIgnoreCase);
-
-                if (hasGroupId && hasLastNotificationSignature && hasCompositePrimaryKey)
+                if (!TableExists(LegacyOsqSnapshotsTable) && !TableExists(LegacyOsqForwardStateTable))
                 {
                     return;
                 }
 
                 using var transaction = _connection.BeginTransaction();
 
-                using (var create = _connection.CreateCommand())
+                if (TableExists(LegacyOsqSnapshotsTable))
                 {
-                    create.Transaction = transaction;
-                    create.CommandText =
-                        """
-                        CREATE TABLE osq_forward_state_new (
-                            server_host TEXT NOT NULL,
-                            group_id INTEGER NOT NULL,
-                            last_chat_signature TEXT,
-                            last_event_signature TEXT,
-                            last_notification_signature TEXT,
-                            updated_at TEXT NOT NULL,
-                            PRIMARY KEY (server_host, group_id),
-                            FOREIGN KEY (server_host) REFERENCES remote_servers(server_host) ON DELETE CASCADE
+                    using var copySnapshots = _connection.CreateCommand();
+                    copySnapshots.Transaction = transaction;
+                    copySnapshots.CommandText =
+                        $"""
+                        INSERT INTO {OsqSnapshotsTable} (server_host, payload_json, created_at)
+                        SELECT legacy.server_host, legacy.payload_json, legacy.created_at
+                        FROM {LegacyOsqSnapshotsTable} legacy
+                        WHERE NOT EXISTS (
+                            SELECT 1
+                            FROM {OsqSnapshotsTable} current
+                            WHERE current.server_host = legacy.server_host
+                              AND current.payload_json = legacy.payload_json
+                              AND current.created_at = legacy.created_at
                         );
                         """;
-                    create.ExecuteNonQuery();
+                    copySnapshots.ExecuteNonQuery();
                 }
 
-                var lastNotificationProjection = hasLastNotificationSignature
-                    ? "src.last_notification_signature"
-                    : "NULL";
-                var copySql = hasGroupId
-                    ? $"""
-                       INSERT INTO osq_forward_state_new (
-                           server_host,
-                           group_id,
-                           last_chat_signature,
-                           last_event_signature,
-                           last_notification_signature,
-                           updated_at
-                       )
-                       SELECT
-                           src.server_host,
-                           COALESCE(src.group_id, 0),
-                           src.last_chat_signature,
-                           src.last_event_signature,
-                           {lastNotificationProjection},
-                           src.updated_at
-                       FROM osq_forward_state src;
-                       """
-                    : $"""
-                       INSERT INTO osq_forward_state_new (
-                           server_host,
-                           group_id,
-                           last_chat_signature,
-                           last_event_signature,
-                           last_notification_signature,
-                           updated_at
-                       )
-                       SELECT
-                           src.server_host,
-                           COALESCE(grs.group_id, 0),
-                           src.last_chat_signature,
-                           src.last_event_signature,
-                           {lastNotificationProjection},
-                           src.updated_at
-                       FROM osq_forward_state src
-                       LEFT JOIN group_remote_servers grs ON grs.server_host = src.server_host;
-                       """;
-
-                using (var copy = _connection.CreateCommand())
+                if (TableExists(LegacyOsqForwardStateTable))
                 {
-                    copy.Transaction = transaction;
-                    copy.CommandText = copySql;
-                    copy.ExecuteNonQuery();
+                    var columns = GetTableColumns(LegacyOsqForwardStateTable);
+                    var hasGroupId = columns.Contains("group_id");
+                    var hasLastNotificationSignature = columns.Contains("last_notification_signature");
+                    var lastNotificationProjection = hasLastNotificationSignature
+                        ? "legacy.last_notification_signature"
+                        : "NULL";
+                    var groupIdProjection = hasGroupId
+                        ? "COALESCE(legacy.group_id, 0)"
+                        : "0";
+
+                    using var copyForwardState = _connection.CreateCommand();
+                    copyForwardState.Transaction = transaction;
+                    copyForwardState.CommandText =
+                        $"""
+                        INSERT INTO {OsqForwardStateTable} (
+                            server_host,
+                            group_id,
+                            last_chat_signature,
+                            last_event_signature,
+                            last_notification_signature,
+                            updated_at
+                        )
+                        SELECT
+                            legacy.server_host,
+                            {groupIdProjection},
+                            legacy.last_chat_signature,
+                            legacy.last_event_signature,
+                            {lastNotificationProjection},
+                            legacy.updated_at
+                        FROM {LegacyOsqForwardStateTable} legacy
+                        ON CONFLICT(server_host, group_id) DO UPDATE SET
+                            last_chat_signature = excluded.last_chat_signature,
+                            last_event_signature = excluded.last_event_signature,
+                            last_notification_signature = excluded.last_notification_signature,
+                            updated_at = excluded.updated_at;
+                        """;
+                    copyForwardState.ExecuteNonQuery();
                 }
 
-                using (var drop = _connection.CreateCommand())
-                {
-                    drop.Transaction = transaction;
-                    drop.CommandText = "DROP TABLE osq_forward_state;";
-                    drop.ExecuteNonQuery();
-                }
-
-                using (var rename = _connection.CreateCommand())
-                {
-                    rename.Transaction = transaction;
-                    rename.CommandText = "ALTER TABLE osq_forward_state_new RENAME TO osq_forward_state;";
-                    rename.ExecuteNonQuery();
-                }
+                DropLegacyTable(transaction, "group_remote_servers");
+                DropLegacyTable(transaction, "osq_replay_nonce");
+                DropLegacyTable(transaction, "remote_servers");
+                DropLegacyTable(transaction, LegacyOsqSnapshotsTable);
+                DropLegacyTable(transaction, LegacyOsqForwardStateTable);
 
                 transaction.Commit();
             }
+        }
+
+        private void DropLegacyTable(SqliteTransaction transaction, string tableName)
+        {
+            if (!TableExists(tableName))
+            {
+                return;
+            }
+
+            using var drop = _connection.CreateCommand();
+            drop.Transaction = transaction;
+            drop.CommandText = $"DROP TABLE IF EXISTS {tableName};";
+            drop.ExecuteNonQuery();
         }
 
         private bool TableExists(string tableName)
@@ -2891,48 +2379,7 @@ public sealed class Vs2QQProcessService
             return columns;
         }
 
-        private List<string> GetPrimaryKeyColumns(string tableName)
-        {
-            var columns = new List<(int Order, string Name)>();
-            using var command = _connection.CreateCommand();
-            command.CommandText = $"PRAGMA table_info({tableName});";
-            using var reader = command.ExecuteReader();
-            while (reader.Read())
-            {
-                var order = reader.GetInt32(5);
-                if (order > 0)
-                {
-                    columns.Add((order, reader.GetString(1)));
-                }
-            }
-
-            return columns
-                .OrderBy(item => item.Order)
-                .Select(item => item.Name)
-                .ToList();
-        }
-
-        private void EnsureColumn(string tableName, string columnName, string columnDefinition)
-        {
-            using var command = _connection.CreateCommand();
-            command.CommandText = $"PRAGMA table_info({tableName});";
-            using var reader = command.ExecuteReader();
-            while (reader.Read())
-            {
-                var existingName = reader.GetString(1);
-                if (string.Equals(existingName, columnName, StringComparison.OrdinalIgnoreCase))
-                {
-                    return;
-                }
-            }
-
-            using var alter = _connection.CreateCommand();
-            alter.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition};";
-            alter.ExecuteNonQuery();
-        }
     }
-
-    private readonly record struct Vs2QQRemoteGroupServerRecord(long GroupId, string ServerHost, long BoundByQqId);
 
     private readonly record struct OsqForwardState(string? LastChatSignature, string? LastEventSignature, string? LastNotificationSignature);
 

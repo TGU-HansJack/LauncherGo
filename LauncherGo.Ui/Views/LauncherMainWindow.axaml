@@ -2319,10 +2319,9 @@
                                                         </StackPanel>
                                                     </WrapPanel>
                                                     <StackPanel Spacing="8">
-                                                        <Grid ColumnDefinitions="420,205,160" ColumnSpacing="10">
-                                                            <TextBlock x:Name="OsqEndpointHostLabelTextBlock" Classes="ConfigFieldLabel" Text="上报端点" />
-                                                            <TextBlock x:Name="OsqEndpointTokenLabelTextBlock" Grid.Column="1" Classes="ConfigFieldLabel" Text="端点令牌" />
-                                                            <TextBlock x:Name="OsqEndpointTargetLabelTextBlock" Grid.Column="2" Classes="ConfigFieldLabel" Text="输出对象" />
+                                                        <Grid ColumnDefinitions="420,365" ColumnSpacing="10">
+                                                            <TextBlock x:Name="OsqEndpointHostLabelTextBlock" Classes="ConfigFieldLabel" Text="地图网站地址" />
+                                                            <TextBlock x:Name="OsqEndpointTokenLabelTextBlock" Grid.Column="1" Classes="ConfigFieldLabel" Text="地图网站密钥" />
                                                         </Grid>
                                                         <StackPanel x:Name="OsqEndpointRowsHost" Spacing="8" />
                                                         <Button
@@ -2364,6 +2363,10 @@
                                                         <StackPanel Classes="ConfigFormField">
                                                             <TextBlock x:Name="RobotPollIntervalLabelTextBlock" Classes="ConfigFieldLabel" Text="轮询间隔秒数" />
                                                             <NumericUpDown x:Name="RobotPollIntervalNumericUpDown" Classes="CompactNumber" Minimum="0.2" Maximum="30" Increment="0.2" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="RobotBoundGroupsLabelTextBlock" Classes="ConfigFieldLabel" Text="绑定群号" />
+                                                            <TextBox x:Name="RobotBoundGroupsTextBox" Classes="MultiLineInput" Height="72" AcceptsReturn="True" TextWrapping="Wrap" />
                                                         </StackPanel>
                                                         <StackPanel Classes="ConfigFormFieldWide">
                                                             <TextBlock x:Name="RobotDatabasePathLabelTextBlock" Classes="ConfigFieldLabel" Text="数据库路径" />

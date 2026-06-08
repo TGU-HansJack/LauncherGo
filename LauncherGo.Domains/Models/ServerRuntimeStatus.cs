@@ -16,6 +16,8 @@ public sealed class ServerRuntimeStatus
 
     public int OnlinePlayers { get; init; }
 
+    public IReadOnlyList<string> OnlinePlayerNames { get; init; } = [];
+
     public int PeakOnlinePlayers { get; init; }
 
     public bool CanSendCommands { get; init; }

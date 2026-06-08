@@ -132,8 +132,7 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             {
                 ServerHost = source.EndpointHost.Trim(),
                 Token = source.EndpointToken.Trim(),
-                Enabled = true,
-                OutputTarget = OpenServerQueryEndpointTarget.MapWebsite
+                Enabled = true
             });
         }
 
@@ -172,8 +171,7 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             {
                 ServerHost = host,
                 Token = token,
-                Enabled = endpoint.Enabled,
-                OutputTarget = OpenServerQueryEndpointTarget.Normalize(endpoint.OutputTarget)
+                Enabled = endpoint.Enabled
             });
         }
 
@@ -211,6 +209,7 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
         {
             OneBotWsUrl = wsUrl,
             AccessToken = source.AccessToken?.Trim() ?? string.Empty,
+            BoundGroupIdsText = NormalizeQqIdText(source.BoundGroupIdsText),
             ReconnectIntervalSec = Math.Clamp(source.ReconnectIntervalSec, 1, 120),
             DatabasePath = dbPath,
             PollIntervalSec = Math.Clamp(source.PollIntervalSec, 0.2, 30),
@@ -220,6 +219,18 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             OsqPollIntervalSec = Math.Clamp(source.OsqPollIntervalSec, 3, 300),
             OsqRequestTimeoutSec = Math.Clamp(source.OsqRequestTimeoutSec, 3, 60)
         };
+    }
+
+    private static string NormalizeQqIdText(string? value)
+    {
+        var lines = (value ?? string.Empty)
+            .Split(['\r', '\n', ',', ';', ' '], StringSplitOptions.RemoveEmptyEntries)
+            .Select(item => item.Trim())
+            .Where(item => long.TryParse(item, out var qq) && qq > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        return lines.Count == 0 ? string.Empty : string.Join(Environment.NewLine, lines);
     }
 
     private static FrpIntegrationSettings NormalizeFrp(FrpIntegrationSettings? source)

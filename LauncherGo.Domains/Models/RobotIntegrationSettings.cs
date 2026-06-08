@@ -6,6 +6,8 @@ public sealed class RobotIntegrationSettings
 
     public string AccessToken { get; set; } = string.Empty;
 
+    public string BoundGroupIdsText { get; set; } = string.Empty;
+
     public int ReconnectIntervalSec { get; set; } = 5;
 
     public string DatabasePath { get; set; } = string.Empty;

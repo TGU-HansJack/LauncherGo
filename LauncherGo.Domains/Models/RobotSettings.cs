@@ -9,6 +9,8 @@ public class RobotSettings
 
     public string? AccessToken { get; init; }
 
+    public IReadOnlyList<long> BoundGroupIds { get; init; } = [];
+
     public int ReconnectIntervalSec { get; init; } = 5;
 
     public string DatabasePath { get; init; } = string.Empty;

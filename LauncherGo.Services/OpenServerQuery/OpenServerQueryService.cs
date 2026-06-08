@@ -240,7 +240,6 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
                 {
                     ServerHost = x.Key,
                     Enabled = x.Value.Settings.Enabled,
-                    OutputTarget = x.Value.Settings.OutputTarget,
                     LastServerName = x.Value.LastServerName,
                     LastServerStatus = x.Value.LastServerStatus,
                     LastOnlinePlayers = x.Value.LastOnlinePlayers,
@@ -513,7 +512,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
 
     private static bool ShouldPushLocalSnapshot(RuntimeState runtime)
     {
-        return runtime.Settings.Enabled || GetQqRobotSnapshotHosts(runtime).Count > 0;
+        return runtime.Settings.Enabled || HasConfiguredRobotGroups();
     }
 
     private async Task PushLocalSnapshotAsync(RuntimeState runtime, CancellationToken cancellationToken)
@@ -539,9 +538,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         var now = DateTimeOffset.UtcNow;
         var nonce = GenerateNonce();
         var needsMapPayload = runtime.Settings.IncludeMapData &&
-            runtime.EndpointsByHost.Values.Any(endpoint =>
-                endpoint.Settings.Enabled &&
-                OpenServerQueryEndpointTarget.IsMapWebsite(endpoint.Settings.OutputTarget));
+            runtime.EndpointsByHost.Values.Any(endpoint => endpoint.Settings.Enabled);
         var payload = await BuildLocalServerSnapshotAsync(
             context,
             runtime.Settings,
@@ -559,10 +556,6 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         if (cachedNode is not null)
         {
             _osqSnapshotCacheService?.AddSnapshot("local", cachedNode, now);
-            foreach (var snapshotHost in GetQqRobotSnapshotHosts(runtime))
-            {
-                _osqSnapshotCacheService?.AddSnapshot(snapshotHost, cachedNode, now);
-            }
         }
 
         foreach (var pair in runtime.EndpointsByHost)
@@ -594,8 +587,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
 
             try
             {
-                var includeEndpointMap = runtime.Settings.IncludeMapData &&
-                    OpenServerQueryEndpointTarget.IsMapWebsite(endpoint.Settings.OutputTarget);
+                var includeEndpointMap = runtime.Settings.IncludeMapData;
                 var endpointPayload = includeEndpointMap ? payload : qqPayload;
                 var json = includeEndpointMap ? mapJson : qqJson;
 
@@ -630,29 +622,6 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
                 }
             }
         }
-    }
-
-    private static IReadOnlyList<string> GetQqRobotSnapshotHosts(RuntimeState runtime)
-    {
-        var result = runtime.EndpointsByHost.Values
-            .Where(endpoint =>
-                endpoint.Settings.Enabled &&
-                OpenServerQueryEndpointTarget.Normalize(endpoint.Settings.OutputTarget) == OpenServerQueryEndpointTarget.QqRobot &&
-                !string.IsNullOrWhiteSpace(endpoint.Settings.ServerHost))
-            .Select(endpoint => endpoint.Settings.ServerHost.Trim())
-            .ToList();
-
-        foreach (var binding in EnumerateQqRobotRemoteServers())
-        {
-            if (result.Any(existing => existing.Equals(binding.ServerHost, StringComparison.OrdinalIgnoreCase)))
-            {
-                continue;
-            }
-
-            result.Add(binding.ServerHost);
-        }
-
-        return result;
     }
 
     private async Task<LocalServerContext?> TryBuildLocalServerContextAsync(CancellationToken cancellationToken)
@@ -707,7 +676,14 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
     {
         var serverVersion = ResolveDisplayServerVersion(context.Profile.Version);
         var whitelistMode = ResolveWhitelistModeText(context.ServerSettings.WhitelistMode);
-        var onlinePlayers = Math.Max(0, context.RuntimeStatus.OnlinePlayers);
+        var onlinePlayerNames = (context.RuntimeStatus.OnlinePlayerNames ?? [])
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var onlinePlayers = onlinePlayerNames.Count > 0
+            ? onlinePlayerNames.Count
+            : Math.Max(0, context.RuntimeStatus.OnlinePlayers);
         var maxPlayers = Math.Max(0, context.ServerSettings.MaxClients);
 
         var snapshot = new OsqSnapshotEnvelope
@@ -741,21 +717,20 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             }
         };
 
-        if (settings.IncludePlayers)
+        if (settings.IncludePlayers && onlinePlayerNames.Count > 0)
         {
-            snapshot.Players =
-            [
-                new OsqPlayerInfo
+            snapshot.Players = onlinePlayerNames
+                .Select(name => new OsqPlayerInfo
                 {
-                    PlayerUid = "local",
-                    PlayerName = "online",
-                    IsOnline = onlinePlayers > 0,
-                    IsPlaying = onlinePlayers > 0,
+                    PlayerUid = name,
+                    PlayerName = name,
+                    IsOnline = true,
+                    IsPlaying = true,
                     ConnectionState = context.RuntimeStatus.IsRunning ? "Playing" : "Disconnected",
                     DelayLevel = "unknown",
                     LastSeenUtc = now.ToString("O", CultureInfo.InvariantCulture)
-                }
-            ];
+                })
+                .ToList();
         }
 
         var activity = BuildRecentServerActivitySnapshot(context, now, cancellationToken);
@@ -3988,95 +3963,26 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             return true;
         }
 
-        foreach (var binding in EnumerateQqRobotRemoteServers())
-        {
-            if (string.Equals(binding.Token, token, StringComparison.Ordinal))
-            {
-                serverHost = binding.ServerHost;
-                return true;
-            }
-        }
-
         serverHost = string.Empty;
         return false;
     }
 
-    private static IReadOnlyList<QqRobotRemoteServerBinding> EnumerateQqRobotRemoteServers()
+    private static bool HasConfiguredRobotGroups()
     {
-        var dbPath = ResolveRobotDatabasePath();
-        if (string.IsNullOrWhiteSpace(dbPath) || !File.Exists(dbPath))
-        {
-            return [];
-        }
-
         try
         {
-            using var connection = new SqliteConnection($"Data Source={dbPath}");
-            connection.Open();
-            using var command = connection.CreateCommand();
-            command.CommandText =
-                """
-                SELECT server_host, token
-                FROM remote_servers
-                WHERE enabled = 1
-                  AND server_host IS NOT NULL
-                  AND token IS NOT NULL
-                  AND TRIM(server_host) <> ''
-                  AND TRIM(token) <> '';
-                """;
-
-            using var reader = command.ExecuteReader();
-            var result = new List<QqRobotRemoteServerBinding>();
-            while (reader.Read())
+            if (!File.Exists(WorkspacePathHelper.RobotSettingsPath))
             {
-                var host = NormalizeServerHost(reader.GetString(0));
-                var token = reader.GetString(1).Trim();
-                if (string.IsNullOrWhiteSpace(host) ||
-                    string.IsNullOrWhiteSpace(token) ||
-                    result.Any(existing => existing.ServerHost.Equals(host, StringComparison.OrdinalIgnoreCase)))
-                {
-                    continue;
-                }
-
-                result.Add(new QqRobotRemoteServerBinding(host, token));
+                return false;
             }
 
-            return result;
-        }
-        catch
-        {
-            return [];
-        }
-    }
-
-    private static string ResolveRobotDatabasePath()
-    {
-        var fallback = Path.Combine(WorkspacePathHelper.RobotRoot, "vs2qq.db");
-        if (!File.Exists(WorkspacePathHelper.RobotSettingsPath))
-        {
-            return fallback;
-        }
-
-        try
-        {
             var json = File.ReadAllText(WorkspacePathHelper.RobotSettingsPath);
             var settings = JsonSerializer.Deserialize<RobotSettings>(json, JsonReadOptions);
-            var dbPath = settings?.DatabasePath?.Trim();
-            if (string.IsNullOrWhiteSpace(dbPath))
-            {
-                return fallback;
-            }
-
-            if (!Path.IsPathRooted(dbPath))
-            {
-                dbPath = Path.Combine(WorkspacePathHelper.WorkspaceRoot, dbPath);
-            }
-
-            return Path.GetFullPath(dbPath);
+            return settings?.BoundGroupIds?.Any(id => id > 0) == true;
         }
         catch
         {
-            return fallback;
+            return false;
         }
     }
 
@@ -4101,8 +4007,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             {
                 ServerHost = NormalizeServerHost(x.ServerHost),
                 Token = x.Token?.Trim() ?? string.Empty,
-                Enabled = x.Enabled,
-                OutputTarget = OpenServerQueryEndpointTarget.Normalize(x.OutputTarget)
+                Enabled = x.Enabled
             })
             .Where(x => !string.IsNullOrWhiteSpace(x.ServerHost) && IsValidToken(x.Token))
             .GroupBy(x => x.ServerHost, StringComparer.OrdinalIgnoreCase)

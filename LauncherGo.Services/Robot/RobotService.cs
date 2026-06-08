@@ -121,6 +121,7 @@ public class RobotService : IRobotService
         {
             OneBotWsUrl = "ws://127.0.0.1:3001/",
             AccessToken = string.Empty,
+            BoundGroupIds = [],
             ReconnectIntervalSec = 5,
             DatabasePath = Path.Combine(WorkspacePathHelper.RobotRoot, "vs2qq.db"),
             PollIntervalSec = 1.0,
@@ -167,6 +168,10 @@ public class RobotService : IRobotService
             .Where(id => id > 0)
             .Distinct()
             .ToList();
+        var boundGroupIds = (settings.BoundGroupIds ?? [])
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList();
 
         var osqPollIntervalSec = settings.OsqPollIntervalSec <= 0 ? 20 : settings.OsqPollIntervalSec;
         var osqRequestTimeoutSec = settings.OsqRequestTimeoutSec <= 0 ? 8 : settings.OsqRequestTimeoutSec;
@@ -176,6 +181,7 @@ public class RobotService : IRobotService
         {
             OneBotWsUrl = wsUrl,
             AccessToken = settings.AccessToken?.Trim() ?? string.Empty,
+            BoundGroupIds = boundGroupIds,
             ReconnectIntervalSec = reconnect,
             DatabasePath = dbPath,
             PollIntervalSec = poll,

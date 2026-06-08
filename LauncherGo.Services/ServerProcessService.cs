@@ -100,6 +100,17 @@ public partial class ServerProcessService : IServerProcessService
     }
 
     /// <inheritdoc />
+    public IReadOnlyList<string> GetOnlinePlayerNames()
+    {
+        lock (_playerCountGate)
+        {
+            return _onlinePlayerNames
+                .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+    }
+
+    /// <inheritdoc />
     public async Task StartAsync(InstanceProfile profile, CancellationToken cancellationToken = default)
     {
         await _processGate.WaitAsync(cancellationToken);
@@ -429,6 +440,7 @@ public partial class ServerProcessService : IServerProcessService
                     CpuPercent = SampleCpuPercent(process),
                     MemoryBytes = TryGetWorkingSet64(process),
                     OnlinePlayers = onlinePlayers,
+                    OnlinePlayerNames = GetOnlinePlayerNames(),
                     PeakOnlinePlayers = _peakOnlinePlayers,
                     CanSendCommands = HasControlChannel(),
                     ControlMode = GetControlMode(),
@@ -484,6 +496,7 @@ public partial class ServerProcessService : IServerProcessService
             CpuPercent = _currentStatus.CpuPercent,
             MemoryBytes = _currentStatus.MemoryBytes,
             OnlinePlayers = onlinePlayers,
+            OnlinePlayerNames = GetOnlinePlayerNames(),
             PeakOnlinePlayers = Math.Max(_currentStatus.PeakOnlinePlayers, onlinePlayers),
             CanSendCommands = HasControlChannel(),
             ControlMode = GetControlMode(),
@@ -1422,6 +1435,7 @@ public partial class ServerProcessService : IServerProcessService
             CpuPercent = 0,
             MemoryBytes = TryGetWorkingSet64(process),
             OnlinePlayers = GetOnlinePlayerCount(),
+            OnlinePlayerNames = GetOnlinePlayerNames(),
             PeakOnlinePlayers = _peakOnlinePlayers,
             CanSendCommands = HasControlChannel(),
             ControlMode = GetControlMode(),
@@ -1467,6 +1481,7 @@ public partial class ServerProcessService : IServerProcessService
             CpuPercent = 0,
             MemoryBytes = TryGetWorkingSet64(process),
             OnlinePlayers = GetOnlinePlayerCount(),
+            OnlinePlayerNames = GetOnlinePlayerNames(),
             PeakOnlinePlayers = _peakOnlinePlayers,
             CanSendCommands = false,
             ControlMode = string.Empty,
