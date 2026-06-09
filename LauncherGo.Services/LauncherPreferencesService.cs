@@ -224,7 +224,7 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
     private static string NormalizeQqIdText(string? value)
     {
         var lines = (value ?? string.Empty)
-            .Split(['\r', '\n', ',', ';', ' '], StringSplitOptions.RemoveEmptyEntries)
+            .Split(['\r', '\n', '\t', ',', ';', '，', '；', ' '], StringSplitOptions.RemoveEmptyEntries)
             .Select(item => item.Trim())
             .Where(item => long.TryParse(item, out var qq) && qq > 0)
             .Distinct(StringComparer.Ordinal)

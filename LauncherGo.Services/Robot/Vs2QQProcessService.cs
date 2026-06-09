@@ -1577,11 +1577,16 @@ public sealed class Vs2QQProcessService
             .Where(x => x > 0)
             .Distinct()
             .ToArray();
+        var normalizedBoundGroupIds = (settings.BoundGroupIds ?? [])
+            .Where(x => x > 0)
+            .Distinct()
+            .ToArray();
 
         return OperationResult<RobotSettings>.Success(new RobotSettings
         {
             OneBotWsUrl = wsUrl,
             AccessToken = string.IsNullOrWhiteSpace(settings.AccessToken) ? null : settings.AccessToken.Trim(),
+            BoundGroupIds = normalizedBoundGroupIds,
             ReconnectIntervalSec = reconnectInterval,
             DatabasePath = dbPath,
             PollIntervalSec = pollInterval,
