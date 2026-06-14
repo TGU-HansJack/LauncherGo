@@ -23,6 +23,4 @@ public sealed class RobotIntegrationSettings
     public int OsqPollIntervalSec { get; set; } = 20;
 
     public int OsqRequestTimeoutSec { get; set; } = 8;
-
-    public List<RobotCustomCommandConfig> CustomCommands { get; set; } = [];
 }
