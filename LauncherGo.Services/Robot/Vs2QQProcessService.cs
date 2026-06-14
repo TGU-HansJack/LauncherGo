@@ -390,7 +390,7 @@ public sealed class Vs2QQProcessService
     {
         if (!HasAdminPermission(runtime, eventPayload))
         {
-            await ReplyAsync(runtime, eventPayload, "Permission denied. Group admin/owner or super admin only.", cancellationToken);
+            await ReplyAsync(runtime, eventPayload, "Permission denied. Super admin only.", cancellationToken);
             return;
         }
 
@@ -499,7 +499,7 @@ public sealed class Vs2QQProcessService
 
         if (!HasAdminPermission(runtime, eventPayload))
         {
-            await ReplyAsync(runtime, eventPayload, "Permission denied. Group admin/owner or super admin only.", cancellationToken);
+            await ReplyAsync(runtime, eventPayload, "Permission denied. Super admin only.", cancellationToken);
             return;
         }
 
@@ -821,18 +821,7 @@ public sealed class Vs2QQProcessService
     private static bool HasAdminPermission(Vs2QQRuntimeContext runtime, JsonObject eventPayload)
     {
         var userId = GetInt64(eventPayload, "user_id");
-        if (runtime.SuperUsers.Contains(userId))
-        {
-            return true;
-        }
-
-        if (eventPayload["sender"] is not JsonObject senderObject)
-        {
-            return false;
-        }
-
-        var role = GetString(senderObject, "role");
-        return role is "admin" or "owner";
+        return runtime.SuperUsers.Contains(userId);
     }
 
     private static string BuildHelpText()
@@ -840,11 +829,11 @@ public sealed class Vs2QQProcessService
         return """
             VS2QQ Commands
             /help - 帮助
-            /send <server_command> - 发送服务端指令（群管理员/群主/超级管理员）
+            /send <server_command> - 发送服务端指令（仅超级管理员）
             /server status [n] - 获取最近第 n 次服务器状态（默认1）
             /server players [n] - 获取最近第 n 次在线玩家列表（默认1）
             /server password get - 获取服务器密码
-            /server password set <new_password> - 修改服务器密码（- 表示清空）
+            /server password set <new_password> - 修改服务器密码（- 表示清空，仅超级管理员）
             """;
     }
 
