@@ -3022,6 +3022,33 @@ public partial class LauncherMainWindow : Window
         }
     }
 
+    private async Task SaveRobotSettingsAndReloadIfRunningAsync(bool updateStatus = true, bool refreshEditor = true)
+    {
+        SaveRobotSettings(updateStatus, refreshEditor);
+
+        if (!_robotService.GetCurrentStatus().IsRunning)
+        {
+            return;
+        }
+
+        try
+        {
+            await _robotService.StopAsync(TimeSpan.FromSeconds(5));
+            var preferences = _preferencesService.Load();
+            await _robotService.StartAsync(ToRobotSettings(preferences.Robot, preferences.OpenServerQuery));
+            SetConnectionStatus(T("QQ机器人配置已保存，并已重新加载。", "QQ robot configuration saved and reloaded."));
+        }
+        catch (Exception ex)
+        {
+            SetConnectionStatus(T($"QQ机器人配置已保存，但重新加载失败：{ex.Message}", $"QQ robot configuration saved, but reload failed: {ex.Message}"));
+        }
+        finally
+        {
+            UpdateRobotToggleButtonText();
+            UpdateCardValues(_serverProcessService.GetCurrentStatus());
+        }
+    }
+
     private FrpIntegrationSettings CollectFrpSettings()
     {
         var mode = GetSelectedThirdPartyFrpcMode();
@@ -4832,7 +4859,7 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private void OnRobotSaveClick(object? sender, RoutedEventArgs e) => SaveRobotSettings();
+    private async void OnRobotSaveClick(object? sender, RoutedEventArgs e) => await SaveRobotSettingsAndReloadIfRunningAsync();
 
     private async void OnRobotToggleClick(object? sender, RoutedEventArgs e)
     {
