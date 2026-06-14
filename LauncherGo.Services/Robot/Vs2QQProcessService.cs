@@ -38,7 +38,9 @@ public sealed class Vs2QQProcessService
     private readonly IServerProcessService _serverProcessService;
     private readonly IServerTransport _serverTransport;
     private readonly IInstanceProfileService _instanceProfileService;
+    private readonly IInstanceSaveService _instanceSaveService;
     private readonly IInstanceServerConfigService _instanceServerConfigService;
+    private readonly ILauncherPreferencesService _launcherPreferencesService;
     private readonly IOsqSnapshotCacheService _osqSnapshotCacheService;
     private CancellationTokenSource? _runCts;
     private Task? _runTask;
@@ -54,13 +56,17 @@ public sealed class Vs2QQProcessService
         IServerProcessService serverProcessService,
         IServerTransport serverTransport,
         IInstanceProfileService instanceProfileService,
+        IInstanceSaveService instanceSaveService,
         IInstanceServerConfigService instanceServerConfigService,
+        ILauncherPreferencesService launcherPreferencesService,
         IOsqSnapshotCacheService osqSnapshotCacheService)
     {
         _serverProcessService = serverProcessService;
         _serverTransport = serverTransport;
         _instanceProfileService = instanceProfileService;
+        _instanceSaveService = instanceSaveService;
         _instanceServerConfigService = instanceServerConfigService;
+        _launcherPreferencesService = launcherPreferencesService;
         _osqSnapshotCacheService = osqSnapshotCacheService;
         if (Interlocked.Exchange(ref _encodingProviderRegistered, 1) == 0)
         {
@@ -399,7 +405,19 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        await ReplyAsync(runtime, eventPayload, "Only /server status [n], /server players [n], and /server password get|set are supported.", cancellationToken);
+        if (subCommand == "start")
+        {
+            await HandleServerStartCommandAsync(runtime, eventPayload, cancellationToken);
+            return;
+        }
+
+        if (subCommand == "stop")
+        {
+            await HandleServerStopCommandAsync(runtime, eventPayload, cancellationToken);
+            return;
+        }
+
+        await ReplyAsync(runtime, eventPayload, "Only /server status [n], /server players [n], /server start, /server stop, and /server password get|set are supported.", cancellationToken);
     }
 
     private async Task HandleServerStatusCommandAsync(
@@ -565,6 +583,68 @@ public sealed class Vs2QQProcessService
         }
 
         await ReplyAsync(runtime, eventPayload, BuildOsqPlayersMessage(snapshot), cancellationToken);
+    }
+
+    private async Task HandleServerStartCommandAsync(
+        Vs2QQRuntimeContext runtime,
+        JsonObject eventPayload,
+        CancellationToken cancellationToken)
+    {
+        if (!HasAdminPermission(runtime, eventPayload))
+        {
+            await ReplyAsync(runtime, eventPayload, "Permission denied. Super admin only.", cancellationToken);
+            return;
+        }
+
+        var status = _serverProcessService.GetCurrentStatus();
+        if (status.IsRunning)
+        {
+            await ReplyAsync(runtime, eventPayload, "服务器已在运行。", cancellationToken);
+            return;
+        }
+
+        var preferences = _launcherPreferencesService.Load();
+        var profileId = !string.IsNullOrWhiteSpace(preferences.AutoStartServerProfileId)
+            ? preferences.AutoStartServerProfileId
+            : preferences.DefaultLaunchProfileId;
+        if (string.IsNullOrWhiteSpace(profileId))
+        {
+            await ReplyAsync(runtime, eventPayload, "未设置服务器档案，请先在 LauncherGo 中设置默认档案或自启动档案。", cancellationToken);
+            return;
+        }
+
+        var profile = _instanceProfileService.GetProfileById(profileId.Trim());
+        if (profile is null)
+        {
+            await ReplyAsync(runtime, eventPayload, "配置的服务器档案不存在，请先在 LauncherGo 中检查档案设置。", cancellationToken);
+            return;
+        }
+
+        var launchableProfile = await EnsureLaunchableProfileAsync(profile, preferences.DefaultLaunchSaveFile, cancellationToken);
+        await _serverProcessService.StartAsync(launchableProfile, cancellationToken);
+        await ReplyAsync(runtime, eventPayload, $"已启动服务器：{launchableProfile.Name}", cancellationToken);
+    }
+
+    private async Task HandleServerStopCommandAsync(
+        Vs2QQRuntimeContext runtime,
+        JsonObject eventPayload,
+        CancellationToken cancellationToken)
+    {
+        if (!HasAdminPermission(runtime, eventPayload))
+        {
+            await ReplyAsync(runtime, eventPayload, "Permission denied. Super admin only.", cancellationToken);
+            return;
+        }
+
+        var status = _serverProcessService.GetCurrentStatus();
+        if (!status.IsRunning)
+        {
+            await ReplyAsync(runtime, eventPayload, "服务器未运行。", cancellationToken);
+            return;
+        }
+
+        await _serverProcessService.StopAsync(TimeSpan.FromSeconds(15), cancellationToken);
+        await ReplyAsync(runtime, eventPayload, "已停止服务器。", cancellationToken);
     }
 
     private async Task SendToGameServerAsync(Vs2QQRuntimeContext runtime, long groupId, string message, CancellationToken cancellationToken)
@@ -798,9 +878,83 @@ public sealed class Vs2QQProcessService
             /send <server_command> - 发送服务端指令（仅超级管理员）
             /server status [n] - 获取最近第 n 次服务器状态（默认1）
             /server players [n] - 获取最近第 n 次在线玩家列表（默认1）
+            /server start - 启动 LauncherGo 配置的服务器档案（仅超级管理员）
+            /server stop - 停止当前服务器（仅超级管理员）
             /server password get - 获取服务器密码
             /server password set <new_password> - 修改服务器密码（- 表示清空，仅超级管理员）
             """;
+    }
+
+    private async Task<InstanceProfile> EnsureLaunchableProfileAsync(
+        InstanceProfile profile,
+        string preferredSavePath,
+        CancellationToken cancellationToken)
+    {
+        var normalizedPreferredSavePath = NormalizeFullPath(preferredSavePath);
+        if (!string.IsNullOrWhiteSpace(normalizedPreferredSavePath))
+        {
+            var saves = await _instanceSaveService.GetSavesAsync(profile, cancellationToken);
+            var preferredSave = saves.FirstOrDefault(save =>
+                NormalizeFullPath(save.FullPath).Equals(normalizedPreferredSavePath, StringComparison.OrdinalIgnoreCase));
+            if (preferredSave is not null)
+            {
+                await PrepareProfileSaveForLaunchAsync(profile, preferredSave.FullPath, cancellationToken);
+                return _instanceProfileService.GetProfileById(profile.Id) ?? profile;
+            }
+        }
+
+        var currentSavePath = NormalizeFullPath(profile.ActiveSaveFile);
+        if (string.IsNullOrWhiteSpace(currentSavePath))
+        {
+            currentSavePath = NormalizeFullPath(_instanceProfileService.GetDefaultSaveFilePath(profile.Id));
+        }
+
+        if (!string.IsNullOrWhiteSpace(currentSavePath))
+        {
+            await PrepareProfileSaveForLaunchAsync(profile, currentSavePath, cancellationToken);
+        }
+
+        return _instanceProfileService.GetProfileById(profile.Id) ?? profile;
+    }
+
+    private async Task PrepareProfileSaveForLaunchAsync(
+        InstanceProfile profile,
+        string savePath,
+        CancellationToken cancellationToken)
+    {
+        var normalizedSavePath = NormalizeFullPath(savePath);
+        if (string.IsNullOrWhiteSpace(normalizedSavePath))
+        {
+            return;
+        }
+
+        if (File.Exists(normalizedSavePath))
+        {
+            var fileInfo = new FileInfo(normalizedSavePath);
+            if (fileInfo.Length == 0)
+            {
+                File.Delete(normalizedSavePath);
+            }
+        }
+
+        await _instanceSaveService.SetActiveSaveAsync(profile, normalizedSavePath, cancellationToken);
+    }
+
+    private static string NormalizeFullPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            return Path.GetFullPath(path.Trim());
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 
     private static string NormalizeServerCommand(string? value)
