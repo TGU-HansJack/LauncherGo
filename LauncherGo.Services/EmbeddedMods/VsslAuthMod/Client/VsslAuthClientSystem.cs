@@ -42,9 +42,6 @@ public sealed class VsslAuthClientSystem : ModSystem
         if (_clientApi is null || packet is null)
             return;
 
-        if (!string.IsNullOrWhiteSpace(packet.Message))
-            _clientApi.ShowChatMessage(packet.Message);
-
         if (string.IsNullOrWhiteSpace(packet.AuthUrl) ||
             string.IsNullOrWhiteSpace(packet.ChallengeId) ||
             !_openedChallenges.Add(packet.ChallengeId))
@@ -66,9 +63,6 @@ public sealed class VsslAuthClientSystem : ModSystem
     {
         if (_clientApi is null || packet is null)
             return;
-
-        if (!string.IsNullOrWhiteSpace(packet.Message))
-            _clientApi.ShowChatMessage(packet.Message);
 
         if (!packet.OpenCharacterSelection)
             return;

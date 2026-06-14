@@ -66,15 +66,15 @@ public sealed class VsslAuthServerSystem : ModSystem
             .RequiresPrivilege(Privilege.chat)
             .RequiresPlayer()
             .WithArgs(
-                api.ChatCommands.Parsers.Word("password"),
-                api.ChatCommands.Parsers.Word("confirmPassword"))
+                api.ChatCommands.Parsers.Word("密码"),
+                api.ChatCommands.Parsers.Word("再确认密码"))
             .HandleWith(CmdRegister);
 
         api.ChatCommands.Create("login")
             .WithDescription("Login with a ServerAuth password")
             .RequiresPrivilege(Privilege.chat)
             .RequiresPlayer()
-            .WithArgs(api.ChatCommands.Parsers.Word("password"))
+            .WithArgs(api.ChatCommands.Parsers.Word("密码"))
             .HandleWith(CmdLogin);
 
         api.ChatCommands.Create("serverauth")
@@ -160,8 +160,12 @@ public sealed class VsslAuthServerSystem : ModSystem
             SaveStoreUnsafe();
         }
 
-        Authenticate(player, "注册成功，已通过认证。", triggeredByRegistration: true);
-        return TextCommandResult.Success("注册成功，已通过认证。", null);
+        var finalMessage = Authenticate(
+            player,
+            "注册成功！现在可以移动了！",
+            sendChatMessage: false,
+            appendCharacterSelectionHint: false);
+        return TextCommandResult.Success(finalMessage, null);
     }
 
     private TextCommandResult CmdLogin(TextCommandCallingArgs args)
@@ -184,7 +188,7 @@ public sealed class VsslAuthServerSystem : ModSystem
                 string.IsNullOrWhiteSpace(record.PasswordHash) ||
                 record.PasswordResetRequired)
             {
-                return TextCommandResult.Error("你还没有注册，请使用 /register <密码> <确认密码>。", "");
+                return TextCommandResult.Error("你还没有注册，请使用 /register <密码> <再确认密码>。", "");
             }
 
             if (!PasswordHasher.Verify(password, record.PasswordHash))
@@ -197,8 +201,8 @@ public sealed class VsslAuthServerSystem : ModSystem
             SaveStoreUnsafe();
         }
 
-        Authenticate(player, "登录成功，已通过认证。");
-        return TextCommandResult.Success("登录成功，已通过认证。", null);
+        var finalMessage = Authenticate(player, "登录成功，已通过认证。", sendChatMessage: false);
+        return TextCommandResult.Success(finalMessage, null);
     }
 
     private TextCommandResult CmdServerAuthAdmin(TextCommandCallingArgs args)
@@ -324,7 +328,7 @@ public sealed class VsslAuthServerSystem : ModSystem
 
         var prompt = HasRegisteredPassword(player)
             ? "请在聊天栏输入 /login <密码> 完成登录。"
-            : "请在聊天栏输入 /register <密码> <确认密码> 完成注册。";
+            : "请在聊天栏输入 /register <密码> <再确认密码> 完成注册。";
         player.SendMessage(GlobalConstants.GeneralChatGroup, prompt, SystemChatType, null);
     }
 
@@ -461,7 +465,11 @@ public sealed class VsslAuthServerSystem : ModSystem
         player.BroadcastPlayerData(false);
     }
 
-    private void Authenticate(IServerPlayer player, string message, bool triggeredByRegistration = false)
+    private string Authenticate(
+        IServerPlayer player,
+        string message,
+        bool sendChatMessage = true,
+        bool appendCharacterSelectionHint = true)
     {
         PendingAuthState? pending = null;
         lock (_authLock)
@@ -482,19 +490,25 @@ public sealed class VsslAuthServerSystem : ModSystem
         if (pending?.DeferredCharacterSelection == true || HasDeferredCharacterSelection(player))
             openedCharacterSelection = ReleaseDeferredCharacterSelection(player);
 
-        var finalMessage = ComposeAuthMessage(message, openedCharacterSelection);
-        player.SendMessage(GlobalConstants.GeneralChatGroup, finalMessage, SystemChatType, null);
+        var finalMessage = ComposeAuthMessage(message, openedCharacterSelection, appendCharacterSelectionHint);
+        if (sendChatMessage)
+            player.SendMessage(GlobalConstants.GeneralChatGroup, finalMessage, SystemChatType, null);
         _channel?.SendPacket(new AuthStatePacket
         {
             IsAuthenticated = true,
             Message = finalMessage,
             OpenCharacterSelection = openedCharacterSelection
         }, player);
+
+        return finalMessage;
     }
 
-    private static string ComposeAuthMessage(string message, bool openedCharacterSelection)
+    private static string ComposeAuthMessage(
+        string message,
+        bool openedCharacterSelection,
+        bool appendCharacterSelectionHint = true)
     {
-        if (!openedCharacterSelection)
+        if (!openedCharacterSelection || !appendCharacterSelectionHint)
             return message;
 
         return message + " 现在可以选择职业了，请完成角色创建。";
