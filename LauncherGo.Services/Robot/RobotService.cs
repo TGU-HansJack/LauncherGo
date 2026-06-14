@@ -132,7 +132,8 @@ public class RobotService : IRobotService
             OsqRequestTimeoutSec = 8,
             OsqAllowInsecureHttp = false,
             OsqListenPrefix = "http://127.0.0.1:18089/",
-            EnableOsqListener = false
+            EnableOsqListener = false,
+            CustomCommands = []
         };
     }
 
@@ -176,6 +177,7 @@ public class RobotService : IRobotService
         var osqPollIntervalSec = settings.OsqPollIntervalSec <= 0 ? 20 : settings.OsqPollIntervalSec;
         var osqRequestTimeoutSec = settings.OsqRequestTimeoutSec <= 0 ? 8 : settings.OsqRequestTimeoutSec;
         var osqListenPrefix = NormalizeListenPrefix(settings.OsqListenPrefix);
+        var customCommands = NormalizeCustomCommands(settings.CustomCommands);
 
         return new RobotSettings
         {
@@ -192,8 +194,38 @@ public class RobotService : IRobotService
             OsqRequestTimeoutSec = osqRequestTimeoutSec,
             OsqAllowInsecureHttp = settings.OsqAllowInsecureHttp,
             OsqListenPrefix = osqListenPrefix,
-            EnableOsqListener = false
+            EnableOsqListener = false,
+            CustomCommands = customCommands
         };
+    }
+
+    private static IReadOnlyList<RobotCustomCommandConfig> NormalizeCustomCommands(IEnumerable<RobotCustomCommandConfig>? commands)
+    {
+        return (commands ?? [])
+            .Select(command => new RobotCustomCommandConfig
+            {
+                Command = NormalizeCustomCommandText(command.Command),
+                MentionSender = command.MentionSender,
+                ReplyText = NormalizeReplyText(command.ReplyText)
+            })
+            .Where(command => !string.IsNullOrWhiteSpace(command.Command) && !string.IsNullOrWhiteSpace(command.ReplyText))
+            .ToList();
+    }
+
+    private static string NormalizeCustomCommandText(string? value)
+    {
+        var text = (value ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(text))
+            return string.Empty;
+
+        text = text.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        text = string.Join(' ', text.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries));
+        return text.StartsWith('/') ? text : "/" + text;
+    }
+
+    private static string NormalizeReplyText(string? value)
+    {
+        return (value ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n').Trim();
     }
 
     private static string NormalizeListenPrefix(string? value)

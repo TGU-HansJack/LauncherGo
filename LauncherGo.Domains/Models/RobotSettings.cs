@@ -32,4 +32,15 @@ public class RobotSettings
     public string OsqListenPrefix { get; init; } = "http://127.0.0.1:18089/";
 
     public bool EnableOsqListener { get; init; }
+
+    public IReadOnlyList<RobotCustomCommandConfig> CustomCommands { get; init; } = [];
+}
+
+public sealed class RobotCustomCommandConfig
+{
+    public string Command { get; init; } = string.Empty;
+
+    public bool MentionSender { get; init; }
+
+    public string ReplyText { get; init; } = string.Empty;
 }

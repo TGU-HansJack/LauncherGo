@@ -293,6 +293,11 @@ public sealed class Vs2QQProcessService
         {
             try
             {
+                if (await TryHandleCustomCommandAsync(runtime, eventPayload, rawMessage, cancellationToken))
+                {
+                    return;
+                }
+
                 await HandleCommandAsync(runtime, eventPayload, rawMessage, cancellationToken);
             }
             catch (Exception ex)
@@ -336,6 +341,9 @@ public sealed class Vs2QQProcessService
             case "/help":
                 await ReplyAsync(runtime, eventPayload, BuildHelpText(), cancellationToken);
                 return;
+            case "/send":
+                await HandleSendCommandAsync(runtime, eventPayload, args, cancellationToken);
+                return;
             case "/server":
                 await HandleServerCommandAsync(runtime, eventPayload, args, cancellationToken);
                 return;
@@ -343,6 +351,58 @@ public sealed class Vs2QQProcessService
                 await ReplyAsync(runtime, eventPayload, "Unknown command. Use /help.", cancellationToken);
                 return;
         }
+    }
+
+    private async Task<bool> TryHandleCustomCommandAsync(
+        Vs2QQRuntimeContext runtime,
+        JsonObject eventPayload,
+        string rawCommand,
+        CancellationToken cancellationToken)
+    {
+        var normalized = NormalizeCustomCommand(rawCommand);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return false;
+        }
+
+        var match = runtime.CustomCommands.FirstOrDefault(command =>
+            string.Equals(command.Command, normalized, StringComparison.OrdinalIgnoreCase));
+        if (match is null)
+        {
+            return false;
+        }
+
+        var replyText = BuildCustomReplyText(eventPayload, match);
+        if (string.IsNullOrWhiteSpace(replyText))
+        {
+            return true;
+        }
+
+        await ReplyAsync(runtime, eventPayload, replyText, cancellationToken);
+        return true;
+    }
+
+    private async Task HandleSendCommandAsync(
+        Vs2QQRuntimeContext runtime,
+        JsonObject eventPayload,
+        string args,
+        CancellationToken cancellationToken)
+    {
+        if (!HasAdminPermission(runtime, eventPayload))
+        {
+            await ReplyAsync(runtime, eventPayload, "Permission denied. Group admin/owner or super admin only.", cancellationToken);
+            return;
+        }
+
+        var commandText = NormalizeServerCommand(args);
+        if (string.IsNullOrWhiteSpace(commandText))
+        {
+            await ReplyAsync(runtime, eventPayload, "Usage: /send <server_command>", cancellationToken);
+            return;
+        }
+
+        await _serverProcessService.SendCommandAsync(commandText, cancellationToken);
+        await ReplyAsync(runtime, eventPayload, $"已发送服务端指令：{commandText}", cancellationToken);
     }
 
     private async Task HandleServerCommandAsync(Vs2QQRuntimeContext runtime, JsonObject eventPayload, string args, CancellationToken cancellationToken)
@@ -780,11 +840,60 @@ public sealed class Vs2QQProcessService
         return """
             VS2QQ Commands
             /help - 帮助
+            /send <server_command> - 发送服务端指令（群管理员/群主/超级管理员）
             /server status [n] - 获取最近第 n 次服务器状态（默认1）
             /server players [n] - 获取最近第 n 次在线玩家列表（默认1）
             /server password get - 获取服务器密码
             /server password set <new_password> - 修改服务器密码（- 表示清空）
             """;
+    }
+
+    private static string NormalizeCustomCommand(string rawCommand)
+    {
+        var text = (rawCommand ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        text = text.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        text = string.Join(' ', text.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries));
+        return text.StartsWith('/') ? text : "/" + text;
+    }
+
+    private static string NormalizeServerCommand(string? value)
+    {
+        var text = (value ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        text = text.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        text = string.Join(' ', text.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries));
+        return text.StartsWith('/') ? text : "/" + text;
+    }
+
+    private static string BuildCustomReplyText(JsonObject eventPayload, RobotCustomCommandConfig command)
+    {
+        var replyText = (command.ReplyText ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n').Trim();
+        if (string.IsNullOrWhiteSpace(replyText))
+        {
+            return string.Empty;
+        }
+
+        if (!command.MentionSender || !IsGroupMessage(eventPayload))
+        {
+            return replyText;
+        }
+
+        var userId = GetInt64(eventPayload, "user_id");
+        if (userId <= 0)
+        {
+            return replyText;
+        }
+
+        return $"[CQ:at,qq={userId}]\n{replyText}";
     }
 
     private static string GetString(JsonObject obj, string key)
@@ -1685,6 +1794,15 @@ public sealed class Vs2QQProcessService
             Storage = storage;
             SuperUsers = settings.SuperUsers?.ToHashSet() ?? [];
             BoundGroupIds = settings.BoundGroupIds?.Where(id => id > 0).ToHashSet() ?? [];
+            CustomCommands = (settings.CustomCommands ?? [])
+                .Select(command => new RobotCustomCommandConfig
+                {
+                    Command = NormalizeCustomCommand(command.Command),
+                    MentionSender = command.MentionSender,
+                    ReplyText = (command.ReplyText ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n').Trim()
+                })
+                .Where(command => !string.IsNullOrWhiteSpace(command.Command) && !string.IsNullOrWhiteSpace(command.ReplyText))
+                .ToList();
         }
 
         public RobotSettings Settings { get; }
@@ -1692,6 +1810,8 @@ public sealed class Vs2QQProcessService
         public HashSet<long> SuperUsers { get; }
 
         public HashSet<long> BoundGroupIds { get; }
+
+        public IReadOnlyList<RobotCustomCommandConfig> CustomCommands { get; }
 
         public Vs2QQStorage Storage { get; }
 

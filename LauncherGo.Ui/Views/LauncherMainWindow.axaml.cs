@@ -45,6 +45,10 @@ public partial class LauncherMainWindow : Window
     private const double OsqEndpointHostColumnWidth = 420;
     private const double OsqEndpointTokenColumnWidth = 365;
     private const double OsqEndpointColumnSpacing = 10;
+    private const double RobotCustomCommandColumnWidth = 200;
+    private const double RobotCustomCommandMentionColumnWidth = 120;
+    private const double RobotCustomCommandReplyColumnWidth = 360;
+    private const double RobotCustomCommandColumnSpacing = 10;
     private const string DefaultServerDownloadCatalogUrl = "https://api.vintagestory.at/stable-unstable.json";
     private const string GitHubContributorsApiUrl = "https://api.github.com/repos/vscn-studio/LauncherGo/contributors?per_page=100";
     private const string SponsorApiUrl = "https://vscn.studio/api/afdian/sponsors";
@@ -189,6 +193,7 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<AuthPlayerListItem> _authPlayerItems = [];
     private readonly List<ServerDownloadEntry> _catalogEntries = [];
     private readonly List<OsqEndpointEditorRow> _osqEndpointEditors = [];
+    private readonly List<RobotCustomCommandEditorRow> _robotCustomCommandEditors = [];
     private readonly Dictionary<string, string> _configGameLanguageZh = new(StringComparer.OrdinalIgnoreCase);
 
     private MainTab _selectedTab = MainTab.Home;
@@ -726,6 +731,11 @@ public partial class LauncherMainWindow : Window
         RobotOsqPollLabelTextBlock.Text = T("OSQ轮询秒数", "OSQ Poll Seconds");
         RobotOsqTimeoutLabelTextBlock.Text = T("OSQ超时秒数", "OSQ Timeout Seconds");
         RobotSuperUsersLabelTextBlock.Text = T("超级管理员 QQ", "Super Admin QQ IDs");
+        RobotCustomCommandsTitleTextBlock.Text = T("自定义指令", "Custom Commands");
+        RobotCustomCommandAddButton.Content = T("添加", "Add");
+        RobotCustomCommandsHintTextBlock.Text = T(
+            "可配置完整指令，例如 /help 1；回复文字支持换行，可选群聊时艾特发送者。",
+            "Configure full commands such as /help 1; reply text supports multiple lines and can optionally mention the sender in groups.");
         RobotOsqSourceHintTextBlock.Text = T(
             "OSQ 来源由“开放信息”页面统一接收，机器人不再单独监听端口。",
             "OSQ source is received by Open Info; the robot does not listen on its own port.");
@@ -2892,6 +2902,76 @@ public partial class LauncherMainWindow : Window
         SetNumericValue(RobotOsqPollNumericUpDown, settings.OsqPollIntervalSec);
         SetNumericValue(RobotOsqTimeoutNumericUpDown, settings.OsqRequestTimeoutSec);
         RobotSuperUsersTextBox.Text = settings.SuperUsersText;
+        RebuildRobotCustomCommandEditors(settings.CustomCommands);
+    }
+
+    private void RebuildRobotCustomCommandEditors(IReadOnlyList<RobotCustomCommandConfig>? commands)
+    {
+        RobotCustomCommandRowsHost.Children.Clear();
+        _robotCustomCommandEditors.Clear();
+
+        var normalized = (commands ?? [])
+            .Where(command => command is not null)
+            .ToList();
+
+        if (normalized.Count == 0)
+        {
+            normalized.Add(new RobotCustomCommandConfig());
+        }
+
+        foreach (var command in normalized)
+        {
+            AddRobotCustomCommandEditorRow(command.Command, command.MentionSender, command.ReplyText);
+        }
+    }
+
+    private void AddRobotCustomCommandEditorRow(string commandText, bool mentionSender, string replyText)
+    {
+        var rowWidth = RobotCustomCommandColumnWidth + RobotCustomCommandMentionColumnWidth + RobotCustomCommandReplyColumnWidth +
+                       RobotCustomCommandColumnSpacing * 2;
+        var row = new Grid
+        {
+            Width = rowWidth,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            ColumnDefinitions = new ColumnDefinitions(
+                $"{RobotCustomCommandColumnWidth},{RobotCustomCommandMentionColumnWidth},{RobotCustomCommandReplyColumnWidth}"),
+            ColumnSpacing = RobotCustomCommandColumnSpacing
+        };
+
+        var commandTextBox = new TextBox
+        {
+            Text = commandText
+        };
+        commandTextBox.Classes.Add("CompactInput");
+        commandTextBox.PlaceholderText = T("/help 1", "/help 1");
+        commandTextBox.LostFocus += OnRobotAutoSaveChanged;
+        row.Children.Add(commandTextBox);
+
+        var mentionCheckBox = new CheckBox
+        {
+            Content = T("艾特发送者", "Mention Sender"),
+            IsChecked = mentionSender,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+        };
+        mentionCheckBox.IsCheckedChanged += OnRobotAutoSaveChanged;
+        Grid.SetColumn(mentionCheckBox, 1);
+        row.Children.Add(mentionCheckBox);
+
+        var replyTextBox = new TextBox
+        {
+            Text = replyText,
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            Height = 84
+        };
+        replyTextBox.Classes.Add("MultiLineInput");
+        replyTextBox.PlaceholderText = T("回复文字，支持换行", "Reply text, supports new lines");
+        replyTextBox.LostFocus += OnRobotAutoSaveChanged;
+        Grid.SetColumn(replyTextBox, 2);
+        row.Children.Add(replyTextBox);
+
+        RobotCustomCommandRowsHost.Children.Add(row);
+        _robotCustomCommandEditors.Add(new RobotCustomCommandEditorRow(commandTextBox, mentionCheckBox, replyTextBox));
     }
 
     private void SaveFrpSettings(bool updateStatus = true, bool refreshEditor = true)
@@ -3028,8 +3108,37 @@ public partial class LauncherMainWindow : Window
                 : RobotFallbackEncodingTextBox.Text.Trim(),
             SuperUsersText = RobotSuperUsersTextBox.Text?.Trim() ?? string.Empty,
             OsqPollIntervalSec = GetNumericValue(RobotOsqPollNumericUpDown, 20),
-            OsqRequestTimeoutSec = GetNumericValue(RobotOsqTimeoutNumericUpDown, 8)
+            OsqRequestTimeoutSec = GetNumericValue(RobotOsqTimeoutNumericUpDown, 8),
+            CustomCommands = CollectRobotCustomCommands()
         };
+    }
+
+    private List<RobotCustomCommandConfig> CollectRobotCustomCommands()
+    {
+        var commands = new List<RobotCustomCommandConfig>();
+        foreach (var row in _robotCustomCommandEditors)
+        {
+            var command = NormalizeRobotCustomCommandText(row.CommandTextBox.Text);
+            var replyText = NormalizeRobotCustomReplyText(row.ReplyTextBox.Text);
+            if (string.IsNullOrWhiteSpace(command) && string.IsNullOrWhiteSpace(replyText))
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(command) || string.IsNullOrWhiteSpace(replyText))
+            {
+                continue;
+            }
+
+            commands.Add(new RobotCustomCommandConfig
+            {
+                Command = command,
+                MentionSender = row.MentionSenderCheckBox.IsChecked == true,
+                ReplyText = replyText
+            });
+        }
+
+        return commands;
     }
 
     private static OpenServerQueryRuntimeSettings ToOpenServerQueryRuntimeSettings(OpenServerQuerySettings settings)
@@ -3097,8 +3206,36 @@ public partial class LauncherMainWindow : Window
             OsqRequestTimeoutSec = settings.OsqRequestTimeoutSec,
             OsqAllowInsecureHttp = osqSettings.AllowInsecureHttp,
             OsqListenPrefix = osqSettings.ListenPrefix,
-            EnableOsqListener = false
+            EnableOsqListener = false,
+            CustomCommands = (settings.CustomCommands ?? [])
+                .Select(command => new RobotCustomCommandConfig
+                {
+                    Command = NormalizeRobotCustomCommandText(command.Command),
+                    MentionSender = command.MentionSender,
+                    ReplyText = NormalizeRobotCustomReplyText(command.ReplyText)
+                })
+                .Where(command => !string.IsNullOrWhiteSpace(command.Command) && !string.IsNullOrWhiteSpace(command.ReplyText))
+                .ToList()
         };
+    }
+
+    private static string NormalizeRobotCustomCommandText(string? value)
+    {
+        var text = (value ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        text = text.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        text = string.Join(' ', text.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries));
+        return text.StartsWith('/') ? text : "/" + text;
+    }
+
+    private static string NormalizeRobotCustomReplyText(string? value)
+    {
+        var text = (value ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n').Trim();
+        return string.IsNullOrWhiteSpace(text) ? string.Empty : text;
     }
 
     private static IReadOnlyList<long> ParseQqIds(string value)
@@ -4589,6 +4726,18 @@ public partial class LauncherMainWindow : Window
     {
         AddOsqEndpointEditorRow(string.Empty, string.Empty);
         _osqEndpointEditors[^1].HostTextBox.Focus();
+    }
+
+    private void OnRobotCustomCommandAddClick(object? sender, RoutedEventArgs e)
+    {
+        AddRobotCustomCommandEditorRow(string.Empty, false, string.Empty);
+        _robotCustomCommandEditors[^1].CommandTextBox.Focus();
+        if (_isApplyingConnectionSettings)
+        {
+            return;
+        }
+
+        SaveRobotSettings(updateStatus: false, refreshEditor: false);
     }
 
     private async void OnOsqToggleClick(object? sender, RoutedEventArgs e)
@@ -6981,6 +7130,18 @@ public partial class LauncherMainWindow : Window
         public TextBox TokenTextBox { get; } = tokenTextBox;
 
         public bool Enabled { get; set; } = enabled;
+    }
+
+    private sealed class RobotCustomCommandEditorRow(
+        TextBox commandTextBox,
+        CheckBox mentionSenderCheckBox,
+        TextBox replyTextBox)
+    {
+        public TextBox CommandTextBox { get; } = commandTextBox;
+
+        public CheckBox MentionSenderCheckBox { get; } = mentionSenderCheckBox;
+
+        public TextBox ReplyTextBox { get; } = replyTextBox;
     }
 
     public sealed class ProfileListItem

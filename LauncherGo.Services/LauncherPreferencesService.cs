@@ -217,7 +217,8 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             FallbackEncoding = string.IsNullOrWhiteSpace(source.FallbackEncoding) ? "gbk" : source.FallbackEncoding.Trim(),
             SuperUsersText = source.SuperUsersText?.Trim() ?? string.Empty,
             OsqPollIntervalSec = Math.Clamp(source.OsqPollIntervalSec, 3, 300),
-            OsqRequestTimeoutSec = Math.Clamp(source.OsqRequestTimeoutSec, 3, 60)
+            OsqRequestTimeoutSec = Math.Clamp(source.OsqRequestTimeoutSec, 3, 60),
+            CustomCommands = NormalizeRobotCustomCommands(source.CustomCommands)
         };
     }
 
@@ -231,6 +232,53 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             .ToList();
 
         return lines.Count == 0 ? string.Empty : string.Join(Environment.NewLine, lines);
+    }
+
+    private static List<RobotCustomCommandConfig> NormalizeRobotCustomCommands(IEnumerable<RobotCustomCommandConfig>? commands)
+    {
+        var result = new List<RobotCustomCommandConfig>();
+        foreach (var command in commands ?? [])
+        {
+            var normalizedCommand = NormalizeRobotCustomCommandText(command.Command);
+            var normalizedReply = NormalizeRobotCustomReplyText(command.ReplyText);
+            if (string.IsNullOrWhiteSpace(normalizedCommand) || string.IsNullOrWhiteSpace(normalizedReply))
+            {
+                continue;
+            }
+
+            result.Add(new RobotCustomCommandConfig
+            {
+                Command = normalizedCommand,
+                MentionSender = command.MentionSender,
+                ReplyText = normalizedReply
+            });
+        }
+
+        return result;
+    }
+
+    private static string NormalizeRobotCustomCommandText(string? value)
+    {
+        var text = (value ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        text = text.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        text = string.Join(' ', text.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries));
+        return text.StartsWith('/') ? text : "/" + text;
+    }
+
+    private static string NormalizeRobotCustomReplyText(string? value)
+    {
+        var text = (value ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n').Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        return text;
     }
 
     private static FrpIntegrationSettings NormalizeFrp(FrpIntegrationSettings? source)
