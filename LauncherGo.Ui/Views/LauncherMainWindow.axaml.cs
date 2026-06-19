@@ -187,6 +187,7 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<ModListItem> _modItems = [];
     private readonly ObservableCollection<InstanceProfile> _authProfileItems = [];
     private readonly ObservableCollection<AuthPlayerListItem> _authPlayerItems = [];
+    private readonly ObservableCollection<string> _dashboardPlayerItems = [];
     private readonly List<ServerDownloadEntry> _catalogEntries = [];
     private readonly List<OsqEndpointEditorRow> _osqEndpointEditors = [];
     private readonly Dictionary<string, string> _configGameLanguageZh = new(StringComparer.OrdinalIgnoreCase);
@@ -230,6 +231,9 @@ public partial class LauncherMainWindow : Window
     private string _tailedProfileId = string.Empty;
     private string _replayedLogProfileId = string.Empty;
     private string _loadedConfigProfileId = string.Empty;
+    private string _dashboardSettingsProfileId = string.Empty;
+    private int? _dashboardServerPort;
+    private int? _dashboardMaxPlayers;
     private TimeSpan _robotLastProcessorTime;
     private DateTimeOffset _robotLastCpuSampleUtc = DateTimeOffset.UtcNow;
     private double _robotLastCpuPercent;
@@ -321,8 +325,8 @@ public partial class LauncherMainWindow : Window
 
         InitializeStaticTexts();
         RefreshAppearanceSettingsEditor();
-        InitializeSeries();
         InitializeCollections();
+        InitializeSeries();
         RegisterAutoSaveHandlers();
         RefreshProfiles();
         _ = RefreshSavesAsync();
@@ -496,10 +500,22 @@ public partial class LauncherMainWindow : Window
         QuickCommandComboBox.PlaceholderText = T("快捷命令", "Quick command");
         SendCommandButton.Content = T("发送", "Send");
 
-        ServerStatusCardTitleText.Text = T("服务器状态", "Server Status");
-        RobotStatusCardTitleText.Text = T("机器人状态", "Robot Status");
-        OnlinePlayersCardTitleText.Text = T("在线玩家", "Online Players");
-        NetworkStatusCardTitleText.Text = T("网络状态", "Network Status");
+        DashboardServerTitleText.Text = T("服务器", "Server");
+        DashboardProfileLabelText.Text = T("档案名称", "Profile");
+        DashboardVersionLabelText.Text = T("版本号", "Version");
+        DashboardPortLabelText.Text = T("端口", "Port");
+        DashboardServerCpuLabelText.Text = T("服务器 CPU", "Server CPU");
+        DashboardServerMemoryLabelText.Text = T("服务器内存", "Server Memory");
+        DashboardPlayersTitleText.Text = T("在线玩家", "Online Players");
+        DashboardPlayersHintText.Text = T("玩家名称", "Player Names");
+        DashboardServerLineLegendText.Text = T("服务器", "Server");
+        DashboardRobotLineLegendText.Text = T("QQ机器人", "QQ Robot");
+        DashboardUptimeTitleText.Text = T("运行时间", "Uptime");
+        DashboardServerUptimeLabelText.Text = T("服务器", "Server");
+        DashboardRobotUptimeLabelText.Text = T("QQ机器人", "QQ Robot");
+        DashboardOpenInfoUptimeLabelText.Text = T("开放API", "Open API");
+        DashboardFrpUptimeLabelText.Text = T("FRP", "FRP");
+        DashboardThirdPartyFrpcUptimeLabelText.Text = T("第三方FRP", "Third-party FRP");
 
         ProfilesTabButton.Content = T("实例", "Instance");
         ConfigTabButton.Content = T("配置", "Config");
@@ -786,6 +802,7 @@ public partial class LauncherMainWindow : Window
         ModsListBox.ItemsSource = _modItems;
         AuthProfileComboBox.ItemsSource = _authProfileItems;
         AuthPlayersListBox.ItemsSource = _authPlayerItems;
+        DashboardPlayersItemsControl.ItemsSource = _dashboardPlayerItems;
         RebuildConfigChoiceOptions();
         RebuildThirdPartyFrpcModeOptions();
     }
@@ -993,32 +1010,207 @@ public partial class LauncherMainWindow : Window
     {
         var serverCpu = _serverCpuSamples[^1];
         var serverMemMb = _serverMemoryMbSamples[^1];
-        ServerStatusCardValueText.Text = status.IsRunning
-            ? T($"CPU {serverCpu:F1}%  内存 {serverMemMb:F0} MB", $"CPU {serverCpu:F1}%  Mem {serverMemMb:F0} MB")
-            : T("未启动", "Stopped");
 
         var robotStatus = _robotService.GetCurrentStatus();
         var robotCpu = _robotCpuSamples[^1];
         var robotMemMb = _robotMemoryMbSamples[^1];
-        RobotStatusCardValueText.Text = robotStatus.IsRunning
-            ? T($"运行中  CPU {robotCpu:F1}%  内存 {robotMemMb:F0} MB", $"Running  CPU {robotCpu:F1}%  Mem {robotMemMb:F0} MB")
-            : T("未启动", "Stopped");
+        UpdateDashboard(status, robotStatus, serverCpu, serverMemMb, robotCpu, robotMemMb);
 
-        var currentPlayers = (int)Math.Round(_playersSamples[^1]);
-        var peakPlayers = Math.Max(status.PeakOnlinePlayers, (int)Math.Round(_playersSamples.Max()));
-        OnlinePlayersCardValueText.Text = T(
-            $"在线 {currentPlayers}  最高 {peakPlayers}",
-            $"Online {currentPlayers}  Peak {peakPlayers}");
-
-        NetworkStatusCardValueText.Text = _isFrpRunning || _isThirdPartyFrpcRunning || _openServerQueryService.GetRuntimeStatus().IsListening
-            ? T("连接服务已启动", "Connection service started")
-            : T("未启动", "Stopped");
         LaunchActionTextBlock.Text = status.IsRunning ? T("停止服务器", "Stop Server") : T("启动服务器", "Start Server");
         LaunchActionIconPath.Data = Geometry.Parse(status.IsRunning ? LaunchStopIconData : LaunchStartIconData);
         LaunchServerButton.Classes.Set("running", status.IsRunning);
         RefreshLaunchButtonSummary(status.IsRunning);
+    }
 
-        RenderThumbnailCharts();
+    private void UpdateDashboard(
+        ServerRuntimeStatus status,
+        RobotRuntimeStatus robotStatus,
+        double serverCpu,
+        double serverMemMb,
+        double robotCpu,
+        double robotMemMb)
+    {
+        var profile = ResolveDashboardProfile(status);
+        EnsureDashboardServerSettings(profile);
+
+        DashboardProfileNameText.Text = string.IsNullOrWhiteSpace(profile?.Name) ? "--" : profile.Name;
+        DashboardVersionText.Text = string.IsNullOrWhiteSpace(profile?.Version) ? "--" : profile.Version;
+        DashboardPortText.Text = _dashboardServerPort?.ToString(CultureInfo.InvariantCulture) ?? "--";
+        DashboardServerCpuText.Text = $"{serverCpu:F1}%";
+        DashboardServerMemoryText.Text = $"{serverMemMb:F0} MB";
+
+        UpdateDashboardStatus(status);
+        UpdateDashboardPlayers(status);
+        UpdateDashboardUptimes(status, robotStatus);
+    }
+
+    private InstanceProfile? ResolveDashboardProfile(ServerRuntimeStatus status)
+    {
+        if (!string.IsNullOrWhiteSpace(status.ProfileId))
+        {
+            var runningProfile = _profileService.GetProfileById(status.ProfileId.Trim());
+            if (runningProfile is not null)
+            {
+                return runningProfile;
+            }
+        }
+
+        var preferences = _preferencesService.Load();
+        if (!string.IsNullOrWhiteSpace(preferences.DefaultLaunchProfileId))
+        {
+            var defaultProfile = _profileService.GetProfileById(preferences.DefaultLaunchProfileId.Trim());
+            if (defaultProfile is not null)
+            {
+                return defaultProfile;
+            }
+        }
+
+        return _profileService.GetProfiles().FirstOrDefault();
+    }
+
+    private void EnsureDashboardServerSettings(InstanceProfile? profile)
+    {
+        if (profile is null)
+        {
+            _dashboardSettingsProfileId = string.Empty;
+            _dashboardServerPort = null;
+            _dashboardMaxPlayers = null;
+            return;
+        }
+
+        if (_dashboardSettingsProfileId.Equals(profile.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _dashboardSettingsProfileId = profile.Id;
+        _dashboardServerPort = null;
+        _dashboardMaxPlayers = null;
+        _ = RefreshDashboardServerSettingsAsync(profile);
+    }
+
+    private async Task RefreshDashboardServerSettingsAsync(InstanceProfile profile)
+    {
+        try
+        {
+            var settings = await _instanceServerConfigService.LoadServerSettingsAsync(profile);
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (!_dashboardSettingsProfileId.Equals(profile.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                _dashboardServerPort = settings.Port;
+                _dashboardMaxPlayers = settings.MaxClients;
+                UpdateDashboardPlayers(_serverProcessService.GetCurrentStatus());
+                DashboardPortText.Text = _dashboardServerPort?.ToString(CultureInfo.InvariantCulture) ?? "--";
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to refresh dashboard server settings for profile {ProfileId}", profile.Id);
+        }
+    }
+
+    private void UpdateDashboardStatus(ServerRuntimeStatus status)
+    {
+        if (_isStoppingOrStarting)
+        {
+            DashboardStatusText.Text = T("加载中", "Loading");
+            DashboardStatusDot.Background = new SolidColorBrush(Color.Parse("#F59E0B"));
+            return;
+        }
+
+        if (status.IsRunning)
+        {
+            DashboardStatusText.Text = T("正在运行", "Running");
+            DashboardStatusDot.Background = new SolidColorBrush(Color.Parse("#16A34A"));
+            return;
+        }
+
+        DashboardStatusText.Text = T("已停止", "Stopped");
+        DashboardStatusDot.Background = new SolidColorBrush(Color.Parse("#DC2626"));
+    }
+
+    private void UpdateDashboardPlayers(ServerRuntimeStatus status)
+    {
+        var playerNames = ResolveDashboardPlayerNames(status);
+        var currentPlayers = playerNames.Count > 0
+            ? playerNames.Count
+            : Math.Max(0, status.OnlinePlayers);
+        var maxPlayers = _dashboardMaxPlayers?.ToString(CultureInfo.InvariantCulture) ?? "--";
+        DashboardPlayersCountText.Text = $"{currentPlayers.ToString(CultureInfo.InvariantCulture)}/{maxPlayers}";
+
+        _dashboardPlayerItems.Clear();
+        if (playerNames.Count == 0)
+        {
+            _dashboardPlayerItems.Add(status.IsRunning
+                ? T("暂无在线玩家", "No online players")
+                : T("服务器未运行", "Server is stopped"));
+            return;
+        }
+
+        foreach (var playerName in playerNames)
+        {
+            _dashboardPlayerItems.Add(playerName);
+        }
+    }
+
+    private IReadOnlyList<string> ResolveDashboardPlayerNames(ServerRuntimeStatus status)
+    {
+        if (!status.IsRunning)
+        {
+            return [];
+        }
+
+        var names = status.OnlinePlayerNames
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (names.Count > 0)
+        {
+            return names;
+        }
+
+        return _serverProcessService.GetOnlinePlayerNames()
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private void UpdateDashboardUptimes(ServerRuntimeStatus status, RobotRuntimeStatus robotStatus)
+    {
+        DashboardServerUptimeText.Text = status.IsRunning ? FormatConnectionUptime(status.StartedAtUtc) : "--";
+        DashboardRobotUptimeText.Text = robotStatus.IsRunning ? FormatConnectionUptime(robotStatus.StartedAtUtc) : "--";
+
+        var openInfoStatus = _openServerQueryService.GetRuntimeStatus();
+        DashboardOpenInfoUptimeText.Text = openInfoStatus.IsListening
+            ? FormatConnectionUptime(ParseRuntimeStartedAtUtc(openInfoStatus.StartedAtUtc))
+            : "--";
+
+        var frpStatus = _frpService.GetCurrentStatus();
+        var thirdPartyStatus = _thirdPartyFrpcService.GetCurrentStatus();
+        _isFrpRunning = frpStatus.IsRunning;
+        _isThirdPartyFrpcRunning = thirdPartyStatus.IsRunning;
+        DashboardFrpUptimeText.Text = frpStatus.IsRunning ? FormatConnectionUptime(frpStatus.StartedAtUtc) : "--";
+        DashboardThirdPartyFrpcUptimeText.Text = thirdPartyStatus.IsRunning ? FormatConnectionUptime(thirdPartyStatus.StartedAtUtc) : "--";
+    }
+
+    private static DateTimeOffset? ParseRuntimeStartedAtUtc(string value)
+    {
+        return DateTimeOffset.TryParse(
+            value,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out var startedAt)
+            ? startedAt
+            : null;
     }
 
     private (double CpuPercent, long MemoryBytes) SampleRobotResources(RobotRuntimeStatus status)
@@ -1064,21 +1256,37 @@ public partial class LauncherMainWindow : Window
     private void RenderSelectedMetricChart(ServerRuntimeStatus? statusOverride = null)
     {
         var status = statusOverride ?? _serverProcessService.GetCurrentStatus();
-        switch (_selectedMetric)
-        {
-            case HomeMetric.Server:
-                RenderServerChart(status);
-                break;
-            case HomeMetric.Robot:
-                RenderRobotChart();
-                break;
-            case HomeMetric.Players:
-                RenderPlayersChart(status);
-                break;
-            case HomeMetric.Network:
-                RenderNetworkChart();
-                break;
-        }
+        RenderDashboardResourceChart(status);
+    }
+
+    private void RenderDashboardResourceChart(ServerRuntimeStatus status)
+    {
+        var robotStatus = _robotService.GetCurrentStatus();
+        var serverCpu = _serverCpuSamples[^1];
+        var robotCpu = _robotCpuSamples[^1];
+        var serverMemoryMb = _serverMemoryMbSamples[^1];
+        var robotMemoryMb = _robotMemoryMbSamples[^1];
+        var yMax = Math.Max(
+            GetMemoryChartYMax(_serverMemoryMbSamples),
+            GetMemoryChartYMax(_robotMemoryMbSamples));
+
+        RenderDualLineChart(
+            title: T("资源监控", "Resource Monitor"),
+            topValue: T($"{serverMemoryMb:F0} MB / {robotMemoryMb:F0} MB", $"{serverMemoryMb:F0} MB / {robotMemoryMb:F0} MB"),
+            summary: T("60 秒区间，蓝线为服务器内存占用，绿线为 QQ 机器人内存占用。", "60-second range. Blue is server memory usage; green is QQ robot memory usage."),
+            primary: _serverMemoryMbSamples,
+            secondary: _robotMemoryMbSamples,
+            yMin: 0,
+            yMax: yMax,
+            yAxisFormatter: value => $"{value:F0}",
+            xHint: T("60 秒", "60 seconds"),
+            details:
+            [
+                (T("服务器 CPU", "Server CPU"), status.IsRunning ? $"{serverCpu:F1}%" : "--"),
+                (T("服务器内存", "Server Memory"), status.IsRunning ? $"{serverMemoryMb:F0} MB" : "--"),
+                (T("机器人 CPU", "Robot CPU"), robotStatus.IsRunning ? $"{robotCpu:F1}%" : "--"),
+                (T("机器人内存", "Robot Memory"), robotStatus.IsRunning ? $"{robotMemoryMb:F0} MB" : "--")
+            ]);
     }
 
     private void RenderServerChart(ServerRuntimeStatus status)
@@ -1275,24 +1483,6 @@ public partial class LauncherMainWindow : Window
 
     private void RenderThumbnailCharts()
     {
-        ServerStatusThumbLinePrimary.Points = BuildPolylinePoints(
-            _serverMemoryMbSamples,
-            0,
-            GetMemoryChartYMax(_serverMemoryMbSamples),
-            ThumbnailWidth,
-            ThumbnailHeight);
-        ServerStatusThumbLineSecondary.Points = [];
-        ServerStatusThumbLineSecondary.IsVisible = false;
-        RobotStatusThumbLinePrimary.Points = BuildPolylinePoints(
-            _robotMemoryMbSamples,
-            0,
-            GetMemoryChartYMax(_robotMemoryMbSamples),
-            ThumbnailWidth,
-            ThumbnailHeight);
-        RobotStatusThumbLineSecondary.Points = [];
-        RobotStatusThumbLineSecondary.IsVisible = false;
-        OnlinePlayersThumbLinePrimary.Points = BuildPolylinePoints(_playersSamples, 0, NiceCeiling(Math.Max(4, _playersSamples.Max() + 1)), ThumbnailWidth, ThumbnailHeight);
-        NetworkStatusThumbLinePrimary.Points = BuildPolylinePoints(_networkLatencySamples, 0, 100, ThumbnailWidth, ThumbnailHeight);
     }
 
     private static double GetMemoryChartYMax(IReadOnlyList<double> memoryMbSamples)
@@ -1923,10 +2113,6 @@ public partial class LauncherMainWindow : Window
     private void SelectMetric(HomeMetric metric)
     {
         _selectedMetric = metric;
-        SetSelectedClass(ServerStatusCard, metric == HomeMetric.Server);
-        SetSelectedClass(RobotStatusCard, metric == HomeMetric.Robot);
-        SetSelectedClass(OnlinePlayersCard, metric == HomeMetric.Players);
-        SetSelectedClass(NetworkStatusCard, metric == HomeMetric.Network);
         RenderSelectedMetricChart();
     }
 
@@ -4986,6 +5172,7 @@ public partial class LauncherMainWindow : Window
         LaunchServerButton.IsEnabled = false;
         LaunchActionTextBlock.Text = text;
         LaunchSelectionSummaryTextBlock.Text = text;
+        UpdateDashboardStatus(_serverProcessService.GetCurrentStatus());
     }
 
     private void ClearLaunchOperationBusy()

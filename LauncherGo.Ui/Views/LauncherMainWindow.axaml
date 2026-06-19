@@ -534,6 +534,35 @@
             <Setter Property="CornerRadius" Value="0" />
             <Setter Property="Padding" Value="12" />
         </Style>
+        <Style Selector="Border.DashboardCard">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Padding" Value="14" />
+        </Style>
+        <Style Selector="Border.DashboardStatusPill">
+            <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="9,5" />
+        </Style>
+        <Style Selector="Border.DashboardPlayerRow">
+            <Setter Property="BorderBrush" Value="{DynamicResource SplitLineBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="0,8" />
+        </Style>
+        <Style Selector="TextBlock.DashboardTitle">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource MainTextBrush}" />
+        </Style>
+        <Style Selector="TextBlock.DashboardLabel">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource SubTextBrush}" />
+        </Style>
+        <Style Selector="TextBlock.DashboardValue">
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource MainTextBrush}" />
+        </Style>
         <Style Selector="Border.ConfigInnerCard">
             <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
             <Setter Property="CornerRadius" Value="4" />
@@ -1014,138 +1043,180 @@
                             <Grid Margin="18,10,18,10">
                                 <Grid Margin="0">
 
-                            <Grid x:Name="MonitorPanel" ColumnDefinitions="330,*" ColumnSpacing="12" MinHeight="0" IsVisible="False" ClipToBounds="True">
-                                <Grid Grid.Column="0" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8" VerticalAlignment="Top">
-                                    <Button x:Name="ServerStatusCard" Grid.Row="0" Classes="StatusCardButton" Click="OnServerStatusCardClick">
-                                        <Grid ColumnDefinitions="78,*" ColumnSpacing="12">
-                                            <Border Width="76" Height="50" BorderBrush="#111111" BorderThickness="1" Background="Transparent">
-                                                <Canvas Width="76" Height="50" Background="Transparent" ClipToBounds="True">
-                                                    <Polyline x:Name="ServerStatusThumbLinePrimary" Stroke="{DynamicResource PrimaryLineBrush}" StrokeThickness="1.4" />
-                                                    <Polyline x:Name="ServerStatusThumbLineSecondary" Stroke="{DynamicResource SecondaryLineBrush}" StrokeThickness="1.4" />
-                                                </Canvas>
-                                            </Border>
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
-                                                <TextBlock x:Name="ServerStatusCardTitleText" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" />
-                                                <TextBlock x:Name="ServerStatusCardValueText" FontSize="13" FontWeight="Normal" Foreground="{DynamicResource SubTextBrush}" TextWrapping="Wrap" />
-                                            </StackPanel>
-                                        </Grid>
-                                    </Button>
-                                    <Button x:Name="RobotStatusCard" Grid.Row="1" Classes="StatusCardButton" Click="OnRobotStatusCardClick">
-                                        <Grid ColumnDefinitions="78,*" ColumnSpacing="12">
-                                            <Border Width="76" Height="50" BorderBrush="#111111" BorderThickness="1" Background="Transparent">
-                                                <Canvas Width="76" Height="50" Background="Transparent" ClipToBounds="True">
-                                                    <Polyline x:Name="RobotStatusThumbLinePrimary" Stroke="{DynamicResource PrimaryLineBrush}" StrokeThickness="1.4" />
-                                                    <Polyline x:Name="RobotStatusThumbLineSecondary" Stroke="{DynamicResource SecondaryLineBrush}" StrokeThickness="1.4" />
-                                                </Canvas>
-                                            </Border>
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
-                                                <TextBlock x:Name="RobotStatusCardTitleText" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" />
-                                                <TextBlock x:Name="RobotStatusCardValueText" FontSize="13" FontWeight="Normal" Foreground="{DynamicResource SubTextBrush}" TextWrapping="Wrap" />
-                                            </StackPanel>
-                                        </Grid>
-                                    </Button>
-                                    <Button x:Name="OnlinePlayersCard" Grid.Row="2" Classes="StatusCardButton" Click="OnOnlinePlayersCardClick">
-                                        <Grid ColumnDefinitions="78,*" ColumnSpacing="12">
-                                            <Border Width="76" Height="50" BorderBrush="#111111" BorderThickness="1" Background="Transparent">
-                                                <Canvas Width="76" Height="50" Background="Transparent" ClipToBounds="True">
-                                                    <Polyline x:Name="OnlinePlayersThumbLinePrimary" Stroke="{DynamicResource PrimaryLineBrush}" StrokeThickness="1.4" />
-                                                </Canvas>
-                                            </Border>
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
-                                                <TextBlock x:Name="OnlinePlayersCardTitleText" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" />
-                                                <TextBlock x:Name="OnlinePlayersCardValueText" FontSize="13" FontWeight="Normal" Foreground="{DynamicResource SubTextBrush}" TextWrapping="Wrap" />
-                                            </StackPanel>
-                                        </Grid>
-                                    </Button>
-                                    <Button x:Name="NetworkStatusCard" Grid.Row="3" Classes="StatusCardButton" Click="OnNetworkStatusCardClick">
-                                        <Grid ColumnDefinitions="78,*" ColumnSpacing="12">
-                                            <Border Width="76" Height="50" BorderBrush="#111111" BorderThickness="1" Background="Transparent">
-                                                <Canvas Width="76" Height="50" Background="Transparent" ClipToBounds="True">
-                                                    <Polyline x:Name="NetworkStatusThumbLinePrimary" Stroke="{DynamicResource PrimaryLineBrush}" StrokeThickness="1.4" />
-                                                </Canvas>
-                                            </Border>
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
-                                                <TextBlock x:Name="NetworkStatusCardTitleText" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" />
-                                                <TextBlock x:Name="NetworkStatusCardValueText" FontSize="13" FontWeight="Normal" Foreground="{DynamicResource SubTextBrush}" TextWrapping="Wrap" />
-                                            </StackPanel>
-                                        </Grid>
-                                    </Button>
-                                </Grid>
-
-                                <Border Grid.Column="1" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="Transparent" BorderThickness="0" CornerRadius="0" Padding="12">
-                                    <Grid RowDefinitions="Auto,*,Auto,Auto">
-                                        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
-                                            <TextBlock x:Name="ChartTitleText" Grid.Row="0" Grid.Column="0" FontSize="24" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" />
-                                            <TextBlock x:Name="ChartTopValueText" Grid.Row="0" Grid.Column="1" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" VerticalAlignment="Bottom" />
-                                            <TextBlock x:Name="ChartSummaryText" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,4,0,0" FontSize="13" Foreground="{DynamicResource SubTextBrush}" />
-                                        </Grid>
-
-                                        <Grid Grid.Row="1" Margin="0,10,0,10" RowDefinitions="*,Auto" ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                                            <Grid Grid.Row="0" Grid.Column="0" Width="50" RowDefinitions="*,*,*,*,*,*" VerticalAlignment="Stretch">
-                                                <TextBlock x:Name="YAxisLabelTop" Grid.Row="0" FontSize="11" Foreground="{DynamicResource SubTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Top" />
-                                                <TextBlock x:Name="YAxisLabel2" Grid.Row="1" FontSize="11" Foreground="{DynamicResource SubTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
-                                                <TextBlock x:Name="YAxisLabel3" Grid.Row="2" FontSize="11" Foreground="{DynamicResource SubTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
-                                                <TextBlock x:Name="YAxisLabel4" Grid.Row="3" FontSize="11" Foreground="{DynamicResource SubTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
-                                                <TextBlock x:Name="YAxisLabel5" Grid.Row="4" FontSize="11" Foreground="{DynamicResource SubTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
-                                                <TextBlock x:Name="YAxisLabelBottom" Grid.Row="5" FontSize="11" Foreground="{DynamicResource SubTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Bottom" />
+                            <Grid x:Name="MonitorPanel" ColumnDefinitions="*,*" RowDefinitions="*,*" ColumnSpacing="12" RowSpacing="12" MinHeight="0" IsVisible="False" ClipToBounds="True">
+                                    <Border Classes="DashboardCard" Grid.Row="0" Grid.Column="0">
+                                        <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                                <TextBlock x:Name="DashboardServerTitleText" Classes="DashboardTitle" Text="服务器" />
+                                                <Border Grid.Column="1" Classes="DashboardStatusPill" VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                                        <Border x:Name="DashboardStatusDot" Width="10" Height="10" CornerRadius="5" Background="#F59E0B" VerticalAlignment="Center" />
+                                                        <TextBlock x:Name="DashboardStatusText" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" Text="加载中" />
+                                                    </StackPanel>
+                                                </Border>
                                             </Grid>
-                                            <Border Grid.Row="0" Grid.Column="1" BorderBrush="Transparent" BorderThickness="0" CornerRadius="0" Padding="8">
-                                                <Viewbox Stretch="Fill">
-                                                    <Canvas x:Name="ChartCanvas" Width="640" Height="248" Background="Transparent">
-                                                        <Line StartPoint="0,0" EndPoint="640,0" Stroke="{DynamicResource GridLineBrush}" StrokeThickness="1" />
-                                                        <Line StartPoint="0,50" EndPoint="640,50" Stroke="{DynamicResource GridLineBrush}" StrokeThickness="1" />
-                                                        <Line StartPoint="0,100" EndPoint="640,100" Stroke="{DynamicResource GridLineBrush}" StrokeThickness="1" />
-                                                        <Line StartPoint="0,150" EndPoint="640,150" Stroke="{DynamicResource GridLineBrush}" StrokeThickness="1" />
-                                                        <Line StartPoint="0,200" EndPoint="640,200" Stroke="{DynamicResource GridLineBrush}" StrokeThickness="1" />
-                                                        <Line StartPoint="0,248" EndPoint="640,248" Stroke="{DynamicResource GridLineBrush}" StrokeThickness="1" />
 
-                                                        <Polyline x:Name="ChartLinePrimary" Stroke="{DynamicResource PrimaryLineBrush}" StrokeThickness="2" />
-                                                        <Polyline x:Name="ChartLineSecondary" Stroke="{DynamicResource SecondaryLineBrush}" StrokeThickness="2" />
-                                                    </Canvas>
-                                                </Viewbox>
-                                            </Border>
-                                            <TextBlock x:Name="ChartXAxisText" Grid.Row="1" Grid.Column="1" Margin="4,6,0,0" FontSize="12" Foreground="{DynamicResource SubTextBrush}" />
-                                        </Grid>
-
-                                        <Grid x:Name="ChartDetailGrid" Grid.Row="2" Margin="0,0,0,8" ColumnDefinitions="*,*,*,*" RowDefinitions="Auto" ColumnSpacing="16">
-                                            <StackPanel>
-                                                <TextBlock x:Name="DetailOneLabelText" FontSize="12" Foreground="{DynamicResource SubTextBrush}" />
-                                                <TextBlock x:Name="DetailOneValueText" FontSize="18" Foreground="{DynamicResource MainTextBrush}" />
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="1">
-                                                <TextBlock x:Name="DetailTwoLabelText" FontSize="12" Foreground="{DynamicResource SubTextBrush}" />
-                                                <TextBlock x:Name="DetailTwoValueText" FontSize="18" Foreground="{DynamicResource MainTextBrush}" />
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="2">
-                                                <TextBlock x:Name="DetailThreeLabelText" FontSize="12" Foreground="{DynamicResource SubTextBrush}" />
-                                                <TextBlock x:Name="DetailThreeValueText" FontSize="18" Foreground="{DynamicResource MainTextBrush}" />
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="3">
-                                                <TextBlock x:Name="DetailFourLabelText" FontSize="12" Foreground="{DynamicResource SubTextBrush}" />
-                                                <TextBlock x:Name="DetailFourValueText" FontSize="18" Foreground="{DynamicResource MainTextBrush}" />
-                                            </StackPanel>
-                                        </Grid>
-
-                                        <Border Grid.Row="3" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="Transparent" BorderThickness="0" CornerRadius="0" Padding="8" IsVisible="False" x:Name="EventTickerContainer">
-                                            <Grid Height="24" ClipToBounds="True">
-                                                <TextBlock x:Name="EventTickerCurrentText" FontSize="13" VerticalAlignment="Center" Foreground="{DynamicResource MainTextBrush}" TextTrimming="CharacterEllipsis" RenderTransform="translate(0px,0px)">
-                                                    <TextBlock.Transitions>
-                                                        <Transitions>
-                                                            <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.25" />
-                                                        </Transitions>
-                                                    </TextBlock.Transitions>
-                                                </TextBlock>
-                                                <TextBlock x:Name="EventTickerNextText" FontSize="13" VerticalAlignment="Center" Foreground="{DynamicResource MainTextBrush}" TextTrimming="CharacterEllipsis" RenderTransform="translate(0px,24px)">
-                                                    <TextBlock.Transitions>
-                                                        <Transitions>
-                                                            <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.25" />
-                                                        </Transitions>
-                                                    </TextBlock.Transitions>
-                                                </TextBlock>
+                                            <Grid Grid.Row="1" RowDefinitions="Auto,Auto" RowSpacing="4">
+                                                <TextBlock x:Name="DashboardProfileLabelText" Classes="DashboardLabel" Text="档案名称" />
+                                                <TextBlock x:Name="DashboardProfileNameText" Grid.Row="1" Classes="DashboardValue" Text="--" TextTrimming="CharacterEllipsis" />
                                             </Grid>
-                                        </Border>
-                                    </Grid>
-                                </Border>
+
+                                            <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="14">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock x:Name="DashboardVersionLabelText" Classes="DashboardLabel" Text="版本号" />
+                                                    <TextBlock x:Name="DashboardVersionText" Classes="DashboardValue" FontSize="16" Text="--" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Spacing="4">
+                                                    <TextBlock x:Name="DashboardPortLabelText" Classes="DashboardLabel" Text="端口" />
+                                                    <TextBlock x:Name="DashboardPortText" Classes="DashboardValue" FontSize="16" Text="--" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <Grid Grid.Row="3" ColumnDefinitions="*,*" ColumnSpacing="14">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock x:Name="DashboardServerCpuLabelText" Classes="DashboardLabel" Text="服务器 CPU" />
+                                                    <TextBlock x:Name="DashboardServerCpuText" Classes="DashboardValue" FontSize="16" Text="0.0%" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Spacing="4">
+                                                    <TextBlock x:Name="DashboardServerMemoryLabelText" Classes="DashboardLabel" Text="服务器内存" />
+                                                    <TextBlock x:Name="DashboardServerMemoryText" Classes="DashboardValue" FontSize="16" Text="0 MB" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Classes="DashboardCard" Grid.Row="1" Grid.Column="0" MinHeight="0">
+                                        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="10" MinHeight="0">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                                <TextBlock x:Name="DashboardPlayersTitleText" Classes="DashboardTitle" Text="在线玩家" />
+                                                <TextBlock x:Name="DashboardPlayersCountText" Grid.Column="1" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" Text="0/--" />
+                                            </Grid>
+                                            <TextBlock x:Name="DashboardPlayersHintText" Grid.Row="1" Classes="DashboardLabel" Text="玩家名称" />
+                                            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                                <ItemsControl x:Name="DashboardPlayersItemsControl">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Classes="DashboardPlayerRow">
+                                                                <TextBlock Text="{Binding}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" TextTrimming="CharacterEllipsis" />
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </Grid>
+                                    </Border>
+                                    <Border Classes="DashboardCard" Grid.Row="0" Grid.Column="1" MinHeight="0">
+                                        <Grid RowDefinitions="Auto,*,Auto,Auto" MinHeight="0">
+                                            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+                                                <TextBlock x:Name="ChartTitleText" Grid.Row="0" Grid.Column="0" Classes="DashboardTitle" Text="资源监控" />
+                                                <TextBlock x:Name="ChartTopValueText" Grid.Row="0" Grid.Column="1" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" VerticalAlignment="Bottom" />
+                                                <TextBlock x:Name="ChartSummaryText" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,4,0,0" FontSize="13" Foreground="{DynamicResource SubTextBrush}" TextWrapping="Wrap" />
+                                            </Grid>
+
+                                            <Grid Grid.Row="1" Margin="0,10,0,8" RowDefinitions="*,Auto" ColumnDefinitions="Auto,*" ColumnSpacing="8" MinHeight="0">
+                                                <Grid Grid.Row="0" Grid.Column="0" Width="50" RowDefinitions="*,*,*,*,*,*" VerticalAlignment="Stretch">
+                                                    <TextBlock x:Name="YAxisLabelTop" Grid.Row="0" FontSize="11" Foreground="{DynamicResource SubTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Top" />
+                                                    <TextBlock x:Name="YAxisLabel2" Grid.Row="1" FontSize="11" Foreground="{DynamicResource SubTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                                    <TextBlock x:Name="YAxisLabel3" Grid.Row="2" FontSize="11" Foreground="{DynamicResource SubTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                                    <TextBlock x:Name="YAxisLabel4" Grid.Row="3" FontSize="11" Foreground="{DynamicResource SubTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                                    <TextBlock x:Name="YAxisLabel5" Grid.Row="4" FontSize="11" Foreground="{DynamicResource SubTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                                    <TextBlock x:Name="YAxisLabelBottom" Grid.Row="5" FontSize="11" Foreground="{DynamicResource SubTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Bottom" />
+                                                </Grid>
+                                                <Border Grid.Row="0" Grid.Column="1" BorderBrush="Transparent" BorderThickness="0" CornerRadius="0" Padding="8">
+                                                    <Viewbox Stretch="Fill">
+                                                        <Canvas x:Name="ChartCanvas" Width="640" Height="248" Background="Transparent">
+                                                            <Line StartPoint="0,0" EndPoint="640,0" Stroke="{DynamicResource GridLineBrush}" StrokeThickness="1" />
+                                                            <Line StartPoint="0,50" EndPoint="640,50" Stroke="{DynamicResource GridLineBrush}" StrokeThickness="1" />
+                                                            <Line StartPoint="0,100" EndPoint="640,100" Stroke="{DynamicResource GridLineBrush}" StrokeThickness="1" />
+                                                            <Line StartPoint="0,150" EndPoint="640,150" Stroke="{DynamicResource GridLineBrush}" StrokeThickness="1" />
+                                                            <Line StartPoint="0,200" EndPoint="640,200" Stroke="{DynamicResource GridLineBrush}" StrokeThickness="1" />
+                                                            <Line StartPoint="0,248" EndPoint="640,248" Stroke="{DynamicResource GridLineBrush}" StrokeThickness="1" />
+
+                                                            <Polyline x:Name="ChartLinePrimary" Stroke="{DynamicResource PrimaryLineBrush}" StrokeThickness="2.2" />
+                                                            <Polyline x:Name="ChartLineSecondary" Stroke="{DynamicResource SecondaryLineBrush}" StrokeThickness="2.2" />
+                                                        </Canvas>
+                                                    </Viewbox>
+                                                </Border>
+                                                <Grid Grid.Row="1" Grid.Column="1" Margin="4,6,0,0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="14">
+                                                    <TextBlock x:Name="ChartXAxisText" FontSize="12" Foreground="{DynamicResource SubTextBrush}" />
+                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                        <Border Width="18" Height="3" Background="{DynamicResource PrimaryLineBrush}" VerticalAlignment="Center" />
+                                                        <TextBlock x:Name="DashboardServerLineLegendText" FontSize="12" Foreground="{DynamicResource SubTextBrush}" Text="服务器" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                        <Border Width="18" Height="3" Background="{DynamicResource SecondaryLineBrush}" VerticalAlignment="Center" />
+                                                        <TextBlock x:Name="DashboardRobotLineLegendText" FontSize="12" Foreground="{DynamicResource SubTextBrush}" Text="QQ机器人" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Grid>
+
+                                            <Grid x:Name="ChartDetailGrid" Grid.Row="2" Margin="0,0,0,4" ColumnDefinitions="*,*,*,*" RowDefinitions="Auto" ColumnSpacing="16">
+                                                <StackPanel>
+                                                    <TextBlock x:Name="DetailOneLabelText" Classes="DashboardLabel" />
+                                                    <TextBlock x:Name="DetailOneValueText" Classes="DashboardValue" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock x:Name="DetailTwoLabelText" Classes="DashboardLabel" />
+                                                    <TextBlock x:Name="DetailTwoValueText" Classes="DashboardValue" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock x:Name="DetailThreeLabelText" Classes="DashboardLabel" />
+                                                    <TextBlock x:Name="DetailThreeValueText" Classes="DashboardValue" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="3">
+                                                    <TextBlock x:Name="DetailFourLabelText" Classes="DashboardLabel" />
+                                                    <TextBlock x:Name="DetailFourValueText" Classes="DashboardValue" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <Border Grid.Row="3" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="Transparent" BorderThickness="0" CornerRadius="0" Padding="8" IsVisible="False" x:Name="EventTickerContainer">
+                                                <Grid Height="24" ClipToBounds="True">
+                                                    <TextBlock x:Name="EventTickerCurrentText" FontSize="13" VerticalAlignment="Center" Foreground="{DynamicResource MainTextBrush}" TextTrimming="CharacterEllipsis" RenderTransform="translate(0px,0px)">
+                                                        <TextBlock.Transitions>
+                                                            <Transitions>
+                                                                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.25" />
+                                                            </Transitions>
+                                                        </TextBlock.Transitions>
+                                                    </TextBlock>
+                                                    <TextBlock x:Name="EventTickerNextText" FontSize="13" VerticalAlignment="Center" Foreground="{DynamicResource MainTextBrush}" TextTrimming="CharacterEllipsis" RenderTransform="translate(0px,24px)">
+                                                        <TextBlock.Transitions>
+                                                            <Transitions>
+                                                                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.25" />
+                                                            </Transitions>
+                                                        </TextBlock.Transitions>
+                                                    </TextBlock>
+                                                </Grid>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Classes="DashboardCard" Grid.Row="1" Grid.Column="1">
+                                        <Grid RowDefinitions="Auto,Auto" RowSpacing="12">
+                                            <TextBlock x:Name="DashboardUptimeTitleText" Classes="DashboardTitle" Text="运行时间" />
+                                            <Grid Grid.Row="1" ColumnDefinitions="*,*,*,*,*" ColumnSpacing="14">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock x:Name="DashboardServerUptimeLabelText" Classes="DashboardLabel" Text="服务器" />
+                                                    <TextBlock x:Name="DashboardServerUptimeText" Classes="DashboardValue" FontSize="15" Text="--" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Spacing="4">
+                                                    <TextBlock x:Name="DashboardRobotUptimeLabelText" Classes="DashboardLabel" Text="QQ机器人" />
+                                                    <TextBlock x:Name="DashboardRobotUptimeText" Classes="DashboardValue" FontSize="15" Text="--" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" Spacing="4">
+                                                    <TextBlock x:Name="DashboardOpenInfoUptimeLabelText" Classes="DashboardLabel" Text="开放API" />
+                                                    <TextBlock x:Name="DashboardOpenInfoUptimeText" Classes="DashboardValue" FontSize="15" Text="--" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="3" Spacing="4">
+                                                    <TextBlock x:Name="DashboardFrpUptimeLabelText" Classes="DashboardLabel" Text="FRP" />
+                                                    <TextBlock x:Name="DashboardFrpUptimeText" Classes="DashboardValue" FontSize="15" Text="--" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="4" Spacing="4">
+                                                    <TextBlock x:Name="DashboardThirdPartyFrpcUptimeLabelText" Classes="DashboardLabel" Text="第三方FRP" />
+                                                    <TextBlock x:Name="DashboardThirdPartyFrpcUptimeText" Classes="DashboardValue" FontSize="15" Text="--" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
                             </Grid>
 
                             <Grid x:Name="ConsolePanel" RowDefinitions="*,Auto" RowSpacing="8" MinHeight="0" IsVisible="False" Margin="-24,-6,-24,0" ClipToBounds="True">
