@@ -147,45 +147,15 @@
             <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style Selector="Button.TitleButton:pointerover /template/ ContentPresenter">
-            <Setter Property="Background">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                        <GradientStop Color="#30FFFFFF" Offset="0" />
-                        <GradientStop Color="#12000000" Offset="0.52" />
-                        <GradientStop Color="#18FFFFFF" Offset="1" />
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="BorderBrush">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                        <GradientStop Color="#55FFFFFF" Offset="0" />
-                        <GradientStop Color="#18000000" Offset="0.55" />
-                        <GradientStop Color="#28FFFFFF" Offset="1" />
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SplitLineBrush}" />
+            <Setter Property="BoxShadow" Value="0 2 6 0 #22000000" />
             <Setter Property="CornerRadius" Value="4" />
         </Style>
         <Style Selector="Button.TitleButton:pressed /template/ ContentPresenter">
-            <Setter Property="Background">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="100%,0%" EndPoint="0%,100%">
-                        <GradientStop Color="#22000000" Offset="0" />
-                        <GradientStop Color="#30FFFFFF" Offset="0.46" />
-                        <GradientStop Color="#10000000" Offset="1" />
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="BorderBrush">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="100%,0%" EndPoint="0%,100%">
-                        <GradientStop Color="#44000000" Offset="0" />
-                        <GradientStop Color="#55FFFFFF" Offset="0.45" />
-                        <GradientStop Color="#26000000" Offset="1" />
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="Background" Value="{DynamicResource DropdownHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SplitLineBrush}" />
+            <Setter Property="BoxShadow" Value="0 1 3 0 #1A000000" />
             <Setter Property="CornerRadius" Value="4" />
         </Style>
 
@@ -206,45 +176,15 @@
             <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style Selector="Button.HeaderIconButton:pointerover /template/ ContentPresenter">
-            <Setter Property="Background">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                        <GradientStop Color="#30FFFFFF" Offset="0" />
-                        <GradientStop Color="#12000000" Offset="0.52" />
-                        <GradientStop Color="#18FFFFFF" Offset="1" />
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="BorderBrush">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                        <GradientStop Color="#55FFFFFF" Offset="0" />
-                        <GradientStop Color="#18000000" Offset="0.55" />
-                        <GradientStop Color="#28FFFFFF" Offset="1" />
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SplitLineBrush}" />
+            <Setter Property="BoxShadow" Value="0 2 6 0 #22000000" />
             <Setter Property="CornerRadius" Value="4" />
         </Style>
         <Style Selector="Button.HeaderIconButton:pressed /template/ ContentPresenter">
-            <Setter Property="Background">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="100%,0%" EndPoint="0%,100%">
-                        <GradientStop Color="#22000000" Offset="0" />
-                        <GradientStop Color="#30FFFFFF" Offset="0.46" />
-                        <GradientStop Color="#10000000" Offset="1" />
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="BorderBrush">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="100%,0%" EndPoint="0%,100%">
-                        <GradientStop Color="#44000000" Offset="0" />
-                        <GradientStop Color="#55FFFFFF" Offset="0.45" />
-                        <GradientStop Color="#26000000" Offset="1" />
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="Background" Value="{DynamicResource DropdownHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SplitLineBrush}" />
+            <Setter Property="BoxShadow" Value="0 1 3 0 #1A000000" />
             <Setter Property="CornerRadius" Value="4" />
         </Style>
         <Style Selector="Button.HeaderIconButton:pointerover Path.IconPath">
@@ -990,7 +930,12 @@
                 <Grid x:Name="ShellLayoutGrid" RowDefinitions="42,*" ClipToBounds="True">
                     <Border Grid.Row="0" Height="42" Background="{DynamicResource HeaderBackgroundBrush}" BorderBrush="Transparent" BorderThickness="0">
                         <Grid Margin="14,0,10,0" ColumnDefinitions="Auto,*,Auto">
-                            <Button x:Name="TitleHomeButton" Classes="TitleButton" Content="LauncherGo" Click="OnHomeNavClick" VerticalAlignment="Center" />
+                            <Button x:Name="TitleHomeButton" Classes="TitleButton" Click="OnHomeNavClick" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <Image Width="18" Height="18" Source="avares://LauncherGo.Ui/Assets/app-icon.ico" />
+                                    <TextBlock Text="LauncherGo" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource HeaderIconBrush}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                 <Button x:Name="RepositoryButton" Classes="HeaderIconButton" Click="OnRepositoryClick" ToolTip.Tip="仓库">
                                     <Viewbox Width="17" Height="17">
