@@ -2,13 +2,11 @@
     x:Class="LauncherGo.Ui.Views.LauncherMainWindow"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Width="980"
-    Height="580"
-    MinWidth="980"
-    MinHeight="580"
-    MaxWidth="980"
-    MaxHeight="580"
-    CanResize="False"
+    Width="1120"
+    Height="720"
+    MinWidth="900"
+    MinHeight="560"
+    CanResize="True"
     WindowDecorations="BorderOnly"
     Background="{DynamicResource WindowSurfaceBrush}"
     Icon="avares://LauncherGo.Ui/Assets/app-icon.ico"
@@ -270,9 +268,17 @@
             <Setter Property="Padding" Value="8,4" />
         </Style>
 
-        <Style Selector="Button.FooterNavButton">
+        <Style Selector="TextBlock.SidebarSectionTitle">
+            <Setter Property="Margin" Value="0,12,0,2" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource SubTextBrush}" />
+        </Style>
+        <Style Selector="Button.SidebarNavButton">
             <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
-            <Setter Property="Height" Value="30" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Setter Property="Padding" Value="12,0" />
             <Setter Property="CornerRadius" Value="4" />
             <Setter Property="FontSize" Value="13" />
@@ -282,86 +288,26 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Foreground" Value="{DynamicResource NavNormalTextBrush}" />
         </Style>
-        <Style Selector="Button.FooterNavButton /template/ ContentPresenter">
+        <Style Selector="Button.SidebarNavButton /template/ ContentPresenter">
             <Setter Property="CornerRadius" Value="4" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
         </Style>
-        <Style Selector="Button.FooterNavButton:pointerover /template/ ContentPresenter">
-            <Setter Property="Background">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                        <GradientStop Color="#30FFFFFF" Offset="0" />
-                        <GradientStop Color="#12000000" Offset="0.52" />
-                        <GradientStop Color="#18FFFFFF" Offset="1" />
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="BorderBrush">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                        <GradientStop Color="#55FFFFFF" Offset="0" />
-                        <GradientStop Color="#18000000" Offset="0.55" />
-                        <GradientStop Color="#28FFFFFF" Offset="1" />
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
+        <Style Selector="Button.SidebarNavButton:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource ControlHoverBrush}" />
         </Style>
-        <Style Selector="Button.FooterNavButton:pressed /template/ ContentPresenter">
-            <Setter Property="Background">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="100%,0%" EndPoint="0%,100%">
-                        <GradientStop Color="#22000000" Offset="0" />
-                        <GradientStop Color="#30FFFFFF" Offset="0.46" />
-                        <GradientStop Color="#10000000" Offset="1" />
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="BorderBrush">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="100%,0%" EndPoint="0%,100%">
-                        <GradientStop Color="#44000000" Offset="0" />
-                        <GradientStop Color="#55FFFFFF" Offset="0.45" />
-                        <GradientStop Color="#26000000" Offset="1" />
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style Selector="Button.FooterNavButton.selected">
+        <Style Selector="Button.SidebarNavButton.selected">
             <Setter Property="Background" Value="{DynamicResource NavSelectedBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource NavSelectedTextBrush}" />
         </Style>
-        <Style Selector="Button.FooterNavButton.selected /template/ ContentPresenter">
+        <Style Selector="Button.SidebarNavButton.selected /template/ ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource NavSelectedBrush}" />
             <Setter Property="BorderBrush" Value="Transparent" />
         </Style>
-        <Style Selector="Button.FooterNavButton.selected:pointerover /template/ ContentPresenter">
+        <Style Selector="Button.SidebarNavButton.selected:pointerover /template/ ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource NavSelectedBrush}" />
-            <Setter Property="BorderBrush">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                        <GradientStop Color="#55FFFFFF" Offset="0" />
-                        <GradientStop Color="#18000000" Offset="0.55" />
-                        <GradientStop Color="#28FFFFFF" Offset="1" />
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style Selector="Button.FooterNavButton.selected:pressed /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource NavSelectedBrush}" />
-            <Setter Property="BorderBrush">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="100%,0%" EndPoint="0%,100%">
-                        <GradientStop Color="#44000000" Offset="0" />
-                        <GradientStop Color="#55FFFFFF" Offset="0.45" />
-                        <GradientStop Color="#26000000" Offset="1" />
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style Selector="Button.FooterNavButton:disabled">
-            <Setter Property="Foreground" Value="{DynamicResource NavDisabledTextBrush}" />
         </Style>
 
         <Style Selector="Button.StatusCardButton">
@@ -1034,15 +980,15 @@
         </Style>
     </Window.Styles>
 
-    <Grid x:Name="WindowFrameContent" Width="980" Height="580" Background="Transparent" ClipToBounds="True">
+    <Grid x:Name="WindowFrameContent" Background="Transparent" ClipToBounds="True">
         <Border
             HorizontalAlignment="Stretch"
             VerticalAlignment="Stretch"
             CornerRadius="8"
             Background="{DynamicResource WindowSurfaceBrush}">
             <Border CornerRadius="8" ClipToBounds="True" Background="{DynamicResource WindowSurfaceBrush}">
-                <Grid x:Name="ShellLayoutGrid" Width="980" Height="580" RowDefinitions="58,470,52" ClipToBounds="True">
-                    <Border Grid.Row="0" Height="58" Background="{DynamicResource HeaderBackgroundBrush}" BorderBrush="Transparent" BorderThickness="0">
+                <Grid x:Name="ShellLayoutGrid" RowDefinitions="42,*" ClipToBounds="True">
+                    <Border Grid.Row="0" Height="42" Background="{DynamicResource HeaderBackgroundBrush}" BorderBrush="Transparent" BorderThickness="0">
                         <Grid Margin="14,0,10,0" ColumnDefinitions="Auto,*,Auto">
                             <Button x:Name="TitleHomeButton" Classes="TitleButton" Content="LauncherGo" Click="OnHomeNavClick" VerticalAlignment="Center" />
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
@@ -1070,69 +1016,43 @@
                         </Grid>
                     </Border>
 
-                    <Grid x:Name="MainContentHost" Grid.Row="1" Height="470" MinHeight="470" MaxHeight="470" Background="{DynamicResource PanelBackgroundBrush}" ClipToBounds="True">
-                        <Grid Margin="24,6,24,8">
-                            <Grid x:Name="HomePanel" ColumnDefinitions="*,360" ColumnSpacing="30">
-                                <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="10">
-                                    <TextBlock
-                                        x:Name="HomeSloganTextBlock"
-                                        FontSize="32"
-                                        FontWeight="SemiBold"
-                                        Foreground="{DynamicResource MainTextBrush}"
-                                        TextWrapping="Wrap"
-                                        Opacity="1" />
-                                </StackPanel>
+                    <Grid x:Name="MainContentHost" Grid.Row="1" ColumnDefinitions="184,*" Background="{DynamicResource PanelBackgroundBrush}" ClipToBounds="True">
+                        <Border Grid.Column="0" Background="{DynamicResource FooterBackgroundBrush}" BorderBrush="{DynamicResource SplitLineBrush}" BorderThickness="0,0,1,0">
+                            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="14,10,14,14" Spacing="4">
+                                    <TextBlock Classes="SidebarSectionTitle" Text="服务器" Margin="0,0,0,2" />
+                                    <Button x:Name="MonitorNavButton" Classes="SidebarNavButton" Click="OnMonitorNavClick" />
+                                    <Button x:Name="ConsoleNavButton" Classes="SidebarNavButton" Click="OnConsoleNavClick" />
 
-                                <Grid Grid.Column="1" Width="286" Height="286" HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="False">
-                                    <Viewbox Width="274" Height="274" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <Grid Width="800" Height="800" ClipToBounds="False">
-                                            <Canvas Width="800" Height="800" Opacity="0.76">
-                                                <Rectangle Width="200" Height="200" Canvas.Left="126" Canvas.Top="259" Fill="#3C000000" RadiusX="12" RadiusY="12" />
-                                                <Rectangle Width="200" Height="200" Canvas.Left="526" Canvas.Top="259" Fill="#3C000000" RadiusX="12" RadiusY="12" />
-                                                <Rectangle Width="200" Height="200" Canvas.Left="326" Canvas.Top="459" Fill="#3C000000" RadiusX="12" RadiusY="12" />
-                                            </Canvas>
-                                            <Canvas Width="800" Height="800">
-                                                <Rectangle Width="200" Height="200" Canvas.Left="100" Canvas.Top="233" Fill="#6b8e23" RadiusX="12" RadiusY="12" />
-                                                <Rectangle Width="200" Height="200" Canvas.Left="500" Canvas.Top="233" Fill="#8b5a2b" RadiusX="12" RadiusY="12" />
-                                                <Rectangle Width="200" Height="200" Canvas.Left="300" Canvas.Top="433" Fill="#555555" RadiusX="12" RadiusY="12" />
-                                                <Rectangle Width="176" Height="18" Canvas.Left="112" Canvas.Top="245" Fill="#22FFFFFF" RadiusX="8" RadiusY="8" />
-                                                <Rectangle Width="176" Height="18" Canvas.Left="512" Canvas.Top="245" Fill="#20FFFFFF" RadiusX="8" RadiusY="8" />
-                                                <Rectangle Width="176" Height="18" Canvas.Left="312" Canvas.Top="445" Fill="#1EFFFFFF" RadiusX="8" RadiusY="8" />
-                                            </Canvas>
-                                            <Canvas Width="800" Height="800" Opacity="0.6">
-                                                <Rectangle Width="200" Height="200" Canvas.Left="100" Canvas.Top="233" RadiusX="12" RadiusY="12">
-                                                    <Rectangle.Fill>
-                                                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                                                            <GradientStop Color="#00FFFFFF" Offset="0" />
-                                                            <GradientStop Color="#55FFFFFF" Offset="0.48" />
-                                                            <GradientStop Color="#00FFFFFF" Offset="1" />
-                                                        </LinearGradientBrush>
-                                                    </Rectangle.Fill>
-                                                </Rectangle>
-                                                <Rectangle Width="200" Height="200" Canvas.Left="500" Canvas.Top="233" RadiusX="12" RadiusY="12">
-                                                    <Rectangle.Fill>
-                                                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                                                            <GradientStop Color="#00FFFFFF" Offset="0" />
-                                                            <GradientStop Color="#4DFFFFFF" Offset="0.48" />
-                                                            <GradientStop Color="#00FFFFFF" Offset="1" />
-                                                        </LinearGradientBrush>
-                                                    </Rectangle.Fill>
-                                                </Rectangle>
-                                                <Rectangle Width="200" Height="200" Canvas.Left="300" Canvas.Top="433" RadiusX="12" RadiusY="12">
-                                                    <Rectangle.Fill>
-                                                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                                                            <GradientStop Color="#00FFFFFF" Offset="0" />
-                                                            <GradientStop Color="#44FFFFFF" Offset="0.48" />
-                                                            <GradientStop Color="#00FFFFFF" Offset="1" />
-                                                        </LinearGradientBrush>
-                                                    </Rectangle.Fill>
-                                                </Rectangle>
-                                            </Canvas>
-                                        </Grid>
-                                    </Viewbox>
-                                </Grid>
+                                    <TextBlock Classes="SidebarSectionTitle" Text="管理" />
+                                    <Button x:Name="ProfilesTabButton" Classes="SidebarNavButton" Content="实例" Click="OnProfilesSubTabClick" />
+                                    <Button x:Name="SavesTabButton" Classes="SidebarNavButton" Content="存档" Click="OnSavesSubTabClick" />
+                                    <Button x:Name="ModsTabButton" Classes="SidebarNavButton" Content="模组" Click="OnModsSubTabClick" />
+                                    <Button x:Name="AutomationTabButton" Classes="SidebarNavButton" Content="自动化" Click="OnAutomationSubTabClick" />
+                                    <Button x:Name="ConnectionAuthTabButton" Classes="SidebarNavButton" Content="安全" Click="OnConnectionAuthTabClick" />
+                                    <Button x:Name="LogsNavButton" Classes="SidebarNavButton" Content="日志" Click="OnLogsNavClick" />
+
+                                    <TextBlock Classes="SidebarSectionTitle" Text="连接" />
+                                    <Button x:Name="ConnectionOpenInfoTabButton" Classes="SidebarNavButton" Content="开放API" Click="OnConnectionOpenInfoTabClick" />
+                                    <Button x:Name="ConnectionRobotTabButton" Classes="SidebarNavButton" Content="机器人" Click="OnConnectionRobotTabClick" />
+                                    <Button x:Name="ConnectionFrpTabButton" Classes="SidebarNavButton" Content="FRP" Click="OnConnectionFrpTabClick" />
+
+                                    <TextBlock Classes="SidebarSectionTitle" Text="设置" />
+                                    <Button x:Name="ServerSettingsTabButton" Classes="SidebarNavButton" Content="服务器设置" Click="OnServerSettingsTabClick" />
+                                    <Button x:Name="AppearanceSettingsTabButton" Classes="SidebarNavButton" Content="外观" Click="OnAppearanceSettingsTabClick" />
+                                    <Button x:Name="NetworkSettingsTabButton" Classes="SidebarNavButton" Content="网络" Click="OnNetworkSettingsTabClick" />
+                                    <Button x:Name="AdvancedSettingsTabButton" Classes="SidebarNavButton" Content="高级" Click="OnAdvancedSettingsTabClick" />
+                                    <Button x:Name="AboutSettingsTabButton" Classes="SidebarNavButton" Content="关于" Click="OnAboutSettingsTabClick" />
+                                    <Button x:Name="SponsorsSettingsTabButton" Classes="SidebarNavButton" Content="赞助者" Click="OnSponsorsSettingsTabClick" />
+                                    <Button x:Name="ContributorsSettingsTabButton" Classes="SidebarNavButton" Content="贡献者" Click="OnContributorsSettingsTabClick" />
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+
+                        <Grid Grid.Column="1" RowDefinitions="*,52" ClipToBounds="True">
+                            <Grid x:Name="HomePanel" IsVisible="False">
+                                <TextBlock x:Name="HomeSloganTextBlock" IsVisible="False" />
                             </Grid>
-                        </Grid>
 
                             <Border
                             x:Name="NonHomePanelHost"
@@ -1146,7 +1066,7 @@
                                     <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.22" />
                                 </Transitions>
                             </Border.Transitions>
-                            <Grid Margin="24,6,24,8">
+                            <Grid Margin="18,10,18,10">
                                 <Grid Margin="0">
 
                             <Grid x:Name="MonitorPanel" ColumnDefinitions="330,*" ColumnSpacing="12" MinHeight="0" IsVisible="False" ClipToBounds="True">
@@ -1311,17 +1231,13 @@
                                 </Grid>
                             </Grid>
 
-                            <Grid x:Name="InstanceManagePanel" RowDefinitions="Auto,*" RowSpacing="10" IsVisible="False">
-                                <StackPanel Orientation="Horizontal" Spacing="14">
-                                    <Button x:Name="ProfilesTabButton" Classes="TextTabButton" Content="档案列表" Click="OnProfilesSubTabClick" />
+                            <Grid x:Name="InstanceManagePanel" RowDefinitions="*" RowSpacing="10" IsVisible="False">
+                                <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="False">
                                     <Button x:Name="ConfigTabButton" Classes="TextTabButton" Content="配置" Click="OnConfigSubTabClick" />
-                                    <Button x:Name="SavesTabButton" Classes="TextTabButton" Content="存档管理" Click="OnSavesSubTabClick" />
-                                    <Button x:Name="AutomationTabButton" Classes="TextTabButton" Content="自动化" Click="OnAutomationSubTabClick" />
-                                    <Button x:Name="ModsTabButton" Classes="TextTabButton" Content="模组管理" Click="OnModsSubTabClick" />
                                     <Button x:Name="DownloadVersionsTabButton" Classes="TextTabButton" Content="下载版本" Click="OnDownloadVersionsSubTabClick" />
                                 </StackPanel>
 
-                                <Grid Grid.Row="1">
+                                <Grid Grid.Row="0">
                                     <Grid x:Name="ProfilesPanel" RowDefinitions="Auto,*" RowSpacing="10">
                                         <Grid ColumnDefinitions="Auto,180,Auto,Auto,Auto,Auto" ColumnSpacing="8">
                                             <ComboBox x:Name="CreateVersionComboBox" Grid.Column="0" Classes="CompactCombo" />
@@ -2012,17 +1928,8 @@
                                 </Grid>
                             </Grid>
 
-                            <Grid x:Name="SettingsPanel" RowDefinitions="Auto,*" RowSpacing="10" IsVisible="False">
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <Button x:Name="ServerSettingsTabButton" Classes="TextTabButton" Content="服务器设置" Click="OnServerSettingsTabClick" />
-                                    <Button x:Name="AppearanceSettingsTabButton" Classes="TextTabButton" Content="外观" Click="OnAppearanceSettingsTabClick" />
-                                    <Button x:Name="NetworkSettingsTabButton" Classes="TextTabButton" Content="网络" Click="OnNetworkSettingsTabClick" />
-                                    <Button x:Name="AdvancedSettingsTabButton" Classes="TextTabButton" Content="高级" Click="OnAdvancedSettingsTabClick" />
-                                    <Button x:Name="AboutSettingsTabButton" Classes="TextTabButton" Content="关于" Click="OnAboutSettingsTabClick" />
-                                    <Button x:Name="SponsorsSettingsTabButton" Classes="TextTabButton" Content="赞助者" Click="OnSponsorsSettingsTabClick" />
-                                    <Button x:Name="ContributorsSettingsTabButton" Classes="TextTabButton" Content="贡献者" Click="OnContributorsSettingsTabClick" />
-                                </StackPanel>
-                                <Grid Grid.Row="1">
+                            <Grid x:Name="SettingsPanel" RowDefinitions="*" RowSpacing="10" IsVisible="False">
+                                <Grid Grid.Row="0">
                                     <Grid x:Name="SettingsBlankPanel" />
                                     <ScrollViewer x:Name="SettingsServerPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
                                         <StackPanel Spacing="10">
@@ -2212,15 +2119,9 @@
                                 </Grid>
                             </Grid>
 
-                            <Grid x:Name="ConnectionPanel" RowDefinitions="Auto,Auto,*" RowSpacing="8" IsVisible="False">
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <Button x:Name="ConnectionFrpTabButton" Classes="TextTabButton" Content="内网穿透" Click="OnConnectionFrpTabClick" />
-                                    <Button x:Name="ConnectionOpenInfoTabButton" Classes="TextTabButton" Content="开放信息" Click="OnConnectionOpenInfoTabClick" />
-                                    <Button x:Name="ConnectionRobotTabButton" Classes="TextTabButton" Content="QQ机器人" Click="OnConnectionRobotTabClick" />
-                                    <Button x:Name="ConnectionAuthTabButton" Classes="TextTabButton" Content="认证" Click="OnConnectionAuthTabClick" />
-                                </StackPanel>
-                                <TextBlock x:Name="ConnectionStatusTextBlock" Grid.Row="1" Classes="ConfigHintText" IsVisible="False" />
-                                <Grid Grid.Row="2">
+                            <Grid x:Name="ConnectionPanel" RowDefinitions="Auto,*" RowSpacing="8" IsVisible="False">
+                                <TextBlock x:Name="ConnectionStatusTextBlock" Grid.Row="0" Classes="ConfigHintText" IsVisible="False" />
+                                <Grid Grid.Row="1">
                                     <ScrollViewer x:Name="ConnectionFrpPanel" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
                                         <StackPanel Spacing="10">
                                             <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
@@ -2506,72 +2407,63 @@
                                 </Grid>
                             </Grid>
                         </Border>
+                            <Border Grid.Row="1" Height="52" MinHeight="52" MaxHeight="52" Background="{DynamicResource FooterBackgroundBrush}" BorderBrush="{DynamicResource SplitLineBrush}" BorderThickness="0,1,0,0">
+                                <Grid Margin="18,0,18,0" ColumnDefinitions="*,Auto">
+                                    <Grid Grid.Column="1" VerticalAlignment="Center">
+                                        <Button
+                                            x:Name="LaunchServerButton"
+                                            Click="OnLaunchServerClick"
+                                            PointerEntered="OnLaunchServerPointerEntered"
+                                            PointerExited="OnLaunchServerPointerExited">
+                                            <Grid ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="7" VerticalAlignment="Center">
+                                                <Path
+                                                    x:Name="LaunchActionIconPath"
+                                                    Width="13"
+                                                    Height="13"
+                                                    Stretch="Uniform"
+                                                    Fill="#FFFFFF"
+                                                    Data="M187.2 100.9C174.8 94.1 159.8 94.4 147.6 101.6C135.4 108.8 128 121.9 128 136L128 504C128 518.1 135.5 531.2 147.6 538.4C159.7 545.6 174.8 545.9 187.2 539.1L523.2 355.1C536 348.1 544 334.6 544 320C544 305.4 536 291.9 523.2 284.9L187.2 100.9z" />
+                                                <TextBlock
+                                                    x:Name="LaunchActionTextBlock"
+                                                    Grid.Column="1"
+                                                    Text="启动服务器"
+                                                    VerticalAlignment="Center"
+                                                    FontSize="15"
+                                                    FontWeight="Bold"
+                                                    Foreground="{DynamicResource LaunchButtonTextBrush}" />
+                                                <Border
+                                                    x:Name="LaunchSelectionPillHost"
+                                                    Grid.Column="2"
+                                                    Height="24"
+                                                    VerticalAlignment="Center">
+                                                    <Border
+                                                        Height="24"
+                                                        MinWidth="122"
+                                                        MaxWidth="168"
+                                                        Padding="8,0"
+                                                        CornerRadius="4"
+                                                        Background="{DynamicResource LaunchSelectionPillBrush}"
+                                                        VerticalAlignment="Center">
+                                                        <TextBlock
+                                                            x:Name="LaunchSelectionSummaryTextBlock"
+                                                            Text="未选择档案 | 未固定存档"
+                                                            VerticalAlignment="Center"
+                                                            HorizontalAlignment="Stretch"
+                                                            TextAlignment="Center"
+                                                            FontSize="12"
+                                                            FontWeight="SemiBold"
+                                                            Foreground="{DynamicResource LaunchSelectionPillTextBrush}"
+                                                            TextTrimming="CharacterEllipsis" />
+                                                    </Border>
+                                                </Border>
+                                            </Grid>
+                                        </Button>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </Grid>
                     </Grid>
 
-                    <Border Grid.Row="2" Height="52" MinHeight="52" MaxHeight="52" Background="{DynamicResource FooterBackgroundBrush}" BorderBrush="Transparent" BorderThickness="0">
-                        <Grid Margin="14,0,14,0" ColumnDefinitions="Auto,*,Auto">
-                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <Button x:Name="HomeNavButton" Classes="FooterNavButton" Click="OnHomeNavClick" />
-                                <Button x:Name="MonitorNavButton" Classes="FooterNavButton" Click="OnMonitorNavClick" />
-                                <Button x:Name="ConsoleNavButton" Classes="FooterNavButton" Click="OnConsoleNavClick" />
-                                <Button x:Name="InstanceManageNavButton" Classes="FooterNavButton" Click="OnInstanceManageNavClick" />
-                                <Button x:Name="ConnectionNavButton" Classes="FooterNavButton" Click="OnConnectionNavClick" />
-                                <Button x:Name="SettingsNavButton" Classes="FooterNavButton" Click="OnSettingsNavClick" />
-                            </StackPanel>
-
-                            <Grid Grid.Column="2" VerticalAlignment="Center">
-                                <Button
-                                    x:Name="LaunchServerButton"
-                                    Click="OnLaunchServerClick"
-                                    PointerEntered="OnLaunchServerPointerEntered"
-                                    PointerExited="OnLaunchServerPointerExited">
-                                    <Grid ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="7" VerticalAlignment="Center">
-                                        <Path
-                                            x:Name="LaunchActionIconPath"
-                                            Width="13"
-                                            Height="13"
-                                            Stretch="Uniform"
-                                            Fill="#FFFFFF"
-                                            Data="M187.2 100.9C174.8 94.1 159.8 94.4 147.6 101.6C135.4 108.8 128 121.9 128 136L128 504C128 518.1 135.5 531.2 147.6 538.4C159.7 545.6 174.8 545.9 187.2 539.1L523.2 355.1C536 348.1 544 334.6 544 320C544 305.4 536 291.9 523.2 284.9L187.2 100.9z" />
-                                        <TextBlock
-                                            x:Name="LaunchActionTextBlock"
-                                            Grid.Column="1"
-                                            Text="启动服务器"
-                                            VerticalAlignment="Center"
-                                            FontSize="15"
-                                            FontWeight="Bold"
-                                            Foreground="{DynamicResource LaunchButtonTextBrush}" />
-                                        <Border
-                                            x:Name="LaunchSelectionPillHost"
-                                            Grid.Column="2"
-                                            Height="24"
-                                            VerticalAlignment="Center">
-                                            <Border
-                                                Height="24"
-                                                MinWidth="122"
-                                                MaxWidth="168"
-                                                Padding="8,0"
-                                                CornerRadius="4"
-                                                Background="{DynamicResource LaunchSelectionPillBrush}"
-                                                VerticalAlignment="Center">
-                                                <TextBlock
-                                                    x:Name="LaunchSelectionSummaryTextBlock"
-                                                    Text="未选择档案 | 未固定存档"
-                                                    VerticalAlignment="Center"
-                                                    HorizontalAlignment="Stretch"
-                                                    TextAlignment="Center"
-                                                    FontSize="12"
-                                                    FontWeight="SemiBold"
-                                                    Foreground="{DynamicResource LaunchSelectionPillTextBrush}"
-                                                    TextTrimming="CharacterEllipsis" />
-                                            </Border>
-                                        </Border>
-                                    </Grid>
-                                </Button>
-
-                            </Grid>
-                        </Grid>
-                    </Border>
                 </Grid>
             </Border>
         </Border>
@@ -2580,7 +2472,7 @@
             Classes="ToastSurface"
             HorizontalAlignment="Right"
             VerticalAlignment="Top"
-            Margin="0,56,14,0"
+            Margin="0,42,14,0"
             MinWidth="180"
             MaxWidth="320"
             IsVisible="False"

@@ -191,11 +191,12 @@ public partial class LauncherMainWindow : Window
     private readonly List<OsqEndpointEditorRow> _osqEndpointEditors = [];
     private readonly Dictionary<string, string> _configGameLanguageZh = new(StringComparer.OrdinalIgnoreCase);
 
-    private MainTab _selectedTab = MainTab.Home;
+    private MainTab _selectedTab = MainTab.Monitor;
     private HomeMetric _selectedMetric = HomeMetric.Server;
     private InstanceManageTab _selectedInstanceManageTab = InstanceManageTab.Profiles;
     private SettingsTab _selectedSettingsTab = SettingsTab.Server;
     private ConnectionTab _selectedConnectionTab = ConnectionTab.Frp;
+    private bool _logsNavSelected;
     private int _tickerIndex;
     private int _homeSloganIndex;
     private bool _tickerAnimating;
@@ -327,11 +328,11 @@ public partial class LauncherMainWindow : Window
         _ = RefreshSavesAsync();
         _ = RefreshDownloadVersionsAsync(forceReload: false);
 
-        SelectTab(MainTab.Home);
         SelectMetric(HomeMetric.Server);
         SelectInstanceManageTab(InstanceManageTab.Profiles);
         SelectSettingsTab(SettingsTab.Server);
         SelectConnectionTab(ConnectionTab.Frp);
+        SelectTab(MainTab.Monitor);
 
         _dataTimer.Start();
         _tickerTimer.Start();
@@ -484,12 +485,9 @@ public partial class LauncherMainWindow : Window
 
     private void InitializeStaticTexts()
     {
-        HomeNavButton.Content = T("主页", "Home");
-        MonitorNavButton.Content = T("监控", "Monitor");
+        MonitorNavButton.Content = T("仪表盘", "Dashboard");
         ConsoleNavButton.Content = T("控制台", "Console");
-        InstanceManageNavButton.Content = T("实例", "Instance");
-        ConnectionNavButton.Content = T("连接", "Connection");
-        SettingsNavButton.Content = T("设置", "Settings");
+        LogsNavButton.Content = T("日志", "Logs");
         HomeSloganTextBlock.Text = T(HomeSlogans[0].Zh, HomeSlogans[0].En);
 
         LaunchActionTextBlock.Text = T("启动服务器", "Start Server");
@@ -503,11 +501,11 @@ public partial class LauncherMainWindow : Window
         OnlinePlayersCardTitleText.Text = T("在线玩家", "Online Players");
         NetworkStatusCardTitleText.Text = T("网络状态", "Network Status");
 
-        ProfilesTabButton.Content = T("档案列表", "Profiles");
+        ProfilesTabButton.Content = T("实例", "Instance");
         ConfigTabButton.Content = T("配置", "Config");
-        SavesTabButton.Content = T("存档管理", "Saves");
+        SavesTabButton.Content = T("存档", "Saves");
         AutomationTabButton.Content = T("自动化", "Automation");
-        ModsTabButton.Content = T("模组管理", "Mods");
+        ModsTabButton.Content = T("模组", "Mods");
         DownloadVersionsTabButton.Content = T("下载版本", "Downloads");
         ProfileNameTextBox.PlaceholderText = T("档案名称", "Profile name");
         CreateProfileButton.Content = T("创建", "Create");
@@ -682,10 +680,10 @@ public partial class LauncherMainWindow : Window
 
     private void InitializeConnectionStaticTexts()
     {
-        ConnectionFrpTabButton.Content = T("内网穿透", "FRP");
-        ConnectionOpenInfoTabButton.Content = T("开放信息", "Open Info");
-        ConnectionRobotTabButton.Content = T("QQ机器人", "QQ Robot");
-        ConnectionAuthTabButton.Content = T("认证", "Auth");
+        ConnectionFrpTabButton.Content = T("FRP", "FRP");
+        ConnectionOpenInfoTabButton.Content = T("开放API", "Open API");
+        ConnectionRobotTabButton.Content = T("机器人", "Robot");
+        ConnectionAuthTabButton.Content = T("安全", "Security");
 
         ConnectionFrpImportButton.Content = T("导入frpc", "Import frpc");
         ConnectionThirdPartyFrpcImportButton.Content = T("导入第三方frpc", "Import third-party frpc");
@@ -1871,22 +1869,17 @@ public partial class LauncherMainWindow : Window
     {
         var previousTab = _selectedTab;
         _selectedTab = tab;
-        var isHome = tab == MainTab.Home;
+        _logsNavSelected = false;
 
-        HomePanel.IsVisible = isHome;
-        NonHomePanelHost.IsVisible = !isHome;
+        HomePanel.IsVisible = false;
+        NonHomePanelHost.IsVisible = true;
         MonitorPanel.IsVisible = tab == MainTab.Monitor;
         ConsolePanel.IsVisible = tab == MainTab.Console;
         InstanceManagePanel.IsVisible = tab == MainTab.InstanceManage;
         SettingsPanel.IsVisible = tab == MainTab.Settings;
         ConnectionPanel.IsVisible = tab == MainTab.Connection;
 
-        SetSelectedClass(HomeNavButton, tab == MainTab.Home);
-        SetSelectedClass(MonitorNavButton, tab == MainTab.Monitor);
-        SetSelectedClass(ConsoleNavButton, tab == MainTab.Console);
-        SetSelectedClass(InstanceManageNavButton, tab == MainTab.InstanceManage);
-        SetSelectedClass(SettingsNavButton, tab == MainTab.Settings);
-        SetSelectedClass(ConnectionNavButton, tab == MainTab.Connection);
+        RefreshSidebarSelection();
 
         if (tab == MainTab.Monitor)
         {
@@ -1899,14 +1892,7 @@ public partial class LauncherMainWindow : Window
             RefreshConnectionRuntimeStatus();
         }
 
-        if (isHome)
-        {
-            NonHomePanelHost.RenderTransform = TransformOperations.Parse("translate(0px,0px)");
-        }
-        else
-        {
-            ShowNonHomePanel(previousTab == MainTab.Home);
-        }
+        ShowNonHomePanel(previousTab == MainTab.Home);
     }
 
     private void ShowNonHomePanel(bool animate)
@@ -1953,12 +1939,7 @@ public partial class LauncherMainWindow : Window
         AutomationPanel.IsVisible = tab == InstanceManageTab.Automation;
         ModsPanel.IsVisible = tab == InstanceManageTab.Mods;
         DownloadVersionsPanel.IsVisible = tab == InstanceManageTab.DownloadVersions;
-        SetSelectedClass(ProfilesTabButton, tab == InstanceManageTab.Profiles);
-        SetSelectedClass(ConfigTabButton, tab == InstanceManageTab.Config);
-        SetSelectedClass(SavesTabButton, tab == InstanceManageTab.Saves);
-        SetSelectedClass(AutomationTabButton, tab == InstanceManageTab.Automation);
-        SetSelectedClass(ModsTabButton, tab == InstanceManageTab.Mods);
-        SetSelectedClass(DownloadVersionsTabButton, tab == InstanceManageTab.DownloadVersions);
+        RefreshSidebarSelection();
 
         if (tab == InstanceManageTab.Config)
         {
@@ -1977,13 +1958,7 @@ public partial class LauncherMainWindow : Window
     private void SelectSettingsTab(SettingsTab tab)
     {
         _selectedSettingsTab = tab;
-        SetSelectedClass(ServerSettingsTabButton, tab == SettingsTab.Server);
-        SetSelectedClass(AppearanceSettingsTabButton, tab == SettingsTab.Appearance);
-        SetSelectedClass(NetworkSettingsTabButton, tab == SettingsTab.Network);
-        SetSelectedClass(AdvancedSettingsTabButton, tab == SettingsTab.Advanced);
-        SetSelectedClass(AboutSettingsTabButton, tab == SettingsTab.About);
-        SetSelectedClass(SponsorsSettingsTabButton, tab == SettingsTab.Sponsors);
-        SetSelectedClass(ContributorsSettingsTabButton, tab == SettingsTab.Contributors);
+        RefreshSidebarSelection();
         var isServer = tab == SettingsTab.Server;
         var isAppearance = tab == SettingsTab.Appearance;
         var isNetwork = tab == SettingsTab.Network;
@@ -2042,16 +2017,37 @@ public partial class LauncherMainWindow : Window
         ConnectionOpenInfoPanel.IsVisible = tab == ConnectionTab.OpenInfo;
         ConnectionRobotPanel.IsVisible = tab == ConnectionTab.Robot;
         ConnectionAuthPanel.IsVisible = tab == ConnectionTab.Auth;
-        SetSelectedClass(ConnectionFrpTabButton, tab == ConnectionTab.Frp);
-        SetSelectedClass(ConnectionOpenInfoTabButton, tab == ConnectionTab.OpenInfo);
-        SetSelectedClass(ConnectionRobotTabButton, tab == ConnectionTab.Robot);
-        SetSelectedClass(ConnectionAuthTabButton, tab == ConnectionTab.Auth);
+        RefreshSidebarSelection();
         RefreshConnectionSettingsEditor();
         RefreshConnectionRuntimeStatus();
         if (tab == ConnectionTab.Auth)
         {
             _ = RefreshAuthProfilesAsync();
         }
+    }
+
+    private void RefreshSidebarSelection()
+    {
+        SetSelectedClass(MonitorNavButton, !_logsNavSelected && _selectedTab == MainTab.Monitor);
+        SetSelectedClass(ConsoleNavButton, !_logsNavSelected && _selectedTab == MainTab.Console);
+        SetSelectedClass(ProfilesTabButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.Profiles);
+        SetSelectedClass(ConfigTabButton, false);
+        SetSelectedClass(SavesTabButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.Saves);
+        SetSelectedClass(AutomationTabButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.Automation);
+        SetSelectedClass(ModsTabButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.Mods);
+        SetSelectedClass(DownloadVersionsTabButton, false);
+        SetSelectedClass(ConnectionAuthTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Auth);
+        SetSelectedClass(LogsNavButton, _logsNavSelected);
+        SetSelectedClass(ConnectionFrpTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Frp);
+        SetSelectedClass(ConnectionOpenInfoTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.OpenInfo);
+        SetSelectedClass(ConnectionRobotTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Robot);
+        SetSelectedClass(ServerSettingsTabButton, !_logsNavSelected && _selectedTab == MainTab.Settings && _selectedSettingsTab == SettingsTab.Server);
+        SetSelectedClass(AppearanceSettingsTabButton, !_logsNavSelected && _selectedTab == MainTab.Settings && _selectedSettingsTab == SettingsTab.Appearance);
+        SetSelectedClass(NetworkSettingsTabButton, !_logsNavSelected && _selectedTab == MainTab.Settings && _selectedSettingsTab == SettingsTab.Network);
+        SetSelectedClass(AdvancedSettingsTabButton, !_logsNavSelected && _selectedTab == MainTab.Settings && _selectedSettingsTab == SettingsTab.Advanced);
+        SetSelectedClass(AboutSettingsTabButton, !_logsNavSelected && _selectedTab == MainTab.Settings && _selectedSettingsTab == SettingsTab.About);
+        SetSelectedClass(SponsorsSettingsTabButton, !_logsNavSelected && _selectedTab == MainTab.Settings && _selectedSettingsTab == SettingsTab.Sponsors);
+        SetSelectedClass(ContributorsSettingsTabButton, !_logsNavSelected && _selectedTab == MainTab.Settings && _selectedSettingsTab == SettingsTab.Contributors);
     }
 
     private void RegisterAutoSaveHandlers()
@@ -4075,7 +4071,7 @@ public partial class LauncherMainWindow : Window
 
     private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
 
-    private void OnHomeNavClick(object? sender, RoutedEventArgs e) => SelectTab(MainTab.Home);
+    private void OnHomeNavClick(object? sender, RoutedEventArgs e) => SelectTab(MainTab.Monitor);
 
     private void OnMonitorNavClick(object? sender, RoutedEventArgs e) => SelectTab(MainTab.Monitor);
 
@@ -4095,31 +4091,83 @@ public partial class LauncherMainWindow : Window
 
     private void OnNetworkStatusCardClick(object? sender, RoutedEventArgs e) => SelectMetric(HomeMetric.Network);
 
-    private void OnProfilesSubTabClick(object? sender, RoutedEventArgs e) => SelectInstanceManageTab(InstanceManageTab.Profiles);
+    private void OnProfilesSubTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.InstanceManage);
+        SelectInstanceManageTab(InstanceManageTab.Profiles);
+    }
 
-    private void OnConfigSubTabClick(object? sender, RoutedEventArgs e) => SelectInstanceManageTab(InstanceManageTab.Config);
+    private void OnConfigSubTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.InstanceManage);
+        SelectInstanceManageTab(InstanceManageTab.Config);
+    }
 
-    private void OnSavesSubTabClick(object? sender, RoutedEventArgs e) => SelectInstanceManageTab(InstanceManageTab.Saves);
+    private void OnSavesSubTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.InstanceManage);
+        SelectInstanceManageTab(InstanceManageTab.Saves);
+    }
 
-    private void OnAutomationSubTabClick(object? sender, RoutedEventArgs e) => SelectInstanceManageTab(InstanceManageTab.Automation);
+    private void OnAutomationSubTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.InstanceManage);
+        SelectInstanceManageTab(InstanceManageTab.Automation);
+    }
 
-    private void OnModsSubTabClick(object? sender, RoutedEventArgs e) => SelectInstanceManageTab(InstanceManageTab.Mods);
+    private void OnModsSubTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.InstanceManage);
+        SelectInstanceManageTab(InstanceManageTab.Mods);
+    }
 
-    private void OnDownloadVersionsSubTabClick(object? sender, RoutedEventArgs e) => SelectInstanceManageTab(InstanceManageTab.DownloadVersions);
+    private void OnDownloadVersionsSubTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.InstanceManage);
+        SelectInstanceManageTab(InstanceManageTab.DownloadVersions);
+    }
 
-    private void OnServerSettingsTabClick(object? sender, RoutedEventArgs e) => SelectSettingsTab(SettingsTab.Server);
+    private void OnServerSettingsTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.Settings);
+        SelectSettingsTab(SettingsTab.Server);
+    }
 
-    private void OnAppearanceSettingsTabClick(object? sender, RoutedEventArgs e) => SelectSettingsTab(SettingsTab.Appearance);
+    private void OnAppearanceSettingsTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.Settings);
+        SelectSettingsTab(SettingsTab.Appearance);
+    }
 
-    private void OnNetworkSettingsTabClick(object? sender, RoutedEventArgs e) => SelectSettingsTab(SettingsTab.Network);
+    private void OnNetworkSettingsTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.Settings);
+        SelectSettingsTab(SettingsTab.Network);
+    }
 
-    private void OnAdvancedSettingsTabClick(object? sender, RoutedEventArgs e) => SelectSettingsTab(SettingsTab.Advanced);
+    private void OnAdvancedSettingsTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.Settings);
+        SelectSettingsTab(SettingsTab.Advanced);
+    }
 
-    private void OnAboutSettingsTabClick(object? sender, RoutedEventArgs e) => SelectSettingsTab(SettingsTab.About);
+    private void OnAboutSettingsTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.Settings);
+        SelectSettingsTab(SettingsTab.About);
+    }
 
-    private void OnSponsorsSettingsTabClick(object? sender, RoutedEventArgs e) => SelectSettingsTab(SettingsTab.Sponsors);
+    private void OnSponsorsSettingsTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.Settings);
+        SelectSettingsTab(SettingsTab.Sponsors);
+    }
 
-    private void OnContributorsSettingsTabClick(object? sender, RoutedEventArgs e) => SelectSettingsTab(SettingsTab.Contributors);
+    private void OnContributorsSettingsTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.Settings);
+        SelectSettingsTab(SettingsTab.Contributors);
+    }
 
     private void OnSettingsServerSaveClick(object? sender, RoutedEventArgs e)
     {
@@ -4174,13 +4222,36 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private void OnConnectionFrpTabClick(object? sender, RoutedEventArgs e) => SelectConnectionTab(ConnectionTab.Frp);
+    private void OnConnectionFrpTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.Connection);
+        SelectConnectionTab(ConnectionTab.Frp);
+    }
 
-    private void OnConnectionOpenInfoTabClick(object? sender, RoutedEventArgs e) => SelectConnectionTab(ConnectionTab.OpenInfo);
+    private void OnConnectionOpenInfoTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.Connection);
+        SelectConnectionTab(ConnectionTab.OpenInfo);
+    }
 
-    private void OnConnectionRobotTabClick(object? sender, RoutedEventArgs e) => SelectConnectionTab(ConnectionTab.Robot);
+    private void OnConnectionRobotTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.Connection);
+        SelectConnectionTab(ConnectionTab.Robot);
+    }
 
-    private void OnConnectionAuthTabClick(object? sender, RoutedEventArgs e) => SelectConnectionTab(ConnectionTab.Auth);
+    private void OnConnectionAuthTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.Connection);
+        SelectConnectionTab(ConnectionTab.Auth);
+    }
+
+    private async void OnLogsNavClick(object? sender, RoutedEventArgs e)
+    {
+        _logsNavSelected = true;
+        RefreshSidebarSelection();
+        await OpenAppLogsAsync();
+    }
 
     private async void OnConnectionFrpImportClick(object? sender, RoutedEventArgs e)
     {
