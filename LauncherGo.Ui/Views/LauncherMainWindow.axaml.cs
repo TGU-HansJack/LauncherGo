@@ -192,7 +192,6 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<ProfileConfigListItem> _authConfigItems = [];
     private readonly ObservableCollection<AuthPlayerListItem> _authPlayerItems = [];
     private readonly ObservableCollection<ProfileConfigListItem> _robotConfigItems = [];
-    private readonly ObservableCollection<string> _dashboardPlayerItems = [];
     private readonly ObservableCollection<DashboardServerItem> _dashboardServerItems = [];
     private readonly ObservableCollection<DashboardPlayerItem> _dashboardOnlinePlayerItems = [];
     private readonly ObservableCollection<DashboardUptimeItem> _dashboardUptimeItems = [];
@@ -206,6 +205,7 @@ public partial class LauncherMainWindow : Window
     private readonly Dictionary<string, string> _configGameLanguageZh = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<string>> _consoleLinesByProfile = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ServerCommonSettings> _dashboardSettingsByProfile = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _dashboardSettingsLoadingProfileIds = new(StringComparer.OrdinalIgnoreCase);
 
     private MainTab _selectedTab = MainTab.Monitor;
     private HomeMetric _selectedMetric = HomeMetric.Server;
@@ -246,14 +246,15 @@ public partial class LauncherMainWindow : Window
     private bool _toastPointerOver;
     private string _tailedProfileId = string.Empty;
     private string _replayedLogProfileId = string.Empty;
+    private string _editingConfigProfileId = string.Empty;
+    private string _pendingConfigLoadProfileId = string.Empty;
     private string _loadedConfigProfileId = string.Empty;
-    private string _dashboardSettingsProfileId = string.Empty;
     private string _selectedConsoleProfileId = string.Empty;
     private string _editingAutomationProfileId = string.Empty;
     private string _editingAuthProfileId = string.Empty;
     private string _editingRobotProfileId = string.Empty;
-    private int? _dashboardServerPort;
-    private int? _dashboardMaxPlayers;
+    private long _configLoadVersion;
+    private long _dashboardSettingsVersion;
     private TimeSpan _robotLastProcessorTime;
     private DateTimeOffset _robotLastCpuSampleUtc = DateTimeOffset.UtcNow;
     private double _robotLastCpuPercent;
@@ -1085,12 +1086,12 @@ public partial class LauncherMainWindow : Window
         foreach (var status in runningStatuses)
         {
             var profile = ResolveDashboardProfile(status);
+            var profileId = status.ProfileId ?? profile?.Id ?? string.Empty;
             if (profile is not null)
             {
                 EnsureDashboardSettings(profile);
             }
 
-            var profileId = status.ProfileId ?? profile?.Id ?? string.Empty;
             _dashboardSettingsByProfile.TryGetValue(profileId, out var settings);
             _dashboardServerItems.Add(new DashboardServerItem
             {
@@ -1134,7 +1135,7 @@ public partial class LauncherMainWindow : Window
             });
         }
 
-        var maxPlayers = statuses
+        var maxPlayers = runningStatuses
             .Select(status =>
             {
                 var id = status.ProfileId ?? string.Empty;
@@ -1148,29 +1149,69 @@ public partial class LauncherMainWindow : Window
 
     private void EnsureDashboardSettings(InstanceProfile profile)
     {
-        if (_dashboardSettingsByProfile.ContainsKey(profile.Id))
+        var profileId = profile.Id.Trim();
+        if (string.IsNullOrWhiteSpace(profileId) ||
+            _dashboardSettingsByProfile.ContainsKey(profileId) ||
+            _dashboardSettingsLoadingProfileIds.Contains(profileId))
         {
             return;
         }
 
-        _ = RefreshDashboardSettingsAsync(profile);
+        _dashboardSettingsLoadingProfileIds.Add(profileId);
+        var requestVersion = _dashboardSettingsVersion;
+        _ = RefreshDashboardSettingsAsync(profile, requestVersion);
     }
 
-    private async Task RefreshDashboardSettingsAsync(InstanceProfile profile)
+    private async Task RefreshDashboardSettingsAsync(InstanceProfile profile, long requestVersion)
     {
+        var profileId = profile.Id.Trim();
         try
         {
             var settings = await _instanceServerConfigService.LoadServerSettingsAsync(profile);
             Dispatcher.UIThread.Post(() =>
             {
-                _dashboardSettingsByProfile[profile.Id] = settings;
+                _dashboardSettingsLoadingProfileIds.Remove(profileId);
+                if (requestVersion == _dashboardSettingsVersion)
+                {
+                    _dashboardSettingsByProfile[profileId] = settings;
+                }
+
                 UpdateMultiServerDashboard(_serverProcessService.GetCachedStatuses());
             });
         }
         catch (Exception ex)
         {
+            Dispatcher.UIThread.Post(() => _dashboardSettingsLoadingProfileIds.Remove(profileId));
             _logger.LogDebug(ex, "Failed to load dashboard settings for profile {ProfileId}", profile.Id);
         }
+    }
+
+    private void UpdateDashboardSettingsCache(InstanceProfile profile, ServerCommonSettings settings)
+    {
+        var profileId = profile.Id.Trim();
+        if (string.IsNullOrWhiteSpace(profileId))
+        {
+            return;
+        }
+
+        _dashboardSettingsVersion++;
+        _dashboardSettingsLoadingProfileIds.Remove(profileId);
+        _dashboardSettingsByProfile[profileId] = settings;
+        UpdateMultiServerDashboard(_serverProcessService.GetCachedStatuses());
+    }
+
+    private void InvalidateDashboardSettingsCache(InstanceProfile profile)
+    {
+        var profileId = profile.Id.Trim();
+        if (string.IsNullOrWhiteSpace(profileId))
+        {
+            return;
+        }
+
+        _dashboardSettingsVersion++;
+        _dashboardSettingsByProfile.Remove(profileId);
+        _dashboardSettingsLoadingProfileIds.Remove(profileId);
+        UpdateMultiServerDashboard(_serverProcessService.GetCachedStatuses());
     }
 
     private void UpdateDashboardUptimeItems(IReadOnlyList<ServerRuntimeStatus> runningStatuses)
@@ -1280,104 +1321,9 @@ public partial class LauncherMainWindow : Window
         return _profileService.GetProfiles().FirstOrDefault();
     }
 
-    private void EnsureDashboardServerSettings(InstanceProfile? profile)
-    {
-        if (profile is null)
-        {
-            _dashboardSettingsProfileId = string.Empty;
-            _dashboardServerPort = null;
-            _dashboardMaxPlayers = null;
-            return;
-        }
-
-        if (_dashboardSettingsProfileId.Equals(profile.Id, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        _dashboardSettingsProfileId = profile.Id;
-        _dashboardServerPort = null;
-        _dashboardMaxPlayers = null;
-        _ = RefreshDashboardServerSettingsAsync(profile);
-    }
-
-    private async Task RefreshDashboardServerSettingsAsync(InstanceProfile profile)
-    {
-        try
-        {
-            var settings = await _instanceServerConfigService.LoadServerSettingsAsync(profile);
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (!_dashboardSettingsProfileId.Equals(profile.Id, StringComparison.OrdinalIgnoreCase))
-                {
-                    return;
-                }
-
-                _dashboardServerPort = settings.Port;
-                _dashboardMaxPlayers = settings.MaxClients;
-                UpdateMultiServerDashboard(_serverProcessService.GetCachedStatuses());
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Failed to refresh dashboard server settings for profile {ProfileId}", profile.Id);
-        }
-    }
-
     private void UpdateDashboardStatus(ServerRuntimeStatus status)
     {
         UpdateMultiServerDashboard(_serverProcessService.GetCachedStatuses());
-    }
-
-    private void UpdateDashboardPlayers(ServerRuntimeStatus status)
-    {
-        var playerNames = ResolveDashboardPlayerNames(status);
-        var currentPlayers = playerNames.Count > 0
-            ? playerNames.Count
-            : Math.Max(0, status.OnlinePlayers);
-        var maxPlayers = _dashboardMaxPlayers?.ToString(CultureInfo.InvariantCulture) ?? "--";
-        DashboardPlayersCountText.Text = $"{currentPlayers.ToString(CultureInfo.InvariantCulture)}/{maxPlayers}";
-
-        _dashboardPlayerItems.Clear();
-        if (playerNames.Count == 0)
-        {
-            _dashboardPlayerItems.Add(status.IsRunning
-                ? T("暂无在线玩家", "No online players")
-                : T("服务器未运行", "Server is stopped"));
-            return;
-        }
-
-        foreach (var playerName in playerNames)
-        {
-            _dashboardPlayerItems.Add(playerName);
-        }
-    }
-
-    private IReadOnlyList<string> ResolveDashboardPlayerNames(ServerRuntimeStatus status)
-    {
-        if (!status.IsRunning)
-        {
-            return [];
-        }
-
-        var names = status.OnlinePlayerNames
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Select(name => name.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (names.Count > 0)
-        {
-            return names;
-        }
-
-        return _serverProcessService.GetOnlinePlayerNames()
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Select(name => name.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
     }
 
     private void UpdateDashboardUptimes(ServerRuntimeStatus status, RobotRuntimeStatus robotStatus)
@@ -2616,7 +2562,10 @@ public partial class LauncherMainWindow : Window
 
         if (tab == InstanceManageTab.Config)
         {
-            _ = RefreshConfigProfilesAsync();
+            if (string.IsNullOrWhiteSpace(_pendingConfigLoadProfileId))
+            {
+                _ = RefreshConfigProfilesAsync();
+            }
         }
         else if (tab == InstanceManageTab.Automation)
         {
@@ -4867,6 +4816,7 @@ public partial class LauncherMainWindow : Window
 
     private void OnConfigSubTabClick(object? sender, RoutedEventArgs e)
     {
+        _editingConfigProfileId = string.Empty;
         SelectTab(MainTab.InstanceManage);
         SelectInstanceManageTab(InstanceManageTab.Config);
     }
@@ -6168,7 +6118,9 @@ public partial class LauncherMainWindow : Window
         _isRefreshingConfigProfiles = true;
         try
         {
-            var selectedProfileId = (ConfigProfileComboBox.SelectedItem as InstanceProfile)?.Id;
+            var selectedProfileId = !string.IsNullOrWhiteSpace(_editingConfigProfileId)
+                ? _editingConfigProfileId
+                : (ConfigProfileComboBox.SelectedItem as InstanceProfile)?.Id;
             var profiles = _profileService.GetProfiles();
             ConfigProfileComboBox.ItemsSource = profiles;
             targetProfile = profiles.FirstOrDefault(profile =>
@@ -6198,27 +6150,41 @@ public partial class LauncherMainWindow : Window
 
     private async Task OpenProfileConfigEditorAsync(string profileId)
     {
-        if (string.IsNullOrWhiteSpace(profileId))
+        var normalizedProfileId = profileId.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedProfileId))
         {
             SetConfigStatus(T("未找到要修改的档案。", "Profile to edit was not found."));
             return;
         }
 
-        var profile = _profileService.GetProfileById(profileId.Trim());
+        var profile = _profileService.GetProfileById(normalizedProfileId);
         if (profile is null)
         {
             SetConfigStatus(T("未找到要修改的档案。", "Profile to edit was not found."));
             return;
         }
 
+        _editingConfigProfileId = profile.Id;
+        _pendingConfigLoadProfileId = profile.Id;
         SelectInstanceManageTab(InstanceManageTab.Config);
         var profiles = _profileService.GetProfiles();
+        profile = profiles.FirstOrDefault(item =>
+                      item.Id.Equals(profile.Id, StringComparison.OrdinalIgnoreCase))
+                  ?? profile;
         ConfigProfileComboBox.ItemsSource = profiles;
-        var target = profiles.FirstOrDefault(item =>
-            item.Id.Equals(profile.Id, StringComparison.OrdinalIgnoreCase)) ?? profile;
-        ConfigProfileComboBox.SelectedItem = target;
+        ConfigProfileComboBox.SelectedItem = profile;
         SetConfigHasProfiles(profiles.Count > 0);
-        await LoadConfigForProfileAsync(target);
+        try
+        {
+            await LoadConfigForProfileAsync(profile);
+        }
+        finally
+        {
+            if (_pendingConfigLoadProfileId.Equals(profile.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                _pendingConfigLoadProfileId = string.Empty;
+            }
+        }
     }
 
     private void SetConfigHasProfiles(bool hasProfiles)
@@ -6233,12 +6199,8 @@ public partial class LauncherMainWindow : Window
 
     private async Task LoadConfigForProfileAsync(InstanceProfile selectedProfile)
     {
-        if (_isLoadingConfig)
-        {
-            return;
-        }
-
         var profile = _profileService.GetProfileById(selectedProfile.Id) ?? selectedProfile;
+        var loadVersion = ++_configLoadVersion;
         var configPath = GetConfigPath(profile);
         _isLoadingConfig = true;
         _isConfigLoaded = false;
@@ -6254,12 +6216,26 @@ public partial class LauncherMainWindow : Window
             var worldSettings = BuildConfigWorldSettings(profile, root);
             var worldRules = BuildConfigWorldRules(root);
 
+            if (!IsActiveConfigLoad(loadVersion, profile.Id))
+            {
+                return;
+            }
+
             LoadConfigGameLanguageZh(profile);
             ApplyConfigServerSettings(serverSettings);
-            await LoadConfigSavesAsync(profile, worldSettings.SaveFileLocation);
+            if (!await LoadConfigSavesAsync(profile, worldSettings.SaveFileLocation, loadVersion))
+            {
+                return;
+            }
+
             ApplyConfigWorldSettings(worldSettings);
             RebuildConfigWorldRules(worldRules);
             UpdateConfigWorldGeneratedState();
+            if (!IsActiveConfigLoad(loadVersion, profile.Id))
+            {
+                return;
+            }
+
             _isConfigLoaded = true;
             _loadedConfigProfileId = profile.Id;
             ConfigSaveButton.IsEnabled = true;
@@ -6270,6 +6246,11 @@ public partial class LauncherMainWindow : Window
         }
         catch (Exception ex)
         {
+            if (!IsActiveConfigLoad(loadVersion, profile.Id))
+            {
+                return;
+            }
+
             ClearConfigForm();
             ConfigContentHost.IsEnabled = false;
             ConfigSaveButton.IsEnabled = false;
@@ -6277,9 +6258,19 @@ public partial class LauncherMainWindow : Window
         }
         finally
         {
-            ConfigContentHost.IsEnabled = _isConfigLoaded;
-            _isLoadingConfig = false;
+            if (loadVersion == _configLoadVersion)
+            {
+                ConfigContentHost.IsEnabled = _isConfigLoaded;
+                _isLoadingConfig = false;
+            }
         }
+    }
+
+    private bool IsActiveConfigLoad(long loadVersion, string profileId)
+    {
+        return loadVersion == _configLoadVersion &&
+               (string.IsNullOrWhiteSpace(_editingConfigProfileId) ||
+                _editingConfigProfileId.Equals(profileId, StringComparison.OrdinalIgnoreCase));
     }
 
     private void ApplyConfigServerSettings(ServerCommonSettings settings)
@@ -6316,10 +6307,18 @@ public partial class LauncherMainWindow : Window
         ConfigWelcomeMessageTextBox.Text = settings.WelcomeMessage;
     }
 
-    private async Task LoadConfigSavesAsync(InstanceProfile profile, string preferredSavePath)
+    private async Task<bool> LoadConfigSavesAsync(
+        InstanceProfile profile,
+        string preferredSavePath,
+        long? loadVersion = null)
     {
-        _configSaveItems.Clear();
         var saves = await _saveService.GetSavesAsync(profile);
+        if (loadVersion.HasValue && !IsActiveConfigLoad(loadVersion.Value, profile.Id))
+        {
+            return false;
+        }
+
+        _configSaveItems.Clear();
         foreach (var save in saves)
         {
             _configSaveItems.Add(ConfigSaveFileItem.FromSave(save));
@@ -6340,6 +6339,7 @@ public partial class LauncherMainWindow : Window
         ConfigSaveFileComboBox.SelectedItem =
             _configSaveItems.FirstOrDefault(item => item.FullPath.Equals(normalizedPreferred, StringComparison.OrdinalIgnoreCase))
             ?? _configSaveItems.FirstOrDefault();
+        return true;
     }
 
     private void ApplyConfigWorldSettings(WorldSettings settings)
@@ -6502,6 +6502,8 @@ public partial class LauncherMainWindow : Window
 
     private void OnConfigBackClick(object? sender, RoutedEventArgs e)
     {
+        _editingConfigProfileId = string.Empty;
+        _pendingConfigLoadProfileId = string.Empty;
         SelectInstanceManageTab(InstanceManageTab.Profiles);
     }
 
@@ -6536,6 +6538,7 @@ public partial class LauncherMainWindow : Window
         try
         {
             await _instanceServerConfigService.ImportRawJsonAsync(profile, path);
+            InvalidateDashboardSettingsCache(profile);
             await LoadConfigForProfileAsync(profile);
             SetConfigStatus(
                 T($"已导入配置：{Path.GetFileName(path)}", $"Configuration imported: {Path.GetFileName(path)}") +
@@ -6636,6 +6639,7 @@ public partial class LauncherMainWindow : Window
             }
 
             await _instanceServerConfigService.SaveSettingsAsync(profile, serverSettings, worldSettings, rules);
+            UpdateDashboardSettingsCache(profile, serverSettings);
 
             profile.ActiveSaveFile = saveFile;
             profile.SaveDirectory = Path.GetDirectoryName(saveFile) ?? profile.SaveDirectory;
