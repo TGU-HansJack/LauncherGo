@@ -2286,26 +2286,18 @@
 
                                     <ScrollViewer x:Name="ConnectionOpenInfoPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
                                         <StackPanel Spacing="10">
-                                            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
                                                 <Button x:Name="OsqSaveButton" Classes="ActionButton" Content="保存" Click="OnOsqSaveClick" IsVisible="False" />
                                                 <Button x:Name="OsqRefreshButton" Grid.Column="1" Classes="SecondaryActionButton" Content="刷新" Click="OnConnectionRefreshClick" IsVisible="False" />
-                                                <Button x:Name="DeployMapModButton" Grid.Column="2" Classes="SecondaryActionButton" Content="部署地图模组" Click="OnDeployMapModClick" />
-                                                <Button x:Name="OsqToggleButton" Grid.Column="3" Classes="SecondaryActionButton" Content="启动" Click="OnOsqToggleClick" />
+                                                <Button x:Name="OsqBackButton" Grid.Column="2" Classes="SecondaryActionButton" Content="返回" Click="OnOsqBackClick" IsVisible="False" />
+                                                <Button x:Name="OsqConfigSaveButton" Grid.Column="3" Classes="ActionButton" Content="保存" Click="OnOsqConfigSaveClick" IsVisible="False" />
+                                                <Button x:Name="OsqConfigRefreshButton" Grid.Column="4" Classes="SecondaryActionButton" Content="刷新" Click="OnOsqConfigRefreshClick" IsVisible="False" />
+                                                <Button x:Name="DeployMapModButton" Grid.Column="5" Classes="SecondaryActionButton" Content="部署地图模组" Click="OnDeployMapModClick" IsVisible="False" />
                                             </Grid>
                                             <Border Classes="ConfigCard">
                                                 <StackPanel Spacing="10">
                                                     <TextBlock x:Name="OsqTitleTextBlock" Classes="ConfigSectionTitle" Text="开放信息（OpenServerQuery）" IsVisible="False" />
-                                                    <WrapPanel Orientation="Horizontal">
-                                                        <StackPanel Classes="ToggleField">
-                                                            <TextBlock x:Name="OsqEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="启用开放信息" />
-                                                            <ToggleSwitch x:Name="OsqEnabledCheckBox" Classes="LabelledToggle" />
-                                                        </StackPanel>
-                                                        <StackPanel Classes="ToggleField">
-                                                            <TextBlock x:Name="OsqAllowInsecureHttpLabelTextBlock" Classes="ConfigFieldLabel" Text="允许 HTTP 外发" />
-                                                            <ToggleSwitch x:Name="OsqAllowInsecureHttpCheckBox" Classes="LabelledToggle" />
-                                                        </StackPanel>
-                                                    </WrapPanel>
-                                                    <WrapPanel Orientation="Horizontal">
+                                                    <WrapPanel x:Name="OpenInfoGlobalSettingsPanel" Orientation="Horizontal">
                                                         <StackPanel Classes="ConfigFormFieldWide">
                                                             <TextBlock x:Name="OsqListenPrefixLabelTextBlock" Classes="ConfigFieldLabel" Text="监听地址" />
                                                             <TextBox x:Name="OsqListenPrefixTextBox" Classes="CompactInput" />
@@ -2315,46 +2307,88 @@
                                                             <NumericUpDown x:Name="OsqRequestTimeoutNumericUpDown" Classes="CompactNumber" Minimum="3" Maximum="60" />
                                                         </StackPanel>
                                                     </WrapPanel>
-                                                    <WrapPanel Orientation="Horizontal">
-                                                        <StackPanel Classes="ToggleField">
-                                                            <TextBlock x:Name="OsqIncludeServerInfoLabelTextBlock" Classes="ConfigFieldLabel" Text="服务器信息" />
-                                                            <ToggleSwitch x:Name="OsqIncludeServerInfoCheckBox" Classes="LabelledToggle" />
-                                                        </StackPanel>
-                                                        <StackPanel Classes="ToggleField">
-                                                            <TextBlock x:Name="OsqIncludePlayersLabelTextBlock" Classes="ConfigFieldLabel" Text="玩家列表" />
-                                                            <ToggleSwitch x:Name="OsqIncludePlayersCheckBox" Classes="LabelledToggle" />
-                                                        </StackPanel>
-                                                        <StackPanel Classes="ToggleField">
-                                                            <TextBlock x:Name="OsqIncludeEventsLabelTextBlock" Classes="ConfigFieldLabel" Text="玩家事件" />
-                                                            <ToggleSwitch x:Name="OsqIncludeEventsCheckBox" Classes="LabelledToggle" />
-                                                        </StackPanel>
-                                                        <StackPanel Classes="ToggleField">
-                                                            <TextBlock x:Name="OsqIncludeChatsLabelTextBlock" Classes="ConfigFieldLabel" Text="聊天" />
-                                                            <ToggleSwitch x:Name="OsqIncludeChatsCheckBox" Classes="LabelledToggle" />
-                                                        </StackPanel>
-                                                        <StackPanel Classes="ToggleField">
-                                                            <TextBlock x:Name="OsqIncludeNotificationsLabelTextBlock" Classes="ConfigFieldLabel" Text="通知" />
-                                                            <ToggleSwitch x:Name="OsqIncludeNotificationsCheckBox" Classes="LabelledToggle" />
-                                                        </StackPanel>
-                                                        <StackPanel Classes="ToggleField">
-                                                            <TextBlock x:Name="OsqIncludeMapLabelTextBlock" Classes="ConfigFieldLabel" Text="地图数据" />
-                                                            <ToggleSwitch x:Name="OsqIncludeMapCheckBox" Classes="LabelledToggle" />
-                                                        </StackPanel>
-                                                    </WrapPanel>
-                                                    <StackPanel Spacing="8">
-                                                        <Grid ColumnDefinitions="420,365" ColumnSpacing="10">
-                                                            <TextBlock x:Name="OsqEndpointHostLabelTextBlock" Classes="ConfigFieldLabel" Text="地图网站地址" />
-                                                            <TextBlock x:Name="OsqEndpointTokenLabelTextBlock" Grid.Column="1" Classes="ConfigFieldLabel" Text="地图网站密钥" />
+                                                    <ToggleSwitch x:Name="OsqEnabledCheckBox" IsVisible="False" />
+                                                    <Grid>
+                                                        <Grid x:Name="OpenInfoListPanel" RowDefinitions="Auto,*">
+                                                            <Border Grid.Row="0" Classes="TableHeader">
+                                                                <Grid ColumnDefinitions="44,1.2*,0.8*,2.2*,1*,150" ColumnSpacing="8">
+                                                                    <TextBlock Classes="TableHeaderText" Text="选择" HorizontalAlignment="Center" />
+                                                                    <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="服务器名称" />
+                                                                    <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="版本" />
+                                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="配置路径" />
+                                                                    <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="修改时间" />
+                                                                    <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                                </Grid>
+                                                            </Border>
+                                                            <Border Grid.Row="1" Classes="TableBody">
+                                                                <ItemsControl x:Name="OpenInfoConfigItemsControl">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Border Classes="TableRow">
+                                                                                <Grid ColumnDefinitions="44,1.2*,0.8*,2.2*,1*,150" ColumnSpacing="8">
+                                                                                    <CheckBox Classes="TableSelectCheck" IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                                                                    <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding ProfileName}" FontWeight="SemiBold" />
+                                                                                    <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding Version}" />
+                                                                                    <Button Grid.Column="3" Classes="DownloadTextButton" Tag="{Binding ConfigPath}" HorizontalAlignment="Stretch" Click="OnOpenConfigFileClick">
+                                                                                        <TextBlock Classes="TableCellText" Text="{Binding ConfigPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
+                                                                                    </Button>
+                                                                                    <TextBlock Grid.Column="4" Classes="TableCellText" Text="{Binding ModifiedText}" />
+                                                                                    <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                                                                        <Button Classes="SecondaryActionButton" Tag="{Binding}" Content="修改" Click="OnOsqEditConfigClick" />
+                                                                                        <ToggleSwitch Classes="TableSwitch" Tag="{Binding}" IsChecked="{Binding Enabled, Mode=OneWay}" Click="OnOsqEndpointSwitchClick" />
+                                                                                    </StackPanel>
+                                                                                </Grid>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </Border>
                                                         </Grid>
-                                                        <StackPanel x:Name="OsqEndpointRowsHost" Spacing="8" />
-                                                        <Button
-                                                            x:Name="OsqEndpointAddButton"
-                                                            Classes="SecondaryActionButton"
-                                                            Width="795"
-                                                            HorizontalAlignment="Left"
-                                                            Content="添加"
-                                                            Click="OnOsqEndpointAddClick" />
-                                                    </StackPanel>
+                                                        <Border x:Name="OpenInfoEditorPanel" Classes="ConfigCard" IsVisible="False">
+                                                            <StackPanel Spacing="10">
+                                                                <WrapPanel Orientation="Horizontal">
+                                                                    <StackPanel Classes="ConfigFormFieldWide">
+                                                                        <TextBlock x:Name="OsqEndpointHostLabelTextBlock" Classes="ConfigFieldLabel" Text="地图网站地址" />
+                                                                        <TextBox x:Name="OsqEndpointHostTextBox" Classes="CompactInput" />
+                                                                    </StackPanel>
+                                                                    <StackPanel Classes="ConfigFormFieldWide">
+                                                                        <TextBlock x:Name="OsqEndpointTokenLabelTextBlock" Classes="ConfigFieldLabel" Text="地图网站密钥" />
+                                                                        <TextBox x:Name="OsqEndpointTokenTextBox" Classes="CompactInput" />
+                                                                    </StackPanel>
+                                                                </WrapPanel>
+                                                                <WrapPanel Orientation="Horizontal">
+                                                                    <StackPanel Classes="ToggleField">
+                                                                        <TextBlock x:Name="OsqAllowInsecureHttpLabelTextBlock" Classes="ConfigFieldLabel" Text="允许 HTTP 外发" />
+                                                                        <ToggleSwitch x:Name="OsqAllowInsecureHttpCheckBox" Classes="LabelledToggle" />
+                                                                    </StackPanel>
+                                                                    <StackPanel Classes="ToggleField">
+                                                                        <TextBlock x:Name="OsqIncludeServerInfoLabelTextBlock" Classes="ConfigFieldLabel" Text="服务器信息" />
+                                                                        <ToggleSwitch x:Name="OsqIncludeServerInfoCheckBox" Classes="LabelledToggle" />
+                                                                    </StackPanel>
+                                                                    <StackPanel Classes="ToggleField">
+                                                                        <TextBlock x:Name="OsqIncludePlayersLabelTextBlock" Classes="ConfigFieldLabel" Text="玩家列表" />
+                                                                        <ToggleSwitch x:Name="OsqIncludePlayersCheckBox" Classes="LabelledToggle" />
+                                                                    </StackPanel>
+                                                                    <StackPanel Classes="ToggleField">
+                                                                        <TextBlock x:Name="OsqIncludeEventsLabelTextBlock" Classes="ConfigFieldLabel" Text="玩家事件" />
+                                                                        <ToggleSwitch x:Name="OsqIncludeEventsCheckBox" Classes="LabelledToggle" />
+                                                                    </StackPanel>
+                                                                    <StackPanel Classes="ToggleField">
+                                                                        <TextBlock x:Name="OsqIncludeChatsLabelTextBlock" Classes="ConfigFieldLabel" Text="聊天" />
+                                                                        <ToggleSwitch x:Name="OsqIncludeChatsCheckBox" Classes="LabelledToggle" />
+                                                                    </StackPanel>
+                                                                    <StackPanel Classes="ToggleField">
+                                                                        <TextBlock x:Name="OsqIncludeNotificationsLabelTextBlock" Classes="ConfigFieldLabel" Text="通知" />
+                                                                        <ToggleSwitch x:Name="OsqIncludeNotificationsCheckBox" Classes="LabelledToggle" />
+                                                                    </StackPanel>
+                                                                    <StackPanel Classes="ToggleField">
+                                                                        <TextBlock x:Name="OsqIncludeMapLabelTextBlock" Classes="ConfigFieldLabel" Text="地图数据" />
+                                                                        <ToggleSwitch x:Name="OsqIncludeMapCheckBox" Classes="LabelledToggle" />
+                                                                    </StackPanel>
+                                                                </WrapPanel>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </Grid>
                                                 </StackPanel>
                                             </Border>
                                         </StackPanel>
@@ -2362,48 +2396,16 @@
 
                                     <ScrollViewer x:Name="ConnectionRobotPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
                                         <StackPanel Spacing="10">
-                                            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
-                                                <Button x:Name="RobotSaveButton" Classes="ActionButton" Content="保存" Click="OnRobotSaveClick" IsVisible="False" />
-                                                <Button x:Name="RobotToggleButton" Classes="SecondaryActionButton" Content="启动" Click="OnRobotToggleClick" />
-                                                <Button x:Name="RobotClearButton" Grid.Column="1" Classes="SecondaryActionButton" Content="清空" Click="OnRobotClearClick" />
-                                                <Button x:Name="RobotRefreshButton" Grid.Column="2" Classes="SecondaryActionButton" Content="刷新" Click="OnRobotRefreshClick" />
-                                                <Button x:Name="RobotBackButton" Grid.Column="3" Classes="SecondaryActionButton" Content="返回" Click="OnRobotBackClick" IsVisible="False" />
+                                            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                                <Button x:Name="RobotSaveButton" Classes="ActionButton" Content="保存" Click="OnRobotSaveClick" />
+                                                <Button x:Name="RobotToggleButton" Grid.Column="1" Classes="SecondaryActionButton" Content="启动" Click="OnRobotToggleClick" />
+                                                <Button x:Name="RobotClearButton" Grid.Column="2" Classes="SecondaryActionButton" Content="清空" Click="OnRobotClearClick" />
+                                                <Button x:Name="RobotRefreshButton" Grid.Column="3" Classes="SecondaryActionButton" Content="刷新" Click="OnRobotRefreshClick" />
                                             </Grid>
-                                            <Grid>
-                                                <Grid x:Name="RobotListPanel" RowDefinitions="Auto,*">
-                                                    <Border Grid.Row="0" Classes="TableHeader">
-                                                        <Grid ColumnDefinitions="44,1.2*,2.4*,1*,Auto" ColumnSpacing="8">
-                                                            <TextBlock Classes="TableHeaderText" Text="选择" HorizontalAlignment="Center" />
-                                                            <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="服务器名称" />
-                                                            <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="配置路径" />
-                                                            <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="修改时间" />
-                                                            <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
-                                                        </Grid>
-                                                    </Border>
-                                                    <Border Grid.Row="1" Classes="TableBody">
-                                                        <ItemsControl x:Name="RobotConfigItemsControl">
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate>
-                                                                    <Border Classes="TableRow">
-                                                                        <Grid ColumnDefinitions="44,1.2*,2.4*,1*,Auto" ColumnSpacing="8">
-                                                                            <CheckBox Classes="TableSelectCheck" IsChecked="{Binding IsSelected, Mode=TwoWay}" />
-                                                                            <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding ProfileName}" FontWeight="SemiBold" />
-                                                                            <Button Grid.Column="2" Classes="DownloadTextButton" Tag="{Binding ConfigPath}" HorizontalAlignment="Stretch" Click="OnOpenConfigFileClick">
-                                                                                <TextBlock Classes="TableCellText" Text="{Binding ConfigPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
-                                                                            </Button>
-                                                                            <TextBlock Grid.Column="3" Classes="TableCellText" Text="{Binding ModifiedText}" />
-                                                                            <Button Grid.Column="4" Classes="SecondaryActionButton" Tag="{Binding}" Content="修改" Click="OnRobotEditConfigClick" />
-                                                                        </Grid>
-                                                                    </Border>
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
-                                                    </Border>
-                                                </Grid>
-                                                <Border x:Name="RobotEditorPanel" Classes="ConfigCard" IsVisible="False">
-                                                    <StackPanel Spacing="10">
-                                                        <TextBlock x:Name="RobotConfigTitleTextBlock" Classes="ConfigSectionTitle" Text="QQ机器人配置" IsVisible="False" />
-                                                        <WrapPanel Orientation="Horizontal">
+                                            <Border x:Name="RobotEditorPanel" Classes="ConfigCard">
+                                                <StackPanel Spacing="10">
+                                                    <TextBlock x:Name="RobotConfigTitleTextBlock" Classes="ConfigSectionTitle" Text="QQ机器人配置" IsVisible="False" />
+                                                    <WrapPanel Orientation="Horizontal">
                                                         <StackPanel Classes="ConfigFormFieldWide">
                                                             <TextBlock x:Name="RobotOneBotLabelTextBlock" Classes="ConfigFieldLabel" Text="OneBot WebSocket" />
                                                             <TextBox x:Name="RobotOneBotTextBox" Classes="CompactInput" />
@@ -2419,10 +2421,6 @@
                                                         <StackPanel Classes="ConfigFormField">
                                                             <TextBlock x:Name="RobotPollIntervalLabelTextBlock" Classes="ConfigFieldLabel" Text="轮询间隔秒数" />
                                                             <NumericUpDown x:Name="RobotPollIntervalNumericUpDown" Classes="CompactNumber" Minimum="0.2" Maximum="30" Increment="0.2" />
-                                                        </StackPanel>
-                                                        <StackPanel Classes="ConfigFormFieldWide">
-                                                            <TextBlock x:Name="RobotBoundGroupsLabelTextBlock" Classes="ConfigFieldLabel" Text="绑定群号" />
-                                                            <TextBox x:Name="RobotBoundGroupsTextBox" Classes="MultiLineInput" Height="72" AcceptsReturn="True" TextWrapping="Wrap" />
                                                         </StackPanel>
                                                         <StackPanel Classes="ConfigFormFieldWide">
                                                             <TextBlock x:Name="RobotDatabasePathLabelTextBlock" Classes="ConfigFieldLabel" Text="数据库路径" />
@@ -2444,15 +2442,40 @@
                                                             <TextBlock x:Name="RobotOsqTimeoutLabelTextBlock" Classes="ConfigFieldLabel" Text="OSQ超时秒数" />
                                                             <NumericUpDown x:Name="RobotOsqTimeoutNumericUpDown" Classes="CompactNumber" Minimum="3" Maximum="60" />
                                                         </StackPanel>
-                                                        <StackPanel Classes="ConfigFormFieldWide">
-                                                            <TextBlock x:Name="RobotSuperUsersLabelTextBlock" Classes="ConfigFieldLabel" Text="超级管理员 QQ" />
-                                                            <TextBox x:Name="RobotSuperUsersTextBox" Classes="MultiLineInput" Height="72" AcceptsReturn="True" TextWrapping="Wrap" />
-                                                        </StackPanel>
                                                     </WrapPanel>
-                                                        <TextBlock x:Name="RobotOsqSourceHintTextBlock" Classes="ConfigHintText" Text="OSQ 来源由“开放信息”页面统一接收，机器人不再单独监听端口。" IsVisible="False" />
+                                                    <TextBlock x:Name="RobotOsqSourceHintTextBlock" Classes="ConfigHintText" Text="OSQ 来源由“开放信息”页面统一接收，机器人不再单独监听端口。" IsVisible="False" />
+                                                    <TextBox x:Name="RobotBoundGroupsTextBox" IsVisible="False" />
+                                                    <TextBox x:Name="RobotSuperUsersTextBox" IsVisible="False" />
+                                                    <StackPanel Spacing="8">
+                                                        <Grid ColumnDefinitions="2*,1.3*,1.3*,Auto" ColumnSpacing="8">
+                                                            <TextBlock Classes="ConfigFieldLabel" Text="服务器档案" />
+                                                            <TextBlock Grid.Column="1" x:Name="RobotBoundGroupsLabelTextBlock" Classes="ConfigFieldLabel" Text="绑定群号" />
+                                                            <TextBlock Grid.Column="2" x:Name="RobotSuperUsersLabelTextBlock" Classes="ConfigFieldLabel" Text="超级管理员 QQ" />
+                                                        </Grid>
+                                                        <ItemsControl x:Name="RobotBindingsItemsControl">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Border Classes="TableRow">
+                                                                        <Grid ColumnDefinitions="2*,1.3*,1.3*,Auto" ColumnSpacing="8">
+                                                                            <ComboBox Classes="CompactCombo" ItemsSource="{Binding ProfileOptions}" SelectedItem="{Binding SelectedProfile, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                                                                <ComboBox.ItemTemplate>
+                                                                                    <DataTemplate>
+                                                                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                                                                    </DataTemplate>
+                                                                                </ComboBox.ItemTemplate>
+                                                                            </ComboBox>
+                                                                            <TextBox Grid.Column="1" Classes="CompactInput" Text="{Binding GroupId, Mode=TwoWay}" />
+                                                                            <TextBox Grid.Column="2" Classes="CompactInput" Text="{Binding SuperUserId, Mode=TwoWay}" />
+                                                                            <Button Grid.Column="3" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnRobotBindingRemoveClick" />
+                                                                        </Grid>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                        <Button x:Name="RobotBindingAddButton" Classes="SecondaryActionButton" Width="120" HorizontalAlignment="Left" Content="添加" Click="OnRobotBindingAddClick" />
                                                     </StackPanel>
-                                                </Border>
-                                            </Grid>
+                                                </StackPanel>
+                                            </Border>
                                         </StackPanel>
                                     </ScrollViewer>
 

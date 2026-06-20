@@ -193,7 +193,9 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<InstanceProfile> _authProfileItems = [];
     private readonly ObservableCollection<ProfileConfigListItem> _authConfigItems = [];
     private readonly ObservableCollection<AuthPlayerListItem> _authPlayerItems = [];
-    private readonly ObservableCollection<ProfileConfigListItem> _robotConfigItems = [];
+    private readonly ObservableCollection<RobotProfileBindingItem> _robotBindingItems = [];
+    private readonly ObservableCollection<InstanceProfile> _robotProfileItems = [];
+    private readonly ObservableCollection<OpenServerQueryProfileConfigItem> _openInfoConfigItems = [];
     private readonly ObservableCollection<DashboardServerItem> _dashboardServerItems = [];
     private readonly ObservableCollection<DashboardPlayerItem> _dashboardOnlinePlayerItems = [];
     private readonly ObservableCollection<DashboardUptimeItem> _dashboardUptimeItems = [];
@@ -203,7 +205,6 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<InstanceProfile> _settingsAutoStartAddProfileItems = [];
     private readonly ObservableCollection<ConsoleServerItem> _consoleServerItems = [];
     private readonly List<ServerDownloadEntry> _catalogEntries = [];
-    private readonly List<OsqEndpointEditorRow> _osqEndpointEditors = [];
     private readonly Dictionary<string, string> _configGameLanguageZh = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<string>> _consoleLinesByProfile = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _consoleReplayLoadedProfileIds = new(StringComparer.OrdinalIgnoreCase);
@@ -242,7 +243,6 @@ public partial class LauncherMainWindow : Window
     private bool _isThirdPartyFrpcRunning;
     private bool _isTogglingFrp;
     private bool _isTogglingThirdPartyFrpc;
-    private bool _isTogglingOsq;
     private bool _isTogglingRobot;
     private bool _isExitRequested;
     private bool _isRefreshingAutomation;
@@ -255,7 +255,7 @@ public partial class LauncherMainWindow : Window
     private string _selectedConsoleProfileId = string.Empty;
     private string _editingAutomationProfileId = string.Empty;
     private string _editingAuthProfileId = string.Empty;
-    private string _editingRobotProfileId = string.Empty;
+    private string _editingOpenInfoProfileId = string.Empty;
     private long _configLoadVersion;
     private long _dashboardSettingsVersion;
     private TimeSpan _robotLastProcessorTime;
@@ -741,7 +741,6 @@ public partial class LauncherMainWindow : Window
 
         UpdateOsqToggleButtonText();
         OsqTitleTextBlock.Text = T("开放信息（OpenServerQuery）", "Open Info (OpenServerQuery)");
-        OsqEnabledLabelTextBlock.Text = T("启用开放信息", "Enable Open Info");
         OsqAllowInsecureHttpLabelTextBlock.Text = T("允许 HTTP 外发", "Allow HTTP outbound");
         OsqListenPrefixLabelTextBlock.Text = T("监听地址", "Listen Prefix");
         OsqRequestTimeoutLabelTextBlock.Text = T("请求超时秒数", "Request Timeout Seconds");
@@ -751,9 +750,10 @@ public partial class LauncherMainWindow : Window
         OsqIncludeChatsLabelTextBlock.Text = T("聊天", "Chats");
         OsqIncludeNotificationsLabelTextBlock.Text = T("通知", "Notifications");
         OsqIncludeMapLabelTextBlock.Text = T("地图数据", "Map Data");
-        OsqEndpointHostLabelTextBlock.Text = T("地图网站地址", "Map Website Address");
-        OsqEndpointTokenLabelTextBlock.Text = T("地图网站密钥", "Map Website Token");
-        OsqEndpointAddButton.Content = T("添加", "Add");
+        OsqBackButton.Content = T("返回", "Back");
+        OsqConfigSaveButton.Content = T("保存", "Save");
+        OsqConfigRefreshButton.Content = T("刷新", "Refresh");
+        DeployMapModButton.Content = T("部署地图模组", "Deploy Map Mod");
 
         UpdateRobotToggleButtonText();
         RobotConfigTitleTextBlock.Text = T("QQ机器人配置", "QQ Robot Configuration");
@@ -773,7 +773,7 @@ public partial class LauncherMainWindow : Window
             "OSQ source is received by Open Info; the robot does not listen on its own port.");
         RobotClearButton.Content = T("清空", "Clear");
         RobotRefreshButton.Content = T("刷新", "Refresh");
-        RobotBackButton.Content = T("返回", "Back");
+        RobotBindingAddButton.Content = T("添加", "Add");
         AuthSaveButton.Content = T("保存", "Save");
         AuthRefreshButton.Content = T("刷新", "Refresh");
         AuthClearButton.Content = T("清空", "Clear");
@@ -834,7 +834,8 @@ public partial class LauncherMainWindow : Window
         AutomationRuntimeLogsListBox.ItemsSource = _automationRuntimeLogItems;
         ModProfileComboBox.ItemsSource = _modProfileItems;
         ModsListBox.ItemsSource = _modItems;
-        RobotConfigItemsControl.ItemsSource = _robotConfigItems;
+        RobotBindingsItemsControl.ItemsSource = _robotBindingItems;
+        OpenInfoConfigItemsControl.ItemsSource = _openInfoConfigItems;
         AuthConfigItemsControl.ItemsSource = _authConfigItems;
         AuthProfileComboBox.ItemsSource = _authProfileItems;
         AuthPlayersListBox.ItemsSource = _authPlayerItems;
@@ -2068,22 +2069,33 @@ public partial class LauncherMainWindow : Window
         SetAutomationStatus(T($"正在编辑自动化配置：{profile.Name}", $"Editing automation: {profile.Name}"), notify: false);
     }
 
-    private void ShowRobotList()
+    private void ShowOpenInfoList()
     {
-        _editingRobotProfileId = string.Empty;
-        RobotListPanel.IsVisible = true;
-        RobotEditorPanel.IsVisible = false;
-        RobotBackButton.IsVisible = false;
-        RefreshRobotConfigItems();
+        _editingOpenInfoProfileId = string.Empty;
+        OpenInfoListPanel.IsVisible = true;
+        OpenInfoEditorPanel.IsVisible = false;
+        OpenInfoGlobalSettingsPanel.IsVisible = true;
+        OsqBackButton.IsVisible = false;
+        OsqConfigSaveButton.IsVisible = false;
+        OsqConfigRefreshButton.IsVisible = false;
+        DeployMapModButton.IsVisible = false;
+        RefreshOpenInfoConfigItems();
     }
 
-    private void ShowRobotEditor(ProfileConfigListItem? item = null)
+    private void ShowOpenInfoEditor(InstanceProfile profile)
     {
-        _editingRobotProfileId = item?.ProfileId ?? string.Empty;
-        RobotListPanel.IsVisible = false;
-        RobotEditorPanel.IsVisible = true;
-        RobotBackButton.IsVisible = true;
-        ApplyRobotSettings(_preferencesService.Load().Robot);
+        _editingOpenInfoProfileId = profile.Id;
+        var settings = _preferencesService.Load().OpenServerQuery;
+        var endpoint = FindOpenInfoEndpoint(settings, profile.Id) ?? BuildDefaultOpenInfoEndpoint(profile, settings);
+        OpenInfoListPanel.IsVisible = false;
+        OpenInfoEditorPanel.IsVisible = true;
+        OpenInfoGlobalSettingsPanel.IsVisible = false;
+        OsqBackButton.IsVisible = true;
+        OsqConfigSaveButton.IsVisible = true;
+        OsqConfigRefreshButton.IsVisible = true;
+        DeployMapModButton.IsVisible = true;
+        ApplyOpenInfoEndpointConfig(endpoint);
+        SetConnectionStatus(T($"正在编辑开放API配置：{profile.Name}", $"Editing Open API config: {profile.Name}"), notify: false);
     }
 
     private void ShowAuthList()
@@ -2708,9 +2720,14 @@ public partial class LauncherMainWindow : Window
         RefreshSidebarSelection();
         RefreshConnectionSettingsEditor();
         RefreshConnectionRuntimeStatus();
+        if (tab == ConnectionTab.OpenInfo)
+        {
+            ShowOpenInfoList();
+        }
+
         if (tab == ConnectionTab.Robot)
         {
-            ShowRobotList();
+            RefreshRobotProfileItems();
         }
 
         if (tab == ConnectionTab.Auth)
@@ -2775,14 +2792,7 @@ public partial class LauncherMainWindow : Window
         OsqRequestTimeoutNumericUpDown.LostFocus += OnOpenInfoAutoSaveChanged;
         foreach (var check in new[]
                  {
-                     OsqEnabledCheckBox,
-                     OsqAllowInsecureHttpCheckBox,
-                     OsqIncludeServerInfoCheckBox,
-                     OsqIncludePlayersCheckBox,
-                     OsqIncludeEventsCheckBox,
-                     OsqIncludeChatsCheckBox,
-                     OsqIncludeNotificationsCheckBox,
-                     OsqIncludeMapCheckBox
+                     OsqEnabledCheckBox
                  })
         {
             check.IsCheckedChanged += OnOpenInfoAutoSaveChanged;
@@ -3461,12 +3471,14 @@ public partial class LauncherMainWindow : Window
         try
         {
             RebuildThirdPartyFrpcModeOptions();
+            RefreshRobotProfileItems();
 
             var preferences = _preferencesService.Load();
             ApplyFrpSettings(preferences.Frp);
             ApplyOpenServerQuerySettings(preferences.OpenServerQuery);
             ApplyRobotSettings(preferences.Robot);
-            RefreshRobotConfigItems();
+            RefreshRobotProfileItems();
+            RefreshOpenInfoConfigItems();
             RefreshAuthConfigItems();
         }
         finally
@@ -3475,14 +3487,38 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private void RefreshRobotConfigItems(IReadOnlyList<InstanceProfile>? profiles = null)
+    private void RefreshRobotProfileItems(IReadOnlyList<InstanceProfile>? profiles = null)
     {
         var profileList = profiles ?? _profileService.GetProfiles();
-        var path = GetRobotSettingsPath();
-        _robotConfigItems.Clear();
+        var selectedByItem = _robotBindingItems
+            .Select(item => (Item: item, ProfileId: item.SelectedProfile?.Id ?? item.ProfileId))
+            .ToList();
+
+        _robotProfileItems.Clear();
         foreach (var profile in profileList)
         {
-            _robotConfigItems.Add(ProfileConfigListItem.FromPath(profile, path));
+            _robotProfileItems.Add(profile);
+        }
+
+        foreach (var item in _robotBindingItems)
+        {
+            var selectedId = selectedByItem.FirstOrDefault(entry => ReferenceEquals(entry.Item, item)).ProfileId ?? item.ProfileId;
+            item.ProfileOptions = _robotProfileItems;
+            item.SelectedProfile = _robotProfileItems.FirstOrDefault(profile =>
+                profile.Id.Equals(selectedId, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private void RefreshOpenInfoConfigItems(IReadOnlyList<InstanceProfile>? profiles = null)
+    {
+        var profileList = profiles ?? _profileService.GetProfiles();
+        var settings = _preferencesService.Load().OpenServerQuery;
+        _openInfoConfigItems.Clear();
+        foreach (var profile in profileList.OrderBy(static profile => profile.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var endpoint = FindOpenInfoEndpoint(settings, profile.Id) ?? BuildDefaultOpenInfoEndpoint(profile, settings);
+            EnsureOpenInfoProfileConfigFile(profile, endpoint);
+            _openInfoConfigItems.Add(OpenServerQueryProfileConfigItem.FromProfile(profile, endpoint, GetOpenInfoSettingsPath(profile)));
         }
     }
 
@@ -3508,81 +3544,6 @@ public partial class LauncherMainWindow : Window
         OsqIncludeChatsCheckBox.IsChecked = settings.IncludeChats;
         OsqIncludeNotificationsCheckBox.IsChecked = settings.IncludeNotifications;
         OsqIncludeMapCheckBox.IsChecked = settings.IncludeMapData;
-        RebuildOsqEndpointEditors(GetOpenServerQueryEndpointConfigsForEditor(settings));
-    }
-
-    private static IReadOnlyList<OpenServerQueryEndpointConfig> GetOpenServerQueryEndpointConfigsForEditor(OpenServerQuerySettings settings)
-    {
-        var endpoints = (settings.Endpoints ?? [])
-            .Select(endpoint => new OpenServerQueryEndpointConfig
-            {
-                ServerHost = endpoint.ServerHost?.Trim() ?? string.Empty,
-                Token = endpoint.Token?.Trim() ?? string.Empty,
-                Enabled = endpoint.Enabled
-            })
-            .Where(endpoint => !string.IsNullOrWhiteSpace(endpoint.ServerHost) || !string.IsNullOrWhiteSpace(endpoint.Token))
-            .ToList();
-
-        if (endpoints.Count == 0 &&
-            (!string.IsNullOrWhiteSpace(settings.EndpointHost) || !string.IsNullOrWhiteSpace(settings.EndpointToken)))
-        {
-            endpoints.Add(new OpenServerQueryEndpointConfig
-            {
-                ServerHost = settings.EndpointHost?.Trim() ?? string.Empty,
-                Token = settings.EndpointToken?.Trim() ?? string.Empty,
-                Enabled = true
-            });
-        }
-
-        if (endpoints.Count == 0)
-        {
-            endpoints.Add(new OpenServerQueryEndpointConfig());
-        }
-
-        return endpoints;
-    }
-
-    private void RebuildOsqEndpointEditors(IReadOnlyList<OpenServerQueryEndpointConfig> endpoints)
-    {
-        OsqEndpointRowsHost.Children.Clear();
-        _osqEndpointEditors.Clear();
-
-        foreach (var endpoint in endpoints)
-        {
-            AddOsqEndpointEditorRow(endpoint.ServerHost, endpoint.Token, endpoint.Enabled);
-        }
-    }
-
-    private void AddOsqEndpointEditorRow(string serverHost, string token, bool enabled = true)
-    {
-        var rowWidth = OsqEndpointHostColumnWidth + OsqEndpointTokenColumnWidth + OsqEndpointColumnSpacing;
-        var row = new Grid
-        {
-            Width = rowWidth,
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
-            ColumnDefinitions = new ColumnDefinitions($"{OsqEndpointHostColumnWidth},{OsqEndpointTokenColumnWidth}"),
-            ColumnSpacing = OsqEndpointColumnSpacing
-        };
-
-        var hostTextBox = new TextBox
-        {
-            Text = serverHost
-        };
-        hostTextBox.Classes.Add("CompactInput");
-        hostTextBox.LostFocus += OnOpenInfoAutoSaveChanged;
-        row.Children.Add(hostTextBox);
-
-        var tokenTextBox = new TextBox
-        {
-            Text = token
-        };
-        tokenTextBox.Classes.Add("CompactInput");
-        tokenTextBox.LostFocus += OnOpenInfoAutoSaveChanged;
-        Grid.SetColumn(tokenTextBox, 1);
-        row.Children.Add(tokenTextBox);
-
-        OsqEndpointRowsHost.Children.Add(row);
-        _osqEndpointEditors.Add(new OsqEndpointEditorRow(hostTextBox, tokenTextBox, enabled));
     }
 
     private void ApplyRobotSettings(RobotIntegrationSettings settings)
@@ -3598,6 +3559,46 @@ public partial class LauncherMainWindow : Window
         SetNumericValue(RobotOsqPollNumericUpDown, settings.OsqPollIntervalSec);
         SetNumericValue(RobotOsqTimeoutNumericUpDown, settings.OsqRequestTimeoutSec);
         RobotSuperUsersTextBox.Text = settings.SuperUsersText;
+        RebuildRobotBindingItems(settings);
+    }
+
+    private void RebuildRobotBindingItems(RobotIntegrationSettings settings)
+    {
+        RefreshRobotProfileItems();
+        _robotBindingItems.Clear();
+
+        foreach (var binding in settings.ProfileBindings ?? [])
+        {
+            _robotBindingItems.Add(new RobotProfileBindingItem(
+                _robotProfileItems,
+                binding.ProfileId,
+                binding.GroupId,
+                binding.SuperUserId));
+        }
+
+        if (_robotBindingItems.Count == 0)
+        {
+            var groups = ParseQqIds(settings.BoundGroupIdsText).Select(static id => id.ToString(CultureInfo.InvariantCulture)).ToList();
+            var admins = ParseQqIds(settings.SuperUsersText).Select(static id => id.ToString(CultureInfo.InvariantCulture)).ToList();
+            var count = Math.Max(groups.Count, admins.Count);
+            for (var i = 0; i < count; i++)
+            {
+                _robotBindingItems.Add(new RobotProfileBindingItem(
+                    _robotProfileItems,
+                    _robotProfileItems.FirstOrDefault()?.Id ?? string.Empty,
+                    i < groups.Count ? groups[i] : string.Empty,
+                    i < admins.Count ? admins[i] : string.Empty));
+            }
+        }
+
+        if (_robotBindingItems.Count == 0)
+        {
+            _robotBindingItems.Add(new RobotProfileBindingItem(
+                _robotProfileItems,
+                _robotProfileItems.FirstOrDefault()?.Id ?? string.Empty,
+                string.Empty,
+                string.Empty));
+        }
     }
 
     private void SaveFrpSettings(bool updateStatus = true, bool refreshEditor = true)
@@ -3621,6 +3622,7 @@ public partial class LauncherMainWindow : Window
         var preferences = _preferencesService.Load();
         preferences.OpenServerQuery = CollectOpenServerQuerySettings();
         _preferencesService.Save(preferences);
+        SaveOpenInfoProfileConfigFiles(preferences.OpenServerQuery);
         if (refreshEditor)
         {
             RefreshConnectionSettingsEditor();
@@ -3651,6 +3653,8 @@ public partial class LauncherMainWindow : Window
     private async Task SaveRobotSettingsAndReloadIfRunningAsync(bool updateStatus = true, bool refreshEditor = true)
     {
         SaveRobotSettings(updateStatus, refreshEditor);
+        var preferences = _preferencesService.Load();
+        await _robotService.SaveSettingsAsync(ToRobotSettings(preferences.Robot, preferences.OpenServerQuery));
 
         if (!_robotService.GetCurrentStatus().IsRunning)
         {
@@ -3660,7 +3664,6 @@ public partial class LauncherMainWindow : Window
         try
         {
             await _robotService.StopAsync(TimeSpan.FromSeconds(5));
-            var preferences = _preferencesService.Load();
             await _robotService.StartAsync(ToRobotSettings(preferences.Robot, preferences.OpenServerQuery));
             SetConnectionStatus(T("QQ机器人配置已保存，并已重新加载。", "QQ robot configuration saved and reloaded."));
         }
@@ -3696,7 +3699,8 @@ public partial class LauncherMainWindow : Window
 
     private OpenServerQuerySettings CollectOpenServerQuerySettings()
     {
-        var endpoints = CollectOpenServerQueryEndpoints();
+        var current = _preferencesService.Load().OpenServerQuery;
+        var endpoints = CollectOpenServerQueryEndpoints(current);
         var firstEndpoint = endpoints.FirstOrDefault();
         return new OpenServerQuerySettings
         {
@@ -3704,52 +3708,74 @@ public partial class LauncherMainWindow : Window
             ListenPrefix = string.IsNullOrWhiteSpace(OsqListenPrefixTextBox.Text)
                 ? "http://127.0.0.1:18089/"
                 : OsqListenPrefixTextBox.Text.Trim(),
-            AllowInsecureHttp = OsqAllowInsecureHttpCheckBox.IsChecked == true,
+            AllowInsecureHttp = current.AllowInsecureHttp,
             RequestTimeoutSec = GetNumericValue(OsqRequestTimeoutNumericUpDown, 8),
-            IncludeServerInfo = OsqIncludeServerInfoCheckBox.IsChecked == true,
-            IncludePlayers = OsqIncludePlayersCheckBox.IsChecked == true,
-            IncludePlayerEvents = OsqIncludeEventsCheckBox.IsChecked == true,
-            IncludeChats = OsqIncludeChatsCheckBox.IsChecked == true,
-            IncludeNotifications = OsqIncludeNotificationsCheckBox.IsChecked == true,
-            IncludeMapData = OsqIncludeMapCheckBox.IsChecked == true,
+            IncludeServerInfo = current.IncludeServerInfo,
+            IncludePlayers = current.IncludePlayers,
+            IncludePlayerEvents = current.IncludePlayerEvents,
+            IncludeChats = current.IncludeChats,
+            IncludeNotifications = current.IncludeNotifications,
+            IncludeMapData = current.IncludeMapData,
             Endpoints = endpoints,
             EndpointHost = firstEndpoint?.ServerHost ?? string.Empty,
             EndpointToken = firstEndpoint?.Token ?? string.Empty
         };
     }
 
-    private List<OpenServerQueryEndpointConfig> CollectOpenServerQueryEndpoints()
+    private List<OpenServerQueryEndpointConfig> CollectOpenServerQueryEndpoints(OpenServerQuerySettings currentSettings)
     {
-        var endpoints = new List<OpenServerQueryEndpointConfig>();
-        foreach (var row in _osqEndpointEditors)
+        var byProfile = currentSettings.Endpoints
+            .Where(static endpoint => !string.IsNullOrWhiteSpace(endpoint.ProfileId))
+            .ToDictionary(static endpoint => endpoint.ProfileId, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var item in _openInfoConfigItems)
         {
-            var host = row.HostTextBox.Text?.Trim() ?? string.Empty;
-            var token = row.TokenTextBox.Text?.Trim() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(host) && string.IsNullOrWhiteSpace(token))
+            if (!byProfile.TryGetValue(item.ProfileId, out var endpoint))
             {
-                continue;
+                endpoint = BuildDefaultOpenInfoEndpoint(item.ProfileId, currentSettings);
             }
 
-            endpoints.Add(new OpenServerQueryEndpointConfig
-            {
-                ServerHost = host,
-                Token = token,
-                Enabled = row.Enabled
-            });
+            endpoint.Enabled = item.Enabled;
+            byProfile[item.ProfileId] = endpoint;
         }
 
-        return endpoints;
+        if (!string.IsNullOrWhiteSpace(_editingOpenInfoProfileId))
+        {
+            var profile = _profileService.GetProfileById(_editingOpenInfoProfileId);
+            if (profile is not null)
+            {
+                var edited = CollectOpenInfoEndpointConfig(profile);
+                byProfile[profile.Id] = edited;
+            }
+        }
+
+        if (byProfile.Count == 0)
+        {
+            foreach (var endpoint in currentSettings.Endpoints ?? [])
+            {
+                if (!string.IsNullOrWhiteSpace(endpoint.ServerHost) || !string.IsNullOrWhiteSpace(endpoint.Token))
+                {
+                    byProfile[endpoint.ProfileId] = endpoint;
+                }
+            }
+        }
+
+        return byProfile.Values
+            .Where(static endpoint => !string.IsNullOrWhiteSpace(endpoint.ServerHost) || !string.IsNullOrWhiteSpace(endpoint.Token))
+            .OrderBy(static endpoint => endpoint.ProfileId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private RobotIntegrationSettings CollectRobotSettings()
     {
+        var bindings = CollectRobotProfileBindings();
         return new RobotIntegrationSettings
         {
             OneBotWsUrl = string.IsNullOrWhiteSpace(RobotOneBotTextBox.Text)
                 ? "ws://127.0.0.1:3001/"
                 : RobotOneBotTextBox.Text.Trim(),
             AccessToken = RobotAccessTokenTextBox.Text?.Trim() ?? string.Empty,
-            BoundGroupIdsText = RobotBoundGroupsTextBox.Text?.Trim() ?? string.Empty,
+            BoundGroupIdsText = FormatQqIdText(bindings.Select(static binding => binding.GroupId)),
             ReconnectIntervalSec = GetNumericValue(RobotReconnectNumericUpDown, 5),
             DatabasePath = RobotDatabasePathTextBox.Text?.Trim() ?? string.Empty,
             PollIntervalSec = GetNumericDoubleValue(RobotPollIntervalNumericUpDown, 1.0),
@@ -3759,10 +3785,170 @@ public partial class LauncherMainWindow : Window
             FallbackEncoding = string.IsNullOrWhiteSpace(RobotFallbackEncodingTextBox.Text)
                 ? "gbk"
                 : RobotFallbackEncodingTextBox.Text.Trim(),
-            SuperUsersText = RobotSuperUsersTextBox.Text?.Trim() ?? string.Empty,
+            SuperUsersText = FormatQqIdText(bindings.Select(static binding => binding.SuperUserId)),
+            ProfileBindings = bindings,
             OsqPollIntervalSec = GetNumericValue(RobotOsqPollNumericUpDown, 20),
             OsqRequestTimeoutSec = GetNumericValue(RobotOsqTimeoutNumericUpDown, 8)
         };
+    }
+
+    private List<RobotProfileBinding> CollectRobotProfileBindings()
+    {
+        var bindings = new List<RobotProfileBinding>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in _robotBindingItems)
+        {
+            var profileId = item.SelectedProfile?.Id ?? item.ProfileId;
+            var groupId = NormalizeQqId(item.GroupId);
+            var superUserId = NormalizeQqId(item.SuperUserId);
+            if (string.IsNullOrWhiteSpace(profileId) &&
+                string.IsNullOrWhiteSpace(groupId) &&
+                string.IsNullOrWhiteSpace(superUserId))
+            {
+                continue;
+            }
+
+            var key = $"{profileId}|{groupId}|{superUserId}";
+            if (!seen.Add(key))
+            {
+                continue;
+            }
+
+            bindings.Add(new RobotProfileBinding
+            {
+                ProfileId = profileId?.Trim() ?? string.Empty,
+                GroupId = groupId,
+                SuperUserId = superUserId
+            });
+        }
+
+        return bindings;
+    }
+
+    private static string FormatQqIdText(IEnumerable<string?> values)
+    {
+        var ids = values
+            .Select(NormalizeQqId)
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        return ids.Count == 0 ? string.Empty : string.Join(Environment.NewLine, ids);
+    }
+
+    private static string NormalizeQqId(string? value)
+    {
+        var raw = value?.Trim() ?? string.Empty;
+        return long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) && id > 0
+            ? id.ToString(CultureInfo.InvariantCulture)
+            : string.Empty;
+    }
+
+    private OpenServerQueryEndpointConfig CollectOpenInfoEndpointConfig(InstanceProfile profile)
+    {
+        var preferences = _preferencesService.Load();
+        var existing = FindOpenInfoEndpoint(preferences.OpenServerQuery, profile.Id) ??
+                       BuildDefaultOpenInfoEndpoint(profile, preferences.OpenServerQuery);
+
+        return new OpenServerQueryEndpointConfig
+        {
+            ProfileId = profile.Id,
+            ServerHost = OsqEndpointHostTextBox.Text?.Trim() ?? existing.ServerHost,
+            Token = OsqEndpointTokenTextBox.Text?.Trim() ?? existing.Token,
+            Enabled = existing.Enabled,
+            AllowInsecureHttp = OsqAllowInsecureHttpCheckBox.IsChecked == true,
+            IncludeServerInfo = OsqIncludeServerInfoCheckBox.IsChecked == true,
+            IncludePlayers = OsqIncludePlayersCheckBox.IsChecked == true,
+            IncludePlayerEvents = OsqIncludeEventsCheckBox.IsChecked == true,
+            IncludeChats = OsqIncludeChatsCheckBox.IsChecked == true,
+            IncludeNotifications = OsqIncludeNotificationsCheckBox.IsChecked == true,
+            IncludeMapData = OsqIncludeMapCheckBox.IsChecked == true
+        };
+    }
+
+    private void ApplyOpenInfoEndpointConfig(OpenServerQueryEndpointConfig endpoint)
+    {
+        OsqEndpointHostTextBox.Text = endpoint.ServerHost;
+        OsqEndpointTokenTextBox.Text = endpoint.Token;
+        OsqAllowInsecureHttpCheckBox.IsChecked = endpoint.AllowInsecureHttp;
+        OsqIncludeServerInfoCheckBox.IsChecked = endpoint.IncludeServerInfo;
+        OsqIncludePlayersCheckBox.IsChecked = endpoint.IncludePlayers;
+        OsqIncludeEventsCheckBox.IsChecked = endpoint.IncludePlayerEvents;
+        OsqIncludeChatsCheckBox.IsChecked = endpoint.IncludeChats;
+        OsqIncludeNotificationsCheckBox.IsChecked = endpoint.IncludeNotifications;
+        OsqIncludeMapCheckBox.IsChecked = endpoint.IncludeMapData;
+    }
+
+    private static OpenServerQueryEndpointConfig? FindOpenInfoEndpoint(OpenServerQuerySettings settings, string profileId)
+    {
+        return (settings.Endpoints ?? [])
+            .FirstOrDefault(endpoint => endpoint.ProfileId.Equals(profileId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private OpenServerQueryEndpointConfig BuildDefaultOpenInfoEndpoint(InstanceProfile profile, OpenServerQuerySettings settings)
+    {
+        return BuildDefaultOpenInfoEndpoint(profile.Id, settings);
+    }
+
+    private OpenServerQueryEndpointConfig BuildDefaultOpenInfoEndpoint(string profileId, OpenServerQuerySettings settings)
+    {
+        var legacy = (settings.Endpoints ?? []).FirstOrDefault(endpoint => string.IsNullOrWhiteSpace(endpoint.ProfileId));
+        return new OpenServerQueryEndpointConfig
+        {
+            ProfileId = profileId,
+            ServerHost = legacy?.ServerHost ?? settings.EndpointHost ?? string.Empty,
+            Token = legacy?.Token ?? settings.EndpointToken ?? string.Empty,
+            Enabled = legacy?.Enabled ?? false,
+            AllowInsecureHttp = settings.AllowInsecureHttp,
+            IncludeServerInfo = settings.IncludeServerInfo,
+            IncludePlayers = settings.IncludePlayers,
+            IncludePlayerEvents = settings.IncludePlayerEvents,
+            IncludeChats = settings.IncludeChats,
+            IncludeNotifications = settings.IncludeNotifications,
+            IncludeMapData = settings.IncludeMapData
+        };
+    }
+
+    private void EnsureOpenInfoProfileConfigFile(InstanceProfile profile, OpenServerQueryEndpointConfig endpoint)
+    {
+        var path = GetOpenInfoSettingsPath(profile);
+        if (File.Exists(path))
+        {
+            return;
+        }
+
+        SaveOpenInfoProfileConfigFile(profile, endpoint);
+    }
+
+    private void SaveOpenInfoProfileConfigFile(InstanceProfile profile, OpenServerQueryEndpointConfig endpoint)
+    {
+        var path = GetOpenInfoSettingsPath(profile);
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var json = JsonSerializer.Serialize(endpoint, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(path, json);
+    }
+
+    private void SaveOpenInfoProfileConfigFiles(OpenServerQuerySettings settings)
+    {
+        foreach (var endpoint in settings.Endpoints ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(endpoint.ProfileId))
+            {
+                continue;
+            }
+
+            var profile = _profileService.GetProfileById(endpoint.ProfileId);
+            if (profile is null)
+            {
+                continue;
+            }
+
+            SaveOpenInfoProfileConfigFile(profile, endpoint);
+        }
     }
 
     private static OpenServerQueryRuntimeSettings ToOpenServerQueryRuntimeSettings(OpenServerQuerySettings settings)
@@ -3779,9 +3965,17 @@ public partial class LauncherMainWindow : Window
 
             endpoints.Add(new OpenServerQueryEndpointSettings
             {
+                ProfileId = endpoint.ProfileId?.Trim() ?? string.Empty,
                 ServerHost = host,
                 Token = token,
-                Enabled = endpoint.Enabled
+                Enabled = endpoint.Enabled,
+                AllowInsecureHttp = endpoint.AllowInsecureHttp,
+                IncludeServerInfo = endpoint.IncludeServerInfo,
+                IncludePlayers = endpoint.IncludePlayers,
+                IncludePlayerEvents = endpoint.IncludePlayerEvents,
+                IncludeChats = endpoint.IncludeChats,
+                IncludeNotifications = endpoint.IncludeNotifications,
+                IncludeMapData = endpoint.IncludeMapData
             });
         }
 
@@ -3793,7 +3987,14 @@ public partial class LauncherMainWindow : Window
             {
                 ServerHost = settings.EndpointHost.Trim(),
                 Token = settings.EndpointToken.Trim(),
-                Enabled = true
+                Enabled = true,
+                AllowInsecureHttp = settings.AllowInsecureHttp,
+                IncludeServerInfo = settings.IncludeServerInfo,
+                IncludePlayers = settings.IncludePlayers,
+                IncludePlayerEvents = settings.IncludePlayerEvents,
+                IncludeChats = settings.IncludeChats,
+                IncludeNotifications = settings.IncludeNotifications,
+                IncludeMapData = settings.IncludeMapData
             });
         }
 
@@ -3930,8 +4131,6 @@ public partial class LauncherMainWindow : Window
 
     private void UpdateOsqToggleButtonText()
     {
-        var isRunning = _openServerQueryService.GetRuntimeStatus().IsListening;
-        OsqToggleButton.Content = isRunning ? T("停止", "Stop") : T("启动", "Start");
     }
 
     private void UpdateRobotToggleButtonText()
@@ -5239,9 +5438,14 @@ public partial class LauncherMainWindow : Window
     {
         RefreshConnectionSettingsEditor();
         RefreshConnectionRuntimeStatus();
+        if (_selectedConnectionTab == ConnectionTab.OpenInfo)
+        {
+            RefreshOpenInfoConfigItems();
+        }
+
         if (_selectedConnectionTab == ConnectionTab.Robot)
         {
-            RefreshRobotConfigItems();
+            RefreshRobotProfileItems();
         }
 
         if (_selectedConnectionTab == ConnectionTab.Auth)
@@ -5477,7 +5681,13 @@ public partial class LauncherMainWindow : Window
 
     private async void OnDeployMapModClick(object? sender, RoutedEventArgs e)
     {
-        if (!TryGetLockedLaunchTarget(out var profile, out _))
+        InstanceProfile? profile = null;
+        if (!string.IsNullOrWhiteSpace(_editingOpenInfoProfileId))
+        {
+            profile = _profileService.GetProfileById(_editingOpenInfoProfileId);
+        }
+
+        if (profile is null && !TryGetLockedLaunchTarget(out profile, out _))
         {
             var runningProfileId = _serverProcessService.GetCachedStatuses()
                 .FirstOrDefault(static status => status.IsRunning && !string.IsNullOrWhiteSpace(status.ProfileId))
@@ -5487,7 +5697,7 @@ public partial class LauncherMainWindow : Window
                 : _profileService.GetProfileById(runningProfileId);
             if (profile is null)
             {
-                SetConnectionStatus(T("请先在底部添加启动服务器或启动一个服务器后再部署地图模组。", "Add a launch server or start a server before deploying the map mod."));
+                SetConnectionStatus(T("请先进入某个开放API配置页面，或启动一个服务器后再部署地图模组。", "Open an Open API profile config page, or start a server before deploying the map mod."));
                 return;
             }
         }
@@ -5496,8 +5706,8 @@ public partial class LauncherMainWindow : Window
         {
             await _serverMapService.EnsureMapModDeployedAsync(profile);
             SetConnectionStatus(T(
-                "地图模组已部署。默认只监听 127.0.0.1；远程 ServerMap 通过开放信息上报接收地图数据。首次完整渲染可在游戏内执行 /servermap colormap 后再执行 /servermap fullrender。",
-                "Map mod deployed. It listens on 127.0.0.1 by default; remote ServerMap receives map data through Open Info reports. For the first full render, run /servermap colormap in game, then /servermap fullrender."));
+                $"地图模组已部署到：{profile.Name}。默认只监听 127.0.0.1；远程 ServerMap 通过开放信息上报接收地图数据。首次完整渲染可在游戏内执行 /servermap colormap 后再执行 /servermap fullrender。",
+                $"Map mod deployed to: {profile.Name}. It listens on 127.0.0.1 by default; remote ServerMap receives map data through Open Info reports. For the first full render, run /servermap colormap in game, then /servermap fullrender."));
         }
         catch (Exception ex)
         {
@@ -5788,37 +5998,64 @@ public partial class LauncherMainWindow : Window
 
     private void OnOsqSaveClick(object? sender, RoutedEventArgs e) => SaveOpenServerQuerySettings();
 
-    private void OnOsqEndpointAddClick(object? sender, RoutedEventArgs e)
+    private void OnOsqBackClick(object? sender, RoutedEventArgs e)
     {
-        AddOsqEndpointEditorRow(string.Empty, string.Empty);
-        _osqEndpointEditors[^1].HostTextBox.Focus();
+        ShowOpenInfoList();
     }
 
-    private async void OnOsqToggleClick(object? sender, RoutedEventArgs e)
+    private async void OnOsqConfigSaveClick(object? sender, RoutedEventArgs e)
     {
-        if (_isTogglingOsq)
+        await SaveOpenInfoEditorAsync();
+    }
+
+    private void OnOsqConfigRefreshClick(object? sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_editingOpenInfoProfileId))
+        {
+            ShowOpenInfoList();
             return;
-
-        _isTogglingOsq = true;
-        OsqToggleButton.IsEnabled = false;
-        try
-        {
-            if (_openServerQueryService.GetRuntimeStatus().IsListening)
-            {
-                OsqToggleButton.Content = T("启动", "Start");
-                await StopOpenInfoAsync();
-                return;
-            }
-
-            OsqToggleButton.Content = T("停止", "Stop");
-            await StartOpenInfoAsync();
         }
-        finally
+
+        var profile = _profileService.GetProfileById(_editingOpenInfoProfileId);
+        if (profile is not null)
         {
-            _isTogglingOsq = false;
-            OsqToggleButton.IsEnabled = true;
-            UpdateOsqToggleButtonText();
+            ShowOpenInfoEditor(profile);
         }
+    }
+
+    private void OnOsqEditConfigClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: OpenServerQueryProfileConfigItem item })
+        {
+            return;
+        }
+
+        var profile = _profileService.GetProfileById(item.ProfileId);
+        if (profile is not null)
+        {
+            ShowOpenInfoEditor(profile);
+        }
+    }
+
+    private async void OnOsqEndpointSwitchClick(object? sender, RoutedEventArgs e)
+    {
+        if (_isApplyingConnectionSettings)
+        {
+            return;
+        }
+
+        if (sender is not ToggleSwitch { Tag: OpenServerQueryProfileConfigItem item } toggleSwitch)
+        {
+            return;
+        }
+
+        item.Enabled = toggleSwitch.IsChecked == true;
+        if (item.Enabled)
+        {
+            OsqEnabledCheckBox.IsChecked = true;
+        }
+
+        await SaveOpenInfoSettingsAndReloadIfRunningAsync(updateStatus: true, refreshEditor: true);
     }
 
     private async Task StartOpenInfoAsync()
@@ -5850,6 +6087,72 @@ public partial class LauncherMainWindow : Window
             UpdateOsqToggleButtonText();
             UpdateCardValues(_serverProcessService.GetCachedStatus());
         }
+    }
+
+    private async Task SaveOpenInfoEditorAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_editingOpenInfoProfileId))
+        {
+            SaveOpenServerQuerySettings();
+            return;
+        }
+
+        var profile = _profileService.GetProfileById(_editingOpenInfoProfileId);
+        if (profile is null)
+        {
+            SetConnectionStatus(T("请先选择档案。", "Select a profile first."));
+            return;
+        }
+
+        var preferences = _preferencesService.Load();
+        var endpoint = CollectOpenInfoEndpointConfig(profile);
+        var endpoints = preferences.OpenServerQuery.Endpoints
+            .Where(existing => !existing.ProfileId.Equals(profile.Id, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        endpoints.Add(endpoint);
+        preferences.OpenServerQuery.Endpoints = endpoints;
+        preferences.OpenServerQuery.AllowInsecureHttp = OsqAllowInsecureHttpCheckBox.IsChecked == true;
+        preferences.OpenServerQuery.IncludeServerInfo = OsqIncludeServerInfoCheckBox.IsChecked == true;
+        preferences.OpenServerQuery.IncludePlayers = OsqIncludePlayersCheckBox.IsChecked == true;
+        preferences.OpenServerQuery.IncludePlayerEvents = OsqIncludeEventsCheckBox.IsChecked == true;
+        preferences.OpenServerQuery.IncludeChats = OsqIncludeChatsCheckBox.IsChecked == true;
+        preferences.OpenServerQuery.IncludeNotifications = OsqIncludeNotificationsCheckBox.IsChecked == true;
+        preferences.OpenServerQuery.IncludeMapData = OsqIncludeMapCheckBox.IsChecked == true;
+        _preferencesService.Save(preferences);
+        SaveOpenInfoProfileConfigFile(profile, endpoint);
+        await ReloadOpenInfoIfRunningAsync();
+        RefreshOpenInfoConfigItems();
+        SetConnectionStatus(T("开放API配置已保存。", "Open API config saved."));
+    }
+
+    private async Task SaveOpenInfoSettingsAndReloadIfRunningAsync(bool updateStatus = true, bool refreshEditor = true)
+    {
+        SaveOpenServerQuerySettings(updateStatus: false, refreshEditor);
+        await ReloadOpenInfoIfRunningAsync();
+
+        if (updateStatus)
+        {
+            SetConnectionStatus(T("开放API配置已保存。", "Open API config saved."));
+        }
+    }
+
+    private async Task ReloadOpenInfoIfRunningAsync()
+    {
+        var wasListening = _openServerQueryService.GetRuntimeStatus().IsListening;
+        if (wasListening)
+        {
+            await _openServerQueryService.StopAsync(TimeSpan.FromSeconds(5));
+        }
+
+        var settings = _preferencesService.Load().OpenServerQuery;
+        if (settings.Enabled && (wasListening || settings.Endpoints.Any(static endpoint => endpoint.Enabled)))
+        {
+            await _openServerQueryService.StartAsync(ToOpenServerQueryRuntimeSettings(settings));
+            await WaitForOpenInfoListeningAsync(TimeSpan.FromSeconds(2));
+        }
+
+        UpdateOsqToggleButtonText();
+        UpdateCardValues(_serverProcessService.GetCachedStatus());
     }
 
     private async Task<OpenServerQueryRuntimeStatus> WaitForOpenInfoListeningAsync(TimeSpan timeout)
@@ -5888,37 +6191,41 @@ public partial class LauncherMainWindow : Window
 
     private async void OnRobotSaveClick(object? sender, RoutedEventArgs e) => await SaveRobotSettingsAndReloadIfRunningAsync();
 
-    private void OnRobotEditConfigClick(object? sender, RoutedEventArgs e)
-    {
-        ShowRobotEditor((sender as Button)?.Tag as ProfileConfigListItem);
-    }
-
-    private void OnRobotBackClick(object? sender, RoutedEventArgs e)
-    {
-        ShowRobotList();
-    }
-
     private void OnRobotRefreshClick(object? sender, RoutedEventArgs e)
     {
         RefreshConnectionSettingsEditor();
         RefreshConnectionRuntimeStatus();
-        RefreshRobotConfigItems();
     }
 
     private void OnRobotClearClick(object? sender, RoutedEventArgs e)
     {
-        var selectedCount = _robotConfigItems.Count(static item => item.IsSelected);
-        if (selectedCount == 0 && RobotEditorPanel.IsVisible)
-        {
-            selectedCount = 1;
-        }
-
         var preferences = _preferencesService.Load();
         preferences.Robot = BuildClearedRobotSettings();
         _preferencesService.Save(preferences);
         ApplyRobotSettings(preferences.Robot);
-        RefreshRobotConfigItems();
         SetConnectionStatus(T("QQ机器人配置已清空。", "QQ robot configuration cleared."));
+    }
+
+    private void OnRobotBindingAddClick(object? sender, RoutedEventArgs e)
+    {
+        _robotBindingItems.Add(new RobotProfileBindingItem(
+            _robotProfileItems,
+            _robotProfileItems.FirstOrDefault()?.Id ?? string.Empty,
+            string.Empty,
+            string.Empty));
+    }
+
+    private void OnRobotBindingRemoveClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: RobotProfileBindingItem item })
+        {
+            _robotBindingItems.Remove(item);
+        }
+
+        if (_robotBindingItems.Count == 0)
+        {
+            OnRobotBindingAddClick(sender, e);
+        }
     }
 
     private async void OnRobotToggleClick(object? sender, RoutedEventArgs e)
@@ -7530,6 +7837,19 @@ public partial class LauncherMainWindow : Window
         return Path.Combine(GetWorkspaceRootForUi(), "qqbot", "vs2qq-settings.json");
     }
 
+    private static string GetOpenInfoSettingsPath(InstanceProfile profile)
+    {
+        var configPath = Path.Combine(profile.DirectoryPath, "ModConfig", "openserverquery.json");
+        try
+        {
+            return Path.GetFullPath(configPath);
+        }
+        catch
+        {
+            return configPath;
+        }
+    }
+
     private static string GetAuthSettingsPath(InstanceProfile profile)
     {
         var configPath = Path.Combine(profile.DirectoryPath, "ModConfig", "serverauth.json");
@@ -8554,15 +8874,6 @@ public partial class LauncherMainWindow : Window
         Error
     }
 
-    private sealed class OsqEndpointEditorRow(TextBox hostTextBox, TextBox tokenTextBox, bool enabled = true)
-    {
-        public TextBox HostTextBox { get; } = hostTextBox;
-
-        public TextBox TokenTextBox { get; } = tokenTextBox;
-
-        public bool Enabled { get; set; } = enabled;
-    }
-
     public sealed class ProfileListItem
     {
         public required string Id { get; init; }
@@ -8735,6 +9046,181 @@ public partial class LauncherMainWindow : Window
                 ConfigPath = path,
                 ModifiedText = modifiedText
             };
+        }
+    }
+
+    public sealed class RobotProfileBindingItem : INotifyPropertyChanged
+    {
+        private string _groupId = string.Empty;
+        private string _superUserId = string.Empty;
+        private InstanceProfile? _selectedProfile;
+        private ObservableCollection<InstanceProfile> _profileOptions;
+
+        public RobotProfileBindingItem(
+            ObservableCollection<InstanceProfile> profileOptions,
+            string profileId,
+            string groupId,
+            string superUserId)
+        {
+            _profileOptions = profileOptions;
+            ProfileId = profileId;
+            _groupId = groupId;
+            _superUserId = superUserId;
+            _selectedProfile = profileOptions.FirstOrDefault(profile =>
+                profile.Id.Equals(profileId, StringComparison.OrdinalIgnoreCase));
+        }
+
+        public string ProfileId { get; private set; }
+
+        public ObservableCollection<InstanceProfile> ProfileOptions
+        {
+            get => _profileOptions;
+            set
+            {
+                if (ReferenceEquals(_profileOptions, value))
+                {
+                    return;
+                }
+
+                _profileOptions = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public InstanceProfile? SelectedProfile
+        {
+            get => _selectedProfile;
+            set
+            {
+                if (ReferenceEquals(_selectedProfile, value))
+                {
+                    return;
+                }
+
+                _selectedProfile = value;
+                ProfileId = value?.Id ?? string.Empty;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ProfileId));
+            }
+        }
+
+        public string GroupId
+        {
+            get => _groupId;
+            set
+            {
+                if (_groupId == value)
+                {
+                    return;
+                }
+
+                _groupId = value ?? string.Empty;
+                OnPropertyChanged();
+            }
+        }
+
+        public string SuperUserId
+        {
+            get => _superUserId;
+            set
+            {
+                if (_superUserId == value)
+                {
+                    return;
+                }
+
+                _superUserId = value ?? string.Empty;
+                OnPropertyChanged();
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+    }
+
+    public sealed class OpenServerQueryProfileConfigItem : INotifyPropertyChanged
+    {
+        private bool _isSelected;
+        private bool _enabled;
+
+        public string ProfileId { get; init; } = string.Empty;
+
+        public string ProfileName { get; init; } = string.Empty;
+
+        public string Version { get; init; } = string.Empty;
+
+        public string ConfigPath { get; init; } = string.Empty;
+
+        public string ModifiedText { get; init; } = string.Empty;
+
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                if (_isSelected == value)
+                {
+                    return;
+                }
+
+                _isSelected = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public bool Enabled
+        {
+            get => _enabled;
+            set
+            {
+                if (_enabled == value)
+                {
+                    return;
+                }
+
+                _enabled = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public static OpenServerQueryProfileConfigItem FromProfile(
+            InstanceProfile profile,
+            OpenServerQueryEndpointConfig endpoint,
+            string path)
+        {
+            var modifiedText = "-";
+            try
+            {
+                if (File.Exists(path))
+                {
+                    modifiedText = File.GetLastWriteTime(path).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+                }
+            }
+            catch
+            {
+                modifiedText = "-";
+            }
+
+            return new OpenServerQueryProfileConfigItem
+            {
+                ProfileId = profile.Id,
+                ProfileName = profile.Name,
+                Version = profile.Version,
+                ConfigPath = path,
+                ModifiedText = modifiedText,
+                Enabled = endpoint.Enabled
+            };
+        }
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 

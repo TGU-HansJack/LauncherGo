@@ -235,10 +235,12 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             }
 
             var endpoints = runtime.EndpointsByHost
-                .OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x.Value.Settings.ProfileId, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Value.Settings.ServerHost, StringComparer.OrdinalIgnoreCase)
                 .Select(x => new OpenServerQueryEndpointRuntime
                 {
-                    ServerHost = x.Key,
+                    ProfileId = x.Value.Settings.ProfileId,
+                    ServerHost = x.Value.Settings.ServerHost,
                     Enabled = x.Value.Settings.Enabled,
                     LastServerName = x.Value.LastServerName,
                     LastServerStatus = x.Value.LastServerStatus,
@@ -283,7 +285,8 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             var endpoints = new Dictionary<string, EndpointState>(StringComparer.OrdinalIgnoreCase);
             foreach (var endpoint in normalized.Endpoints)
             {
-                endpoints[endpoint.ServerHost] = new EndpointState
+                var endpointKey = BuildEndpointRuntimeKey(endpoint);
+                endpoints[endpointKey] = new EndpointState
                 {
                     Settings = endpoint
                 };
@@ -294,7 +297,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
                 }
 
                 var token = endpoint.Token.Trim();
-                hostByToken.TryAdd(token, endpoint.ServerHost);
+                hostByToken.TryAdd(token, endpointKey);
             }
 
             var runtime = new RuntimeState
@@ -515,6 +518,26 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         return runtime.Settings.Enabled || HasConfiguredRobotGroups();
     }
 
+    private static OpenServerQueryRuntimeSettings BuildEndpointRuntimeSettings(
+        OpenServerQueryRuntimeSettings globalSettings,
+        OpenServerQueryEndpointSettings endpointSettings)
+    {
+        return new OpenServerQueryRuntimeSettings
+        {
+            Enabled = globalSettings.Enabled,
+            ListenPrefix = globalSettings.ListenPrefix,
+            AllowInsecureHttp = globalSettings.AllowInsecureHttp || endpointSettings.AllowInsecureHttp,
+            RequestTimeoutSec = globalSettings.RequestTimeoutSec,
+            IncludeServerInfo = globalSettings.IncludeServerInfo && endpointSettings.IncludeServerInfo,
+            IncludePlayers = globalSettings.IncludePlayers && endpointSettings.IncludePlayers,
+            IncludePlayerEvents = globalSettings.IncludePlayerEvents && endpointSettings.IncludePlayerEvents,
+            IncludeChats = globalSettings.IncludeChats && endpointSettings.IncludeChats,
+            IncludeNotifications = globalSettings.IncludeNotifications && endpointSettings.IncludeNotifications,
+            IncludeMapData = globalSettings.IncludeMapData && endpointSettings.IncludeMapData,
+            Endpoints = [endpointSettings]
+        };
+    }
+
     private async Task PushLocalSnapshotAsync(RuntimeState runtime, CancellationToken cancellationToken)
     {
         var contexts = await TryBuildLocalServerContextsAsync(cancellationToken);
@@ -540,20 +563,15 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             var context = contexts[index];
             var now = DateTimeOffset.UtcNow;
             var nonce = GenerateNonce();
-            var needsMapPayload = runtime.Settings.IncludeMapData &&
-                runtime.EndpointsByHost.Values.Any(endpoint => endpoint.Settings.Enabled);
-            var payload = await BuildLocalServerSnapshotAsync(
+            var cachePayload = await BuildLocalServerSnapshotAsync(
                 context,
                 runtime.Settings,
                 now,
                 nonce,
-                needsMapPayload,
+                includeMapData: false,
                 cancellationToken);
-            var qqPayload = CreateSnapshotForOutputTarget(payload, runtime.Settings, includeMapData: false);
+            var qqPayload = CreateSnapshotForOutputTarget(cachePayload, runtime.Settings, includeMapData: false);
             var qqJson = JsonSerializer.Serialize(qqPayload, OutboundJsonOptions);
-            var mapJson = needsMapPayload
-                ? JsonSerializer.Serialize(payload, OutboundJsonOptions)
-                : qqJson;
 
             var cachedNode = JsonNode.Parse(qqJson)?.AsObject();
             if (cachedNode is not null)
@@ -570,6 +588,12 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
                     continue;
                 }
 
+                if (!string.IsNullOrWhiteSpace(endpoint.Settings.ProfileId) &&
+                    !endpoint.Settings.ProfileId.Equals(context.Profile.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 if (!IsValidToken(endpoint.Settings.Token))
                 {
                     lock (_stateSync)
@@ -579,7 +603,9 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
                     continue;
                 }
 
-                var reportUri = BuildEndpointReportUri(endpoint.Settings.ServerHost, runtime.Settings.AllowInsecureHttp);
+                var reportUri = BuildEndpointReportUri(
+                    endpoint.Settings.ServerHost,
+                    runtime.Settings.AllowInsecureHttp || endpoint.Settings.AllowInsecureHttp);
                 if (reportUri is null)
                 {
                     lock (_stateSync)
@@ -591,9 +617,19 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
 
                 try
                 {
-                    var includeEndpointMap = runtime.Settings.IncludeMapData;
-                    var endpointPayload = includeEndpointMap ? payload : qqPayload;
-                    var json = includeEndpointMap ? mapJson : qqJson;
+                    var endpointSettings = BuildEndpointRuntimeSettings(runtime.Settings, endpoint.Settings);
+                    var includeEndpointMap = endpointSettings.IncludeMapData;
+                    var endpointPayload = await BuildLocalServerSnapshotAsync(
+                        context,
+                        endpointSettings,
+                        now,
+                        nonce,
+                        includeEndpointMap,
+                        cancellationToken);
+                    var outputPayload = includeEndpointMap
+                        ? endpointPayload
+                        : CreateSnapshotForOutputTarget(endpointPayload, endpointSettings, includeMapData: false);
+                    var json = JsonSerializer.Serialize(outputPayload, OutboundJsonOptions);
 
                     await SendEndpointAsync(
                         reportUri,
@@ -3765,11 +3801,15 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
                 return;
             }
 
-            if (!TryResolveServerHostByToken(runtime, token, out var serverHost))
+            if (!TryResolveEndpointKeyByToken(runtime, token, out var endpointKey))
             {
                 await RejectAsync(runtime, context, 403, "unknown token");
                 return;
             }
+
+            var serverHost = runtime.EndpointsByHost.TryGetValue(endpointKey, out var resolvedEndpoint)
+                ? resolvedEndpoint.Settings.ServerHost
+                : endpointKey;
 
             var timestampRaw = context.Request.Headers["X-OSQ-Timestamp"] ?? string.Empty;
             var nonce = context.Request.Headers["X-OSQ-Nonce"] ?? string.Empty;
@@ -3801,7 +3841,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
                 return;
             }
 
-            if (!TryUseNonce(serverHost, nonce, requestTimeUtc.Add(NonceTtl)))
+            if (!TryUseNonce(endpointKey, nonce, requestTimeUtc.Add(NonceTtl)))
             {
                 await RejectAsync(runtime, context, 409, "replay detected");
                 return;
@@ -3833,7 +3873,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
 
             lock (_stateSync)
             {
-                if (runtime.EndpointsByHost.TryGetValue(serverHost, out var endpoint))
+                if (runtime.EndpointsByHost.TryGetValue(endpointKey, out var endpoint))
                 {
                     endpoint.LastPayloadTimeUtc = payload.TimestampUtc ?? string.Empty;
                     endpoint.LastServerName = payload.Server.Name ?? string.Empty;
@@ -3997,14 +4037,14 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         context.Response.OutputStream.Close();
     }
 
-    private static bool TryResolveServerHostByToken(RuntimeState runtime, string token, out string serverHost)
+    private static bool TryResolveEndpointKeyByToken(RuntimeState runtime, string token, out string endpointKey)
     {
-        if (runtime.HostByToken.TryGetValue(token, out serverHost!))
+        if (runtime.HostByToken.TryGetValue(token, out endpointKey!))
         {
             return true;
         }
 
-        serverHost = string.Empty;
+        endpointKey = string.Empty;
         return false;
     }
 
@@ -4046,14 +4086,23 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
         var endpoints = (settings.Endpoints ?? [])
             .Select(x => new OpenServerQueryEndpointSettings
             {
+                ProfileId = x.ProfileId?.Trim() ?? string.Empty,
                 ServerHost = NormalizeServerHost(x.ServerHost),
                 Token = x.Token?.Trim() ?? string.Empty,
-                Enabled = x.Enabled
+                Enabled = x.Enabled,
+                AllowInsecureHttp = x.AllowInsecureHttp,
+                IncludeServerInfo = x.IncludeServerInfo,
+                IncludePlayers = x.IncludePlayers,
+                IncludePlayerEvents = x.IncludePlayerEvents,
+                IncludeChats = x.IncludeChats,
+                IncludeNotifications = x.IncludeNotifications,
+                IncludeMapData = x.IncludeMapData
             })
             .Where(x => !string.IsNullOrWhiteSpace(x.ServerHost) && IsValidToken(x.Token))
-            .GroupBy(x => x.ServerHost, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(BuildEndpointRuntimeKey, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
-            .OrderBy(x => x.ServerHost, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x.ProfileId, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.ServerHost, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         return new OpenServerQueryRuntimeSettings
@@ -4070,6 +4119,15 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             IncludeMapData = settings.IncludeMapData,
             Endpoints = endpoints
         };
+    }
+
+    private static string BuildEndpointRuntimeKey(OpenServerQueryEndpointSettings endpoint)
+    {
+        var profileId = endpoint.ProfileId?.Trim() ?? string.Empty;
+        var host = endpoint.ServerHost?.Trim() ?? string.Empty;
+        return string.IsNullOrWhiteSpace(profileId)
+            ? host
+            : $"{profileId}|{host}";
     }
 
     private static bool IsValidToken(string token)

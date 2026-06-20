@@ -30,11 +30,27 @@ public sealed class OpenServerQueryRuntimeSettings
 
 public sealed class OpenServerQueryEndpointSettings
 {
+    public string ProfileId { get; init; } = string.Empty;
+
     public string ServerHost { get; init; } = string.Empty;
 
     public string Token { get; init; } = string.Empty;
 
     public bool Enabled { get; init; } = true;
+
+    public bool AllowInsecureHttp { get; init; }
+
+    public bool IncludeServerInfo { get; init; } = true;
+
+    public bool IncludePlayers { get; init; } = true;
+
+    public bool IncludePlayerEvents { get; init; } = true;
+
+    public bool IncludeChats { get; init; } = true;
+
+    public bool IncludeNotifications { get; init; } = true;
+
+    public bool IncludeMapData { get; init; } = true;
 }
 
 public sealed class OpenServerQueryRuntimeStatus
@@ -60,6 +76,8 @@ public sealed class OpenServerQueryRuntimeStatus
 
 public sealed class OpenServerQueryEndpointRuntime
 {
+    public string ProfileId { get; init; } = string.Empty;
+
     public string ServerHost { get; init; } = string.Empty;
 
     public bool Enabled { get; init; }

@@ -20,7 +20,18 @@ public sealed class RobotIntegrationSettings
 
     public string SuperUsersText { get; set; } = string.Empty;
 
+    public List<RobotProfileBinding> ProfileBindings { get; set; } = [];
+
     public int OsqPollIntervalSec { get; set; } = 20;
 
     public int OsqRequestTimeoutSec { get; set; } = 8;
+}
+
+public sealed class RobotProfileBinding
+{
+    public string ProfileId { get; set; } = string.Empty;
+
+    public string GroupId { get; set; } = string.Empty;
+
+    public string SuperUserId { get; set; } = string.Empty;
 }

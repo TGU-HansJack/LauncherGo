@@ -161,6 +161,7 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
         var result = new List<OpenServerQueryEndpointConfig>();
         foreach (var endpoint in endpoints ?? [])
         {
+            var profileId = endpoint.ProfileId?.Trim() ?? string.Empty;
             var host = endpoint.ServerHost?.Trim() ?? string.Empty;
             var token = endpoint.Token?.Trim() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(host) && string.IsNullOrWhiteSpace(token))
@@ -170,9 +171,17 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
 
             result.Add(new OpenServerQueryEndpointConfig
             {
+                ProfileId = profileId,
                 ServerHost = host,
                 Token = token,
-                Enabled = endpoint.Enabled
+                Enabled = endpoint.Enabled,
+                AllowInsecureHttp = endpoint.AllowInsecureHttp,
+                IncludeServerInfo = endpoint.IncludeServerInfo,
+                IncludePlayers = endpoint.IncludePlayers,
+                IncludePlayerEvents = endpoint.IncludePlayerEvents,
+                IncludeChats = endpoint.IncludeChats,
+                IncludeNotifications = endpoint.IncludeNotifications,
+                IncludeMapData = endpoint.IncludeMapData
             });
         }
 
@@ -206,20 +215,67 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             wsUrl = "ws://127.0.0.1:3001/";
         }
 
+        var bindings = NormalizeRobotBindings(source.ProfileBindings);
+        var boundGroupsText = NormalizeQqIdText(source.BoundGroupIdsText);
+        if (string.IsNullOrWhiteSpace(boundGroupsText))
+        {
+            boundGroupsText = NormalizeQqIdText(bindings.Select(static binding => binding.GroupId));
+        }
+
+        var superUsersText = NormalizeQqIdText(source.SuperUsersText);
+        if (string.IsNullOrWhiteSpace(superUsersText))
+        {
+            superUsersText = NormalizeQqIdText(bindings.Select(static binding => binding.SuperUserId));
+        }
+
         return new RobotIntegrationSettings
         {
             OneBotWsUrl = wsUrl,
             AccessToken = source.AccessToken?.Trim() ?? string.Empty,
-            BoundGroupIdsText = NormalizeQqIdText(source.BoundGroupIdsText),
+            BoundGroupIdsText = boundGroupsText,
             ReconnectIntervalSec = Math.Clamp(source.ReconnectIntervalSec, 1, 120),
             DatabasePath = dbPath,
             PollIntervalSec = Math.Clamp(source.PollIntervalSec, 0.2, 30),
             DefaultEncoding = string.IsNullOrWhiteSpace(source.DefaultEncoding) ? "utf-8" : source.DefaultEncoding.Trim(),
             FallbackEncoding = string.IsNullOrWhiteSpace(source.FallbackEncoding) ? "gbk" : source.FallbackEncoding.Trim(),
-            SuperUsersText = source.SuperUsersText?.Trim() ?? string.Empty,
+            SuperUsersText = superUsersText,
+            ProfileBindings = bindings,
             OsqPollIntervalSec = Math.Clamp(source.OsqPollIntervalSec, 3, 300),
             OsqRequestTimeoutSec = Math.Clamp(source.OsqRequestTimeoutSec, 3, 60)
         };
+    }
+
+    private static List<RobotProfileBinding> NormalizeRobotBindings(IEnumerable<RobotProfileBinding>? bindings)
+    {
+        var result = new List<RobotProfileBinding>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var binding in bindings ?? [])
+        {
+            var profileId = binding.ProfileId?.Trim() ?? string.Empty;
+            var groupId = NormalizeQqIdValue(binding.GroupId);
+            var superUserId = NormalizeQqIdValue(binding.SuperUserId);
+            if (string.IsNullOrWhiteSpace(profileId) &&
+                string.IsNullOrWhiteSpace(groupId) &&
+                string.IsNullOrWhiteSpace(superUserId))
+            {
+                continue;
+            }
+
+            var key = $"{profileId}|{groupId}|{superUserId}";
+            if (!seen.Add(key))
+            {
+                continue;
+            }
+
+            result.Add(new RobotProfileBinding
+            {
+                ProfileId = profileId,
+                GroupId = groupId,
+                SuperUserId = superUserId
+            });
+        }
+
+        return result;
     }
 
     private static List<string> NormalizeProfileIds(IEnumerable<string>? values, string? legacyValue = null)
@@ -255,14 +311,27 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
 
     private static string NormalizeQqIdText(string? value)
     {
-        var lines = (value ?? string.Empty)
-            .Split(['\r', '\n', '\t', ',', ';', '，', '；', ' '], StringSplitOptions.RemoveEmptyEntries)
-            .Select(item => item.Trim())
-            .Where(item => long.TryParse(item, out var qq) && qq > 0)
+        return NormalizeQqIdText((value ?? string.Empty)
+            .Split(['\r', '\n', '\t', ',', ';', '，', '；', ' '], StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    private static string NormalizeQqIdText(IEnumerable<string?> values)
+    {
+        var lines = values
+            .Select(NormalizeQqIdValue)
+            .Where(static item => !string.IsNullOrWhiteSpace(item))
             .Distinct(StringComparer.Ordinal)
             .ToList();
 
         return lines.Count == 0 ? string.Empty : string.Join(Environment.NewLine, lines);
+    }
+
+    private static string NormalizeQqIdValue(string? value)
+    {
+        var normalized = value?.Trim() ?? string.Empty;
+        return long.TryParse(normalized, out var qq) && qq > 0
+            ? qq.ToString(CultureInfo.InvariantCulture)
+            : string.Empty;
     }
 
     private static FrpIntegrationSettings NormalizeFrp(FrpIntegrationSettings? source)
