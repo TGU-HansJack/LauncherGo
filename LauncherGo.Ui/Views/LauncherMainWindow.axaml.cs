@@ -207,6 +207,8 @@ public partial class LauncherMainWindow : Window
     private readonly Dictionary<string, string> _configGameLanguageZh = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<string>> _consoleLinesByProfile = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _consoleReplayLoadedProfileIds = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _tailedProfileIds = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _replayedLogProfileIds = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ServerCommonSettings> _dashboardSettingsByProfile = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _dashboardSettingsLoadingProfileIds = new(StringComparer.OrdinalIgnoreCase);
 
@@ -247,8 +249,6 @@ public partial class LauncherMainWindow : Window
     private bool _isRefreshingMods;
     private bool _isRefreshingAuth;
     private bool _toastPointerOver;
-    private string _tailedProfileId = string.Empty;
-    private string _replayedLogProfileId = string.Empty;
     private string _editingConfigProfileId = string.Empty;
     private string _pendingConfigLoadProfileId = string.Empty;
     private string _loadedConfigProfileId = string.Empty;
@@ -343,6 +343,7 @@ public partial class LauncherMainWindow : Window
         _serverProcessService.ProfileOutputReceived += OnServerProfileOutputReceived;
         _serverProcessService.StatusChanged += OnServerStatusChanged;
         _logTailService.LogLineReceived += OnLogTailLineReceived;
+        _logTailService.ProfileLogLineReceived += OnProfileLogTailLineReceived;
         _automationService.RuntimeLogReceived += OnAutomationRuntimeLogReceived;
         _frpService.StatusChanged += OnFrpStatusChanged;
         _thirdPartyFrpcService.StatusChanged += OnThirdPartyFrpcStatusChanged;
@@ -380,6 +381,7 @@ public partial class LauncherMainWindow : Window
             _serverProcessService.ProfileOutputReceived -= OnServerProfileOutputReceived;
             _serverProcessService.StatusChanged -= OnServerStatusChanged;
             _logTailService.LogLineReceived -= OnLogTailLineReceived;
+            _logTailService.ProfileLogLineReceived -= OnProfileLogTailLineReceived;
             _automationService.RuntimeLogReceived -= OnAutomationRuntimeLogReceived;
             _frpService.StatusChanged -= OnFrpStatusChanged;
             _thirdPartyFrpcService.StatusChanged -= OnThirdPartyFrpcStatusChanged;
@@ -4343,35 +4345,39 @@ public partial class LauncherMainWindow : Window
     {
         try
         {
-            if (!status.IsRunning || string.IsNullOrWhiteSpace(status.ProfileId))
+            var profileId = status.ProfileId?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(profileId))
             {
-                if (!string.IsNullOrWhiteSpace(_tailedProfileId))
+                return;
+            }
+
+            if (!status.IsRunning)
+            {
+                if (_tailedProfileIds.Remove(profileId))
                 {
-                    _tailedProfileId = string.Empty;
-                    _replayedLogProfileId = string.Empty;
-                    await _logTailService.StopAsync();
+                    await _logTailService.StopAsync(profileId);
                 }
 
                 return;
             }
 
-            if (_tailedProfileId.Equals(status.ProfileId, StringComparison.OrdinalIgnoreCase))
+            if (_tailedProfileIds.Contains(profileId))
             {
                 return;
             }
 
-            var profile = _profileService.GetProfileById(status.ProfileId);
+            var profile = _profileService.GetProfileById(profileId);
             if (profile is null)
             {
                 return;
             }
 
-            _tailedProfileId = profile.Id;
             var replayExisting = ShouldReplayExistingServerLogs(status, profile);
             await _logTailService.StartAsync(profile, replayExisting);
+            _tailedProfileIds.Add(profile.Id);
             if (replayExisting)
             {
-                _replayedLogProfileId = profile.Id;
+                _replayedLogProfileIds.Add(profile.Id);
                 _consoleReplayLoadedProfileIds.Add(profile.Id);
             }
         }
@@ -4383,7 +4389,7 @@ public partial class LauncherMainWindow : Window
 
     private bool ShouldReplayExistingServerLogs(ServerRuntimeStatus status, InstanceProfile profile)
     {
-        if (_replayedLogProfileId.Equals(profile.Id, StringComparison.OrdinalIgnoreCase))
+        if (_replayedLogProfileIds.Contains(profile.Id))
         {
             return false;
         }
@@ -4403,20 +4409,27 @@ public partial class LauncherMainWindow : Window
 
         Dispatcher.UIThread.Post(() =>
         {
-            if (!string.IsNullOrWhiteSpace(_tailedProfileId))
-            {
-                var profile = _profileService.GetProfileById(_tailedProfileId);
-                AppendConsoleProfileLine(
-                    _tailedProfileId,
-                    string.IsNullOrWhiteSpace(profile?.Name) ? _tailedProfileId : profile.Name,
-                    $"[log] {line}");
-            }
-            else
-            {
-                AppendConsoleLine($"[log] {line}");
-            }
-
             TrackPlayerEventText(line);
+        });
+    }
+
+    private void OnProfileLogTailLineReceived(object? sender, ProfileLogLine output)
+    {
+        if (string.IsNullOrWhiteSpace(output.Line)
+            || string.IsNullOrWhiteSpace(output.ProfileId)
+            || IsSystemConsoleLine(output.Line)
+            || ShouldSuppressConsoleLineForUi(output.Line))
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            AppendConsoleProfileLine(
+                output.ProfileId,
+                string.IsNullOrWhiteSpace(output.ProfileName) ? output.ProfileId : output.ProfileName,
+                $"[log] {output.Line}");
+            TrackPlayerEventText(output.Line);
         });
     }
 

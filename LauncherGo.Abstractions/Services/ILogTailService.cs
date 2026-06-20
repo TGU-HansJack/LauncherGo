@@ -9,7 +9,11 @@ public interface ILogTailService : IDisposable
 {
     event EventHandler<string>? LogLineReceived;
 
+    event EventHandler<ProfileLogLine>? ProfileLogLineReceived;
+
     Task StartAsync(InstanceProfile profile, bool replayExisting = false, CancellationToken cancellationToken = default);
+
+    Task StopAsync(string profileId, CancellationToken cancellationToken = default);
 
     Task StopAsync(CancellationToken cancellationToken = default);
 }

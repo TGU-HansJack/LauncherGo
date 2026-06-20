@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using LauncherGo.Abstractions.Services;
 using LauncherGo.Domains.Models;
@@ -7,91 +8,120 @@ namespace LauncherGo.Services;
 /// <summary>
 ///     服务器日志跟随服务默认实现
 /// </summary>
-public class LogTailService : ILogTailService
+public sealed class LogTailService : ILogTailService
 {
     private const int MaxReplayLogBytes = 256 * 1024;
     private const int MaxReplayLogLines = 200;
-    private CancellationTokenSource? _cts;
-    private Task? _tailTask;
-    private IReadOnlyList<string> _trackedLogPaths = [];
-    private readonly Dictionary<string, long> _positions = new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly ConcurrentDictionary<string, TailState> _tails = new(StringComparer.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public event EventHandler<string>? LogLineReceived;
 
     /// <inheritdoc />
+    public event EventHandler<ProfileLogLine>? ProfileLogLineReceived;
+
+    /// <inheritdoc />
     public async Task StartAsync(InstanceProfile profile, bool replayExisting = false, CancellationToken cancellationToken = default)
     {
-        await StopAsync(cancellationToken);
+        if (profile is null)
+        {
+            throw new ArgumentNullException(nameof(profile));
+        }
+
+        if (string.IsNullOrWhiteSpace(profile.Id))
+        {
+            return;
+        }
+
+        await StopAsync(profile.Id, cancellationToken);
 
         var profileDataPath = WorkspacePathHelper.ResolveProfileDataPath(profile.DirectoryPath);
         var logsPath = WorkspacePathHelper.GetProfileLogsPath(profileDataPath);
         Directory.CreateDirectory(logsPath);
 
         var mainLogPath = WorkspacePathHelper.GetServerMainLogPath(profileDataPath);
-        _trackedLogPaths = ResolveTrackedLogPaths(mainLogPath);
-        _positions.Clear();
+        var trackedLogPaths = ResolveTrackedLogPaths(mainLogPath);
+        var positions = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+
         if (replayExisting)
         {
-            ReplayExistingLogs(_trackedLogPaths, cancellationToken);
+            ReplayExistingLogs(profile, trackedLogPaths, cancellationToken);
         }
 
-        foreach (var logPath in _trackedLogPaths)
+        foreach (var logPath in trackedLogPaths)
         {
-            _positions[logPath] = GetExistingLogLength(logPath);
+            positions[logPath] = GetExistingLogLength(logPath);
         }
 
-        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _tailTask = TailLoopAsync(_cts.Token);
+        var state = new TailState(
+            CloneProfile(profile),
+            trackedLogPaths,
+            positions,
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken));
+        if (!_tails.TryAdd(profile.Id, state))
+        {
+            await state.DisposeAsync(cancellationToken);
+            return;
+        }
+
+        state.RunTask = TailLoopAsync(state);
+    }
+
+    /// <inheritdoc />
+    public async Task StopAsync(string profileId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(profileId))
+        {
+            return;
+        }
+
+        if (_tails.TryRemove(profileId.Trim(), out var state))
+        {
+            await state.DisposeAsync(cancellationToken);
+        }
     }
 
     /// <inheritdoc />
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
-        if (_cts is null) return;
+        var states = _tails.ToArray();
+        _tails.Clear();
 
-        try
+        foreach (var (_, state) in states)
         {
-            await _cts.CancelAsync();
-            if (_tailTask is not null)
-                await _tailTask.WaitAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            // ignore
-        }
-        finally
-        {
-            _cts.Dispose();
-            _cts = null;
-            _tailTask = null;
-            _trackedLogPaths = [];
-            _positions.Clear();
+            await state.DisposeAsync(cancellationToken);
         }
     }
 
     /// <inheritdoc />
     public void Dispose()
     {
-        _cts?.Cancel();
-        _cts?.Dispose();
+        foreach (var (_, state) in _tails)
+        {
+            state.Cancellation.Cancel();
+            state.Cancellation.Dispose();
+        }
+
+        _tails.Clear();
     }
 
-    private async Task TailLoopAsync(CancellationToken cancellationToken)
+    private async Task TailLoopAsync(TailState state)
     {
+        var cancellationToken = state.Cancellation.Token;
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
-                if (_trackedLogPaths.Count == 0)
+                if (state.TrackedLogPaths.Count == 0)
                 {
                     await Task.Delay(1000, cancellationToken);
                     continue;
                 }
 
-                foreach (var logPath in _trackedLogPaths)
+                foreach (var logPath in state.TrackedLogPaths)
                 {
-                    await TailSingleLogAsync(logPath, cancellationToken);
+                    await TailSingleLogAsync(state, logPath, cancellationToken);
                 }
 
                 await Task.Delay(1000, cancellationToken);
@@ -107,14 +137,14 @@ public class LogTailService : ILogTailService
         }
     }
 
-    private async Task TailSingleLogAsync(string logPath, CancellationToken cancellationToken)
+    private async Task TailSingleLogAsync(TailState state, string logPath, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(logPath) || !File.Exists(logPath))
         {
             return;
         }
 
-        _positions.TryGetValue(logPath, out var position);
+        state.Positions.TryGetValue(logPath, out var position);
 
         await using var stream = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         if (stream.Length < position)
@@ -132,13 +162,10 @@ public class LogTailService : ILogTailService
                 break;
             }
 
-            if (!string.IsNullOrWhiteSpace(line) && !ServerLogPrivacyFilter.ShouldSuppressConsoleLogLine(line))
-            {
-                LogLineReceived?.Invoke(this, line);
-            }
+            EmitLine(state.Profile, line);
         }
 
-        _positions[logPath] = stream.Position;
+        state.Positions[logPath] = stream.Position;
     }
 
     private static long GetExistingLogLength(string logPath)
@@ -153,19 +180,33 @@ public class LogTailService : ILogTailService
         }
     }
 
-    private void ReplayExistingLogs(IReadOnlyList<string> logPaths, CancellationToken cancellationToken)
+    private void ReplayExistingLogs(InstanceProfile profile, IReadOnlyList<string> logPaths, CancellationToken cancellationToken)
     {
         foreach (var logPath in logPaths)
         {
             cancellationToken.ThrowIfCancellationRequested();
             foreach (var line in ReadTailLines(logPath, MaxReplayLogBytes, MaxReplayLogLines, cancellationToken))
             {
-                if (!string.IsNullOrWhiteSpace(line) && !ServerLogPrivacyFilter.ShouldSuppressConsoleLogLine(line))
-                {
-                    LogLineReceived?.Invoke(this, line);
-                }
+                EmitLine(profile, line);
             }
         }
+    }
+
+    private void EmitLine(InstanceProfile profile, string line)
+    {
+        if (string.IsNullOrWhiteSpace(line) || ServerLogPrivacyFilter.ShouldSuppressConsoleLogLine(line))
+        {
+            return;
+        }
+
+        LogLineReceived?.Invoke(this, line);
+        ProfileLogLineReceived?.Invoke(this, new ProfileLogLine
+        {
+            ProfileId = profile.Id,
+            ProfileName = profile.Name,
+            Line = line,
+            TimestampUtc = DateTimeOffset.UtcNow
+        });
     }
 
     private static IReadOnlyList<string> ReadTailLines(
@@ -244,5 +285,56 @@ public class LogTailService : ILogTailService
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
-}
 
+    private static InstanceProfile CloneProfile(InstanceProfile profile)
+    {
+        return new InstanceProfile
+        {
+            Id = profile.Id,
+            Name = profile.Name,
+            Version = profile.Version,
+            DirectoryPath = profile.DirectoryPath,
+            SaveDirectory = profile.SaveDirectory,
+            ActiveSaveFile = profile.ActiveSaveFile,
+            CreatedAtUtc = profile.CreatedAtUtc,
+            LastUpdatedUtc = profile.LastUpdatedUtc
+        };
+    }
+
+    private sealed class TailState(
+        InstanceProfile profile,
+        IReadOnlyList<string> trackedLogPaths,
+        Dictionary<string, long> positions,
+        CancellationTokenSource cancellation)
+    {
+        public InstanceProfile Profile { get; } = profile;
+
+        public IReadOnlyList<string> TrackedLogPaths { get; } = trackedLogPaths;
+
+        public Dictionary<string, long> Positions { get; } = positions;
+
+        public CancellationTokenSource Cancellation { get; } = cancellation;
+
+        public Task? RunTask { get; set; }
+
+        public async Task DisposeAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                await Cancellation.CancelAsync();
+                if (RunTask is not null)
+                {
+                    await RunTask.WaitAsync(cancellationToken);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // ignore
+            }
+            finally
+            {
+                Cancellation.Dispose();
+            }
+        }
+    }
+}
