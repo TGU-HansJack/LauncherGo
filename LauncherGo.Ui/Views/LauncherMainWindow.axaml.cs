@@ -1087,27 +1087,47 @@ public partial class LauncherMainWindow : Window
     private void UpdateMultiServerDashboard(IReadOnlyList<ServerRuntimeStatus> statuses)
     {
         var runningStatuses = statuses.Where(static status => status.IsRunning).ToList();
+        var statusByProfileId = statuses
+            .Where(static status => !string.IsNullOrWhiteSpace(status.ProfileId))
+            .GroupBy(status => status.ProfileId!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
         _dashboardServerItems.Clear();
-        foreach (var status in runningStatuses)
-        {
-            var profile = ResolveDashboardProfile(status);
-            var profileId = status.ProfileId ?? profile?.Id ?? string.Empty;
-            if (profile is not null)
+        var profiles = _profileService.GetProfiles()
+            .Select(profile =>
             {
-                EnsureDashboardSettings(profile);
-            }
+                var profileId = profile.Id.Trim();
+                var isRunning = statusByProfileId.TryGetValue(profileId, out var status) && status.IsRunning;
+                var displayName = string.IsNullOrWhiteSpace(profile.Name) ? profileId : profile.Name;
+                return (Profile: profile, ProfileId: profileId, IsRunning: isRunning, DisplayName: displayName);
+            })
+            .OrderByDescending(static item => item.IsRunning)
+            .ThenBy(static item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        foreach (var (profile, profileId, _, displayName) in profiles)
+        {
+            EnsureDashboardSettings(profile);
 
             _dashboardSettingsByProfile.TryGetValue(profileId, out var settings);
+            var hasStatus = statusByProfileId.TryGetValue(profileId, out var status);
+            var isRunning = hasStatus && status is not null && status.IsRunning;
+            var isLoading = _isStoppingOrStarting;
+            var cpuPercent = isRunning ? status!.CpuPercent : 0;
+            var memoryMb = isRunning ? BytesToMb(status!.MemoryBytes) : 0;
             _dashboardServerItems.Add(new DashboardServerItem
             {
                 ProfileId = profileId,
-                ProfileName = string.IsNullOrWhiteSpace(profile?.Name) ? profileId : profile.Name,
-                Version = string.IsNullOrWhiteSpace(profile?.Version) ? "--" : profile.Version,
-                StatusText = _isStoppingOrStarting ? T("加载中", "Loading") : T("正在运行", "Running"),
-                StatusBrush = new SolidColorBrush(Color.Parse(_isStoppingOrStarting ? "#F59E0B" : "#16A34A")),
+                ProfileName = displayName,
+                Version = string.IsNullOrWhiteSpace(profile.Version) ? "--" : profile.Version,
+                IsRunning = isRunning,
+                IsActionEnabled = !isLoading,
+                ActionText = isRunning ? T("停止", "Stop") : T("启动", "Start"),
+                StatusText = isLoading
+                    ? T("加载中", "Loading")
+                    : isRunning ? T("正在运行", "Running") : T("已停止", "Stopped"),
+                StatusBrush = new SolidColorBrush(Color.Parse(isLoading ? "#F59E0B" : isRunning ? "#16A34A" : "#DC2626")),
                 SummaryText = T(
-                    $"端口 {settings?.Port.ToString(CultureInfo.InvariantCulture) ?? "--"}  CPU {status.CpuPercent:F1}%  内存 {BytesToMb(status.MemoryBytes):F0} MB",
-                    $"Port {settings?.Port.ToString(CultureInfo.InvariantCulture) ?? "--"}  CPU {status.CpuPercent:F1}%  Mem {BytesToMb(status.MemoryBytes):F0} MB")
+                    $"端口 {settings?.Port.ToString(CultureInfo.InvariantCulture) ?? "--"}  CPU {cpuPercent:F1}%  内存 {memoryMb:F0} MB",
+                    $"Port {settings?.Port.ToString(CultureInfo.InvariantCulture) ?? "--"}  CPU {cpuPercent:F1}%  Mem {memoryMb:F0} MB")
             });
         }
 
@@ -1115,11 +1135,13 @@ public partial class LauncherMainWindow : Window
         {
             _dashboardServerItems.Add(new DashboardServerItem
             {
-                ProfileName = T("暂无运行中的服务器", "No running servers"),
+                ProfileName = T("暂无服务器档案", "No server profiles"),
                 Version = "--",
+                IsActionEnabled = false,
+                ActionText = T("启动", "Start"),
                 StatusText = T("已停止", "Stopped"),
                 StatusBrush = new SolidColorBrush(Color.Parse("#DC2626")),
-                SummaryText = T("可在底部添加并启动服务器。", "Add and start servers from the footer.")
+                SummaryText = T("请先在实例页面创建档案。", "Create a profile from the instance page first.")
             });
         }
 
@@ -5950,6 +5972,88 @@ public partial class LauncherMainWindow : Window
         await StopServerFromLaunchButtonAsync();
     }
 
+    private async void OnDashboardServerActionClick(object? sender, RoutedEventArgs e)
+    {
+        if (_isStoppingOrStarting || sender is not Button { Tag: DashboardServerItem item })
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(item.ProfileId))
+        {
+            return;
+        }
+
+        if (item.IsRunning)
+        {
+            await StopDashboardServerAsync(item.ProfileId);
+            return;
+        }
+
+        await StartDashboardServerAsync(item.ProfileId);
+    }
+
+    private async Task StartDashboardServerAsync(string profileId)
+    {
+        var profile = _profileService.GetProfileById(profileId.Trim());
+        if (profile is null)
+        {
+            ShowToast(T("未找到服务器档案。", "Server profile not found."));
+            return;
+        }
+
+        var savePath = NormalizeFullPath(profile.ActiveSaveFile);
+        if (string.IsNullOrWhiteSpace(savePath))
+        {
+            SelectTab(MainTab.InstanceManage);
+            SelectInstanceManageTab(InstanceManageTab.Saves);
+            ShowToast(T($"{profile.Name} 未绑定存档，请先绑定后启动。", $"{profile.Name} has no save bound. Bind a save before starting."));
+            return;
+        }
+
+        SetLaunchOperationBusy(T("启动中...", "Starting..."));
+        try
+        {
+            if (_serverProcessService.GetCurrentStatus(profile.Id).IsRunning)
+            {
+                ShowToast(T($"{profile.Name} 已在运行。", $"{profile.Name} is already running."));
+                return;
+            }
+
+            var launchableProfile = await EnsureLaunchableProfileSaveAsync(profile, savePath);
+            await StartServerProfileWithTimeoutAsync(launchableProfile);
+        }
+        catch (Exception ex)
+        {
+            AppendConsoleLine($"[system] 启动/停止失败：{ex.Message}");
+        }
+        finally
+        {
+            ClearLaunchOperationBusy();
+        }
+    }
+
+    private async Task StopDashboardServerAsync(string profileId)
+    {
+        var profile = _profileService.GetProfileById(profileId.Trim());
+        SetLaunchOperationBusy(T("停止中...", "Stopping..."));
+        try
+        {
+            AppendConsoleLine(T(
+                $"[system] 正在停止服务器：{profile?.Name ?? profileId}",
+                $"[system] Stopping server: {profile?.Name ?? profileId}"));
+            await _serverProcessService.StopAsync(profileId, TimeSpan.FromSeconds(20));
+        }
+        catch (Exception ex)
+        {
+            AppendConsoleLine($"[system] 启动/停止失败：{ex.Message}");
+        }
+        finally
+        {
+            ClearLaunchOperationBusy();
+        }
+    }
+
     private void OnLaunchServerPointerEntered(object? sender, PointerEventArgs e)
     {
         if (_serverProcessService.GetCachedStatuses().Any(static status => status.IsRunning) || _launchTargetItems.Count > 0)
@@ -6130,15 +6234,11 @@ public partial class LauncherMainWindow : Window
     private void SetLaunchOperationBusy(string text)
     {
         _isStoppingOrStarting = true;
-        LaunchServerButton.IsEnabled = false;
-        LaunchActionTextBlock.Text = text;
-        LaunchSelectionSummaryTextBlock.Text = text;
         UpdateDashboardStatus(_serverProcessService.GetCachedStatus());
     }
 
     private void ClearLaunchOperationBusy()
     {
-        LaunchServerButton.IsEnabled = true;
         _isStoppingOrStarting = false;
         UpdateCardValues(_serverProcessService.GetCachedStatus());
     }
@@ -9154,11 +9254,17 @@ public partial class LauncherMainWindow : Window
 
         public string Version { get; init; } = string.Empty;
 
+        public bool IsRunning { get; init; }
+
         public string StatusText { get; init; } = string.Empty;
 
         public IBrush StatusBrush { get; init; } = Brushes.Gray;
 
         public string SummaryText { get; init; } = string.Empty;
+
+        public string ActionText { get; init; } = string.Empty;
+
+        public bool IsActionEnabled { get; init; } = true;
     }
 
     public sealed class DashboardPlayerItem
