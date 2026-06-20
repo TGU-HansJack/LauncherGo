@@ -243,6 +243,7 @@ public partial class LauncherMainWindow : Window
     private bool _isThirdPartyFrpcRunning;
     private bool _isTogglingFrp;
     private bool _isTogglingThirdPartyFrpc;
+    private bool _isTogglingOsq;
     private bool _isTogglingRobot;
     private bool _isExitRequested;
     private bool _isRefreshingAutomation;
@@ -2075,10 +2076,12 @@ public partial class LauncherMainWindow : Window
         OpenInfoListPanel.IsVisible = true;
         OpenInfoEditorPanel.IsVisible = false;
         OpenInfoGlobalSettingsPanel.IsVisible = true;
+        OsqToggleButton.IsVisible = true;
         OsqBackButton.IsVisible = false;
         OsqConfigSaveButton.IsVisible = false;
         OsqConfigRefreshButton.IsVisible = false;
         DeployMapModButton.IsVisible = false;
+        UpdateOsqToggleButtonText();
         RefreshOpenInfoConfigItems();
     }
 
@@ -2090,6 +2093,7 @@ public partial class LauncherMainWindow : Window
         OpenInfoListPanel.IsVisible = false;
         OpenInfoEditorPanel.IsVisible = true;
         OpenInfoGlobalSettingsPanel.IsVisible = false;
+        OsqToggleButton.IsVisible = false;
         OsqBackButton.IsVisible = true;
         OsqConfigSaveButton.IsVisible = true;
         OsqConfigRefreshButton.IsVisible = true;
@@ -3761,7 +3765,10 @@ public partial class LauncherMainWindow : Window
         }
 
         return byProfile.Values
-            .Where(static endpoint => !string.IsNullOrWhiteSpace(endpoint.ServerHost) || !string.IsNullOrWhiteSpace(endpoint.Token))
+            .Where(static endpoint =>
+                !string.IsNullOrWhiteSpace(endpoint.ProfileId) ||
+                !string.IsNullOrWhiteSpace(endpoint.ServerHost) ||
+                !string.IsNullOrWhiteSpace(endpoint.Token))
             .OrderBy(static endpoint => endpoint.ProfileId, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
@@ -4131,6 +4138,8 @@ public partial class LauncherMainWindow : Window
 
     private void UpdateOsqToggleButtonText()
     {
+        var isRunning = _openServerQueryService.GetRuntimeStatus().IsListening;
+        OsqToggleButton.Content = isRunning ? T("停止", "Stop") : T("启动", "Start");
     }
 
     private void UpdateRobotToggleButtonText()
@@ -6003,6 +6012,41 @@ public partial class LauncherMainWindow : Window
         ShowOpenInfoList();
     }
 
+    private async void OnOsqToggleClick(object? sender, RoutedEventArgs e)
+    {
+        if (_isTogglingOsq)
+            return;
+
+        _isTogglingOsq = true;
+        OsqToggleButton.IsEnabled = false;
+        try
+        {
+            if (_openServerQueryService.GetRuntimeStatus().IsListening)
+            {
+                OsqEnabledCheckBox.IsChecked = false;
+                SaveOpenServerQuerySettings(updateStatus: false, refreshEditor: false);
+                await StopOpenInfoAsync();
+                return;
+            }
+
+            OsqEnabledCheckBox.IsChecked = true;
+            SaveOpenServerQuerySettings(updateStatus: false, refreshEditor: false);
+            await StartOpenInfoAsync();
+
+            if (!_openServerQueryService.GetRuntimeStatus().IsListening)
+            {
+                OsqEnabledCheckBox.IsChecked = false;
+                SaveOpenServerQuerySettings(updateStatus: false, refreshEditor: false);
+            }
+        }
+        finally
+        {
+            _isTogglingOsq = false;
+            OsqToggleButton.IsEnabled = true;
+            UpdateOsqToggleButtonText();
+        }
+    }
+
     private async void OnOsqConfigSaveClick(object? sender, RoutedEventArgs e)
     {
         await SaveOpenInfoEditorAsync();
@@ -6050,17 +6094,14 @@ public partial class LauncherMainWindow : Window
         }
 
         item.Enabled = toggleSwitch.IsChecked == true;
-        if (item.Enabled)
-        {
-            OsqEnabledCheckBox.IsChecked = true;
-        }
 
-        await SaveOpenInfoSettingsAndReloadIfRunningAsync(updateStatus: true, refreshEditor: true);
+        await SaveOpenInfoSettingsAndReloadIfRunningAsync(updateStatus: false, refreshEditor: false);
+        SetConnectionStatus(BuildOpenInfoRuntimeStatusText());
     }
 
     private async Task StartOpenInfoAsync()
     {
-        SaveOpenServerQuerySettings(updateStatus: false);
+        SaveOpenServerQuerySettings(updateStatus: false, refreshEditor: false);
         try
         {
             var settings = _preferencesService.Load().OpenServerQuery;
@@ -6145,7 +6186,7 @@ public partial class LauncherMainWindow : Window
         }
 
         var settings = _preferencesService.Load().OpenServerQuery;
-        if (settings.Enabled && (wasListening || settings.Endpoints.Any(static endpoint => endpoint.Enabled)))
+        if (settings.Enabled)
         {
             await _openServerQueryService.StartAsync(ToOpenServerQueryRuntimeSettings(settings));
             await WaitForOpenInfoListeningAsync(TimeSpan.FromSeconds(2));

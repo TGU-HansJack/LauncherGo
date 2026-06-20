@@ -2286,13 +2286,14 @@
 
                                     <ScrollViewer x:Name="ConnectionOpenInfoPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
                                         <StackPanel Spacing="10">
-                                            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
                                                 <Button x:Name="OsqSaveButton" Classes="ActionButton" Content="保存" Click="OnOsqSaveClick" IsVisible="False" />
                                                 <Button x:Name="OsqRefreshButton" Grid.Column="1" Classes="SecondaryActionButton" Content="刷新" Click="OnConnectionRefreshClick" IsVisible="False" />
-                                                <Button x:Name="OsqBackButton" Grid.Column="2" Classes="SecondaryActionButton" Content="返回" Click="OnOsqBackClick" IsVisible="False" />
-                                                <Button x:Name="OsqConfigSaveButton" Grid.Column="3" Classes="ActionButton" Content="保存" Click="OnOsqConfigSaveClick" IsVisible="False" />
-                                                <Button x:Name="OsqConfigRefreshButton" Grid.Column="4" Classes="SecondaryActionButton" Content="刷新" Click="OnOsqConfigRefreshClick" IsVisible="False" />
-                                                <Button x:Name="DeployMapModButton" Grid.Column="5" Classes="SecondaryActionButton" Content="部署地图模组" Click="OnDeployMapModClick" IsVisible="False" />
+                                                <Button x:Name="OsqToggleButton" Grid.Column="2" Classes="SecondaryActionButton" Content="启动" Click="OnOsqToggleClick" />
+                                                <Button x:Name="OsqBackButton" Grid.Column="3" Classes="SecondaryActionButton" Content="返回" Click="OnOsqBackClick" IsVisible="False" />
+                                                <Button x:Name="OsqConfigSaveButton" Grid.Column="4" Classes="ActionButton" Content="保存" Click="OnOsqConfigSaveClick" IsVisible="False" />
+                                                <Button x:Name="OsqConfigRefreshButton" Grid.Column="5" Classes="SecondaryActionButton" Content="刷新" Click="OnOsqConfigRefreshClick" IsVisible="False" />
+                                                <Button x:Name="DeployMapModButton" Grid.Column="6" Classes="SecondaryActionButton" Content="部署地图模组" Click="OnDeployMapModClick" IsVisible="False" />
                                             </Grid>
                                             <Border Classes="ConfigCard">
                                                 <StackPanel Spacing="10">
@@ -2447,31 +2448,38 @@
                                                     <TextBox x:Name="RobotBoundGroupsTextBox" IsVisible="False" />
                                                     <TextBox x:Name="RobotSuperUsersTextBox" IsVisible="False" />
                                                     <StackPanel Spacing="8">
-                                                        <Grid ColumnDefinitions="2*,1.3*,1.3*,Auto" ColumnSpacing="8">
-                                                            <TextBlock Classes="ConfigFieldLabel" Text="服务器档案" />
-                                                            <TextBlock Grid.Column="1" x:Name="RobotBoundGroupsLabelTextBlock" Classes="ConfigFieldLabel" Text="绑定群号" />
-                                                            <TextBlock Grid.Column="2" x:Name="RobotSuperUsersLabelTextBlock" Classes="ConfigFieldLabel" Text="超级管理员 QQ" />
+                                                        <Grid RowDefinitions="Auto,*">
+                                                            <Border Grid.Row="0" Classes="TableHeader">
+                                                                <Grid ColumnDefinitions="2*,1.3*,1.3*,Auto" ColumnSpacing="8">
+                                                                    <TextBlock Classes="TableHeaderText" Text="服务器档案" />
+                                                                    <TextBlock Grid.Column="1" x:Name="RobotBoundGroupsLabelTextBlock" Classes="TableHeaderText" Text="绑定群号" />
+                                                                    <TextBlock Grid.Column="2" x:Name="RobotSuperUsersLabelTextBlock" Classes="TableHeaderText" Text="超级管理员 QQ" />
+                                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                                </Grid>
+                                                            </Border>
+                                                            <Border Grid.Row="1" Classes="TableBody">
+                                                                <ItemsControl x:Name="RobotBindingsItemsControl">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Border Classes="TableRow">
+                                                                                <Grid ColumnDefinitions="2*,1.3*,1.3*,Auto" ColumnSpacing="8">
+                                                                                    <ComboBox Classes="CompactCombo" ItemsSource="{Binding ProfileOptions}" SelectedItem="{Binding SelectedProfile, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                                                                        <ComboBox.ItemTemplate>
+                                                                                            <DataTemplate>
+                                                                                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                                                                            </DataTemplate>
+                                                                                        </ComboBox.ItemTemplate>
+                                                                                    </ComboBox>
+                                                                                    <TextBox Grid.Column="1" Classes="CompactInput" Text="{Binding GroupId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                                                    <TextBox Grid.Column="2" Classes="CompactInput" Text="{Binding SuperUserId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                                                    <Button Grid.Column="3" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnRobotBindingRemoveClick" />
+                                                                                </Grid>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </Border>
                                                         </Grid>
-                                                        <ItemsControl x:Name="RobotBindingsItemsControl">
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate>
-                                                                    <Border Classes="TableRow">
-                                                                        <Grid ColumnDefinitions="2*,1.3*,1.3*,Auto" ColumnSpacing="8">
-                                                                            <ComboBox Classes="CompactCombo" ItemsSource="{Binding ProfileOptions}" SelectedItem="{Binding SelectedProfile, Mode=TwoWay}" HorizontalAlignment="Stretch">
-                                                                                <ComboBox.ItemTemplate>
-                                                                                    <DataTemplate>
-                                                                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                                                                                    </DataTemplate>
-                                                                                </ComboBox.ItemTemplate>
-                                                                            </ComboBox>
-                                                                            <TextBox Grid.Column="1" Classes="CompactInput" Text="{Binding GroupId, Mode=TwoWay}" />
-                                                                            <TextBox Grid.Column="2" Classes="CompactInput" Text="{Binding SuperUserId, Mode=TwoWay}" />
-                                                                            <Button Grid.Column="3" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnRobotBindingRemoveClick" />
-                                                                        </Grid>
-                                                                    </Border>
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
                                                         <Button x:Name="RobotBindingAddButton" Classes="SecondaryActionButton" Width="120" HorizontalAlignment="Left" Content="添加" Click="OnRobotBindingAddClick" />
                                                     </StackPanel>
                                                 </StackPanel>

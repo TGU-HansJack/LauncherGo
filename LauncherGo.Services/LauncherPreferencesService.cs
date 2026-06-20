@@ -164,7 +164,9 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             var profileId = endpoint.ProfileId?.Trim() ?? string.Empty;
             var host = endpoint.ServerHost?.Trim() ?? string.Empty;
             var token = endpoint.Token?.Trim() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(host) && string.IsNullOrWhiteSpace(token))
+            if (string.IsNullOrWhiteSpace(profileId) &&
+                string.IsNullOrWhiteSpace(host) &&
+                string.IsNullOrWhiteSpace(token))
             {
                 continue;
             }
