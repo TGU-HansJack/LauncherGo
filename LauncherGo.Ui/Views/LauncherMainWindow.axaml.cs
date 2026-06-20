@@ -1091,7 +1091,6 @@ public partial class LauncherMainWindow : Window
             .Where(static status => !string.IsNullOrWhiteSpace(status.ProfileId))
             .GroupBy(status => status.ProfileId!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
-        _dashboardServerItems.Clear();
         var profiles = _profileService.GetProfiles()
             .Select(profile =>
             {
@@ -1103,6 +1102,7 @@ public partial class LauncherMainWindow : Window
             .OrderByDescending(static item => item.IsRunning)
             .ThenBy(static item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToList();
+        var desiredItems = new List<DashboardServerItem>();
         foreach (var (profile, profileId, _, displayName) in profiles)
         {
             EnsureDashboardSettings(profile);
@@ -1113,37 +1113,40 @@ public partial class LauncherMainWindow : Window
             var isLoading = _isStoppingOrStarting;
             var cpuPercent = isRunning ? status!.CpuPercent : 0;
             var memoryMb = isRunning ? BytesToMb(status!.MemoryBytes) : 0;
-            _dashboardServerItems.Add(new DashboardServerItem
-            {
-                ProfileId = profileId,
-                ProfileName = displayName,
-                Version = string.IsNullOrWhiteSpace(profile.Version) ? "--" : profile.Version,
-                IsRunning = isRunning,
-                IsActionEnabled = !isLoading,
-                ActionText = isRunning ? T("停止", "Stop") : T("启动", "Start"),
-                StatusText = isLoading
-                    ? T("加载中", "Loading")
-                    : isRunning ? T("正在运行", "Running") : T("已停止", "Stopped"),
-                StatusBrush = new SolidColorBrush(Color.Parse(isLoading ? "#F59E0B" : isRunning ? "#16A34A" : "#DC2626")),
-                SummaryText = T(
-                    $"端口 {settings?.Port.ToString(CultureInfo.InvariantCulture) ?? "--"}  CPU {cpuPercent:F1}%  内存 {memoryMb:F0} MB",
-                    $"Port {settings?.Port.ToString(CultureInfo.InvariantCulture) ?? "--"}  CPU {cpuPercent:F1}%  Mem {memoryMb:F0} MB")
-            });
+            var item = _dashboardServerItems.FirstOrDefault(existing =>
+                           existing.ProfileId.Equals(profileId, StringComparison.OrdinalIgnoreCase))
+                       ?? new DashboardServerItem { ProfileId = profileId };
+            item.ProfileName = displayName;
+            item.Version = string.IsNullOrWhiteSpace(profile.Version) ? "--" : profile.Version;
+            item.IsRunning = isRunning;
+            item.IsActionEnabled = !isLoading;
+            item.ActionText = isRunning ? T("停止", "Stop") : T("启动", "Start");
+            item.StatusText = isLoading
+                ? T("加载中", "Loading")
+                : isRunning ? T("正在运行", "Running") : T("已停止", "Stopped");
+            item.StatusBrush = new SolidColorBrush(Color.Parse(isLoading ? "#F59E0B" : isRunning ? "#16A34A" : "#DC2626"));
+            item.SummaryText = T(
+                $"端口 {settings?.Port.ToString(CultureInfo.InvariantCulture) ?? "--"}  CPU {cpuPercent:F1}%  内存 {memoryMb:F0} MB",
+                $"Port {settings?.Port.ToString(CultureInfo.InvariantCulture) ?? "--"}  CPU {cpuPercent:F1}%  Mem {memoryMb:F0} MB");
+            desiredItems.Add(item);
         }
 
-        if (_dashboardServerItems.Count == 0)
+        if (desiredItems.Count == 0)
         {
-            _dashboardServerItems.Add(new DashboardServerItem
-            {
-                ProfileName = T("暂无服务器档案", "No server profiles"),
-                Version = "--",
-                IsActionEnabled = false,
-                ActionText = T("启动", "Start"),
-                StatusText = T("已停止", "Stopped"),
-                StatusBrush = new SolidColorBrush(Color.Parse("#DC2626")),
-                SummaryText = T("请先在实例页面创建档案。", "Create a profile from the instance page first.")
-            });
+            var emptyItem = _dashboardServerItems.FirstOrDefault(static item => string.IsNullOrWhiteSpace(item.ProfileId))
+                            ?? new DashboardServerItem();
+            emptyItem.ProfileName = T("暂无服务器档案", "No server profiles");
+            emptyItem.Version = "--";
+            emptyItem.IsRunning = false;
+            emptyItem.IsActionEnabled = false;
+            emptyItem.ActionText = T("启动", "Start");
+            emptyItem.StatusText = T("已停止", "Stopped");
+            emptyItem.StatusBrush = new SolidColorBrush(Color.Parse("#DC2626"));
+            emptyItem.SummaryText = T("请先在实例页面创建档案。", "Create a profile from the instance page first.");
+            desiredItems.Add(emptyItem);
         }
+
+        SynchronizeDashboardServerItems(desiredItems);
 
         var players = _serverProcessService.GetOnlinePlayers();
         _dashboardOnlinePlayerItems.Clear();
@@ -1172,6 +1175,34 @@ public partial class LauncherMainWindow : Window
         DashboardPlayersCountText.Text = $"{players.Count.ToString(CultureInfo.InvariantCulture)}/{(maxPlayers > 0 ? maxPlayers.ToString(CultureInfo.InvariantCulture) : "--")}";
 
         UpdateDashboardUptimeItems(runningStatuses);
+    }
+
+    private void SynchronizeDashboardServerItems(IReadOnlyList<DashboardServerItem> desiredItems)
+    {
+        for (var index = _dashboardServerItems.Count - 1; index >= 0; index--)
+        {
+            var existing = _dashboardServerItems[index];
+            if (!desiredItems.Any(item => ReferenceEquals(item, existing)))
+            {
+                _dashboardServerItems.RemoveAt(index);
+            }
+        }
+
+        for (var desiredIndex = 0; desiredIndex < desiredItems.Count; desiredIndex++)
+        {
+            var desiredItem = desiredItems[desiredIndex];
+            var currentIndex = _dashboardServerItems.IndexOf(desiredItem);
+            if (currentIndex < 0)
+            {
+                _dashboardServerItems.Insert(desiredIndex, desiredItem);
+                continue;
+            }
+
+            if (currentIndex != desiredIndex)
+            {
+                _dashboardServerItems.Move(currentIndex, desiredIndex);
+            }
+        }
     }
 
     private void EnsureDashboardSettings(InstanceProfile profile)
@@ -9246,25 +9277,79 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    public sealed class DashboardServerItem
+    public sealed class DashboardServerItem : INotifyPropertyChanged
     {
+        private string _profileName = string.Empty;
+        private string _version = string.Empty;
+        private bool _isRunning;
+        private string _statusText = string.Empty;
+        private IBrush _statusBrush = Brushes.Gray;
+        private string _summaryText = string.Empty;
+        private string _actionText = string.Empty;
+        private bool _isActionEnabled = true;
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
         public string ProfileId { get; init; } = string.Empty;
 
-        public string ProfileName { get; init; } = string.Empty;
+        public string ProfileName
+        {
+            get => _profileName;
+            set => SetField(ref _profileName, value);
+        }
 
-        public string Version { get; init; } = string.Empty;
+        public string Version
+        {
+            get => _version;
+            set => SetField(ref _version, value);
+        }
 
-        public bool IsRunning { get; init; }
+        public bool IsRunning
+        {
+            get => _isRunning;
+            set => SetField(ref _isRunning, value);
+        }
 
-        public string StatusText { get; init; } = string.Empty;
+        public string StatusText
+        {
+            get => _statusText;
+            set => SetField(ref _statusText, value);
+        }
 
-        public IBrush StatusBrush { get; init; } = Brushes.Gray;
+        public IBrush StatusBrush
+        {
+            get => _statusBrush;
+            set => SetField(ref _statusBrush, value);
+        }
 
-        public string SummaryText { get; init; } = string.Empty;
+        public string SummaryText
+        {
+            get => _summaryText;
+            set => SetField(ref _summaryText, value);
+        }
 
-        public string ActionText { get; init; } = string.Empty;
+        public string ActionText
+        {
+            get => _actionText;
+            set => SetField(ref _actionText, value);
+        }
 
-        public bool IsActionEnabled { get; init; } = true;
+        public bool IsActionEnabled
+        {
+            get => _isActionEnabled;
+            set => SetField(ref _isActionEnabled, value);
+        }
+
+        private void SetField<T>(ref T field, T value, [CallerMemberName] string propertyName = "")
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+            {
+                return;
+            }
+
+            field = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 
     public sealed class DashboardPlayerItem
