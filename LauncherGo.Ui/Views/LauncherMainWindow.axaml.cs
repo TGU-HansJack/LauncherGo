@@ -547,6 +547,7 @@ public partial class LauncherMainWindow : Window
         AutomationTabButton.Content = T("自动化", "Automation");
         ModsTabButton.Content = T("模组", "Mods");
         DownloadVersionsTabButton.Content = T("下载版本", "Downloads");
+        DownloadVersionsNavButton.Content = T("下载版本", "Downloads");
         ProfileNameTextBox.PlaceholderText = T("档案名称", "Profile name");
         CreateProfileButton.Content = T("创建", "Create");
         ImportProfileButton.Content = T("导入", "Import");
@@ -2657,6 +2658,10 @@ public partial class LauncherMainWindow : Window
         {
             _ = RefreshModsAsync();
         }
+        else if (tab == InstanceManageTab.DownloadVersions)
+        {
+            _ = RefreshDownloadVersionsAsync(forceReload: false);
+        }
     }
 
     private void SelectSettingsTab(SettingsTab tab)
@@ -2751,6 +2756,7 @@ public partial class LauncherMainWindow : Window
         SetSelectedClass(AutomationTabButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.Automation);
         SetSelectedClass(ModsTabButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.Mods);
         SetSelectedClass(DownloadVersionsTabButton, false);
+        SetSelectedClass(DownloadVersionsNavButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.DownloadVersions);
         SetSelectedClass(ConnectionAuthTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Auth);
         SetSelectedClass(LogsNavButton, _logsNavSelected);
         SetSelectedClass(ConnectionFrpTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Frp);

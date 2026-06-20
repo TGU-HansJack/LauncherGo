@@ -1037,6 +1037,7 @@
                                     <Button x:Name="AutomationTabButton" Classes="SidebarNavButton" Content="自动化" Click="OnAutomationSubTabClick" />
                                     <Button x:Name="ConnectionAuthTabButton" Classes="SidebarNavButton" Content="安全" Click="OnConnectionAuthTabClick" />
                                     <Button x:Name="LogsNavButton" Classes="SidebarNavButton" Content="日志" Click="OnLogsNavClick" />
+                                    <Button x:Name="DownloadVersionsNavButton" Classes="SidebarNavButton" Content="下载版本" Click="OnDownloadVersionsSubTabClick" />
 
                                     <TextBlock Classes="SidebarSectionTitle" Text="连接" />
                                     <Button x:Name="ConnectionOpenInfoTabButton" Classes="SidebarNavButton" Content="开放API" Click="OnConnectionOpenInfoTabClick" />
