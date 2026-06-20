@@ -1259,19 +1259,20 @@
                                         </Grid>
                                         <Grid Grid.Row="1" RowDefinitions="Auto,*">
                                             <Border Grid.Row="0" Classes="TableHeader">
-                                                <Grid ColumnDefinitions="44,1.1*,.8*,2.5*,2.2*" ColumnSpacing="8">
+                                                <Grid ColumnDefinitions="44,1.05*,.7*,2.2*,1.8*,Auto" ColumnSpacing="8">
                                                     <TextBlock Classes="TableHeaderText" Text="选择" HorizontalAlignment="Center" />
                                                     <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="档案" />
                                                     <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="版本" />
                                                     <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="档案目录" />
                                                     <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="当前存档" />
+                                                    <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
                                                 </Grid>
                                             </Border>
                                             <Border Grid.Row="1" Classes="TableBody">
                                                 <ListBox x:Name="ProfilesListBox" Classes="FlatList TableList" SelectionMode="Multiple">
                                                     <ListBox.ItemTemplate>
                                                         <DataTemplate>
-                                                            <Grid ColumnDefinitions="44,1.1*,.8*,2.5*,2.2*" ColumnSpacing="8">
+                                                            <Grid ColumnDefinitions="44,1.05*,.7*,2.2*,1.8*,Auto" ColumnSpacing="8">
                                                                 <CheckBox Classes="TableSelectCheck" IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}, Mode=TwoWay}" />
                                                                 <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding Name}" FontWeight="SemiBold" />
                                                                 <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding Version}" />
@@ -1279,6 +1280,7 @@
                                                                     <TextBlock Classes="TableCellText ProfileSubText" Text="{Binding DirectoryPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
                                                                 </Button>
                                                                 <TextBlock Grid.Column="4" Classes="TableCellText ProfileSubText" Text="{Binding ActiveSaveFile}" />
+                                                                <Button Grid.Column="5" Classes="SecondaryActionButton" Tag="{Binding}" Content="修改" Click="OnEditProfileConfigClick" />
                                                             </Grid>
                                                         </DataTemplate>
                                                     </ListBox.ItemTemplate>
@@ -1289,7 +1291,8 @@
 
                                     <Grid x:Name="ConfigPanel" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="8" IsVisible="False">
                                         <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
-                                            <ComboBox x:Name="ConfigProfileComboBox" Grid.Column="0" Classes="CompactCombo" SelectionChanged="OnConfigProfileSelectionChanged">
+                                            <Button x:Name="ConfigBackButton" Grid.Column="0" Classes="SecondaryActionButton" Content="返回" Click="OnConfigBackClick" />
+                                            <ComboBox x:Name="ConfigProfileComboBox" IsVisible="False" SelectionChanged="OnConfigProfileSelectionChanged">
                                                 <ComboBox.ItemTemplate>
                                                     <DataTemplate>
                                                         <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />

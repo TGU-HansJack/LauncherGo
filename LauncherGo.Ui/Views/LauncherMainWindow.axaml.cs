@@ -614,6 +614,7 @@ public partial class LauncherMainWindow : Window
 
     private void InitializeConfigStaticTexts()
     {
+        ConfigBackButton.Content = T("返回", "Back");
         ConfigRefreshButton.Content = T("刷新", "Refresh");
         ConfigImportButton.Content = T("导入", "Import");
         ConfigSaveButton.Content = T("保存", "Save");
@@ -4853,6 +4854,16 @@ public partial class LauncherMainWindow : Window
         SelectInstanceManageTab(InstanceManageTab.Config);
     }
 
+    private async void OnEditProfileConfigClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ProfileListItem item })
+        {
+            return;
+        }
+
+        await OpenProfileConfigEditorAsync(item.Id);
+    }
+
     private void OnSavesSubTabClick(object? sender, RoutedEventArgs e)
     {
         SelectTab(MainTab.InstanceManage);
@@ -6140,6 +6151,31 @@ public partial class LauncherMainWindow : Window
         await LoadConfigForProfileAsync(targetProfile);
     }
 
+    private async Task OpenProfileConfigEditorAsync(string profileId)
+    {
+        if (string.IsNullOrWhiteSpace(profileId))
+        {
+            SetConfigStatus(T("未找到要修改的档案。", "Profile to edit was not found."));
+            return;
+        }
+
+        var profile = _profileService.GetProfileById(profileId.Trim());
+        if (profile is null)
+        {
+            SetConfigStatus(T("未找到要修改的档案。", "Profile to edit was not found."));
+            return;
+        }
+
+        SelectInstanceManageTab(InstanceManageTab.Config);
+        var profiles = _profileService.GetProfiles();
+        ConfigProfileComboBox.ItemsSource = profiles;
+        var target = profiles.FirstOrDefault(item =>
+            item.Id.Equals(profile.Id, StringComparison.OrdinalIgnoreCase)) ?? profile;
+        ConfigProfileComboBox.SelectedItem = target;
+        SetConfigHasProfiles(profiles.Count > 0);
+        await LoadConfigForProfileAsync(target);
+    }
+
     private void SetConfigHasProfiles(bool hasProfiles)
     {
         ConfigScrollViewer.IsVisible = hasProfiles;
@@ -6409,7 +6445,19 @@ public partial class LauncherMainWindow : Window
 
     private async void OnConfigRefreshClick(object? sender, RoutedEventArgs e)
     {
-        await RefreshConfigProfilesAsync();
+        var profile = GetSelectedConfigProfile();
+        if (profile is null)
+        {
+            await RefreshConfigProfilesAsync();
+            return;
+        }
+
+        await LoadConfigForProfileAsync(profile);
+    }
+
+    private void OnConfigBackClick(object? sender, RoutedEventArgs e)
+    {
+        SelectInstanceManageTab(InstanceManageTab.Profiles);
     }
 
     private async void OnConfigImportClick(object? sender, RoutedEventArgs e)
