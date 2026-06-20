@@ -596,33 +596,51 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        var status = _serverProcessService.GetCurrentStatus();
-        if (status.IsRunning)
+        var preferences = _launcherPreferencesService.Load();
+        var profileIds = SplitProfileIds(preferences.AutoStartServerProfileIds, preferences.AutoStartServerProfileId);
+        if (profileIds.Count == 0)
         {
-            await ReplyAsync(runtime, eventPayload, "服务器已在运行。", cancellationToken);
-            return;
+            profileIds = SplitProfileIds(preferences.DefaultLaunchProfileIds, preferences.DefaultLaunchProfileId);
         }
 
-        var preferences = _launcherPreferencesService.Load();
-        var profileId = !string.IsNullOrWhiteSpace(preferences.AutoStartServerProfileId)
-            ? preferences.AutoStartServerProfileId
-            : preferences.DefaultLaunchProfileId;
-        if (string.IsNullOrWhiteSpace(profileId))
+        if (profileIds.Count == 0)
         {
             await ReplyAsync(runtime, eventPayload, "未设置服务器档案，请先在 LauncherGo 中设置默认档案或自启动档案。", cancellationToken);
             return;
         }
 
-        var profile = _instanceProfileService.GetProfileById(profileId.Trim());
-        if (profile is null)
+        var started = new List<string>();
+        var skipped = new List<string>();
+        foreach (var profileId in profileIds)
         {
-            await ReplyAsync(runtime, eventPayload, "配置的服务器档案不存在，请先在 LauncherGo 中检查档案设置。", cancellationToken);
-            return;
+            var profile = _instanceProfileService.GetProfileById(profileId.Trim());
+            if (profile is null)
+            {
+                continue;
+            }
+
+            if (_serverProcessService.GetCurrentStatus(profile.Id).IsRunning)
+            {
+                skipped.Add(profile.Name);
+                continue;
+            }
+
+            var launchableProfile = await EnsureLaunchableProfileAsync(profile, profile.ActiveSaveFile, cancellationToken);
+            await _serverProcessService.StartAsync(launchableProfile, cancellationToken);
+            started.Add(launchableProfile.Name);
         }
 
-        var launchableProfile = await EnsureLaunchableProfileAsync(profile, preferences.DefaultLaunchSaveFile, cancellationToken);
-        await _serverProcessService.StartAsync(launchableProfile, cancellationToken);
-        await ReplyAsync(runtime, eventPayload, $"已启动服务器：{launchableProfile.Name}", cancellationToken);
+        var message = started.Count == 0
+            ? skipped.Count == 0
+                ? "没有可启动的服务器档案。"
+                : $"配置的服务器已在运行：{string.Join("、", skipped)}"
+            : $"已启动服务器：{string.Join("、", started)}";
+        if (started.Count > 0 && skipped.Count > 0)
+        {
+            message += $"；已跳过运行中：{string.Join("、", skipped)}";
+        }
+
+        await ReplyAsync(runtime, eventPayload, message, cancellationToken);
     }
 
     private async Task HandleServerStopCommandAsync(
@@ -636,8 +654,10 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        var status = _serverProcessService.GetCurrentStatus();
-        if (!status.IsRunning)
+        var statuses = _serverProcessService.GetCurrentStatuses()
+            .Where(static status => status.IsRunning)
+            .ToList();
+        if (statuses.Count == 0)
         {
             await ReplyAsync(runtime, eventPayload, "服务器未运行。", cancellationToken);
             return;
@@ -645,6 +665,30 @@ public sealed class Vs2QQProcessService
 
         await _serverProcessService.StopAsync(TimeSpan.FromSeconds(15), cancellationToken);
         await ReplyAsync(runtime, eventPayload, "已停止服务器。", cancellationToken);
+    }
+
+    private static HashSet<string> SplitProfileIds(IEnumerable<string>? values, string legacyValue = "")
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var value in values ?? [])
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                result.Add(value.Trim());
+            }
+        }
+
+        foreach (var value in (legacyValue ?? string.Empty).Split(
+                     [';', ',', '|'],
+                     StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                result.Add(value.Trim());
+            }
+        }
+
+        return result;
     }
 
     private async Task SendToGameServerAsync(Vs2QQRuntimeContext runtime, long groupId, string message, CancellationToken cancellationToken)

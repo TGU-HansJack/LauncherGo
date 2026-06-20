@@ -67,6 +67,9 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
         var saveDirectory = LauncherPathHelper.GetSaveDirectory(workspaceRoot);
         var qqBotDirectory = LauncherPathHelper.GetQqBotDirectory(workspaceRoot);
 
+        var defaultLaunchProfileIds = NormalizeProfileIds(source.DefaultLaunchProfileIds, source.DefaultLaunchProfileId);
+        var autoStartServerProfileIds = NormalizeProfileIds(source.AutoStartServerProfileIds, source.AutoStartServerProfileId);
+
         return new LauncherPreferences
         {
             IsOnboardingCompleted = source.IsOnboardingCompleted,
@@ -82,18 +85,16 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             ServerDownloadCatalogUrl = NormalizeHttpUrlOrDefault(source.ServerDownloadCatalogUrl, defaults.ServerDownloadCatalogUrl),
             EnableChunkedDownloads = source.EnableChunkedDownloads,
             DownloadChunkCount = Math.Clamp(source.DownloadChunkCount <= 0 ? defaults.DownloadChunkCount : source.DownloadChunkCount, 1, 32),
-            DefaultLaunchProfileId = string.IsNullOrWhiteSpace(source.DefaultLaunchProfileId)
-                ? string.Empty
-                : source.DefaultLaunchProfileId.Trim(),
+            DefaultLaunchProfileId = string.Join(';', defaultLaunchProfileIds),
+            DefaultLaunchProfileIds = defaultLaunchProfileIds,
             DefaultLaunchSaveFile = NormalizeFilePathOrEmpty(source.DefaultLaunchSaveFile),
             QuickCommands = NormalizeQuickCommands(source.QuickCommands),
             StartWithWindows = source.StartWithWindows,
             CloseToTrayOnExit = source.CloseToTrayOnExit,
             StartHiddenOnLaunch = source.StartHiddenOnLaunch,
             AutoStartServerOnLaunch = source.AutoStartServerOnLaunch,
-            AutoStartServerProfileId = string.IsNullOrWhiteSpace(source.AutoStartServerProfileId)
-                ? string.Empty
-                : source.AutoStartServerProfileId.Trim(),
+            AutoStartServerProfileId = string.Join(';', autoStartServerProfileIds),
+            AutoStartServerProfileIds = autoStartServerProfileIds,
             AutoStartOpenServerQueryOnLaunch = source.AutoStartOpenServerQueryOnLaunch,
             AutoStartRobotOnLaunch = source.AutoStartRobotOnLaunch,
             AutoStartFrpOnLaunch = source.AutoStartFrpOnLaunch,
@@ -219,6 +220,37 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             OsqPollIntervalSec = Math.Clamp(source.OsqPollIntervalSec, 3, 300),
             OsqRequestTimeoutSec = Math.Clamp(source.OsqRequestTimeoutSec, 3, 60)
         };
+    }
+
+    private static List<string> NormalizeProfileIds(IEnumerable<string>? values, string? legacyValue = null)
+    {
+        var result = new List<string>();
+        foreach (var id in values ?? [])
+        {
+            AddProfileId(result, id);
+        }
+
+        if (!string.IsNullOrWhiteSpace(legacyValue))
+        {
+            foreach (var id in legacyValue.Split([';', ',', '|'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                AddProfileId(result, id);
+            }
+        }
+
+        return result;
+    }
+
+    private static void AddProfileId(List<string> result, string? id)
+    {
+        var normalized = id?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(normalized) ||
+            result.Any(existing => existing.Equals(normalized, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        result.Add(normalized);
     }
 
     private static string NormalizeQqIdText(string? value)

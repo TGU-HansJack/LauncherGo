@@ -177,6 +177,7 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<SettingsContributorItem> _settingsContributorItems = [];
     private readonly ObservableCollection<SettingsSponsorItem> _settingsSponsorItems = [];
     private readonly ObservableCollection<InstanceProfile> _automationProfileItems = [];
+    private readonly ObservableCollection<ProfileConfigListItem> _automationConfigItems = [];
     private readonly ObservableCollection<AutomationActionWindowItem> _automationActionWindowItems = [];
     private readonly ObservableCollection<AutomationTimeItem> _automationBackupTimeItems = [];
     private readonly ObservableCollection<ScheduledBroadcastItem> _automationBroadcastItems = [];
@@ -186,11 +187,23 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<InstanceProfile> _modProfileItems = [];
     private readonly ObservableCollection<ModListItem> _modItems = [];
     private readonly ObservableCollection<InstanceProfile> _authProfileItems = [];
+    private readonly ObservableCollection<ProfileConfigListItem> _authConfigItems = [];
     private readonly ObservableCollection<AuthPlayerListItem> _authPlayerItems = [];
+    private readonly ObservableCollection<ProfileConfigListItem> _robotConfigItems = [];
     private readonly ObservableCollection<string> _dashboardPlayerItems = [];
+    private readonly ObservableCollection<DashboardServerItem> _dashboardServerItems = [];
+    private readonly ObservableCollection<DashboardPlayerItem> _dashboardOnlinePlayerItems = [];
+    private readonly ObservableCollection<DashboardUptimeItem> _dashboardUptimeItems = [];
+    private readonly ObservableCollection<LaunchTargetItem> _launchTargetItems = [];
+    private readonly ObservableCollection<InstanceProfile> _launchAddProfileItems = [];
+    private readonly ObservableCollection<LaunchTargetItem> _settingsAutoStartTargetItems = [];
+    private readonly ObservableCollection<InstanceProfile> _settingsAutoStartAddProfileItems = [];
+    private readonly ObservableCollection<ConsoleServerItem> _consoleServerItems = [];
     private readonly List<ServerDownloadEntry> _catalogEntries = [];
     private readonly List<OsqEndpointEditorRow> _osqEndpointEditors = [];
     private readonly Dictionary<string, string> _configGameLanguageZh = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<string>> _consoleLinesByProfile = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ServerCommonSettings> _dashboardSettingsByProfile = new(StringComparer.OrdinalIgnoreCase);
 
     private MainTab _selectedTab = MainTab.Monitor;
     private HomeMetric _selectedMetric = HomeMetric.Server;
@@ -232,6 +245,10 @@ public partial class LauncherMainWindow : Window
     private string _replayedLogProfileId = string.Empty;
     private string _loadedConfigProfileId = string.Empty;
     private string _dashboardSettingsProfileId = string.Empty;
+    private string _selectedConsoleProfileId = string.Empty;
+    private string _editingAutomationProfileId = string.Empty;
+    private string _editingAuthProfileId = string.Empty;
+    private string _editingRobotProfileId = string.Empty;
     private int? _dashboardServerPort;
     private int? _dashboardMaxPlayers;
     private TimeSpan _robotLastProcessorTime;
@@ -316,6 +333,7 @@ public partial class LauncherMainWindow : Window
         _toastTimer.Tick += OnToastTimerTick;
 
         _serverProcessService.OutputReceived += OnServerOutputReceived;
+        _serverProcessService.ProfileOutputReceived += OnServerProfileOutputReceived;
         _serverProcessService.StatusChanged += OnServerStatusChanged;
         _logTailService.LogLineReceived += OnLogTailLineReceived;
         _automationService.RuntimeLogReceived += OnAutomationRuntimeLogReceived;
@@ -352,6 +370,7 @@ public partial class LauncherMainWindow : Window
             _homeSloganTimer.Stop();
             _toastTimer.Stop();
             _serverProcessService.OutputReceived -= OnServerOutputReceived;
+            _serverProcessService.ProfileOutputReceived -= OnServerProfileOutputReceived;
             _serverProcessService.StatusChanged -= OnServerStatusChanged;
             _logTailService.LogLineReceived -= OnLogTailLineReceived;
             _automationService.RuntimeLogReceived -= OnAutomationRuntimeLogReceived;
@@ -448,33 +467,40 @@ public partial class LauncherMainWindow : Window
     {
         try
         {
-            if (_serverProcessService.GetCurrentStatus().IsRunning)
+            var profileIds = SplitProfileIds(preferences.AutoStartServerProfileIds, preferences.AutoStartServerProfileId);
+            if (profileIds.Count == 0)
             {
-                return;
+                profileIds = SplitProfileIds(preferences.DefaultLaunchProfileIds, preferences.DefaultLaunchProfileId);
             }
 
-            var profileId = !string.IsNullOrWhiteSpace(preferences.AutoStartServerProfileId)
-                ? preferences.AutoStartServerProfileId
-                : preferences.DefaultLaunchProfileId;
-            if (string.IsNullOrWhiteSpace(profileId))
+            if (profileIds.Count == 0)
             {
                 LaunchSelectionSummaryTextBlock.Text = T("未设置自启动服务器档案", "No auto-start server profile configured");
                 return;
             }
 
-            var profile = _profileService.GetProfileById(profileId.Trim());
-            if (profile is null)
-            {
-                LaunchSelectionSummaryTextBlock.Text = T("自启动服务器档案不存在", "Auto-start server profile not found");
-                return;
-            }
-
-            var reloadedProfile = await EnsureLaunchableProfileSaveAsync(profile, preferences.DefaultLaunchSaveFile);
             SetLaunchOperationBusy(T("启动中...", "Starting..."));
             try
             {
                 SelectTab(MainTab.Console);
-                await _serverProcessService.StartAsync(reloadedProfile);
+                foreach (var profileId in profileIds)
+                {
+                    var profile = _profileService.GetProfileById(profileId.Trim());
+                    if (profile is null)
+                    {
+                        continue;
+                    }
+
+                    if (_serverProcessService.GetCurrentStatus(profile.Id).IsRunning)
+                    {
+                        continue;
+                    }
+
+                    var savePath = NormalizeFullPath(profile.ActiveSaveFile);
+
+                    var reloadedProfile = await EnsureLaunchableProfileSaveAsync(profile, savePath);
+                    await _serverProcessService.StartAsync(reloadedProfile);
+                }
             }
             finally
             {
@@ -500,22 +526,11 @@ public partial class LauncherMainWindow : Window
         QuickCommandComboBox.PlaceholderText = T("快捷命令", "Quick command");
         SendCommandButton.Content = T("发送", "Send");
 
-        DashboardServerTitleText.Text = T("服务器", "Server");
-        DashboardProfileLabelText.Text = T("档案名称", "Profile");
-        DashboardVersionLabelText.Text = T("版本号", "Version");
-        DashboardPortLabelText.Text = T("端口", "Port");
-        DashboardServerCpuLabelText.Text = T("服务器 CPU", "Server CPU");
-        DashboardServerMemoryLabelText.Text = T("服务器内存", "Server Memory");
         DashboardPlayersTitleText.Text = T("在线玩家", "Online Players");
         DashboardPlayersHintText.Text = T("玩家名称", "Player Names");
         DashboardServerLineLegendText.Text = T("服务器", "Server");
         DashboardRobotLineLegendText.Text = T("QQ机器人", "QQ Robot");
         DashboardUptimeTitleText.Text = T("运行时间", "Uptime");
-        DashboardServerUptimeLabelText.Text = T("服务器", "Server");
-        DashboardRobotUptimeLabelText.Text = T("QQ机器人", "QQ Robot");
-        DashboardOpenInfoUptimeLabelText.Text = T("开放API", "Open API");
-        DashboardFrpUptimeLabelText.Text = T("FRP", "FRP");
-        DashboardThirdPartyFrpcUptimeLabelText.Text = T("第三方FRP", "Third-party FRP");
 
         ProfilesTabButton.Content = T("实例", "Instance");
         ConfigTabButton.Content = T("配置", "Config");
@@ -567,6 +582,9 @@ public partial class LauncherMainWindow : Window
     {
         AutomationSaveButton.Content = T("保存", "Save");
         AutomationRefreshButton.Content = T("刷新", "Refresh");
+        AutomationListRefreshButton.Content = T("刷新", "Refresh");
+        AutomationClearButton.Content = T("清空", "Clear");
+        AutomationBackButton.Content = T("返回", "Back");
         AutomationRestartEnabledLabelTextBlock.Text = T("启用定时开关服", "Enable scheduled start/stop");
         AutomationBackupEnabledLabelTextBlock.Text = T("启用定时备份", "Enable scheduled backup");
         AutomationBackupBeforeShutdownLabelTextBlock.Text = T("关服前备份", "Backup before shutdown");
@@ -659,6 +677,7 @@ public partial class LauncherMainWindow : Window
         SettingsStartHiddenLabelTextBlock.Text = T("启动时隐藏到托盘", "Start hidden to tray");
         SettingsAutoStartServerLabelTextBlock.Text = T("启动时自动启动服务器", "Auto-start server on launch");
         SettingsAutoStartServerProfileLabelTextBlock.Text = T("自启动服务器档案", "Auto-start server profile");
+        SettingsAutoStartAddProfileComboBox.PlaceholderText = T("添加自启动服务器", "Add auto-start server");
         SettingsAutoStartOsqLabelTextBlock.Text = T("启动时自动启动开放信息", "Auto-start Open Info on launch");
         SettingsAutoStartRobotLabelTextBlock.Text = T("启动时自动启动QQ机器人", "Auto-start QQ robot on launch");
         SettingsAutoStartFrpLabelTextBlock.Text = T("启动时自动开启内网穿透（常规）", "Auto-start FRP (regular) on launch");
@@ -743,8 +762,13 @@ public partial class LauncherMainWindow : Window
         RobotOsqSourceHintTextBlock.Text = T(
             "OSQ 来源由“开放信息”页面统一接收，机器人不再单独监听端口。",
             "OSQ source is received by Open Info; the robot does not listen on its own port.");
+        RobotClearButton.Content = T("清空", "Clear");
+        RobotRefreshButton.Content = T("刷新", "Refresh");
+        RobotBackButton.Content = T("返回", "Back");
         AuthSaveButton.Content = T("保存", "Save");
         AuthRefreshButton.Content = T("刷新", "Refresh");
+        AuthClearButton.Content = T("清空", "Clear");
+        AuthBackButton.Content = T("返回", "Back");
         AuthDeployButton.Content = T("部署认证模组", "Deploy Auth Mod");
         AuthEnabledLabelTextBlock.Text = T("启用认证", "Enable Auth");
         AuthLoginTimeoutLabelTextBlock.Text = T("登录超时秒数", "Login Timeout Seconds");
@@ -791,6 +815,7 @@ public partial class LauncherMainWindow : Window
         ConnectionThirdPartyFrpcModeComboBox.ItemsSource = _thirdPartyFrpcModeOptions;
         SettingsContributorsItemsControl.ItemsSource = _settingsContributorItems;
         SettingsSponsorsItemsControl.ItemsSource = _settingsSponsorItems;
+        AutomationConfigItemsControl.ItemsSource = _automationConfigItems;
         AutomationProfileComboBox.ItemsSource = _automationProfileItems;
         AutomationActionsItemsControl.ItemsSource = _automationActionWindowItems;
         AutomationBackupTimesItemsControl.ItemsSource = _automationBackupTimeItems;
@@ -800,9 +825,18 @@ public partial class LauncherMainWindow : Window
         AutomationRuntimeLogsListBox.ItemsSource = _automationRuntimeLogItems;
         ModProfileComboBox.ItemsSource = _modProfileItems;
         ModsListBox.ItemsSource = _modItems;
+        RobotConfigItemsControl.ItemsSource = _robotConfigItems;
+        AuthConfigItemsControl.ItemsSource = _authConfigItems;
         AuthProfileComboBox.ItemsSource = _authProfileItems;
         AuthPlayersListBox.ItemsSource = _authPlayerItems;
-        DashboardPlayersItemsControl.ItemsSource = _dashboardPlayerItems;
+        DashboardServersItemsControl.ItemsSource = _dashboardServerItems;
+        DashboardOnlinePlayersItemsControl.ItemsSource = _dashboardOnlinePlayerItems;
+        DashboardUptimeItemsControl.ItemsSource = _dashboardUptimeItems;
+        LaunchTargetsItemsControl.ItemsSource = _launchTargetItems;
+        LaunchAddProfileComboBox.ItemsSource = _launchAddProfileItems;
+        SettingsAutoStartTargetsItemsControl.ItemsSource = _settingsAutoStartTargetItems;
+        SettingsAutoStartAddProfileComboBox.ItemsSource = _settingsAutoStartAddProfileItems;
+        ConsoleServerComboBox.ItemsSource = _consoleServerItems;
         RebuildConfigChoiceOptions();
         RebuildThirdPartyFrpcModeOptions();
     }
@@ -818,15 +852,17 @@ public partial class LauncherMainWindow : Window
 
     private void OnDataTimerTick(object? sender, EventArgs e)
     {
-        var status = _serverProcessService.GetCurrentStatus();
+        var statuses = _serverProcessService.GetCurrentStatuses();
+        var status = statuses.FirstOrDefault(s => s.IsRunning) ?? _serverProcessService.GetCurrentStatus();
         var robotStatus = _robotService.GetCurrentStatus();
         var robotResources = SampleRobotResources(robotStatus);
-        PushNextSample(_serverCpuSamples, status.IsRunning ? status.CpuPercent : 0);
-        var serverMemoryBytes = status.IsRunning
-            ? ResolveProcessMemory(status.ProcessId) ?? status.MemoryBytes
-            : 0;
-        PushNextSample(_serverMemoryMbSamples, BytesToMb(serverMemoryBytes));
-        PushNextSample(_playersSamples, status.IsRunning ? status.OnlinePlayers : 0);
+        var totalServerCpu = statuses.Where(s => s.IsRunning).Sum(s => s.CpuPercent);
+        var totalServerMemoryBytes = statuses
+            .Where(s => s.IsRunning)
+            .Sum(s => ResolveProcessMemory(s.ProcessId) ?? s.MemoryBytes);
+        PushNextSample(_serverCpuSamples, Math.Clamp(totalServerCpu, 0, 100));
+        PushNextSample(_serverMemoryMbSamples, BytesToMb(totalServerMemoryBytes));
+        PushNextSample(_playersSamples, statuses.Where(s => s.IsRunning).Sum(s => s.OnlinePlayers));
 
         PushNextSample(_robotCpuSamples, robotStatus.IsRunning ? robotResources.CpuPercent : 0);
         PushNextSample(_robotMemoryMbSamples, robotStatus.IsRunning ? BytesToMb(robotResources.MemoryBytes) : 0);
@@ -839,6 +875,8 @@ public partial class LauncherMainWindow : Window
         }
 
         UpdateCardValues(status);
+        UpdateMultiServerDashboard(statuses);
+        RefreshConsoleServerItems(statuses);
 
         if (_selectedTab == MainTab.Monitor)
         {
@@ -1016,10 +1054,14 @@ public partial class LauncherMainWindow : Window
         var robotMemMb = _robotMemoryMbSamples[^1];
         UpdateDashboard(status, robotStatus, serverCpu, serverMemMb, robotCpu, robotMemMb);
 
-        LaunchActionTextBlock.Text = status.IsRunning ? T("停止服务器", "Stop Server") : T("启动服务器", "Start Server");
-        LaunchActionIconPath.Data = Geometry.Parse(status.IsRunning ? LaunchStopIconData : LaunchStartIconData);
-        LaunchServerButton.Classes.Set("running", status.IsRunning);
-        RefreshLaunchButtonSummary(status.IsRunning);
+        var statuses = _serverProcessService.GetCurrentStatuses();
+        var hasRunningServer = statuses.Any(static current => current.IsRunning);
+        var hasPendingLaunchTargets = HasPendingLaunchTargets(statuses);
+        var stopMode = hasRunningServer && !hasPendingLaunchTargets;
+        LaunchActionTextBlock.Text = stopMode ? T("停止服务器", "Stop Server") : T("启动服务器", "Start Server");
+        LaunchActionIconPath.Data = Geometry.Parse(stopMode ? LaunchStopIconData : LaunchStartIconData);
+        LaunchServerButton.Classes.Set("running", stopMode);
+        RefreshLaunchButtonSummary();
     }
 
     private void UpdateDashboard(
@@ -1030,18 +1072,184 @@ public partial class LauncherMainWindow : Window
         double robotCpu,
         double robotMemMb)
     {
-        var profile = ResolveDashboardProfile(status);
-        EnsureDashboardServerSettings(profile);
+        UpdateMultiServerDashboard(_serverProcessService.GetCurrentStatuses());
+    }
 
-        DashboardProfileNameText.Text = string.IsNullOrWhiteSpace(profile?.Name) ? "--" : profile.Name;
-        DashboardVersionText.Text = string.IsNullOrWhiteSpace(profile?.Version) ? "--" : profile.Version;
-        DashboardPortText.Text = _dashboardServerPort?.ToString(CultureInfo.InvariantCulture) ?? "--";
-        DashboardServerCpuText.Text = $"{serverCpu:F1}%";
-        DashboardServerMemoryText.Text = $"{serverMemMb:F0} MB";
+    private void UpdateMultiServerDashboard(IReadOnlyList<ServerRuntimeStatus> statuses)
+    {
+        var runningStatuses = statuses.Where(static status => status.IsRunning).ToList();
+        _dashboardServerItems.Clear();
+        foreach (var status in runningStatuses)
+        {
+            var profile = ResolveDashboardProfile(status);
+            if (profile is not null)
+            {
+                EnsureDashboardSettings(profile);
+            }
 
-        UpdateDashboardStatus(status);
-        UpdateDashboardPlayers(status);
-        UpdateDashboardUptimes(status, robotStatus);
+            var profileId = status.ProfileId ?? profile?.Id ?? string.Empty;
+            _dashboardSettingsByProfile.TryGetValue(profileId, out var settings);
+            _dashboardServerItems.Add(new DashboardServerItem
+            {
+                ProfileId = profileId,
+                ProfileName = string.IsNullOrWhiteSpace(profile?.Name) ? profileId : profile.Name,
+                Version = string.IsNullOrWhiteSpace(profile?.Version) ? "--" : profile.Version,
+                StatusText = _isStoppingOrStarting ? T("加载中", "Loading") : T("正在运行", "Running"),
+                StatusBrush = new SolidColorBrush(Color.Parse(_isStoppingOrStarting ? "#F59E0B" : "#16A34A")),
+                SummaryText = T(
+                    $"端口 {settings?.Port.ToString(CultureInfo.InvariantCulture) ?? "--"}  CPU {status.CpuPercent:F1}%  内存 {BytesToMb(status.MemoryBytes):F0} MB",
+                    $"Port {settings?.Port.ToString(CultureInfo.InvariantCulture) ?? "--"}  CPU {status.CpuPercent:F1}%  Mem {BytesToMb(status.MemoryBytes):F0} MB")
+            });
+        }
+
+        if (_dashboardServerItems.Count == 0)
+        {
+            _dashboardServerItems.Add(new DashboardServerItem
+            {
+                ProfileName = T("暂无运行中的服务器", "No running servers"),
+                Version = "--",
+                StatusText = T("已停止", "Stopped"),
+                StatusBrush = new SolidColorBrush(Color.Parse("#DC2626")),
+                SummaryText = T("可在底部添加并启动服务器。", "Add and start servers from the footer.")
+            });
+        }
+
+        var players = _serverProcessService.GetOnlinePlayers();
+        _dashboardOnlinePlayerItems.Clear();
+        foreach (var player in players)
+        {
+            _dashboardOnlinePlayerItems.Add(DashboardPlayerItem.FromModel(player));
+        }
+
+        if (_dashboardOnlinePlayerItems.Count == 0)
+        {
+            _dashboardOnlinePlayerItems.Add(new DashboardPlayerItem
+            {
+                PlayerName = T("暂无在线玩家", "No online players"),
+                ProfileName = "--",
+                JoinedAtText = "--"
+            });
+        }
+
+        var maxPlayers = statuses
+            .Select(status =>
+            {
+                var id = status.ProfileId ?? string.Empty;
+                return _dashboardSettingsByProfile.TryGetValue(id, out var settings) ? settings.MaxClients : 0;
+            })
+            .Sum();
+        DashboardPlayersCountText.Text = $"{players.Count.ToString(CultureInfo.InvariantCulture)}/{(maxPlayers > 0 ? maxPlayers.ToString(CultureInfo.InvariantCulture) : "--")}";
+
+        UpdateDashboardUptimeItems(runningStatuses);
+    }
+
+    private void EnsureDashboardSettings(InstanceProfile profile)
+    {
+        if (_dashboardSettingsByProfile.ContainsKey(profile.Id))
+        {
+            return;
+        }
+
+        _ = RefreshDashboardSettingsAsync(profile);
+    }
+
+    private async Task RefreshDashboardSettingsAsync(InstanceProfile profile)
+    {
+        try
+        {
+            var settings = await _instanceServerConfigService.LoadServerSettingsAsync(profile);
+            Dispatcher.UIThread.Post(() =>
+            {
+                _dashboardSettingsByProfile[profile.Id] = settings;
+                UpdateMultiServerDashboard(_serverProcessService.GetCurrentStatuses());
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to load dashboard settings for profile {ProfileId}", profile.Id);
+        }
+    }
+
+    private void UpdateDashboardUptimeItems(IReadOnlyList<ServerRuntimeStatus> runningStatuses)
+    {
+        _dashboardUptimeItems.Clear();
+        foreach (var status in runningStatuses)
+        {
+            var profile = ResolveDashboardProfile(status);
+            _dashboardUptimeItems.Add(new DashboardUptimeItem
+            {
+                Name = string.IsNullOrWhiteSpace(profile?.Name) ? status.ProfileId ?? T("服务器", "Server") : profile.Name,
+                UptimeText = FormatConnectionUptime(status.StartedAtUtc)
+            });
+        }
+
+        var robotStatus = _robotService.GetCurrentStatus();
+        _dashboardUptimeItems.Add(new DashboardUptimeItem
+        {
+            Name = T("QQ机器人", "QQ Robot"),
+            UptimeText = robotStatus.IsRunning ? FormatConnectionUptime(robotStatus.StartedAtUtc) : "--"
+        });
+
+        var openInfoStatus = _openServerQueryService.GetRuntimeStatus();
+        _dashboardUptimeItems.Add(new DashboardUptimeItem
+        {
+            Name = T("开放API", "Open API"),
+            UptimeText = openInfoStatus.IsListening ? FormatConnectionUptime(ParseRuntimeStartedAtUtc(openInfoStatus.StartedAtUtc)) : "--"
+        });
+
+        var frpStatus = _frpService.GetCurrentStatus();
+        var thirdPartyStatus = _thirdPartyFrpcService.GetCurrentStatus();
+        _dashboardUptimeItems.Add(new DashboardUptimeItem
+        {
+            Name = T("FRP", "FRP"),
+            UptimeText = frpStatus.IsRunning ? FormatConnectionUptime(frpStatus.StartedAtUtc) : "--"
+        });
+        _dashboardUptimeItems.Add(new DashboardUptimeItem
+        {
+            Name = T("第三方FRP", "Third-party FRP"),
+            UptimeText = thirdPartyStatus.IsRunning ? FormatConnectionUptime(thirdPartyStatus.StartedAtUtc) : "--"
+        });
+    }
+
+    private void RefreshConsoleServerItems(IReadOnlyList<ServerRuntimeStatus> statuses)
+    {
+        var runningStatuses = statuses.Where(static status => status.IsRunning).ToList();
+        var previousSelected = _selectedConsoleProfileId;
+        _consoleServerItems.Clear();
+        foreach (var status in runningStatuses)
+        {
+            var profile = ResolveDashboardProfile(status);
+            var profileId = status.ProfileId ?? profile?.Id ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(profileId))
+            {
+                continue;
+            }
+
+            _consoleServerItems.Add(new ConsoleServerItem
+            {
+                ProfileId = profileId,
+                DisplayName = string.IsNullOrWhiteSpace(profile?.Name) ? profileId : profile.Name
+            });
+        }
+
+        var selected = _consoleServerItems.FirstOrDefault(item =>
+                           !string.IsNullOrWhiteSpace(previousSelected) &&
+                           item.ProfileId.Equals(previousSelected, StringComparison.OrdinalIgnoreCase))
+                       ?? _consoleServerItems.FirstOrDefault();
+        if (selected is null)
+        {
+            _selectedConsoleProfileId = string.Empty;
+            ConsoleServerComboBox.SelectedIndex = -1;
+            RefreshConsoleText();
+            return;
+        }
+
+        if (selected is not null && !selected.ProfileId.Equals(_selectedConsoleProfileId, StringComparison.OrdinalIgnoreCase))
+        {
+            _selectedConsoleProfileId = selected.ProfileId;
+            ConsoleServerComboBox.SelectedItem = selected;
+            RefreshConsoleText();
+        }
     }
 
     private InstanceProfile? ResolveDashboardProfile(ServerRuntimeStatus status)
@@ -1056,9 +1264,10 @@ public partial class LauncherMainWindow : Window
         }
 
         var preferences = _preferencesService.Load();
-        if (!string.IsNullOrWhiteSpace(preferences.DefaultLaunchProfileId))
+        var defaultProfileId = SplitProfileIds(preferences.DefaultLaunchProfileIds, preferences.DefaultLaunchProfileId).FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(defaultProfileId))
         {
-            var defaultProfile = _profileService.GetProfileById(preferences.DefaultLaunchProfileId.Trim());
+            var defaultProfile = _profileService.GetProfileById(defaultProfileId);
             if (defaultProfile is not null)
             {
                 return defaultProfile;
@@ -1103,8 +1312,7 @@ public partial class LauncherMainWindow : Window
 
                 _dashboardServerPort = settings.Port;
                 _dashboardMaxPlayers = settings.MaxClients;
-                UpdateDashboardPlayers(_serverProcessService.GetCurrentStatus());
-                DashboardPortText.Text = _dashboardServerPort?.ToString(CultureInfo.InvariantCulture) ?? "--";
+                UpdateMultiServerDashboard(_serverProcessService.GetCurrentStatuses());
             });
         }
         catch (Exception ex)
@@ -1115,22 +1323,7 @@ public partial class LauncherMainWindow : Window
 
     private void UpdateDashboardStatus(ServerRuntimeStatus status)
     {
-        if (_isStoppingOrStarting)
-        {
-            DashboardStatusText.Text = T("加载中", "Loading");
-            DashboardStatusDot.Background = new SolidColorBrush(Color.Parse("#F59E0B"));
-            return;
-        }
-
-        if (status.IsRunning)
-        {
-            DashboardStatusText.Text = T("正在运行", "Running");
-            DashboardStatusDot.Background = new SolidColorBrush(Color.Parse("#16A34A"));
-            return;
-        }
-
-        DashboardStatusText.Text = T("已停止", "Stopped");
-        DashboardStatusDot.Background = new SolidColorBrush(Color.Parse("#DC2626"));
+        UpdateMultiServerDashboard(_serverProcessService.GetCurrentStatuses());
     }
 
     private void UpdateDashboardPlayers(ServerRuntimeStatus status)
@@ -1186,20 +1379,7 @@ public partial class LauncherMainWindow : Window
 
     private void UpdateDashboardUptimes(ServerRuntimeStatus status, RobotRuntimeStatus robotStatus)
     {
-        DashboardServerUptimeText.Text = status.IsRunning ? FormatConnectionUptime(status.StartedAtUtc) : "--";
-        DashboardRobotUptimeText.Text = robotStatus.IsRunning ? FormatConnectionUptime(robotStatus.StartedAtUtc) : "--";
-
-        var openInfoStatus = _openServerQueryService.GetRuntimeStatus();
-        DashboardOpenInfoUptimeText.Text = openInfoStatus.IsListening
-            ? FormatConnectionUptime(ParseRuntimeStartedAtUtc(openInfoStatus.StartedAtUtc))
-            : "--";
-
-        var frpStatus = _frpService.GetCurrentStatus();
-        var thirdPartyStatus = _thirdPartyFrpcService.GetCurrentStatus();
-        _isFrpRunning = frpStatus.IsRunning;
-        _isThirdPartyFrpcRunning = thirdPartyStatus.IsRunning;
-        DashboardFrpUptimeText.Text = frpStatus.IsRunning ? FormatConnectionUptime(frpStatus.StartedAtUtc) : "--";
-        DashboardThirdPartyFrpcUptimeText.Text = thirdPartyStatus.IsRunning ? FormatConnectionUptime(thirdPartyStatus.StartedAtUtc) : "--";
+        UpdateDashboardUptimeItems(_serverProcessService.GetCurrentStatuses().Where(static s => s.IsRunning).ToList());
     }
 
     private static DateTimeOffset? ParseRuntimeStartedAtUtc(string value)
@@ -1262,6 +1442,7 @@ public partial class LauncherMainWindow : Window
     private void RenderDashboardResourceChart(ServerRuntimeStatus status)
     {
         var robotStatus = _robotService.GetCurrentStatus();
+        var hasRunningServer = _serverProcessService.GetCurrentStatuses().Any(static current => current.IsRunning);
         var serverCpu = _serverCpuSamples[^1];
         var robotCpu = _robotCpuSamples[^1];
         var serverMemoryMb = _serverMemoryMbSamples[^1];
@@ -1273,7 +1454,7 @@ public partial class LauncherMainWindow : Window
         RenderDualLineChart(
             title: T("资源监控", "Resource Monitor"),
             topValue: T($"{serverMemoryMb:F0} MB / {robotMemoryMb:F0} MB", $"{serverMemoryMb:F0} MB / {robotMemoryMb:F0} MB"),
-            summary: T("60 秒区间，蓝线为服务器内存占用，绿线为 QQ 机器人内存占用。", "60-second range. Blue is server memory usage; green is QQ robot memory usage."),
+            summary: T("60 秒区间，蓝线为服务器总内存占用，绿线为 QQ 机器人内存占用。", "60-second range. Blue is total server memory usage; green is QQ robot memory usage."),
             primary: _serverMemoryMbSamples,
             secondary: _robotMemoryMbSamples,
             yMin: 0,
@@ -1282,8 +1463,8 @@ public partial class LauncherMainWindow : Window
             xHint: T("60 秒", "60 seconds"),
             details:
             [
-                (T("服务器 CPU", "Server CPU"), status.IsRunning ? $"{serverCpu:F1}%" : "--"),
-                (T("服务器内存", "Server Memory"), status.IsRunning ? $"{serverMemoryMb:F0} MB" : "--"),
+                (T("服务器总 CPU", "Total Server CPU"), hasRunningServer ? $"{serverCpu:F1}%" : "--"),
+                (T("服务器总内存", "Total Server Memory"), hasRunningServer ? $"{serverMemoryMb:F0} MB" : "--"),
                 (T("机器人 CPU", "Robot CPU"), robotStatus.IsRunning ? $"{robotCpu:F1}%" : "--"),
                 (T("机器人内存", "Robot Memory"), robotStatus.IsRunning ? $"{robotMemoryMb:F0} MB" : "--")
             ]);
@@ -1541,7 +1722,112 @@ public partial class LauncherMainWindow : Window
 
     private void RefreshLaunchOptions(IReadOnlyList<InstanceProfile>? profiles = null)
     {
+        RefreshLaunchTargetItems(profiles ?? _profileService.GetProfiles());
         RefreshLaunchButtonSummary();
+    }
+
+    private void RefreshLaunchTargetItems(IReadOnlyList<InstanceProfile>? profiles = null)
+    {
+        var profileList = profiles ?? _profileService.GetProfiles();
+        var selectedIds = LoadLaunchProfileIds();
+        _launchTargetItems.Clear();
+        foreach (var profile in profileList.Where(profile => selectedIds.Contains(profile.Id)))
+        {
+            _launchTargetItems.Add(new LaunchTargetItem
+            {
+                ProfileId = profile.Id,
+                DisplayName = profile.Name
+            });
+        }
+
+        _launchAddProfileItems.Clear();
+        foreach (var profile in profileList.Where(profile => !selectedIds.Contains(profile.Id)))
+        {
+            _launchAddProfileItems.Add(profile);
+        }
+    }
+
+    private HashSet<string> LoadLaunchProfileIds()
+    {
+        var preferences = _preferencesService.Load();
+        var ids = SplitProfileIds(preferences.DefaultLaunchProfileIds, preferences.DefaultLaunchProfileId);
+        return ids.Count > 0 ? ids : [];
+    }
+
+    private string GetPrimaryLaunchProfileId()
+    {
+        var preferences = _preferencesService.Load();
+        return SplitProfileIds(preferences.DefaultLaunchProfileIds, preferences.DefaultLaunchProfileId).FirstOrDefault() ?? string.Empty;
+    }
+
+    private static HashSet<string> SplitProfileIds(string value)
+    {
+        return value
+            .Split([';', ',', '|'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(static id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static HashSet<string> SplitProfileIds(IEnumerable<string>? values, string legacyValue = "")
+    {
+        var result = SplitProfileIds(legacyValue);
+        foreach (var value in values ?? [])
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                result.Add(value.Trim());
+            }
+        }
+
+        return result;
+    }
+
+    private void SaveLaunchProfileIds(IEnumerable<string> profileIds)
+    {
+        var preferences = _preferencesService.Load();
+        var ids = profileIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        preferences.DefaultLaunchProfileIds = ids;
+        preferences.DefaultLaunchProfileId = string.Join(';', ids);
+        _preferencesService.Save(preferences);
+        RefreshLaunchTargetItems();
+        RefreshLaunchButtonSummary();
+    }
+
+    private HashSet<string> LoadAutoStartProfileIds()
+    {
+        var preferences = _preferencesService.Load();
+        return SplitProfileIds(preferences.AutoStartServerProfileIds, preferences.AutoStartServerProfileId);
+    }
+
+    private void SaveAutoStartProfileIds(IEnumerable<string> profileIds)
+    {
+        var preferences = _preferencesService.Load();
+        var ids = profileIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        preferences.AutoStartServerProfileIds = ids;
+        preferences.AutoStartServerProfileId = string.Join(';', ids);
+        _preferencesService.Save(preferences);
+        RefreshSettingsAutoStartTargetItems();
+    }
+
+    private void RefreshSettingsAutoStartTargetItems(IReadOnlyList<InstanceProfile>? profiles = null)
+    {
+        var profileList = profiles ?? _profileService.GetProfiles();
+        var selectedIds = LoadAutoStartProfileIds();
+        _settingsAutoStartTargetItems.Clear();
+        foreach (var profile in profileList.Where(profile => selectedIds.Contains(profile.Id)))
+        {
+            _settingsAutoStartTargetItems.Add(new LaunchTargetItem
+            {
+                ProfileId = profile.Id,
+                DisplayName = profile.Name
+            });
+        }
+
+        _settingsAutoStartAddProfileItems.Clear();
+        foreach (var profile in profileList.Where(profile => !selectedIds.Contains(profile.Id)))
+        {
+            _settingsAutoStartAddProfileItems.Add(profile);
+        }
     }
 
     private async Task RefreshAutomationAsync()
@@ -1556,15 +1842,18 @@ public partial class LauncherMainWindow : Window
         {
             var preferences = _preferencesService.Load();
             var profiles = _profileService.GetProfiles();
-            var selectedProfileId = AutomationProfileComboBox.SelectedItem is InstanceProfile selectedProfile
-                ? selectedProfile.Id
-                : string.Empty;
+            var selectedProfileId = !string.IsNullOrWhiteSpace(_editingAutomationProfileId)
+                ? _editingAutomationProfileId
+                : AutomationProfileComboBox.SelectedItem is InstanceProfile selectedProfile
+                    ? selectedProfile.Id
+                    : string.Empty;
             _automationProfileItems.Clear();
             foreach (var profile in profiles)
             {
                 _automationProfileItems.Add(profile);
             }
 
+            RefreshAutomationConfigItems(profiles);
             AutomationProfileComboBox.ItemsSource = _automationProfileItems;
             if (_automationProfileItems.Count > 0)
             {
@@ -1572,13 +1861,17 @@ public partial class LauncherMainWindow : Window
                     !string.IsNullOrWhiteSpace(selectedProfileId) &&
                     profile.Id.Equals(selectedProfileId, StringComparison.OrdinalIgnoreCase))
                     ?? _automationProfileItems.FirstOrDefault(profile =>
-                        profile.Id.Equals(preferences.DefaultLaunchProfileId, StringComparison.OrdinalIgnoreCase))
+                        SplitProfileIds(preferences.DefaultLaunchProfileIds, preferences.DefaultLaunchProfileId).Contains(profile.Id))
                     ?? _automationProfileItems.FirstOrDefault();
                 AutomationProfileComboBox.SelectedItem = target;
             }
 
-            var settings = await _automationSettingsService.LoadAsync();
-            ApplyAutomationSettings(settings);
+            if (AutomationEditorPanel.IsVisible &&
+                AutomationProfileComboBox.SelectedItem is InstanceProfile editorProfile)
+            {
+                var settings = await _automationSettingsService.LoadAsync(editorProfile);
+                ApplyAutomationSettings(settings);
+            }
             SetAutomationStatus(T("自动化配置已加载。", "Automation settings loaded."), notify: false);
             await SyncAutomationRuntimeLogsAsync();
         }
@@ -1696,9 +1989,16 @@ public partial class LauncherMainWindow : Window
     {
         try
         {
+            if (AutomationProfileComboBox.SelectedItem is not InstanceProfile profile)
+            {
+                SetAutomationStatus(T("请先选择档案。", "Select a profile first."));
+                return;
+            }
+
             var settings = CollectAutomationSettings();
-            await _automationSettingsService.SaveAsync(settings);
+            await _automationSettingsService.SaveAsync(profile, settings);
             await _automationService.ReloadAsync();
+            RefreshAutomationConfigItems();
             SetAutomationStatus(T("自动化配置已保存。", "Automation settings saved."));
         }
         catch (Exception ex)
@@ -1732,6 +2032,126 @@ public partial class LauncherMainWindow : Window
         {
             ShowToast(message);
         }
+    }
+
+    private void ShowAutomationList()
+    {
+        _editingAutomationProfileId = string.Empty;
+        AutomationListPanel.IsVisible = true;
+        AutomationEditorPanel.IsVisible = false;
+        RefreshAutomationConfigItems();
+    }
+
+    private async Task ShowAutomationEditorAsync(InstanceProfile profile)
+    {
+        _editingAutomationProfileId = profile.Id;
+        AutomationListPanel.IsVisible = false;
+        AutomationEditorPanel.IsVisible = true;
+        AutomationProfileComboBox.SelectedItem = _automationProfileItems.FirstOrDefault(item =>
+            item.Id.Equals(profile.Id, StringComparison.OrdinalIgnoreCase)) ?? profile;
+        var settings = await _automationSettingsService.LoadAsync(profile);
+        ApplyAutomationSettings(settings);
+        SetAutomationStatus(T($"正在编辑自动化配置：{profile.Name}", $"Editing automation: {profile.Name}"), notify: false);
+    }
+
+    private void ShowRobotList()
+    {
+        _editingRobotProfileId = string.Empty;
+        RobotListPanel.IsVisible = true;
+        RobotEditorPanel.IsVisible = false;
+        RobotBackButton.IsVisible = false;
+        RefreshRobotConfigItems();
+    }
+
+    private void ShowRobotEditor(ProfileConfigListItem? item = null)
+    {
+        _editingRobotProfileId = item?.ProfileId ?? string.Empty;
+        RobotListPanel.IsVisible = false;
+        RobotEditorPanel.IsVisible = true;
+        RobotBackButton.IsVisible = true;
+        ApplyRobotSettings(_preferencesService.Load().Robot);
+    }
+
+    private void ShowAuthList()
+    {
+        _editingAuthProfileId = string.Empty;
+        AuthListPanel.IsVisible = true;
+        AuthEditorPanel.IsVisible = false;
+        AuthBackButton.IsVisible = false;
+        AuthSaveButton.IsVisible = false;
+        AuthDeployButton.IsVisible = false;
+        RefreshAuthConfigItems();
+    }
+
+    private async Task ShowAuthEditorAsync(InstanceProfile profile)
+    {
+        _editingAuthProfileId = profile.Id;
+        AuthListPanel.IsVisible = false;
+        AuthEditorPanel.IsVisible = true;
+        AuthBackButton.IsVisible = true;
+        AuthSaveButton.IsVisible = true;
+        AuthDeployButton.IsVisible = true;
+        AuthProfileComboBox.SelectedItem = _authProfileItems.FirstOrDefault(item =>
+            item.Id.Equals(profile.Id, StringComparison.OrdinalIgnoreCase)) ?? profile;
+        await LoadAuthForProfileAsync(profile);
+    }
+
+    private static AutomationSettings BuildClearedAutomationSettings(string profileId)
+    {
+        return new AutomationSettings
+        {
+            TargetProfileId = profileId,
+            RestartSchedulerEnabled = false,
+            BackupEnabled = false,
+            BroadcastEnabled = false,
+            CommandEnabled = false,
+            ExportLogEnabled = false,
+            BackupBeforeShutdown = false,
+            ExportBeforeShutdown = false,
+            ExportIncludeChat = false,
+            ExportIncludeServerInfo = false,
+            ActionWindows = [],
+            BackupTimes = [],
+            BroadcastMessages = [],
+            ScheduledCommands = [],
+            ExportTimes = []
+        };
+    }
+
+    private static RobotIntegrationSettings BuildClearedRobotSettings()
+    {
+        return new RobotIntegrationSettings
+        {
+            OneBotWsUrl = "ws://127.0.0.1:3001/",
+            AccessToken = string.Empty,
+            BoundGroupIdsText = string.Empty,
+            ReconnectIntervalSec = 5,
+            DatabasePath = string.Empty,
+            PollIntervalSec = 1.0,
+            DefaultEncoding = "utf-8",
+            FallbackEncoding = "gbk",
+            SuperUsersText = string.Empty,
+            OsqPollIntervalSec = 20,
+            OsqRequestTimeoutSec = 8
+        };
+    }
+
+    private static ServerAuthSettings BuildClearedAuthSettings()
+    {
+        return new ServerAuthSettings
+        {
+            Enabled = false,
+            LoginTimeoutSeconds = 60,
+            RememberSessionMinutes = 0,
+            Discourse = new ServerAuthDiscourseSettings
+            {
+                Enabled = false,
+                BaseUrl = string.Empty,
+                SharedSecret = string.Empty,
+                PublicCallbackBaseUrl = "http://127.0.0.1:18092/",
+                ListenPrefix = "http://127.0.0.1:18092/"
+            }
+        };
     }
 
     private async Task SyncAutomationRuntimeLogsAsync()
@@ -1820,15 +2240,18 @@ public partial class LauncherMainWindow : Window
         try
         {
             var profiles = _profileService.GetProfiles();
-            var selectedProfileId = AuthProfileComboBox.SelectedItem is InstanceProfile selectedProfile
-                ? selectedProfile.Id
-                : string.Empty;
+            var selectedProfileId = !string.IsNullOrWhiteSpace(_editingAuthProfileId)
+                ? _editingAuthProfileId
+                : AuthProfileComboBox.SelectedItem is InstanceProfile selectedProfile
+                    ? selectedProfile.Id
+                    : string.Empty;
             _authProfileItems.Clear();
             foreach (var profile in profiles)
             {
                 _authProfileItems.Add(profile);
             }
 
+            RefreshAuthConfigItems(profiles);
             AuthProfileComboBox.ItemsSource = _authProfileItems;
             if (_authProfileItems.Count == 0)
             {
@@ -1842,7 +2265,7 @@ public partial class LauncherMainWindow : Window
                 profile.Id.Equals(selectedProfileId, StringComparison.OrdinalIgnoreCase))
                 ?? _authProfileItems.FirstOrDefault();
             AuthProfileComboBox.SelectedItem = target;
-            if (target is not null)
+            if (target is not null && AuthEditorPanel.IsVisible)
             {
                 await LoadAuthForProfileAsync(target);
             }
@@ -1908,29 +2331,81 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private void RefreshLaunchButtonSummary(bool? isRunning = null)
+    private void RefreshLaunchButtonSummary()
     {
-        if (isRunning ?? _serverProcessService.GetCurrentStatus().IsRunning)
+        var statuses = _serverProcessService.GetCurrentStatuses();
+        var runningStatuses = statuses.Where(static status => status.IsRunning).ToList();
+        var runningIds = runningStatuses
+            .Select(static status => status.ProfileId ?? string.Empty)
+            .Where(static id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var selectedIds = LoadLaunchProfileIds();
+        var pendingCount = selectedIds.Count(id => !runningIds.Contains(id));
+        if (pendingCount > 0)
         {
-            LaunchSelectionSummaryTextBlock.Text = T("运行中 | 点击停止", "Running | Click to stop");
+            LaunchSelectionSummaryTextBlock.Text = runningStatuses.Count > 0
+                ? T($"运行中 {runningStatuses.Count} 个 | 待启动 {pendingCount} 个", $"{runningStatuses.Count} running | {pendingCount} pending")
+                : T($"准备启动 {pendingCount} 个", $"{pendingCount} selected");
             LaunchSelectionPillHost.Classes.Set("expanded", false);
             return;
         }
 
-        if (!TryGetLockedLaunchTarget(out var profile, out var lockedSavePath))
+        if (runningStatuses.Count > 0)
         {
-            LaunchSelectionSummaryTextBlock.Text = T("未锁定默认存档", "No default save locked");
+            LaunchSelectionSummaryTextBlock.Text = T($"运行中 {runningStatuses.Count} 个 | 点击停止", $"{runningStatuses.Count} running | Click to stop");
             LaunchSelectionPillHost.Classes.Set("expanded", false);
             return;
         }
 
-        var profileName = string.IsNullOrWhiteSpace(profile.Name) ? T("未选择档案", "No profile") : profile.Name;
-        var fileName = Path.GetFileName(lockedSavePath);
-        var saveName = string.IsNullOrWhiteSpace(fileName)
-            ? (string.IsNullOrWhiteSpace(lockedSavePath) ? T("未固定存档", "No fixed save") : lockedSavePath)
-            : fileName;
-        LaunchSelectionSummaryTextBlock.Text = $"{profileName} | {saveName}";
+        if (_launchTargetItems.Count == 0)
+        {
+            LaunchSelectionSummaryTextBlock.Text = T("未选择服务器", "No server selected");
+            LaunchSelectionPillHost.Classes.Set("expanded", false);
+            return;
+        }
+
+        LaunchSelectionSummaryTextBlock.Text = T($"准备启动 {_launchTargetItems.Count} 个", $"{_launchTargetItems.Count} selected");
         LaunchSelectionPillHost.Classes.Set("expanded", false);
+    }
+
+    private bool HasPendingLaunchTargets(IReadOnlyList<ServerRuntimeStatus> statuses)
+    {
+        var selectedIds = LoadLaunchProfileIds();
+        if (selectedIds.Count == 0)
+        {
+            return false;
+        }
+
+        var runningIds = statuses
+            .Where(static status => status.IsRunning)
+            .Select(static status => status.ProfileId ?? string.Empty)
+            .Where(static id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return selectedIds.Any(id => !runningIds.Contains(id));
+    }
+
+    private void RefreshAuthConfigItems(IReadOnlyList<InstanceProfile>? profiles = null)
+    {
+        var profileList = profiles ?? _profileService.GetProfiles();
+        _authConfigItems.Clear();
+        foreach (var profile in profileList)
+        {
+            _authConfigItems.Add(ProfileConfigListItem.FromPath(
+                profile,
+                GetAuthSettingsPath(profile)));
+        }
+    }
+
+    private void RefreshAutomationConfigItems(IReadOnlyList<InstanceProfile>? profiles = null)
+    {
+        var profileList = profiles ?? _profileService.GetProfiles();
+        _automationConfigItems.Clear();
+        foreach (var profile in profileList)
+        {
+            _automationConfigItems.Add(ProfileConfigListItem.FromPath(
+                profile,
+                _automationSettingsService.GetSettingsPath(profile)));
+        }
     }
 
     private async Task RefreshSavesAsync()
@@ -1946,9 +2421,6 @@ public partial class LauncherMainWindow : Window
             var selectedProfile = SaveProfileComboBox.SelectedItem;
             var profiles = _profileService.GetProfiles();
             var preferences = _preferencesService.Load();
-            var lockedProfileId = string.IsNullOrWhiteSpace(preferences.DefaultLaunchProfileId)
-                ? string.Empty
-                : preferences.DefaultLaunchProfileId.Trim();
             var lockedSavePath = NormalizeFullPath(preferences.DefaultLaunchSaveFile);
             var saveProfileItems = new List<object> { T("全部档案", "All profiles") };
             saveProfileItems.AddRange(profiles);
@@ -1968,10 +2440,16 @@ public partial class LauncherMainWindow : Window
             _saveItems.Clear();
             foreach (var save in saves)
             {
-                var isLocked = !string.IsNullOrWhiteSpace(lockedProfileId) &&
-                               !string.IsNullOrWhiteSpace(lockedSavePath) &&
-                               save.ProfileId.Equals(lockedProfileId, StringComparison.OrdinalIgnoreCase) &&
+                var profileForSave = profiles.FirstOrDefault(profile => profile.Id.Equals(save.ProfileId, StringComparison.OrdinalIgnoreCase));
+                var activeSavePath = NormalizeFullPath(profileForSave?.ActiveSaveFile);
+                var isLocked = !string.IsNullOrWhiteSpace(activeSavePath) &&
+                               NormalizeFullPath(save.FullPath).Equals(activeSavePath, StringComparison.OrdinalIgnoreCase);
+                if (!isLocked && !string.IsNullOrWhiteSpace(lockedSavePath))
+                {
+                    var launchIds = SplitProfileIds(preferences.DefaultLaunchProfileIds, preferences.DefaultLaunchProfileId);
+                    isLocked = launchIds.Contains(save.ProfileId) &&
                                NormalizeFullPath(save.FullPath).Equals(lockedSavePath, StringComparison.OrdinalIgnoreCase);
+                }
                 _saveItems.Add(SaveListItem.FromSave(
                     save,
                     isLocked,
@@ -2133,6 +2611,7 @@ public partial class LauncherMainWindow : Window
         }
         else if (tab == InstanceManageTab.Automation)
         {
+            ShowAutomationList();
             _ = RefreshAutomationAsync();
         }
         else if (tab == InstanceManageTab.Mods)
@@ -2206,8 +2685,14 @@ public partial class LauncherMainWindow : Window
         RefreshSidebarSelection();
         RefreshConnectionSettingsEditor();
         RefreshConnectionRuntimeStatus();
+        if (tab == ConnectionTab.Robot)
+        {
+            ShowRobotList();
+        }
+
         if (tab == ConnectionTab.Auth)
         {
+            ShowAuthList();
             _ = RefreshAuthProfilesAsync();
         }
     }
@@ -2399,11 +2884,13 @@ public partial class LauncherMainWindow : Window
             SettingsAutoStartFrpCheckBox.IsChecked = preferences.AutoStartFrpOnLaunch;
             SettingsAutoStartThirdPartyFrpcCheckBox.IsChecked = preferences.AutoStartThirdPartyFrpcOnLaunch;
             SettingsAutoStartServerProfileComboBox.ItemsSource = profiles;
+            var autoStartIds = SplitProfileIds(preferences.AutoStartServerProfileIds, preferences.AutoStartServerProfileId);
             SettingsAutoStartServerProfileComboBox.SelectedItem = profiles.FirstOrDefault(profile =>
-                profile.Id.Equals(preferences.AutoStartServerProfileId, StringComparison.OrdinalIgnoreCase))
+                autoStartIds.Contains(profile.Id))
                 ?? profiles.FirstOrDefault(profile =>
-                    profile.Id.Equals(preferences.DefaultLaunchProfileId, StringComparison.OrdinalIgnoreCase))
+                    SplitProfileIds(preferences.DefaultLaunchProfileIds, preferences.DefaultLaunchProfileId).Contains(profile.Id))
                 ?? profiles.FirstOrDefault();
+            RefreshSettingsAutoStartTargetItems(profiles);
             SettingsServerStatusTextBlock.Text = T("已加载服务器设置。", "Server settings loaded.");
         }
         finally
@@ -2415,14 +2902,15 @@ public partial class LauncherMainWindow : Window
     private void SaveServerSettings(bool refreshEditor = true)
     {
         var preferences = _preferencesService.Load();
-        var selectedAutoStartProfile = SettingsAutoStartServerProfileComboBox.SelectedItem as InstanceProfile;
+        var autoStartIds = LoadAutoStartProfileIds().ToList();
         preferences.WorkspaceRoot = SettingsWorkspaceDirectoryTextBox.Text?.Trim() ?? string.Empty;
         preferences.QuickCommands = ParseQuickCommands(SettingsQuickCommandsTextBox.Text);
         preferences.StartWithWindows = SettingsStartWithWindowsCheckBox.IsChecked == true;
         preferences.CloseToTrayOnExit = SettingsCloseToTrayCheckBox.IsChecked == true;
         preferences.StartHiddenOnLaunch = SettingsStartHiddenCheckBox.IsChecked == true;
         preferences.AutoStartServerOnLaunch = SettingsAutoStartServerCheckBox.IsChecked == true;
-        preferences.AutoStartServerProfileId = selectedAutoStartProfile?.Id ?? string.Empty;
+        preferences.AutoStartServerProfileIds = autoStartIds;
+        preferences.AutoStartServerProfileId = string.Join(';', autoStartIds);
         preferences.AutoStartOpenServerQueryOnLaunch = SettingsAutoStartOsqCheckBox.IsChecked == true;
         preferences.AutoStartRobotOnLaunch = SettingsAutoStartRobotCheckBox.IsChecked == true;
         preferences.AutoStartFrpOnLaunch = SettingsAutoStartFrpCheckBox.IsChecked == true;
@@ -2955,10 +3443,23 @@ public partial class LauncherMainWindow : Window
             ApplyFrpSettings(preferences.Frp);
             ApplyOpenServerQuerySettings(preferences.OpenServerQuery);
             ApplyRobotSettings(preferences.Robot);
+            RefreshRobotConfigItems();
+            RefreshAuthConfigItems();
         }
         finally
         {
             _isApplyingConnectionSettings = false;
+        }
+    }
+
+    private void RefreshRobotConfigItems(IReadOnlyList<InstanceProfile>? profiles = null)
+    {
+        var profileList = profiles ?? _profileService.GetProfiles();
+        var path = GetRobotSettingsPath();
+        _robotConfigItems.Clear();
+        foreach (var profile in profileList)
+        {
+            _robotConfigItems.Add(ProfileConfigListItem.FromPath(profile, path));
         }
     }
 
@@ -3821,8 +4322,23 @@ public partial class LauncherMainWindow : Window
 
         Dispatcher.UIThread.Post(() =>
         {
-            AppendConsoleLine(line);
             TrackPlayerEventText(line);
+        });
+    }
+
+    private void OnServerProfileOutputReceived(object? sender, ServerOutputLine output)
+    {
+        if (string.IsNullOrWhiteSpace(output.Line)
+            || IsSystemConsoleLine(output.Line)
+            || ShouldSuppressConsoleLineForUi(output.Line))
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            AppendConsoleLine(output);
+            TrackPlayerEventText(output.Line);
         });
     }
 
@@ -4010,6 +4526,54 @@ public partial class LauncherMainWindow : Window
 
         var text = string.Join(Environment.NewLine, _consoleLines);
         ConsoleOutputTextBlock.Text = text;
+        if (shouldAutoScroll)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                ConsoleOutputScrollViewer.ScrollToEnd();
+                _consoleAutoScroll = true;
+            }, DispatcherPriority.Background);
+        }
+    }
+
+    private void AppendConsoleLine(ServerOutputLine output)
+    {
+        var profileId = string.IsNullOrWhiteSpace(output.ProfileId) ? "__unknown" : output.ProfileId;
+        if (!_consoleLinesByProfile.TryGetValue(profileId, out var lines))
+        {
+            lines = [];
+            _consoleLinesByProfile[profileId] = lines;
+        }
+
+        var line = $"[{output.ProfileName}] {output.Line}";
+        lines.Add(line);
+        while (lines.Count > MaxConsoleLines)
+        {
+            lines.RemoveAt(0);
+        }
+
+        if (string.IsNullOrWhiteSpace(_selectedConsoleProfileId))
+        {
+            _selectedConsoleProfileId = profileId;
+        }
+
+        if (_selectedConsoleProfileId.Equals(profileId, StringComparison.OrdinalIgnoreCase))
+        {
+            RefreshConsoleText();
+        }
+    }
+
+    private void RefreshConsoleText()
+    {
+        if (string.IsNullOrWhiteSpace(_selectedConsoleProfileId) ||
+            !_consoleLinesByProfile.TryGetValue(_selectedConsoleProfileId, out var lines))
+        {
+            ConsoleOutputTextBlock.Text = string.Empty;
+            return;
+        }
+
+        var shouldAutoScroll = _consoleAutoScroll || IsConsoleScrolledToBottom();
+        ConsoleOutputTextBlock.Text = string.Join(Environment.NewLine, lines);
         if (shouldAutoScroll)
         {
             Dispatcher.UIThread.Post(() =>
@@ -4380,6 +4944,48 @@ public partial class LauncherMainWindow : Window
         SaveServerSettings(refreshEditor: false);
     }
 
+    private void OnSettingsAutoStartAddProfileClick(object? sender, RoutedEventArgs e)
+    {
+        if (SettingsAutoStartAddProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            return;
+        }
+
+        var ids = LoadAutoStartProfileIds();
+        ids.Add(profile.Id);
+        SaveAutoStartProfileIds(ids);
+        SettingsAutoStartAddProfileComboBox.SelectedIndex = -1;
+    }
+
+    private void OnSettingsAutoStartRemoveSelectedProfileClick(object? sender, RoutedEventArgs e)
+    {
+        var selected = _settingsAutoStartTargetItems.FirstOrDefault(static item => item.IsSelected)
+                       ?? _settingsAutoStartTargetItems.LastOrDefault();
+        if (selected is null)
+        {
+            return;
+        }
+
+        var ids = LoadAutoStartProfileIds();
+        ids.Remove(selected.ProfileId);
+        SaveAutoStartProfileIds(ids);
+    }
+
+    private void OnSettingsAutoStartTargetChipClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleButton { Tag: LaunchTargetItem item } button)
+        {
+            return;
+        }
+
+        foreach (var target in _settingsAutoStartTargetItems)
+        {
+            target.IsSelected = false;
+        }
+
+        item.IsSelected = button.IsChecked == true;
+    }
+
     private async void OnSettingsBrowseWorkspaceDirectoryClick(object? sender, RoutedEventArgs e)
     {
         await BrowseFolderToTextBoxAsync(SettingsWorkspaceDirectoryTextBox, T("选择工作目录", "Select workspace directory"));
@@ -4453,6 +5059,11 @@ public partial class LauncherMainWindow : Window
     {
         RefreshConnectionSettingsEditor();
         RefreshConnectionRuntimeStatus();
+        if (_selectedConnectionTab == ConnectionTab.Robot)
+        {
+            RefreshRobotConfigItems();
+        }
+
         if (_selectedConnectionTab == ConnectionTab.Auth)
         {
             _ = RefreshAuthProfilesAsync();
@@ -4517,6 +5128,47 @@ public partial class LauncherMainWindow : Window
     private async void OnAutomationSaveClick(object? sender, RoutedEventArgs e)
     {
         await SaveAutomationAsync();
+    }
+
+    private async void OnAutomationEditConfigClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ProfileConfigListItem item })
+        {
+            return;
+        }
+
+        var profile = _profileService.GetProfileById(item.ProfileId);
+        if (profile is not null)
+        {
+            await ShowAutomationEditorAsync(profile);
+        }
+    }
+
+    private void OnAutomationBackClick(object? sender, RoutedEventArgs e)
+    {
+        ShowAutomationList();
+    }
+
+    private async void OnAutomationClearClick(object? sender, RoutedEventArgs e)
+    {
+        var selected = _automationConfigItems.Where(static item => item.IsSelected).ToList();
+        foreach (var item in selected)
+        {
+            var profile = _profileService.GetProfileById(item.ProfileId);
+            if (profile is null)
+            {
+                continue;
+            }
+
+            await _automationSettingsService.SaveAsync(profile, BuildClearedAutomationSettings(profile.Id));
+        }
+
+        if (selected.Count > 0)
+        {
+            await _automationService.ReloadAsync();
+            RefreshAutomationConfigItems();
+            SetAutomationStatus(T($"已清空 {selected.Count} 个自动化配置。", $"Cleared {selected.Count} automation configs."));
+        }
     }
 
     private void OnAutomationAddActionClick(object? sender, RoutedEventArgs e)
@@ -4647,8 +5299,17 @@ public partial class LauncherMainWindow : Window
     {
         if (!TryGetLockedLaunchTarget(out var profile, out _))
         {
-            SetConnectionStatus(T("请先锁定默认存档后再部署地图模组。", "Lock a default save before deploying the map mod."));
-            return;
+            var runningProfileId = _serverProcessService.GetCurrentStatuses()
+                .FirstOrDefault(static status => status.IsRunning && !string.IsNullOrWhiteSpace(status.ProfileId))
+                ?.ProfileId;
+            profile = string.IsNullOrWhiteSpace(runningProfileId)
+                ? null!
+                : _profileService.GetProfileById(runningProfileId);
+            if (profile is null)
+            {
+                SetConnectionStatus(T("请先在底部添加启动服务器或启动一个服务器后再部署地图模组。", "Add a launch server or start a server before deploying the map mod."));
+                return;
+            }
         }
 
         try
@@ -4725,6 +5386,37 @@ public partial class LauncherMainWindow : Window
         }
     }
 
+    private void OnOpenConfigFileClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string path } || string.IsNullOrWhiteSpace(path))
+        {
+            ShowToast(T("配置路径无效。", "Invalid config path."));
+            return;
+        }
+
+        try
+        {
+            if (File.Exists(path) || Directory.Exists(path))
+            {
+                OpenLocalFile(path);
+                return;
+            }
+
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory))
+            {
+                OpenLocalFile(directory);
+                return;
+            }
+
+            ShowToast(T($"配置路径不存在：{path}", $"Config path not found: {path}"));
+        }
+        catch (Exception ex)
+        {
+            ShowToast(T($"打开配置失败：{ex.Message}", $"Open config failed: {ex.Message}"));
+        }
+    }
+
     private async void OnModEnabledSwitchClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not ToggleSwitch { Tag: ModListItem item } toggleSwitch ||
@@ -4752,7 +5444,7 @@ public partial class LauncherMainWindow : Window
             return;
         }
 
-        if (AuthProfileComboBox.SelectedItem is InstanceProfile profile)
+        if (AuthEditorPanel.IsVisible && AuthProfileComboBox.SelectedItem is InstanceProfile profile)
         {
             await LoadAuthForProfileAsync(profile);
         }
@@ -4790,7 +5482,54 @@ public partial class LauncherMainWindow : Window
 
     private async void OnAuthRefreshClick(object? sender, RoutedEventArgs e)
     {
+        if (AuthEditorPanel.IsVisible && AuthProfileComboBox.SelectedItem is InstanceProfile profile)
+        {
+            await LoadAuthForProfileAsync(profile);
+            return;
+        }
+
         await RefreshAuthProfilesAsync();
+    }
+
+    private async void OnAuthEditConfigClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ProfileConfigListItem item })
+        {
+            return;
+        }
+
+        var profile = _profileService.GetProfileById(item.ProfileId);
+        if (profile is not null)
+        {
+            await ShowAuthEditorAsync(profile);
+        }
+    }
+
+    private void OnAuthBackClick(object? sender, RoutedEventArgs e)
+    {
+        ShowAuthList();
+    }
+
+    private async void OnAuthClearClick(object? sender, RoutedEventArgs e)
+    {
+        var selected = _authConfigItems.Where(static item => item.IsSelected).ToList();
+        foreach (var item in selected)
+        {
+            var profile = _profileService.GetProfileById(item.ProfileId);
+            if (profile is null)
+            {
+                continue;
+            }
+
+            await _serverAuthService.SaveSettingsAsync(profile, BuildClearedAuthSettings());
+            await _serverAuthService.SetAuthModEnabledAsync(profile, enabled: false);
+        }
+
+        if (selected.Count > 0)
+        {
+            RefreshAuthConfigItems();
+            SetAuthStatus(T($"已清空 {selected.Count} 个安全配置。", $"Cleared {selected.Count} security configs."));
+        }
     }
 
     private async void OnAuthDeployClick(object? sender, RoutedEventArgs e)
@@ -4969,6 +5708,39 @@ public partial class LauncherMainWindow : Window
 
     private async void OnRobotSaveClick(object? sender, RoutedEventArgs e) => await SaveRobotSettingsAndReloadIfRunningAsync();
 
+    private void OnRobotEditConfigClick(object? sender, RoutedEventArgs e)
+    {
+        ShowRobotEditor((sender as Button)?.Tag as ProfileConfigListItem);
+    }
+
+    private void OnRobotBackClick(object? sender, RoutedEventArgs e)
+    {
+        ShowRobotList();
+    }
+
+    private void OnRobotRefreshClick(object? sender, RoutedEventArgs e)
+    {
+        RefreshConnectionSettingsEditor();
+        RefreshConnectionRuntimeStatus();
+        RefreshRobotConfigItems();
+    }
+
+    private void OnRobotClearClick(object? sender, RoutedEventArgs e)
+    {
+        var selectedCount = _robotConfigItems.Count(static item => item.IsSelected);
+        if (selectedCount == 0 && RobotEditorPanel.IsVisible)
+        {
+            selectedCount = 1;
+        }
+
+        var preferences = _preferencesService.Load();
+        preferences.Robot = BuildClearedRobotSettings();
+        _preferencesService.Save(preferences);
+        ApplyRobotSettings(preferences.Robot);
+        RefreshRobotConfigItems();
+        SetConnectionStatus(T("QQ机器人配置已清空。", "QQ robot configuration cleared."));
+    }
+
     private async void OnRobotToggleClick(object? sender, RoutedEventArgs e)
     {
         if (_isTogglingRobot)
@@ -5041,10 +5813,10 @@ public partial class LauncherMainWindow : Window
             return;
         }
 
-        var status = _serverProcessService.GetCurrentStatus();
-        if (!status.IsRunning)
+        var statuses = _serverProcessService.GetCurrentStatuses();
+        if (!statuses.Any(static status => status.IsRunning) || HasPendingLaunchTargets(statuses))
         {
-            await StartLockedServerAsync();
+            await StartSelectedServersAsync();
             return;
         }
 
@@ -5053,7 +5825,7 @@ public partial class LauncherMainWindow : Window
 
     private void OnLaunchServerPointerEntered(object? sender, PointerEventArgs e)
     {
-        if (_serverProcessService.GetCurrentStatus().IsRunning || TryGetLockedLaunchTarget(out _, out _))
+        if (_serverProcessService.GetCurrentStatuses().Any(static status => status.IsRunning) || _launchTargetItems.Count > 0)
         {
             LaunchSelectionPillHost.Classes.Set("expanded", false);
             return;
@@ -5085,27 +5857,63 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private async Task StartLockedServerAsync()
+    private async Task StartSelectedServersAsync()
     {
         if (_isStoppingOrStarting)
         {
             return;
         }
 
-        if (!TryGetLockedLaunchTarget(out var profile, out var lockedSavePath))
+        var selectedIds = LoadLaunchProfileIds();
+        if (selectedIds.Count == 0)
         {
             SelectTab(MainTab.InstanceManage);
             SelectInstanceManageTab(InstanceManageTab.Saves);
-            LaunchSelectionSummaryTextBlock.Text = T("请先锁定默认存档", "Set default save first");
+            LaunchSelectionSummaryTextBlock.Text = T("请先添加要启动的服务器", "Add servers to start first");
             return;
         }
 
         SetLaunchOperationBusy(T("启动中...", "Starting..."));
         try
         {
-            profile = await EnsureLaunchableProfileSaveAsync(profile, lockedSavePath);
             SelectTab(MainTab.Console);
-            await _serverProcessService.StartAsync(profile);
+            var runningIds = _serverProcessService.GetCurrentStatuses()
+                .Where(static status => status.IsRunning)
+                .Select(static status => status.ProfileId ?? string.Empty)
+                .Where(static id => !string.IsNullOrWhiteSpace(id))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var startedCount = 0;
+            foreach (var profileId in selectedIds)
+            {
+                if (runningIds.Contains(profileId))
+                {
+                    continue;
+                }
+
+                var profile = _profileService.GetProfileById(profileId);
+                if (profile is null)
+                {
+                    continue;
+                }
+
+                var savePath = NormalizeFullPath(profile.ActiveSaveFile);
+                if (string.IsNullOrWhiteSpace(savePath))
+                {
+                    SelectTab(MainTab.InstanceManage);
+                    SelectInstanceManageTab(InstanceManageTab.Saves);
+                    ShowToast(T($"{profile.Name} 未绑定存档，请先绑定后启动。", $"{profile.Name} has no save bound. Bind a save before starting."));
+                    return;
+                }
+
+                var launchableProfile = await EnsureLaunchableProfileSaveAsync(profile, savePath);
+                await _serverProcessService.StartAsync(launchableProfile);
+                startedCount++;
+            }
+
+            if (startedCount == 0)
+            {
+                ShowToast(T("选择的服务器均已运行。", "Selected servers are already running."));
+            }
         }
         catch (Exception ex)
         {
@@ -5130,14 +5938,12 @@ public partial class LauncherMainWindow : Window
                 await PrepareProfileSaveForLaunchAsync(profile, preferredSave.FullPath);
                 return _profileService.GetProfileById(profile.Id) ?? profile;
             }
+
+            await PrepareProfileSaveForLaunchAsync(profile, normalizedPreferredSavePath);
+            return _profileService.GetProfileById(profile.Id) ?? profile;
         }
 
         var currentSavePath = NormalizeFullPath(profile.ActiveSaveFile);
-        if (string.IsNullOrWhiteSpace(currentSavePath))
-        {
-            currentSavePath = NormalizeFullPath(_profileService.GetDefaultSaveFilePath(profile.Id));
-        }
-
         if (!string.IsNullOrWhiteSpace(currentSavePath))
         {
             await PrepareProfileSaveForLaunchAsync(profile, currentSavePath);
@@ -5187,6 +5993,59 @@ public partial class LauncherMainWindow : Window
         await SendCommandFromInputAsync();
     }
 
+    private void OnLaunchAddProfileClick(object? sender, RoutedEventArgs e)
+    {
+        if (LaunchAddProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            return;
+        }
+
+        var ids = LoadLaunchProfileIds();
+        ids.Add(profile.Id);
+        SaveLaunchProfileIds(ids);
+        LaunchAddProfileComboBox.SelectedIndex = -1;
+    }
+
+    private void OnLaunchRemoveSelectedProfileClick(object? sender, RoutedEventArgs e)
+    {
+        var selected = _launchTargetItems.FirstOrDefault(static item => item.IsSelected)
+                       ?? _launchTargetItems.LastOrDefault();
+        if (selected is null)
+        {
+            return;
+        }
+
+        var ids = LoadLaunchProfileIds();
+        ids.Remove(selected.ProfileId);
+        SaveLaunchProfileIds(ids);
+    }
+
+    private void OnLaunchTargetChipClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleButton { Tag: LaunchTargetItem item } button)
+        {
+            return;
+        }
+
+        foreach (var target in _launchTargetItems)
+        {
+            target.IsSelected = false;
+        }
+
+        item.IsSelected = button.IsChecked == true;
+    }
+
+    private void OnConsoleServerSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (ConsoleServerComboBox.SelectedItem is not ConsoleServerItem item)
+        {
+            return;
+        }
+
+        _selectedConsoleProfileId = item.ProfileId;
+        RefreshConsoleText();
+    }
+
     private async void OnCommandTextBoxKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter)
@@ -5227,6 +6086,13 @@ public partial class LauncherMainWindow : Window
     {
         try
         {
+            if (ConsoleServerComboBox.SelectedItem is ConsoleServerItem item &&
+                !string.IsNullOrWhiteSpace(item.ProfileId))
+            {
+                await _serverProcessService.SendCommandAsync(item.ProfileId, command);
+                return;
+            }
+
             await _serverProcessService.SendCommandAsync(command);
         }
         catch (Exception ex)
@@ -6281,6 +7147,49 @@ public partial class LauncherMainWindow : Window
         }
     }
 
+    private string GetRobotSettingsPath()
+    {
+        return Path.Combine(GetWorkspaceRootForUi(), "qqbot", "vs2qq-settings.json");
+    }
+
+    private static string GetAuthSettingsPath(InstanceProfile profile)
+    {
+        var configPath = Path.Combine(profile.DirectoryPath, "ModConfig", "serverauth.json");
+        try
+        {
+            return Path.GetFullPath(configPath);
+        }
+        catch
+        {
+            return configPath;
+        }
+    }
+
+    private string GetWorkspaceRootForUi()
+    {
+        var root = _preferencesService.Load().WorkspaceRoot;
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            root = Environment.GetEnvironmentVariable("LAUNCHERGO_WORKSPACE");
+        }
+
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            root = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "LauncherGo");
+        }
+
+        try
+        {
+            return Path.GetFullPath(root);
+        }
+        catch
+        {
+            return root;
+        }
+    }
+
     private void SetConfigPath(InstanceProfile? profile)
     {
         ConfigPathTextBlock.Text = profile is null
@@ -6796,7 +7705,10 @@ public partial class LauncherMainWindow : Window
         {
             await _saveService.SetActiveSaveAsync(profile, item.FullPath);
             var preferences = _preferencesService.Load();
-            preferences.DefaultLaunchProfileId = profile.Id;
+            var ids = SplitProfileIds(preferences.DefaultLaunchProfileIds, preferences.DefaultLaunchProfileId);
+            ids.Add(profile.Id);
+            preferences.DefaultLaunchProfileIds = ids.ToList();
+            preferences.DefaultLaunchProfileId = string.Join(';', ids);
             preferences.DefaultLaunchSaveFile = item.FullPath;
             _preferencesService.Save(preferences);
             await RefreshSavesAsync();
@@ -6815,18 +7727,23 @@ public partial class LauncherMainWindow : Window
         lockedSavePath = string.Empty;
 
         var preferences = _preferencesService.Load();
-        if (string.IsNullOrWhiteSpace(preferences.DefaultLaunchProfileId))
+        var targetProfileId = SplitProfileIds(preferences.DefaultLaunchProfileIds, preferences.DefaultLaunchProfileId).FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(targetProfileId))
         {
             return false;
         }
 
-        var targetProfile = _profileService.GetProfileById(preferences.DefaultLaunchProfileId.Trim());
+        var targetProfile = _profileService.GetProfileById(targetProfileId);
         if (targetProfile is null)
         {
             return false;
         }
 
-        var targetSavePath = NormalizeFullPath(preferences.DefaultLaunchSaveFile);
+        var targetSavePath = NormalizeFullPath(targetProfile.ActiveSaveFile);
+        if (string.IsNullOrWhiteSpace(targetSavePath))
+        {
+            targetSavePath = NormalizeFullPath(preferences.DefaultLaunchSaveFile);
+        }
         if (string.IsNullOrWhiteSpace(targetSavePath))
         {
             return false;
@@ -7389,6 +8306,60 @@ public partial class LauncherMainWindow : Window
         public string ActionText { get; } = actionText;
     }
 
+    public sealed class ProfileConfigListItem : INotifyPropertyChanged
+    {
+        private bool _isSelected;
+
+        public string ProfileId { get; init; } = string.Empty;
+
+        public string ProfileName { get; init; } = string.Empty;
+
+        public string ConfigPath { get; init; } = string.Empty;
+
+        public string ModifiedText { get; init; } = string.Empty;
+
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                if (_isSelected == value)
+                {
+                    return;
+                }
+
+                _isSelected = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public static ProfileConfigListItem FromPath(InstanceProfile profile, string path)
+        {
+            var modifiedText = "-";
+            try
+            {
+                if (File.Exists(path))
+                {
+                    modifiedText = File.GetLastWriteTime(path).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+                }
+            }
+            catch
+            {
+                modifiedText = "-";
+            }
+
+            return new ProfileConfigListItem
+            {
+                ProfileId = profile.Id,
+                ProfileName = profile.Name,
+                ConfigPath = path,
+                ModifiedText = modifiedText
+            };
+        }
+    }
+
     public sealed class SettingsContributorItem
     {
         public required string Login { get; init; }
@@ -7925,6 +8896,82 @@ public partial class LauncherMainWindow : Window
                     : model.HasPassword ? "已设置" : "未设置",
                 DiscourseUsername = string.IsNullOrWhiteSpace(model.DiscourseUsername) ? "-" : model.DiscourseUsername
             };
+        }
+    }
+
+    public sealed class DashboardServerItem
+    {
+        public string ProfileId { get; init; } = string.Empty;
+
+        public string ProfileName { get; init; } = string.Empty;
+
+        public string Version { get; init; } = string.Empty;
+
+        public string StatusText { get; init; } = string.Empty;
+
+        public IBrush StatusBrush { get; init; } = Brushes.Gray;
+
+        public string SummaryText { get; init; } = string.Empty;
+    }
+
+    public sealed class DashboardPlayerItem
+    {
+        public string PlayerName { get; init; } = string.Empty;
+
+        public string ProfileName { get; init; } = string.Empty;
+
+        public string JoinedAtText { get; init; } = string.Empty;
+
+        public static DashboardPlayerItem FromModel(ServerOnlinePlayerInfo player)
+        {
+            return new DashboardPlayerItem
+            {
+                PlayerName = player.PlayerName,
+                ProfileName = player.ProfileName,
+                JoinedAtText = player.JoinedAtUtc.HasValue
+                    ? player.JoinedAtUtc.Value.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture)
+                    : "--"
+            };
+        }
+    }
+
+    public sealed class DashboardUptimeItem
+    {
+        public string Name { get; init; } = string.Empty;
+
+        public string UptimeText { get; init; } = string.Empty;
+    }
+
+    public sealed class ConsoleServerItem
+    {
+        public string ProfileId { get; init; } = string.Empty;
+
+        public string DisplayName { get; init; } = string.Empty;
+    }
+
+    public sealed class LaunchTargetItem : INotifyPropertyChanged
+    {
+        private bool _isSelected;
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public string ProfileId { get; init; } = string.Empty;
+
+        public string DisplayName { get; init; } = string.Empty;
+
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                if (_isSelected == value)
+                {
+                    return;
+                }
+
+                _isSelected = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
+            }
         }
     }
 

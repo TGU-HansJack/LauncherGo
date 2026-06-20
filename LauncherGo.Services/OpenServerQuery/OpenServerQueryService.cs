@@ -517,8 +517,8 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
 
     private async Task PushLocalSnapshotAsync(RuntimeState runtime, CancellationToken cancellationToken)
     {
-        var context = await TryBuildLocalServerContextAsync(cancellationToken);
-        if (context is null)
+        var contexts = await TryBuildLocalServerContextsAsync(cancellationToken);
+        if (contexts.Count == 0)
         {
             lock (_stateSync)
             {
@@ -535,93 +535,127 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             return;
         }
 
-        var now = DateTimeOffset.UtcNow;
-        var nonce = GenerateNonce();
-        var needsMapPayload = runtime.Settings.IncludeMapData &&
-            runtime.EndpointsByHost.Values.Any(endpoint => endpoint.Settings.Enabled);
-        var payload = await BuildLocalServerSnapshotAsync(
-            context,
-            runtime.Settings,
-            now,
-            nonce,
-            needsMapPayload,
-            cancellationToken);
-        var qqPayload = CreateSnapshotForOutputTarget(payload, runtime.Settings, includeMapData: false);
-        var qqJson = JsonSerializer.Serialize(qqPayload, OutboundJsonOptions);
-        var mapJson = needsMapPayload
-            ? JsonSerializer.Serialize(payload, OutboundJsonOptions)
-            : qqJson;
-
-        var cachedNode = JsonNode.Parse(qqJson)?.AsObject();
-        if (cachedNode is not null)
+        for (var index = 0; index < contexts.Count; index++)
         {
-            _osqSnapshotCacheService?.AddSnapshot("local", cachedNode, now);
+            var context = contexts[index];
+            var now = DateTimeOffset.UtcNow;
+            var nonce = GenerateNonce();
+            var needsMapPayload = runtime.Settings.IncludeMapData &&
+                runtime.EndpointsByHost.Values.Any(endpoint => endpoint.Settings.Enabled);
+            var payload = await BuildLocalServerSnapshotAsync(
+                context,
+                runtime.Settings,
+                now,
+                nonce,
+                needsMapPayload,
+                cancellationToken);
+            var qqPayload = CreateSnapshotForOutputTarget(payload, runtime.Settings, includeMapData: false);
+            var qqJson = JsonSerializer.Serialize(qqPayload, OutboundJsonOptions);
+            var mapJson = needsMapPayload
+                ? JsonSerializer.Serialize(payload, OutboundJsonOptions)
+                : qqJson;
+
+            var cachedNode = JsonNode.Parse(qqJson)?.AsObject();
+            if (cachedNode is not null)
+            {
+                _osqSnapshotCacheService?.AddSnapshot("local", cachedNode, now);
+                _osqSnapshotCacheService?.AddSnapshot($"local:{context.Profile.Id}", cachedNode.DeepClone().AsObject(), now);
+            }
+
+            foreach (var pair in runtime.EndpointsByHost)
+            {
+                var endpoint = pair.Value;
+                if (!endpoint.Settings.Enabled)
+                {
+                    continue;
+                }
+
+                if (!IsValidToken(endpoint.Settings.Token))
+                {
+                    lock (_stateSync)
+                    {
+                        endpoint.LastError = "invalid-token";
+                    }
+                    continue;
+                }
+
+                var reportUri = BuildEndpointReportUri(endpoint.Settings.ServerHost, runtime.Settings.AllowInsecureHttp);
+                if (reportUri is null)
+                {
+                    lock (_stateSync)
+                    {
+                        endpoint.LastError = "invalid-endpoint";
+                    }
+                    continue;
+                }
+
+                try
+                {
+                    var includeEndpointMap = runtime.Settings.IncludeMapData;
+                    var endpointPayload = includeEndpointMap ? payload : qqPayload;
+                    var json = includeEndpointMap ? mapJson : qqJson;
+
+                    await SendEndpointAsync(
+                        reportUri,
+                        endpoint.Settings.Token,
+                        json,
+                        now,
+                        nonce,
+                        runtime.Settings.RequestTimeoutSec <= 0 ? 8 : runtime.Settings.RequestTimeoutSec,
+                        cancellationToken);
+
+                    lock (_stateSync)
+                    {
+                        endpoint.LastPayloadTimeUtc = endpointPayload.TimestampUtc;
+                        endpoint.LastServerName = endpointPayload.Server.Name;
+                        endpoint.LastServerStatus = endpointPayload.Server.Status;
+                        endpoint.LastOnlinePlayers = endpointPayload.Server.OnlinePlayerCount;
+                        endpoint.LastMaxPlayers = endpointPayload.Server.MaxPlayers;
+                        endpoint.LastReceivedUtc = DateTimeOffset.UtcNow;
+                        endpoint.LastError = string.Empty;
+
+                        runtime.LastReceivedUtc = endpoint.LastReceivedUtc;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lock (_stateSync)
+                    {
+                        endpoint.LastError = ex.Message;
+                        runtime.LastError = ex.Message;
+                    }
+                }
+
+                if (index + 1 < contexts.Count)
+                {
+                    await Task.Delay(100, cancellationToken);
+                }
+            }
+        }
+    }
+
+    private async Task<IReadOnlyList<LocalServerContext>> TryBuildLocalServerContextsAsync(CancellationToken cancellationToken)
+    {
+        if (_serverProcessService is null || _profileService is null || _serverConfigService is null)
+        {
+            return [];
         }
 
-        foreach (var pair in runtime.EndpointsByHost)
+        var contexts = new List<LocalServerContext>();
+        var runtimeStatuses = _serverProcessService.GetCurrentStatuses()
+            .Where(status => status.IsRunning && !string.IsNullOrWhiteSpace(status.ProfileId))
+            .ToList();
+
+        foreach (var runtimeStatus in runtimeStatuses)
         {
-            var endpoint = pair.Value;
-            if (!endpoint.Settings.Enabled)
+            var context = await TryBuildLocalServerContextAsync(runtimeStatus, cancellationToken);
+            if (context is not null)
             {
-                continue;
-            }
-
-            if (!IsValidToken(endpoint.Settings.Token))
-            {
-                lock (_stateSync)
-                {
-                    endpoint.LastError = "invalid-token";
-                }
-                continue;
-            }
-
-            var reportUri = BuildEndpointReportUri(endpoint.Settings.ServerHost, runtime.Settings.AllowInsecureHttp);
-            if (reportUri is null)
-            {
-                lock (_stateSync)
-                {
-                    endpoint.LastError = "invalid-endpoint";
-                }
-                continue;
-            }
-
-            try
-            {
-                var includeEndpointMap = runtime.Settings.IncludeMapData;
-                var endpointPayload = includeEndpointMap ? payload : qqPayload;
-                var json = includeEndpointMap ? mapJson : qqJson;
-
-                await SendEndpointAsync(
-                    reportUri,
-                    endpoint.Settings.Token,
-                    json,
-                    now,
-                    nonce,
-                    runtime.Settings.RequestTimeoutSec <= 0 ? 8 : runtime.Settings.RequestTimeoutSec,
-                    cancellationToken);
-
-                lock (_stateSync)
-                {
-                    endpoint.LastPayloadTimeUtc = endpointPayload.TimestampUtc;
-                    endpoint.LastServerName = endpointPayload.Server.Name;
-                    endpoint.LastServerStatus = endpointPayload.Server.Status;
-                    endpoint.LastOnlinePlayers = endpointPayload.Server.OnlinePlayerCount;
-                    endpoint.LastMaxPlayers = endpointPayload.Server.MaxPlayers;
-                    endpoint.LastReceivedUtc = DateTimeOffset.UtcNow;
-                    endpoint.LastError = string.Empty;
-
-                    runtime.LastReceivedUtc = endpoint.LastReceivedUtc;
-                }
-            }
-            catch (Exception ex)
-            {
-                lock (_stateSync)
-                {
-                    endpoint.LastError = ex.Message;
-                    runtime.LastError = ex.Message;
-                }
+                contexts.Add(context);
             }
         }
+
+        return contexts;
     }
 
     private async Task<LocalServerContext?> TryBuildLocalServerContextAsync(CancellationToken cancellationToken)
@@ -631,8 +665,15 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             return null;
         }
 
-        var runtimeStatus = _serverProcessService.GetCurrentStatus();
-        if (!runtimeStatus.IsRunning || string.IsNullOrWhiteSpace(runtimeStatus.ProfileId))
+        return await TryBuildLocalServerContextAsync(_serverProcessService.GetCurrentStatus(), cancellationToken);
+    }
+
+    private async Task<LocalServerContext?> TryBuildLocalServerContextAsync(
+        ServerRuntimeStatus runtimeStatus,
+        CancellationToken cancellationToken)
+    {
+        if (_profileService is null || _serverConfigService is null ||
+            !runtimeStatus.IsRunning || string.IsNullOrWhiteSpace(runtimeStatus.ProfileId))
         {
             return null;
         }

@@ -29,10 +29,10 @@ public partial class AutomationService : IAutomationService, IDisposable
     private const int MaxRuntimeLogs = 1500;
     private const int MaxServerLines = 5000;
 
-    private AutomationSettings _settings = new();
+    private IReadOnlyList<AutomationSettings> _settings = [];
     private DateTime _lastTickMinute = DateTime.MinValue;
-    private bool _lastDesiredServerRunning;
-    private bool _lastDesiredServerRunningInitialized;
+    private readonly Dictionary<string, bool> _lastDesiredServerRunningByProfile = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _lastDesiredServerRunningInitializedProfiles = new(StringComparer.OrdinalIgnoreCase);
     private TaskCompletionSource<bool>? _backupCompletionSource;
     private static readonly TimeSpan BackupWaitTimeout = TimeSpan.FromMinutes(15);
 
@@ -67,8 +67,10 @@ public partial class AutomationService : IAutomationService, IDisposable
 
     public async Task ReloadAsync(CancellationToken cancellationToken = default)
     {
-        _settings = await _settingsService.LoadAsync(cancellationToken);
-        _lastDesiredServerRunningInitialized = false;
+        var profiles = _profileService.GetProfiles();
+        _settings = await _settingsService.LoadAllAsync(profiles, cancellationToken);
+        _lastDesiredServerRunningByProfile.Clear();
+        _lastDesiredServerRunningInitializedProfiles.Clear();
         WriteRuntimeLog("已重新加载自动化设置。");
     }
 
@@ -122,34 +124,43 @@ public partial class AutomationService : IAutomationService, IDisposable
         _lastTickMinute = minute;
         PurgeExecutedKeys(minute);
 
-        if (_settings.RestartSchedulerEnabled)
-            await HandleRestartWindowsAsync(minute, cancellationToken);
+        foreach (var settings in _settings)
+        {
+            var profile = ResolveTargetProfile(settings);
+            if (profile is null)
+            {
+                continue;
+            }
 
-        if (_settings.BackupEnabled)
-            await HandleBackupAsync(minute, cancellationToken);
+            if (settings.RestartSchedulerEnabled)
+                await HandleRestartWindowsAsync(settings, profile, minute, cancellationToken);
 
-        if (_settings.BroadcastEnabled)
-            await HandleBroadcastAsync(minute, cancellationToken);
+            if (settings.BackupEnabled)
+                await HandleBackupAsync(settings, profile, minute, cancellationToken);
 
-        if (_settings.CommandEnabled)
-            await HandleScheduledCommandsAsync(minute, cancellationToken);
+            if (settings.BroadcastEnabled)
+                await HandleBroadcastAsync(settings, profile, minute, cancellationToken);
 
-        if (_settings.ExportLogEnabled)
-            await HandleExportLogsAsync(minute, cancellationToken);
+            if (settings.CommandEnabled)
+                await HandleScheduledCommandsAsync(settings, profile, minute, cancellationToken);
+
+            if (settings.ExportLogEnabled)
+                await HandleExportLogsAsync(settings, profile, minute, cancellationToken);
+        }
     }
 
-    private async Task HandleRestartWindowsAsync(DateTime minute, CancellationToken cancellationToken)
+    private async Task HandleRestartWindowsAsync(
+        AutomationSettings settings,
+        InstanceProfile profile,
+        DateTime minute,
+        CancellationToken cancellationToken)
     {
-        var profile = ResolveTargetProfile();
-        if (profile is null)
-            return;
-
-        var enabledWindows = (_settings.ActionWindows ?? [])
+        var enabledWindows = (settings.ActionWindows ?? [])
             .Where(window => window.Enabled)
             .ToList();
         if (enabledWindows.Count == 0)
         {
-            enabledWindows = (_settings.TimeWindows ?? [])
+            enabledWindows = (settings.TimeWindows ?? [])
                 .Where(window => window.Enabled)
                 .Select(window => new AutomationActionWindow
                 {
@@ -167,26 +178,27 @@ public partial class AutomationService : IAutomationService, IDisposable
         var conflict = FindConflict(enabledWindows, minute);
         if (conflict is not null)
         {
-            var conflictKey = $"conflict|{minute:yyyyMMddHHmm}|{conflict}";
+            var conflictKey = $"{profile.Id}|conflict|{minute:yyyyMMddHHmm}|{conflict}";
             if (MarkExecuted(conflictKey))
             {
-                WriteRuntimeLog($"自动化计划冲突，已跳过本分钟：{conflict}");
+                WriteRuntimeLog($"自动化计划冲突（档案：{profile.Name}），已跳过本分钟：{conflict}");
             }
 
             return;
         }
 
         var desiredRunning = ComputeDesiredServerRunning(enabledWindows, minute);
-        if (!_lastDesiredServerRunningInitialized)
+        if (!_lastDesiredServerRunningInitializedProfiles.Contains(profile.Id))
         {
-            _lastDesiredServerRunning = desiredRunning;
-            _lastDesiredServerRunningInitialized = true;
+            _lastDesiredServerRunningByProfile[profile.Id] = desiredRunning;
+            _lastDesiredServerRunningInitializedProfiles.Add(profile.Id);
         }
 
-        var status = _serverProcessService.GetCurrentStatus();
-        if (_lastDesiredServerRunning != desiredRunning || status.IsRunning != desiredRunning)
+        var status = _serverProcessService.GetCurrentStatus(profile.Id);
+        var lastDesired = _lastDesiredServerRunningByProfile.TryGetValue(profile.Id, out var value) && value;
+        if (lastDesired != desiredRunning || status.IsRunning != desiredRunning)
         {
-            var changeKey = $"desired|{minute:yyyyMMddHHmm}|{desiredRunning}";
+            var changeKey = $"{profile.Id}|desired|{minute:yyyyMMddHHmm}|{desiredRunning}";
             if (MarkExecuted(changeKey))
             {
                 if (desiredRunning)
@@ -195,17 +207,21 @@ public partial class AutomationService : IAutomationService, IDisposable
                 }
                 else
                 {
-                    await EnsureServerStoppedAsync(cancellationToken);
+                    await EnsureServerStoppedAsync(settings, profile, cancellationToken);
                 }
             }
         }
 
-        _lastDesiredServerRunning = desiredRunning;
+        _lastDesiredServerRunningByProfile[profile.Id] = desiredRunning;
     }
 
-    private async Task HandleBroadcastAsync(DateTime minute, CancellationToken cancellationToken)
+    private async Task HandleBroadcastAsync(
+        AutomationSettings settings,
+        InstanceProfile profile,
+        DateTime minute,
+        CancellationToken cancellationToken)
     {
-        foreach (var item in _settings.BroadcastMessages.Where(x => x.Enabled))
+        foreach (var item in settings.BroadcastMessages.Where(x => x.Enabled))
         {
             if (!TryParseHm(item.Time, out var at))
                 continue;
@@ -214,21 +230,21 @@ public partial class AutomationService : IAutomationService, IDisposable
             if (point != minute)
                 continue;
 
-            var key = $"broadcast|{minute:yyyyMMddHHmm}|{item.Message}";
+            var key = $"{profile.Id}|broadcast|{minute:yyyyMMddHHmm}|{item.Message}";
             if (!MarkExecuted(key))
                 continue;
 
-            await TryBroadcastSystemMessageAsync(item.Message, cancellationToken);
+            await TryBroadcastSystemMessageAsync(profile, item.Message, cancellationToken);
         }
     }
 
-    private async Task HandleBackupAsync(DateTime minute, CancellationToken cancellationToken)
+    private async Task HandleBackupAsync(
+        AutomationSettings settings,
+        InstanceProfile profile,
+        DateTime minute,
+        CancellationToken cancellationToken)
     {
-        var profile = ResolveTargetProfile();
-        if (profile is null)
-            return;
-
-        foreach (var time in _settings.BackupTimes)
+        foreach (var time in settings.BackupTimes)
         {
             if (!TryParseHm(time, out var at))
                 continue;
@@ -237,7 +253,7 @@ public partial class AutomationService : IAutomationService, IDisposable
             if (point != minute)
                 continue;
 
-            var key = $"backup|{minute:yyyyMMddHHmm}|{time}";
+            var key = $"{profile.Id}|backup|{minute:yyyyMMddHHmm}|{time}";
             if (!MarkExecuted(key))
                 continue;
 
@@ -245,9 +261,13 @@ public partial class AutomationService : IAutomationService, IDisposable
         }
     }
 
-    private async Task HandleScheduledCommandsAsync(DateTime minute, CancellationToken cancellationToken)
+    private async Task HandleScheduledCommandsAsync(
+        AutomationSettings settings,
+        InstanceProfile profile,
+        DateTime minute,
+        CancellationToken cancellationToken)
     {
-        foreach (var item in _settings.ScheduledCommands.Where(x => x.Enabled))
+        foreach (var item in settings.ScheduledCommands.Where(x => x.Enabled))
         {
             if (!TryParseHm(item.Time, out var at))
                 continue;
@@ -256,17 +276,21 @@ public partial class AutomationService : IAutomationService, IDisposable
             if (point != minute)
                 continue;
 
-            var key = $"command|{minute:yyyyMMddHHmm}|{item.Command}";
+            var key = $"{profile.Id}|command|{minute:yyyyMMddHHmm}|{item.Command}";
             if (!MarkExecuted(key))
                 continue;
 
-            await TrySendScheduledCommandAsync(item.Command, cancellationToken);
+            await TrySendScheduledCommandAsync(profile, item.Command, cancellationToken);
         }
     }
 
-    private async Task HandleExportLogsAsync(DateTime minute, CancellationToken cancellationToken)
+    private async Task HandleExportLogsAsync(
+        AutomationSettings settings,
+        InstanceProfile profile,
+        DateTime minute,
+        CancellationToken cancellationToken)
     {
-        foreach (var time in _settings.ExportTimes)
+        foreach (var time in settings.ExportTimes)
         {
             if (!TryParseHm(time, out var at))
                 continue;
@@ -275,20 +299,20 @@ public partial class AutomationService : IAutomationService, IDisposable
             if (point != minute)
                 continue;
 
-            var key = $"export|{minute:yyyyMMddHHmm}|{time}";
+            var key = $"{profile.Id}|export|{minute:yyyyMMddHHmm}|{time}";
             if (!MarkExecuted(key))
                 continue;
 
-            await ExportLogsAsync("scheduled", cancellationToken);
+            await ExportLogsAsync(settings, profile, "scheduled", cancellationToken);
         }
     }
 
     private async Task EnsureServerStartedAsync(InstanceProfile profile, CancellationToken cancellationToken)
     {
-        var status = _serverProcessService.GetCurrentStatus();
+        var status = _serverProcessService.GetCurrentStatus(profile.Id);
         if (status.IsRunning)
         {
-            WriteRuntimeLog("自动化：服务端已在运行，跳过开服。");
+            WriteRuntimeLog($"自动化：服务端已在运行，跳过开服（档案：{profile.Name}）。");
             return;
         }
 
@@ -296,29 +320,28 @@ public partial class AutomationService : IAutomationService, IDisposable
         WriteRuntimeLog($"自动化：已按计划启动服务端（档案：{profile.Name}）。");
     }
 
-    private async Task EnsureServerStoppedAsync(CancellationToken cancellationToken)
+    private async Task EnsureServerStoppedAsync(
+        AutomationSettings settings,
+        InstanceProfile profile,
+        CancellationToken cancellationToken)
     {
-        if (_settings.BackupBeforeShutdown)
+        if (settings.BackupBeforeShutdown)
         {
-            var profile = ResolveTargetProfile();
-            if (profile is not null)
-            {
-                await TryBackupActiveSaveAsync(profile, cancellationToken);
-            }
+            await TryBackupActiveSaveAsync(profile, cancellationToken);
         }
 
-        if (_settings.ExportBeforeShutdown)
-            await ExportLogsAsync("before-shutdown", cancellationToken);
+        if (settings.ExportBeforeShutdown)
+            await ExportLogsAsync(settings, profile, "before-shutdown", cancellationToken);
 
-        var status = _serverProcessService.GetCurrentStatus();
+        var status = _serverProcessService.GetCurrentStatus(profile.Id);
         if (!status.IsRunning)
         {
-            WriteRuntimeLog("自动化：服务端未运行，跳过关服。");
+            WriteRuntimeLog($"自动化：服务端未运行，跳过关服（档案：{profile.Name}）。");
             return;
         }
 
-        await _serverProcessService.StopAsync(TimeSpan.FromSeconds(15), cancellationToken);
-        WriteRuntimeLog("自动化：已按计划关闭服务端。");
+        await _serverProcessService.StopAsync(profile.Id, TimeSpan.FromSeconds(15), cancellationToken);
+        WriteRuntimeLog($"自动化：已按计划关闭服务端（档案：{profile.Name}）。");
     }
 
     private async Task TryBackupActiveSaveAsync(InstanceProfile profile, CancellationToken cancellationToken)
@@ -326,7 +349,7 @@ public partial class AutomationService : IAutomationService, IDisposable
         await _backupGate.WaitAsync(cancellationToken);
         try
         {
-            var status = _serverProcessService.GetCurrentStatus();
+            var status = _serverProcessService.GetCurrentStatus(profile.Id);
             if (status.IsRunning)
             {
                 var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -335,7 +358,7 @@ public partial class AutomationService : IAutomationService, IDisposable
                     _backupCompletionSource = completion;
                 }
 
-                await _serverProcessService.SendCommandAsync("/genbackup", cancellationToken);
+                await _serverProcessService.SendCommandAsync(profile.Id, "/genbackup", cancellationToken);
                 WriteRuntimeLog($"自动化备份：已请求服务器备份（档案：{profile.Name}）。");
 
                 var finished = await Task.WhenAny(
@@ -376,26 +399,32 @@ public partial class AutomationService : IAutomationService, IDisposable
         }
     }
 
-    private async Task TryBroadcastSystemMessageAsync(string content, CancellationToken cancellationToken)
+    private async Task TryBroadcastSystemMessageAsync(
+        InstanceProfile profile,
+        string content,
+        CancellationToken cancellationToken)
     {
-        var status = _serverProcessService.GetCurrentStatus();
+        var status = _serverProcessService.GetCurrentStatus(profile.Id);
         if (!status.IsRunning)
         {
-            WriteRuntimeLog($"自动化播报跳过（服务端未运行）：{content}");
+            WriteRuntimeLog($"自动化播报跳过（档案 {profile.Name} 未运行）：{content}");
             return;
         }
 
         var normalized = content.Replace('\r', ' ').Replace('\n', ' ').Trim();
-        await _serverProcessService.SendCommandAsync($"/announce {normalized}", cancellationToken);
-        WriteRuntimeLog($"自动化播报：{content}");
+        await _serverProcessService.SendCommandAsync(profile.Id, $"/announce {normalized}", cancellationToken);
+        WriteRuntimeLog($"自动化播报（档案：{profile.Name}）：{content}");
     }
 
-    private async Task TrySendScheduledCommandAsync(string command, CancellationToken cancellationToken)
+    private async Task TrySendScheduledCommandAsync(
+        InstanceProfile profile,
+        string command,
+        CancellationToken cancellationToken)
     {
-        var status = _serverProcessService.GetCurrentStatus();
+        var status = _serverProcessService.GetCurrentStatus(profile.Id);
         if (!status.IsRunning)
         {
-            WriteRuntimeLog($"自动化命令跳过（服务端未运行）：{command}");
+            WriteRuntimeLog($"自动化命令跳过（档案 {profile.Name} 未运行）：{command}");
             return;
         }
 
@@ -403,15 +432,20 @@ public partial class AutomationService : IAutomationService, IDisposable
         if (string.IsNullOrWhiteSpace(normalized))
             return;
 
-        await _serverProcessService.SendCommandAsync(normalized, cancellationToken);
-        WriteRuntimeLog($"自动化命令：{normalized}");
+        await _serverProcessService.SendCommandAsync(profile.Id, normalized, cancellationToken);
+        WriteRuntimeLog($"自动化命令（档案：{profile.Name}）：{normalized}");
     }
 
-    private async Task ExportLogsAsync(string reason, CancellationToken cancellationToken)
+    private async Task ExportLogsAsync(
+        AutomationSettings settings,
+        InstanceProfile profile,
+        string reason,
+        CancellationToken cancellationToken)
     {
         var exportRoot = Path.Combine(WorkspacePathHelper.WorkspaceRoot, "exports", "automation");
         Directory.CreateDirectory(exportRoot);
         var timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        var profileToken = SanitizeFileName(profile.Name);
 
         var sourceLines = _latestServerLines.ToArray();
         if (sourceLines.Length == 0)
@@ -420,20 +454,20 @@ public partial class AutomationService : IAutomationService, IDisposable
             return;
         }
 
-        var allPath = Path.Combine(exportRoot, $"automation-{reason}-{timestamp}-all.log");
+        var allPath = Path.Combine(exportRoot, $"automation-{profileToken}-{reason}-{timestamp}-all.log");
         await File.WriteAllLinesAsync(allPath, sourceLines, cancellationToken);
 
-        if (_settings.ExportIncludeChat)
+        if (settings.ExportIncludeChat)
         {
             var chatLines = sourceLines.Where(IsChatLine).ToList();
-            var chatPath = Path.Combine(exportRoot, $"automation-{reason}-{timestamp}-chat.log");
+            var chatPath = Path.Combine(exportRoot, $"automation-{profileToken}-{reason}-{timestamp}-chat.log");
             await File.WriteAllLinesAsync(chatPath, chatLines, cancellationToken);
         }
 
-        if (_settings.ExportIncludeServerInfo)
+        if (settings.ExportIncludeServerInfo)
         {
             var infoLines = sourceLines.Where(IsServerInfoLine).ToList();
-            var infoPath = Path.Combine(exportRoot, $"automation-{reason}-{timestamp}-server.log");
+            var infoPath = Path.Combine(exportRoot, $"automation-{profileToken}-{reason}-{timestamp}-server.log");
             await File.WriteAllLinesAsync(infoPath, infoLines, cancellationToken);
         }
 
@@ -475,10 +509,13 @@ public partial class AutomationService : IAutomationService, IDisposable
     private void OnServerStatusChanged(object? sender, ServerRuntimeStatus status)
     {
         var state = status.IsRunning ? "运行中" : "未运行";
-        WriteRuntimeLog($"服务端状态更新：{state}，在线 {status.OnlinePlayers}。");
+        var profileName = string.IsNullOrWhiteSpace(status.ProfileId)
+            ? "未识别档案"
+            : _profileService.GetProfileById(status.ProfileId)?.Name ?? status.ProfileId;
+        WriteRuntimeLog($"服务端状态更新（档案：{profileName}）：{state}，在线 {status.OnlinePlayers}。");
     }
 
-    private InstanceProfile? ResolveTargetProfile()
+    private InstanceProfile? ResolveTargetProfile(AutomationSettings settings)
     {
         var profiles = _profileService.GetProfiles();
         if (profiles.Count == 0)
@@ -487,15 +524,26 @@ public partial class AutomationService : IAutomationService, IDisposable
             return null;
         }
 
-        if (!string.IsNullOrWhiteSpace(_settings.TargetProfileId))
+        if (!string.IsNullOrWhiteSpace(settings.TargetProfileId))
         {
             var matched = profiles.FirstOrDefault(profile =>
-                profile.Id.Equals(_settings.TargetProfileId, StringComparison.OrdinalIgnoreCase));
+                profile.Id.Equals(settings.TargetProfileId, StringComparison.OrdinalIgnoreCase));
             if (matched is not null)
                 return matched;
         }
 
         return profiles[0];
+    }
+
+    private static string SanitizeFileName(string value)
+    {
+        var sanitized = string.IsNullOrWhiteSpace(value) ? "server" : value.Trim();
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+        {
+            sanitized = sanitized.Replace(invalid, '_');
+        }
+
+        return sanitized;
     }
 
     private void WriteRuntimeLog(string line)

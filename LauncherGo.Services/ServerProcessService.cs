@@ -15,7 +15,378 @@ namespace LauncherGo.Services;
 /// <summary>
 ///     服务器进程服务默认实现
 /// </summary>
-public partial class ServerProcessService : IServerProcessService
+public sealed partial class ServerProcessService : IServerProcessService
+{
+    private readonly object _gate = new();
+    private readonly Dictionary<string, SingleServerProcessController> _controllers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, InstanceProfile> _controllerProfiles = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ServerRuntimeStatus> _statuses = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<string, DateTimeOffset>> _playerJoinedAtUtc = new(StringComparer.OrdinalIgnoreCase);
+    private readonly IInstanceProfileService? _profileService;
+    private readonly IServerAuthService? _serverAuthService;
+    private readonly IServerMapService? _serverMapService;
+    private readonly ILogger<ServerProcessService> _logger;
+    private DateTimeOffset _lastDiscoveryUtc = DateTimeOffset.MinValue;
+    private string _activeProfileId = string.Empty;
+
+    public ServerProcessService()
+        : this(null, null, null, NullLogger<ServerProcessService>.Instance)
+    {
+    }
+
+    public ServerProcessService(
+        IInstanceProfileService? profileService,
+        IServerAuthService? serverAuthService = null,
+        IServerMapService? serverMapService = null,
+        ILogger<ServerProcessService>? logger = null)
+    {
+        _profileService = profileService;
+        _serverAuthService = serverAuthService;
+        _serverMapService = serverMapService;
+        _logger = logger ?? NullLogger<ServerProcessService>.Instance;
+    }
+
+    public event EventHandler<string>? OutputReceived;
+
+    public event EventHandler<ServerOutputLine>? ProfileOutputReceived;
+
+    public event EventHandler<ServerRuntimeStatus>? StatusChanged;
+
+    public ServerRuntimeStatus GetCurrentStatus()
+    {
+        var statuses = GetCurrentStatuses();
+        var activeStatus = statuses.FirstOrDefault(status =>
+            !string.IsNullOrWhiteSpace(_activeProfileId) &&
+            string.Equals(status.ProfileId, _activeProfileId, StringComparison.OrdinalIgnoreCase) &&
+            status.IsRunning);
+        if (activeStatus is not null)
+        {
+            return activeStatus;
+        }
+
+        return statuses.FirstOrDefault(status => status.IsRunning)
+               ?? statuses.FirstOrDefault()
+               ?? new ServerRuntimeStatus();
+    }
+
+    public ServerRuntimeStatus GetCurrentStatus(string profileId)
+    {
+        if (string.IsNullOrWhiteSpace(profileId))
+        {
+            return new ServerRuntimeStatus();
+        }
+
+        var profile = _profileService?.GetProfileById(profileId.Trim());
+        if (profile is not null)
+        {
+            return GetOrCreateController(profile).GetCurrentStatus(profile);
+        }
+
+        lock (_gate)
+        {
+            return _statuses.TryGetValue(profileId.Trim(), out var status)
+                ? status
+                : new ServerRuntimeStatus { ProfileId = profileId.Trim() };
+        }
+    }
+
+    public IReadOnlyList<ServerRuntimeStatus> GetCurrentStatuses()
+    {
+        DiscoverKnownProfiles();
+
+        List<(InstanceProfile Profile, SingleServerProcessController Controller)> controllers;
+        lock (_gate)
+        {
+            controllers = _controllers
+                .Select(pair => (_controllerProfiles[pair.Key], pair.Value))
+                .ToList();
+        }
+
+        foreach (var (profile, controller) in controllers)
+        {
+            controller.GetCurrentStatus(profile);
+        }
+
+        lock (_gate)
+        {
+            return _statuses.Values
+                .OrderByDescending(static status => status.IsRunning)
+                .ThenBy(status => ResolveStatusProfileName(status.ProfileId))
+                .ToList();
+        }
+    }
+
+    public ServerRuntimeStatus GetCachedStatus()
+    {
+        lock (_gate)
+        {
+            return _statuses.Values.FirstOrDefault(status => status.IsRunning)
+                   ?? _statuses.Values.FirstOrDefault()
+                   ?? new ServerRuntimeStatus();
+        }
+    }
+
+    public IReadOnlyList<string> GetOnlinePlayerNames()
+    {
+        return GetOnlinePlayers()
+            .Select(static player => player.PlayerName)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    public IReadOnlyList<string> GetOnlinePlayerNames(string profileId)
+    {
+        if (string.IsNullOrWhiteSpace(profileId))
+        {
+            return [];
+        }
+
+        lock (_gate)
+        {
+            return _controllers.TryGetValue(profileId.Trim(), out var controller)
+                ? controller.GetOnlinePlayerNames()
+                : [];
+        }
+    }
+
+    public IReadOnlyList<ServerOnlinePlayerInfo> GetOnlinePlayers()
+    {
+        GetCurrentStatuses();
+
+        lock (_gate)
+        {
+            return _statuses.Values
+                .Where(static status => status.IsRunning)
+                .SelectMany(status =>
+                {
+                    var profileId = status.ProfileId ?? string.Empty;
+                    var profileName = ResolveStatusProfileName(profileId);
+                    _playerJoinedAtUtc.TryGetValue(profileId, out var joinedAtByName);
+                    return status.OnlinePlayerNames.Select(name => new ServerOnlinePlayerInfo
+                    {
+                        PlayerName = name,
+                        ProfileId = profileId,
+                        ProfileName = profileName,
+                        JoinedAtUtc = joinedAtByName is not null &&
+                                      joinedAtByName.TryGetValue(name, out var joinedAt)
+                            ? joinedAt
+                            : null
+                    });
+                })
+                .OrderBy(static player => player.ProfileName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(static player => player.PlayerName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+    }
+
+    public async Task StartAsync(InstanceProfile profile, CancellationToken cancellationToken = default)
+    {
+        if (profile is null)
+        {
+            throw new ArgumentNullException(nameof(profile));
+        }
+
+        _activeProfileId = profile.Id;
+        await GetOrCreateController(profile).StartAsync(profile, cancellationToken);
+    }
+
+    public async Task StopAsync(string profileId, TimeSpan gracefulTimeout, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(profileId))
+        {
+            return;
+        }
+
+        var controller = GetExistingController(profileId.Trim());
+        if (controller is null)
+        {
+            return;
+        }
+
+        await controller.StopAsync(gracefulTimeout, cancellationToken);
+    }
+
+    public async Task StopAsync(TimeSpan gracefulTimeout, CancellationToken cancellationToken = default)
+    {
+        List<(string ProfileId, SingleServerProcessController Controller)> controllers;
+        lock (_gate)
+        {
+            controllers = _controllers
+                .Select(pair => (pair.Key, pair.Value))
+                .ToList();
+        }
+
+        foreach (var (_, controller) in controllers)
+        {
+            if (controller.GetCachedStatus().IsRunning)
+            {
+                await controller.StopAsync(gracefulTimeout, cancellationToken);
+            }
+        }
+    }
+
+    public Task SendCommandAsync(string profileId, string command, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(profileId))
+        {
+            throw new InvalidOperationException("请先选择运行中的服务器。");
+        }
+
+        var controller = GetExistingController(profileId.Trim())
+                         ?? throw new InvalidOperationException("所选服务器未运行。");
+        _activeProfileId = profileId.Trim();
+        return controller.SendCommandAsync(command, cancellationToken);
+    }
+
+    public Task SendCommandAsync(string command, CancellationToken cancellationToken = default)
+    {
+        var status = GetCurrentStatus();
+        if (string.IsNullOrWhiteSpace(status.ProfileId))
+        {
+            throw new InvalidOperationException("服务器未运行。");
+        }
+
+        return SendCommandAsync(status.ProfileId, command, cancellationToken);
+    }
+
+    private void DiscoverKnownProfiles()
+    {
+        if (_profileService is null || DateTimeOffset.UtcNow - _lastDiscoveryUtc < TimeSpan.FromSeconds(2))
+        {
+            return;
+        }
+
+        _lastDiscoveryUtc = DateTimeOffset.UtcNow;
+
+        IReadOnlyList<InstanceProfile> profiles;
+        try
+        {
+            profiles = _profileService.GetProfiles();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to discover profiles for server process status.");
+            return;
+        }
+
+        foreach (var profile in profiles)
+        {
+            GetOrCreateController(profile).GetCurrentStatus(profile);
+        }
+    }
+
+    private SingleServerProcessController GetOrCreateController(InstanceProfile profile)
+    {
+        lock (_gate)
+        {
+            if (_controllers.TryGetValue(profile.Id, out var existing))
+            {
+                _controllerProfiles[profile.Id] = profile;
+                return existing;
+            }
+
+            var controller = new SingleServerProcessController(
+                _profileService,
+                _serverAuthService,
+                _serverMapService,
+                _logger);
+            _controllers[profile.Id] = controller;
+            _controllerProfiles[profile.Id] = profile;
+            _statuses[profile.Id] = new ServerRuntimeStatus { ProfileId = profile.Id };
+            controller.OutputReceived += (_, line) => OnControllerOutput(profile, line);
+            controller.StatusChanged += (_, status) => OnControllerStatusChanged(profile, status);
+            return controller;
+        }
+    }
+
+    private SingleServerProcessController? GetExistingController(string profileId)
+    {
+        lock (_gate)
+        {
+            if (_controllers.TryGetValue(profileId, out var controller))
+            {
+                return controller;
+            }
+        }
+
+        var profile = _profileService?.GetProfileById(profileId);
+        return profile is null ? null : GetOrCreateController(profile);
+    }
+
+    private void OnControllerOutput(InstanceProfile profile, string line)
+    {
+        var output = new ServerOutputLine
+        {
+            ProfileId = profile.Id,
+            ProfileName = profile.Name,
+            Line = line,
+            TimestampUtc = DateTimeOffset.UtcNow
+        };
+        OutputReceived?.Invoke(this, line);
+        ProfileOutputReceived?.Invoke(this, output);
+    }
+
+    private void OnControllerStatusChanged(InstanceProfile profile, ServerRuntimeStatus status)
+    {
+        var profileId = string.IsNullOrWhiteSpace(status.ProfileId) ? profile.Id : status.ProfileId!;
+        lock (_gate)
+        {
+            _statuses[profileId] = status;
+            UpdateJoinedPlayers(profileId, status);
+            if (status.IsRunning)
+            {
+                _activeProfileId = profileId;
+            }
+        }
+
+        StatusChanged?.Invoke(this, status);
+    }
+
+    private void UpdateJoinedPlayers(string profileId, ServerRuntimeStatus status)
+    {
+        if (!_playerJoinedAtUtc.TryGetValue(profileId, out var joinedAtByName))
+        {
+            joinedAtByName = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
+            _playerJoinedAtUtc[profileId] = joinedAtByName;
+        }
+
+        var currentNames = status.IsRunning
+            ? status.OnlinePlayerNames
+                .Where(static name => !string.IsNullOrWhiteSpace(name))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : [];
+        foreach (var name in currentNames)
+        {
+            joinedAtByName.TryAdd(name, DateTimeOffset.UtcNow);
+        }
+
+        foreach (var knownName in joinedAtByName.Keys.ToList())
+        {
+            if (!currentNames.Contains(knownName))
+            {
+                joinedAtByName.Remove(knownName);
+            }
+        }
+    }
+
+    private string ResolveStatusProfileName(string? profileId)
+    {
+        if (string.IsNullOrWhiteSpace(profileId))
+        {
+            return string.Empty;
+        }
+
+        if (_controllerProfiles.TryGetValue(profileId, out var profile))
+        {
+            return profile.Name;
+        }
+
+        return _profileService?.GetProfileById(profileId)?.Name ?? profileId;
+    }
+}
+
+internal sealed partial class SingleServerProcessController
 {
     private const long PlayerCountBootstrapWindowBytes = 4L * 1024 * 1024;
     private const long CommandAckReadWindowBytes = 256L * 1024;
@@ -43,12 +414,12 @@ public partial class ServerProcessService : IServerProcessService
     private DateTimeOffset _lastCpuSampleUtc = DateTimeOffset.UtcNow;
     private double _lastCpuPercent;
 
-    public ServerProcessService()
+    public SingleServerProcessController()
         : this(null, null, null, NullLogger<ServerProcessService>.Instance)
     {
     }
 
-    public ServerProcessService(
+    public SingleServerProcessController(
         IInstanceProfileService? profileService,
         IServerAuthService? serverAuthService = null,
         IServerMapService? serverMapService = null,
@@ -67,7 +438,7 @@ public partial class ServerProcessService : IServerProcessService
     public event EventHandler<ServerRuntimeStatus>? StatusChanged;
 
     /// <inheritdoc />
-    public ServerRuntimeStatus GetCurrentStatus()
+    public ServerRuntimeStatus GetCurrentStatus(InstanceProfile? preferredProfile = null)
     {
         if (!_processGate.Wait(0))
             return _currentStatus;
@@ -78,8 +449,8 @@ public partial class ServerProcessService : IServerProcessService
 
             if (_process is null)
             {
-                if (!TryAttachToExistingWorkspaceServerRelay(preferredProfile: null, emitOutput: false) &&
-                    !TryAttachToExistingWorkspaceServerProcess(preferredProfile: null, emitOutput: false))
+                if (!TryAttachToExistingWorkspaceServerRelay(preferredProfile, emitOutput: false) &&
+                    !TryAttachToExistingWorkspaceServerProcess(preferredProfile, emitOutput: false))
                 {
                     PublishStoppedStatusIfStale();
                 }
@@ -136,8 +507,7 @@ public partial class ServerProcessService : IServerProcessService
                     return;
                 }
 
-                throw new InvalidOperationException(
-                    $"检测到已有服务端进程正在运行（PID={_currentStatus.ProcessId}），已接管其状态。请先停止当前服务端后再启动其他档案。");
+                DetachCurrentProcessTracking();
             }
 
             var installPath = _profileService?.EnsureVersionInstalled(profile.Version)
@@ -948,6 +1318,51 @@ public partial class ServerProcessService : IServerProcessService
         }
     }
 
+    private void DetachCurrentProcessTracking()
+    {
+        var process = _process;
+        try
+        {
+            _monitorCts?.Cancel();
+            _monitorCts?.Dispose();
+        }
+        catch
+        {
+            // ignore
+        }
+
+        _monitorCts = null;
+        _monitorTask = null;
+        _relayState = null;
+        _canWriteStandardInput = false;
+        _playerCountLogPath = null;
+        _playerCountLogPosition = 0;
+        _peakOnlinePlayers = 0;
+        _lastProcessorTime = TimeSpan.Zero;
+        _lastCpuPercent = 0;
+        _lastCpuSampleUtc = DateTimeOffset.UtcNow;
+        ResetOnlinePlayerTracking();
+
+        if (process is not null)
+        {
+            try
+            {
+                process.OutputDataReceived -= OnOutputDataReceived;
+                process.ErrorDataReceived -= OnOutputDataReceived;
+                process.Exited -= OnProcessExited;
+                process.Dispose();
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        _process = null;
+        _currentProfile = null;
+        _currentStatus = new ServerRuntimeStatus();
+    }
+
     private void PublishStoppedStatusIfStale()
     {
         if (!_currentStatus.IsRunning)
@@ -1257,6 +1672,12 @@ public partial class ServerProcessService : IServerProcessService
                     profiles,
                     liveState.DataPath,
                     liveState.Version);
+                if (preferredProfile is not null &&
+                    profile?.Id.Equals(preferredProfile.Id, StringComparison.OrdinalIgnoreCase) != true)
+                {
+                    continue;
+                }
+
                 var score = ScoreProcessMatch(preferredProfile, profile, liveState.DataPath, liveState.Version);
                 var startedAt = liveState.StartedAtUtc;
 
@@ -1334,6 +1755,12 @@ public partial class ServerProcessService : IServerProcessService
                 var dataPath = TryExtractDataPath(commandLine);
                 var version = TryResolveVersionFromExecutable(candidate, serversRoot);
                 var profile = ResolveProfileForProcess(preferredProfile, profiles, dataPath, version);
+                if (preferredProfile is not null &&
+                    profile?.Id.Equals(preferredProfile.Id, StringComparison.OrdinalIgnoreCase) != true)
+                {
+                    continue;
+                }
+
                 var score = ScoreProcessMatch(preferredProfile, profile, dataPath, version);
                 var startedAt = TryGetStartTimeUtc(candidate) ?? DateTimeOffset.MinValue;
 

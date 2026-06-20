@@ -14,17 +14,19 @@ public class AutomationSettingsService : IAutomationSettingsService
         WriteIndented = true
     };
 
-    private static string SettingsPath => Path.Combine(WorkspacePathHelper.WorkspaceRoot, "automation-settings.json");
+    private static string LegacySettingsPath => Path.Combine(WorkspacePathHelper.WorkspaceRoot, "automation-settings.json");
+
+    private static string SettingsRoot => Path.Combine(WorkspacePathHelper.WorkspaceRoot, "automation");
 
     public async Task<AutomationSettings> LoadAsync(CancellationToken cancellationToken = default)
     {
         WorkspacePathHelper.EnsureWorkspace();
-        if (!File.Exists(SettingsPath))
+        if (!File.Exists(LegacySettingsPath))
             return BuildDefaults();
 
         try
         {
-            var json = await File.ReadAllTextAsync(SettingsPath, cancellationToken);
+            var json = await File.ReadAllTextAsync(LegacySettingsPath, cancellationToken);
             var parsed = JsonSerializer.Deserialize<AutomationSettings>(json, JsonOptions) ?? BuildDefaults();
             return Normalize(parsed);
         }
@@ -34,12 +36,85 @@ public class AutomationSettingsService : IAutomationSettingsService
         }
     }
 
+    public async Task<AutomationSettings> LoadAsync(InstanceProfile profile, CancellationToken cancellationToken = default)
+    {
+        WorkspacePathHelper.EnsureWorkspace();
+        var settingsPath = GetSettingsPath(profile);
+        if (!File.Exists(settingsPath))
+        {
+            var defaults = BuildDefaults();
+            defaults.TargetProfileId = profile.Id;
+            if (File.Exists(LegacySettingsPath))
+            {
+                var legacy = await LoadAsync(cancellationToken);
+                if (string.IsNullOrWhiteSpace(legacy.TargetProfileId) ||
+                    legacy.TargetProfileId.Equals(profile.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    legacy.TargetProfileId = profile.Id;
+                    return Normalize(legacy);
+                }
+            }
+
+            return Normalize(defaults);
+        }
+
+        try
+        {
+            var json = await File.ReadAllTextAsync(settingsPath, cancellationToken);
+            var parsed = JsonSerializer.Deserialize<AutomationSettings>(json, JsonOptions) ?? BuildDefaults();
+            parsed.TargetProfileId = profile.Id;
+            return Normalize(parsed);
+        }
+        catch
+        {
+            var fallback = BuildDefaults();
+            fallback.TargetProfileId = profile.Id;
+            return Normalize(fallback);
+        }
+    }
+
+    public async Task<IReadOnlyList<AutomationSettings>> LoadAllAsync(
+        IReadOnlyList<InstanceProfile> profiles,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = new List<AutomationSettings>();
+        foreach (var profile in profiles)
+        {
+            settings.Add(await LoadAsync(profile, cancellationToken));
+        }
+
+        return settings;
+    }
+
     public async Task SaveAsync(AutomationSettings settings, CancellationToken cancellationToken = default)
     {
         WorkspacePathHelper.EnsureWorkspace();
         var normalized = Normalize(settings);
         var json = JsonSerializer.Serialize(normalized, JsonOptions);
-        await File.WriteAllTextAsync(SettingsPath, json, cancellationToken);
+        await File.WriteAllTextAsync(LegacySettingsPath, json, cancellationToken);
+    }
+
+    public async Task SaveAsync(InstanceProfile profile, AutomationSettings settings, CancellationToken cancellationToken = default)
+    {
+        WorkspacePathHelper.EnsureWorkspace();
+        Directory.CreateDirectory(SettingsRoot);
+        settings.TargetProfileId = profile.Id;
+        var normalized = Normalize(settings);
+        var json = JsonSerializer.Serialize(normalized, JsonOptions);
+        await File.WriteAllTextAsync(GetSettingsPath(profile), json, cancellationToken);
+    }
+
+    public string GetSettingsPath(InstanceProfile profile)
+    {
+        WorkspacePathHelper.EnsureWorkspace();
+        Directory.CreateDirectory(SettingsRoot);
+        var id = string.IsNullOrWhiteSpace(profile.Id) ? "default" : profile.Id.Trim();
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+        {
+            id = id.Replace(invalid, '_');
+        }
+
+        return Path.Combine(SettingsRoot, $"{id}.json");
     }
 
     private static AutomationSettings BuildDefaults()

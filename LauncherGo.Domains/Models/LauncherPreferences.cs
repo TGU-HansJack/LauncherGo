@@ -37,6 +37,8 @@ public class LauncherPreferences
 
     public string DefaultLaunchSaveFile { get; set; } = string.Empty;
 
+    public List<string> DefaultLaunchProfileIds { get; set; } = [];
+
     public List<string> QuickCommands { get; set; } = [];
 
     public bool StartWithWindows { get; set; }
@@ -48,6 +50,8 @@ public class LauncherPreferences
     public bool AutoStartServerOnLaunch { get; set; }
 
     public string AutoStartServerProfileId { get; set; } = string.Empty;
+
+    public List<string> AutoStartServerProfileIds { get; set; } = [];
 
     public bool AutoStartOpenServerQueryOnLaunch { get; set; }
 
