@@ -18,6 +18,8 @@ public interface IServerProcessService
 
     ServerRuntimeStatus GetCachedStatus();
 
+    IReadOnlyList<ServerRuntimeStatus> GetCachedStatuses();
+
     IReadOnlyList<string> GetOnlinePlayerNames();
 
     IReadOnlyList<string> GetOnlinePlayerNames(string profileId);

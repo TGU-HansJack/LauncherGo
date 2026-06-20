@@ -37,6 +37,8 @@ public partial class LauncherMainWindow : Window
     private const int NetworkRangeCount = 144;
     private const int MaxConsoleLines = 800;
     private const double ConsoleAutoScrollThreshold = 12;
+    private const int ConsoleRefreshDelayMs = 80;
+    private const int ServerStartTimeoutSeconds = 30;
     private const int RunningServerLogReplayGraceSeconds = 5;
     private const double ChartWidth = 640;
     private const double ChartHeight = 248;
@@ -230,6 +232,7 @@ public partial class LauncherMainWindow : Window
     private bool _contributorsLoaded;
     private bool _sponsorsLoaded;
     private bool _consoleAutoScroll = true;
+    private bool _consoleRefreshQueued;
     private bool _isFrpRunning;
     private bool _isThirdPartyFrpcRunning;
     private bool _isTogglingFrp;
@@ -482,7 +485,6 @@ public partial class LauncherMainWindow : Window
             SetLaunchOperationBusy(T("启动中...", "Starting..."));
             try
             {
-                SelectTab(MainTab.Console);
                 foreach (var profileId in profileIds)
                 {
                     var profile = _profileService.GetProfileById(profileId.Trim());
@@ -499,7 +501,7 @@ public partial class LauncherMainWindow : Window
                     var savePath = NormalizeFullPath(profile.ActiveSaveFile);
 
                     var reloadedProfile = await EnsureLaunchableProfileSaveAsync(profile, savePath);
-                    await _serverProcessService.StartAsync(reloadedProfile);
+                    await StartServerProfileWithTimeoutAsync(reloadedProfile);
                 }
             }
             finally
@@ -795,7 +797,7 @@ public partial class LauncherMainWindow : Window
 
         EventTickerCurrentText.Text = T("暂无玩家事件", "No player events");
         EventTickerNextText.Text = EventTickerCurrentText.Text;
-        UpdateCardValues(_serverProcessService.GetCurrentStatus());
+        UpdateCardValues(_serverProcessService.GetCachedStatus());
     }
 
     private void InitializeCollections()
@@ -853,8 +855,8 @@ public partial class LauncherMainWindow : Window
 
     private void OnDataTimerTick(object? sender, EventArgs e)
     {
-        var statuses = _serverProcessService.GetCurrentStatuses();
-        var status = statuses.FirstOrDefault(s => s.IsRunning) ?? _serverProcessService.GetCurrentStatus();
+        var statuses = _serverProcessService.GetCachedStatuses();
+        var status = statuses.FirstOrDefault(s => s.IsRunning) ?? _serverProcessService.GetCachedStatus();
         var robotStatus = _robotService.GetCurrentStatus();
         var robotResources = SampleRobotResources(robotStatus);
         var totalServerCpu = statuses.Where(s => s.IsRunning).Sum(s => s.CpuPercent);
@@ -1055,7 +1057,7 @@ public partial class LauncherMainWindow : Window
         var robotMemMb = _robotMemoryMbSamples[^1];
         UpdateDashboard(status, robotStatus, serverCpu, serverMemMb, robotCpu, robotMemMb);
 
-        var statuses = _serverProcessService.GetCurrentStatuses();
+        var statuses = _serverProcessService.GetCachedStatuses();
         var hasRunningServer = statuses.Any(static current => current.IsRunning);
         var hasPendingLaunchTargets = HasPendingLaunchTargets(statuses);
         var stopMode = hasRunningServer && !hasPendingLaunchTargets;
@@ -1073,7 +1075,7 @@ public partial class LauncherMainWindow : Window
         double robotCpu,
         double robotMemMb)
     {
-        UpdateMultiServerDashboard(_serverProcessService.GetCurrentStatuses());
+        UpdateMultiServerDashboard(_serverProcessService.GetCachedStatuses());
     }
 
     private void UpdateMultiServerDashboard(IReadOnlyList<ServerRuntimeStatus> statuses)
@@ -1162,7 +1164,7 @@ public partial class LauncherMainWindow : Window
             Dispatcher.UIThread.Post(() =>
             {
                 _dashboardSettingsByProfile[profile.Id] = settings;
-                UpdateMultiServerDashboard(_serverProcessService.GetCurrentStatuses());
+                UpdateMultiServerDashboard(_serverProcessService.GetCachedStatuses());
             });
         }
         catch (Exception ex)
@@ -1313,7 +1315,7 @@ public partial class LauncherMainWindow : Window
 
                 _dashboardServerPort = settings.Port;
                 _dashboardMaxPlayers = settings.MaxClients;
-                UpdateMultiServerDashboard(_serverProcessService.GetCurrentStatuses());
+                UpdateMultiServerDashboard(_serverProcessService.GetCachedStatuses());
             });
         }
         catch (Exception ex)
@@ -1324,7 +1326,7 @@ public partial class LauncherMainWindow : Window
 
     private void UpdateDashboardStatus(ServerRuntimeStatus status)
     {
-        UpdateMultiServerDashboard(_serverProcessService.GetCurrentStatuses());
+        UpdateMultiServerDashboard(_serverProcessService.GetCachedStatuses());
     }
 
     private void UpdateDashboardPlayers(ServerRuntimeStatus status)
@@ -1380,7 +1382,7 @@ public partial class LauncherMainWindow : Window
 
     private void UpdateDashboardUptimes(ServerRuntimeStatus status, RobotRuntimeStatus robotStatus)
     {
-        UpdateDashboardUptimeItems(_serverProcessService.GetCurrentStatuses().Where(static s => s.IsRunning).ToList());
+        UpdateDashboardUptimeItems(_serverProcessService.GetCachedStatuses().Where(static s => s.IsRunning).ToList());
     }
 
     private static DateTimeOffset? ParseRuntimeStartedAtUtc(string value)
@@ -1436,14 +1438,14 @@ public partial class LauncherMainWindow : Window
 
     private void RenderSelectedMetricChart(ServerRuntimeStatus? statusOverride = null)
     {
-        var status = statusOverride ?? _serverProcessService.GetCurrentStatus();
+        var status = statusOverride ?? _serverProcessService.GetCachedStatus();
         RenderDashboardResourceChart(status);
     }
 
     private void RenderDashboardResourceChart(ServerRuntimeStatus status)
     {
         var robotStatus = _robotService.GetCurrentStatus();
-        var hasRunningServer = _serverProcessService.GetCurrentStatuses().Any(static current => current.IsRunning);
+        var hasRunningServer = _serverProcessService.GetCachedStatuses().Any(static current => current.IsRunning);
         var serverCpu = _serverCpuSamples[^1];
         var robotCpu = _robotCpuSamples[^1];
         var serverMemoryMb = _serverMemoryMbSamples[^1];
@@ -2334,7 +2336,7 @@ public partial class LauncherMainWindow : Window
 
     private void RefreshLaunchButtonSummary()
     {
-        var statuses = _serverProcessService.GetCurrentStatuses();
+        var statuses = _serverProcessService.GetCachedStatuses();
         var runningStatuses = statuses.Where(static status => status.IsRunning).ToList();
         var runningIds = runningStatuses
             .Select(static status => status.ProfileId ?? string.Empty)
@@ -2553,6 +2555,12 @@ public partial class LauncherMainWindow : Window
         if (tab == MainTab.Monitor)
         {
             RenderSelectedMetricChart();
+        }
+
+        if (tab == MainTab.Console)
+        {
+            RefreshConsoleServerItems(_serverProcessService.GetCachedStatuses());
+            RefreshConsoleText();
         }
 
         if (tab == MainTab.Connection)
@@ -3649,7 +3657,7 @@ public partial class LauncherMainWindow : Window
         finally
         {
             UpdateRobotToggleButtonText();
-            UpdateCardValues(_serverProcessService.GetCurrentStatus());
+            UpdateCardValues(_serverProcessService.GetCachedStatus());
         }
     }
 
@@ -3933,7 +3941,7 @@ public partial class LauncherMainWindow : Window
         };
 
         SetConnectionStatus(currentStatus, notify: false);
-        UpdateCardValues(_serverProcessService.GetCurrentStatus());
+        UpdateCardValues(_serverProcessService.GetCachedStatus());
     }
 
     private string BuildFrpRuntimeStatusText()
@@ -4086,7 +4094,7 @@ public partial class LauncherMainWindow : Window
         {
             SetConnectionProcessToggling(kind, false);
             UpdateConnectionFrpActionButtons();
-            UpdateCardValues(_serverProcessService.GetCurrentStatus());
+            UpdateCardValues(_serverProcessService.GetCachedStatus());
         }
     }
 
@@ -4525,16 +4533,7 @@ public partial class LauncherMainWindow : Window
             _consoleLines.RemoveAt(0);
         }
 
-        var text = string.Join(Environment.NewLine, _consoleLines);
-        ConsoleOutputTextBlock.Text = text;
-        if (shouldAutoScroll)
-        {
-            Dispatcher.UIThread.Post(() =>
-            {
-                ConsoleOutputScrollViewer.ScrollToEnd();
-                _consoleAutoScroll = true;
-            }, DispatcherPriority.Background);
-        }
+        QueueConsoleRefresh();
     }
 
     private void AppendConsoleLine(ServerOutputLine output)
@@ -4560,16 +4559,34 @@ public partial class LauncherMainWindow : Window
 
         if (_selectedConsoleProfileId.Equals(profileId, StringComparison.OrdinalIgnoreCase))
         {
-            RefreshConsoleText();
+            QueueConsoleRefresh();
         }
+    }
+
+    private async void QueueConsoleRefresh()
+    {
+        if (_consoleRefreshQueued)
+        {
+            return;
+        }
+
+        _consoleRefreshQueued = true;
+        await Task.Delay(ConsoleRefreshDelayMs);
+        _consoleRefreshQueued = false;
+        RefreshConsoleText();
     }
 
     private void RefreshConsoleText()
     {
+        if (_selectedTab != MainTab.Console)
+        {
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(_selectedConsoleProfileId) ||
             !_consoleLinesByProfile.TryGetValue(_selectedConsoleProfileId, out var lines))
         {
-            ConsoleOutputTextBlock.Text = string.Empty;
+            ConsoleOutputTextBlock.Text = string.Join(Environment.NewLine, _consoleLines);
             return;
         }
 
@@ -5310,7 +5327,7 @@ public partial class LauncherMainWindow : Window
     {
         if (!TryGetLockedLaunchTarget(out var profile, out _))
         {
-            var runningProfileId = _serverProcessService.GetCurrentStatuses()
+            var runningProfileId = _serverProcessService.GetCachedStatuses()
                 .FirstOrDefault(static status => status.IsRunning && !string.IsNullOrWhiteSpace(status.ProfileId))
                 ?.ProfileId;
             profile = string.IsNullOrWhiteSpace(runningProfileId)
@@ -5679,7 +5696,7 @@ public partial class LauncherMainWindow : Window
         finally
         {
             UpdateOsqToggleButtonText();
-            UpdateCardValues(_serverProcessService.GetCurrentStatus());
+            UpdateCardValues(_serverProcessService.GetCachedStatus());
         }
     }
 
@@ -5713,7 +5730,7 @@ public partial class LauncherMainWindow : Window
         finally
         {
             UpdateOsqToggleButtonText();
-            UpdateCardValues(_serverProcessService.GetCurrentStatus());
+            UpdateCardValues(_serverProcessService.GetCachedStatus());
         }
     }
 
@@ -5795,7 +5812,7 @@ public partial class LauncherMainWindow : Window
         finally
         {
             UpdateRobotToggleButtonText();
-            UpdateCardValues(_serverProcessService.GetCurrentStatus());
+            UpdateCardValues(_serverProcessService.GetCachedStatus());
         }
     }
 
@@ -5813,7 +5830,7 @@ public partial class LauncherMainWindow : Window
         finally
         {
             UpdateRobotToggleButtonText();
-            UpdateCardValues(_serverProcessService.GetCurrentStatus());
+            UpdateCardValues(_serverProcessService.GetCachedStatus());
         }
     }
 
@@ -5824,7 +5841,7 @@ public partial class LauncherMainWindow : Window
             return;
         }
 
-        var statuses = _serverProcessService.GetCurrentStatuses();
+        var statuses = _serverProcessService.GetCachedStatuses();
         if (!statuses.Any(static status => status.IsRunning) || HasPendingLaunchTargets(statuses))
         {
             await StartSelectedServersAsync();
@@ -5836,7 +5853,7 @@ public partial class LauncherMainWindow : Window
 
     private void OnLaunchServerPointerEntered(object? sender, PointerEventArgs e)
     {
-        if (_serverProcessService.GetCurrentStatuses().Any(static status => status.IsRunning) || _launchTargetItems.Count > 0)
+        if (_serverProcessService.GetCachedStatuses().Any(static status => status.IsRunning) || _launchTargetItems.Count > 0)
         {
             LaunchSelectionPillHost.Classes.Set("expanded", false);
             return;
@@ -5887,8 +5904,7 @@ public partial class LauncherMainWindow : Window
         SetLaunchOperationBusy(T("启动中...", "Starting..."));
         try
         {
-            SelectTab(MainTab.Console);
-            var runningIds = _serverProcessService.GetCurrentStatuses()
+            var runningIds = _serverProcessService.GetCachedStatuses()
                 .Where(static status => status.IsRunning)
                 .Select(static status => status.ProfileId ?? string.Empty)
                 .Where(static id => !string.IsNullOrWhiteSpace(id))
@@ -5917,7 +5933,7 @@ public partial class LauncherMainWindow : Window
                 }
 
                 var launchableProfile = await EnsureLaunchableProfileSaveAsync(profile, savePath);
-                await _serverProcessService.StartAsync(launchableProfile);
+                await StartServerProfileWithTimeoutAsync(launchableProfile);
                 startedCount++;
             }
 
@@ -5983,20 +5999,49 @@ public partial class LauncherMainWindow : Window
         await _saveService.SetActiveSaveAsync(profile, normalizedSavePath);
     }
 
+    private async Task StartServerProfileWithTimeoutAsync(InstanceProfile profile)
+    {
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(ServerStartTimeoutSeconds));
+        try
+        {
+            var startTask = Task.Run(
+                () => _serverProcessService.StartAsync(profile, timeoutCts.Token),
+                CancellationToken.None);
+            var completedTask = await Task.WhenAny(
+                startTask,
+                Task.Delay(TimeSpan.FromSeconds(ServerStartTimeoutSeconds)));
+            if (!ReferenceEquals(completedTask, startTask))
+            {
+                await timeoutCts.CancelAsync();
+                throw new TimeoutException(T(
+                    $"启动服务器超时：{profile.Name}",
+                    $"Server start timed out: {profile.Name}"));
+            }
+
+            await startTask;
+        }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+        {
+            throw new TimeoutException(T(
+                $"启动服务器超时：{profile.Name}",
+                $"Server start timed out: {profile.Name}"));
+        }
+    }
+
     private void SetLaunchOperationBusy(string text)
     {
         _isStoppingOrStarting = true;
         LaunchServerButton.IsEnabled = false;
         LaunchActionTextBlock.Text = text;
         LaunchSelectionSummaryTextBlock.Text = text;
-        UpdateDashboardStatus(_serverProcessService.GetCurrentStatus());
+        UpdateDashboardStatus(_serverProcessService.GetCachedStatus());
     }
 
     private void ClearLaunchOperationBusy()
     {
         LaunchServerButton.IsEnabled = true;
         _isStoppingOrStarting = false;
-        UpdateCardValues(_serverProcessService.GetCurrentStatus());
+        UpdateCardValues(_serverProcessService.GetCachedStatus());
     }
 
     private async void OnSendCommandClick(object? sender, RoutedEventArgs e)

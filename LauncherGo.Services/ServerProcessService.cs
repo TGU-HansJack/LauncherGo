@@ -54,7 +54,7 @@ public sealed partial class ServerProcessService : IServerProcessService
 
     public ServerRuntimeStatus GetCurrentStatus()
     {
-        var statuses = GetCurrentStatuses();
+        var statuses = GetCachedStatuses();
         var activeStatus = statuses.FirstOrDefault(status =>
             !string.IsNullOrWhiteSpace(_activeProfileId) &&
             string.Equals(status.ProfileId, _activeProfileId, StringComparison.OrdinalIgnoreCase) &&
@@ -126,6 +126,17 @@ public sealed partial class ServerProcessService : IServerProcessService
         }
     }
 
+    public IReadOnlyList<ServerRuntimeStatus> GetCachedStatuses()
+    {
+        lock (_gate)
+        {
+            return _statuses.Values
+                .OrderByDescending(static status => status.IsRunning)
+                .ThenBy(status => ResolveStatusProfileName(status.ProfileId))
+                .ToList();
+        }
+    }
+
     public IReadOnlyList<string> GetOnlinePlayerNames()
     {
         return GetOnlinePlayers()
@@ -152,8 +163,6 @@ public sealed partial class ServerProcessService : IServerProcessService
 
     public IReadOnlyList<ServerOnlinePlayerInfo> GetOnlinePlayers()
     {
-        GetCurrentStatuses();
-
         lock (_gate)
         {
             return _statuses.Values
@@ -1580,7 +1589,16 @@ internal sealed partial class SingleServerProcessController
         if (!relayProcess.Start())
             throw new InvalidOperationException("启动后台控制通道失败。");
 
-        return await WaitForRelayStateAsync(relayProcess, statePath, pipeName, cancellationToken);
+        try
+        {
+            return await WaitForRelayStateAsync(relayProcess, statePath, pipeName, cancellationToken);
+        }
+        catch
+        {
+            TryKillProcessTree(relayProcess);
+            TryDeleteFile(statePath);
+            throw;
+        }
     }
 
     private async Task<ServerRelayState> WaitForRelayStateAsync(
@@ -1616,6 +1634,21 @@ internal sealed partial class SingleServerProcessController
             string.IsNullOrWhiteSpace(lastError)
                 ? "等待后台控制通道就绪超时。"
                 : $"等待后台控制通道就绪超时：{lastError}");
+    }
+
+    private static void TryKillProcessTree(Process process)
+    {
+        try
+        {
+            if (!IsProcessTerminated(process))
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch
+        {
+            // Best-effort cleanup only.
+        }
     }
 
     private bool TryAttachToExistingWorkspaceServerRelay(InstanceProfile? preferredProfile, bool emitOutput)
