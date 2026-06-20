@@ -419,6 +419,21 @@
         <Style Selector="Button.SecondaryActionButton /template/ ContentPresenter">
             <Setter Property="CornerRadius" Value="4" />
         </Style>
+        <Style Selector="Button.LaunchIconButton">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="MinWidth" Value="34" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.LaunchIconButton /template/ ContentPresenter">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
         <Style Selector="Button.TextTabButton">
             <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
             <Setter Property="Padding" Value="10,6,10,6" />
@@ -536,6 +551,8 @@
         </Style>
         <Style Selector="Border.DashboardCard">
             <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SplitLineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="0" />
             <Setter Property="Padding" Value="14" />
         </Style>
@@ -2559,31 +2576,33 @@
                             </Grid>
                         </Border>
                             <Border Grid.Row="1" Height="52" MinHeight="52" MaxHeight="52" Background="{DynamicResource FooterBackgroundBrush}" BorderBrush="{DynamicResource SplitLineBrush}" BorderThickness="0,1,0,0">
-                                <Grid Margin="18,0,18,0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                                    <ItemsControl x:Name="LaunchTargetsItemsControl" Grid.Column="0" VerticalAlignment="Center">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <StackPanel Orientation="Horizontal" Spacing="6" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <ToggleButton Classes="TextTabButton" Content="{Binding DisplayName}" Tag="{Binding}" Click="OnLaunchTargetChipClick" />
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                    <Grid Grid.Column="1" ColumnDefinitions="190,34,34" ColumnSpacing="6" VerticalAlignment="Center">
-                                        <ComboBox x:Name="LaunchAddProfileComboBox" Grid.Column="0" Classes="CompactCombo" PlaceholderText="添加服务器">
+                                <Grid Margin="18,0,18,0" ColumnDefinitions="*,250,Auto" ColumnSpacing="10" ClipToBounds="True">
+                                    <ScrollViewer Grid.Column="0" MinWidth="0" VerticalAlignment="Center" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" ClipToBounds="True">
+                                        <ItemsControl x:Name="LaunchTargetsItemsControl" VerticalAlignment="Center">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal" Spacing="6" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <ToggleButton Classes="TextTabButton" MaxWidth="180" Content="{Binding DisplayName}" Tag="{Binding}" Click="OnLaunchTargetChipClick" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                    <Grid Grid.Column="1" ColumnDefinitions="*,34,34" ColumnSpacing="6" VerticalAlignment="Center" MinWidth="234" MaxWidth="250">
+                                        <ComboBox x:Name="LaunchAddProfileComboBox" Grid.Column="0" Classes="CompactCombo" MinWidth="150" PlaceholderText="添加服务器">
                                             <ComboBox.ItemTemplate>
                                                 <DataTemplate>
                                                     <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
                                                 </DataTemplate>
                                             </ComboBox.ItemTemplate>
                                         </ComboBox>
-                                        <Button x:Name="LaunchAddProfileButton" Grid.Column="1" Classes="SecondaryActionButton" Content="+" Click="OnLaunchAddProfileClick" />
-                                        <Button x:Name="LaunchRemoveProfileButton" Grid.Column="2" Classes="SecondaryActionButton" Content="-" Click="OnLaunchRemoveSelectedProfileClick" />
+                                        <Button x:Name="LaunchAddProfileButton" Grid.Column="1" Classes="SecondaryActionButton LaunchIconButton" Content="+" Click="OnLaunchAddProfileClick" />
+                                        <Button x:Name="LaunchRemoveProfileButton" Grid.Column="2" Classes="SecondaryActionButton LaunchIconButton" Content="-" Click="OnLaunchRemoveSelectedProfileClick" />
                                     </Grid>
-                                    <Grid Grid.Column="2" VerticalAlignment="Center">
+                                    <Grid Grid.Column="2" VerticalAlignment="Center" MinWidth="154">
                                         <Button
                                             x:Name="LaunchServerButton"
                                             Click="OnLaunchServerClick"

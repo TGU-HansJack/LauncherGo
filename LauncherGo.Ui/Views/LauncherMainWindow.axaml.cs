@@ -40,6 +40,8 @@ public partial class LauncherMainWindow : Window
     private const int ConsoleRefreshDelayMs = 80;
     private const int ServerStartTimeoutSeconds = 30;
     private const int RunningServerLogReplayGraceSeconds = 5;
+    private const int ConsoleProfileReplayLogBytes = 256 * 1024;
+    private const int ConsoleProfileReplayLogLines = 220;
     private const double ChartWidth = 640;
     private const double ChartHeight = 248;
     private const double ThumbnailWidth = 76;
@@ -204,6 +206,7 @@ public partial class LauncherMainWindow : Window
     private readonly List<OsqEndpointEditorRow> _osqEndpointEditors = [];
     private readonly Dictionary<string, string> _configGameLanguageZh = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<string>> _consoleLinesByProfile = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _consoleReplayLoadedProfileIds = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ServerCommonSettings> _dashboardSettingsByProfile = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _dashboardSettingsLoadingProfileIds = new(StringComparer.OrdinalIgnoreCase);
 
@@ -1288,12 +1291,19 @@ public partial class LauncherMainWindow : Window
             return;
         }
 
-        if (selected is not null && !selected.ProfileId.Equals(_selectedConsoleProfileId, StringComparison.OrdinalIgnoreCase))
+        if (!selected.ProfileId.Equals(_selectedConsoleProfileId, StringComparison.OrdinalIgnoreCase))
         {
             _selectedConsoleProfileId = selected.ProfileId;
-            ConsoleServerComboBox.SelectedItem = selected;
             RefreshConsoleText();
         }
+
+        if (!ReferenceEquals(ConsoleServerComboBox.SelectedItem, selected))
+        {
+            ConsoleServerComboBox.SelectedItem = selected;
+        }
+
+        var selectedProfileId = selected.ProfileId;
+        _ = EnsureConsoleReplayLoadedAsync(selectedProfileId);
     }
 
     private InstanceProfile? ResolveDashboardProfile(ServerRuntimeStatus status)
@@ -4362,6 +4372,7 @@ public partial class LauncherMainWindow : Window
             if (replayExisting)
             {
                 _replayedLogProfileId = profile.Id;
+                _consoleReplayLoadedProfileIds.Add(profile.Id);
             }
         }
         catch
@@ -4392,7 +4403,19 @@ public partial class LauncherMainWindow : Window
 
         Dispatcher.UIThread.Post(() =>
         {
-            AppendConsoleLine($"[log] {line}");
+            if (!string.IsNullOrWhiteSpace(_tailedProfileId))
+            {
+                var profile = _profileService.GetProfileById(_tailedProfileId);
+                AppendConsoleProfileLine(
+                    _tailedProfileId,
+                    string.IsNullOrWhiteSpace(profile?.Name) ? _tailedProfileId : profile.Name,
+                    $"[log] {line}");
+            }
+            else
+            {
+                AppendConsoleLine($"[log] {line}");
+            }
+
             TrackPlayerEventText(line);
         });
     }
@@ -4488,13 +4511,26 @@ public partial class LauncherMainWindow : Window
     private void AppendConsoleLine(ServerOutputLine output)
     {
         var profileId = string.IsNullOrWhiteSpace(output.ProfileId) ? "__unknown" : output.ProfileId;
+        var profileName = string.IsNullOrWhiteSpace(output.ProfileName) ? profileId : output.ProfileName;
+        AppendConsoleProfileLine(profileId, profileName, output.Line);
+    }
+
+    private void AppendConsoleProfileLine(string profileId, string profileName, string rawLine)
+    {
+        if (string.IsNullOrWhiteSpace(rawLine)
+            || IsSystemConsoleLine(rawLine)
+            || ShouldSuppressConsoleLineForUi(rawLine))
+        {
+            return;
+        }
+
         if (!_consoleLinesByProfile.TryGetValue(profileId, out var lines))
         {
             lines = [];
             _consoleLinesByProfile[profileId] = lines;
         }
 
-        var line = $"[{output.ProfileName}] {output.Line}";
+        var line = $"[{profileName}] {rawLine}";
         lines.Add(line);
         while (lines.Count > MaxConsoleLines)
         {
@@ -4548,6 +4584,106 @@ public partial class LauncherMainWindow : Window
                 ConsoleOutputScrollViewer.ScrollToEnd();
                 _consoleAutoScroll = true;
             }, DispatcherPriority.Background);
+        }
+    }
+
+    private async Task EnsureConsoleReplayLoadedAsync(string profileId)
+    {
+        if (string.IsNullOrWhiteSpace(profileId) || _consoleReplayLoadedProfileIds.Contains(profileId))
+        {
+            return;
+        }
+
+        var profile = _profileService.GetProfileById(profileId);
+        if (profile is null)
+        {
+            return;
+        }
+
+        IReadOnlyList<string> lines;
+        try
+        {
+            lines = await Task.Run(() => ReadConsoleProfileReplayLines(profile));
+        }
+        catch
+        {
+            return;
+        }
+
+        if (lines.Count == 0)
+        {
+            return;
+        }
+
+        _consoleReplayLoadedProfileIds.Add(profileId);
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            foreach (var line in lines)
+            {
+                AppendConsoleProfileLine(profile.Id, profile.Name, $"[log] {line}");
+                TrackPlayerEventText(line);
+            }
+
+            RefreshConsoleText();
+        });
+    }
+
+    private static IReadOnlyList<string> ReadConsoleProfileReplayLines(InstanceProfile profile)
+    {
+        var logsPath = Path.Combine(profile.DirectoryPath, "Logs");
+        var paths = new[]
+        {
+            Path.Combine(logsPath, "server-main.log"),
+            Path.Combine(logsPath, "server-chat.log"),
+            Path.Combine(logsPath, "server-audit.log")
+        };
+
+        return paths
+            .SelectMany(path => ReadTailLines(path, ConsoleProfileReplayLogBytes, ConsoleProfileReplayLogLines))
+            .Where(line => !string.IsNullOrWhiteSpace(line) && !ShouldSuppressConsoleLineForUi(line))
+            .TakeLast(ConsoleProfileReplayLogLines)
+            .ToList();
+    }
+
+    private static IReadOnlyList<string> ReadTailLines(string path, int maxBytes, int maxLines)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return [];
+        }
+
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            var start = Math.Max(0, stream.Length - maxBytes);
+            stream.Seek(start, SeekOrigin.Begin);
+            using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            if (start > 0)
+            {
+                _ = reader.ReadLine();
+            }
+
+            var lines = new Queue<string>();
+            while (!reader.EndOfStream)
+            {
+                var line = reader.ReadLine();
+                if (line is null)
+                {
+                    break;
+                }
+
+                lines.Enqueue(line);
+                while (lines.Count > maxLines)
+                {
+                    lines.Dequeue();
+                }
+            }
+
+            return lines.ToArray();
+        }
+        catch
+        {
+            return [];
         }
     }
 
@@ -6049,6 +6185,7 @@ public partial class LauncherMainWindow : Window
         }
 
         _selectedConsoleProfileId = item.ProfileId;
+        _ = EnsureConsoleReplayLoadedAsync(item.ProfileId);
         RefreshConsoleText();
     }
 
