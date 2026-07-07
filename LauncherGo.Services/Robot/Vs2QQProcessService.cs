@@ -22,6 +22,7 @@ public sealed class Vs2QQProcessService
     };
 
     private const string LocalServerSnapshotHost = "local";
+    private const string LocalProfileSnapshotHostPrefix = "local:";
     private const int MaxOsqStatusHistoryPerHost = 30;
     private const int MaxServerStatusQueryCount = 10;
     private const int MaxOneBotMessageLength = 1800;
@@ -251,8 +252,8 @@ public sealed class Vs2QQProcessService
         {
             try
             {
-                var host = ResolveBoundRemoteServerHostForSnapshot(runtime, args.ServerHost, out var groups);
-                if (!string.Equals(host, LocalServerSnapshotHost, StringComparison.OrdinalIgnoreCase))
+                var host = ResolveBoundServerHostForSnapshot(runtime, args.ServerHost);
+                if (string.IsNullOrWhiteSpace(host) || !runtime.HasBoundGroupsForSnapshotHost(host))
                 {
                     return;
                 }
@@ -373,7 +374,15 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        await _serverProcessService.SendCommandAsync(commandText, cancellationToken);
+        var profileId = ResolveBoundProfileIdForEvent(runtime, eventPayload);
+        if (string.IsNullOrWhiteSpace(profileId))
+        {
+            await _serverProcessService.SendCommandAsync(commandText, cancellationToken);
+        }
+        else
+        {
+            await _serverProcessService.SendCommandAsync(profileId, commandText, cancellationToken);
+        }
         await ReplyAsync(runtime, eventPayload, $"已发送服务端指令：{commandText}", cancellationToken);
     }
 
@@ -445,10 +454,17 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        var snapshot = runtime.Storage.GetLatestOsqSnapshot(LocalServerSnapshotHost, index);
+        var snapshotHost = ResolveBoundSnapshotHostForGroup(runtime, groupId);
+        if (string.IsNullOrWhiteSpace(snapshotHost))
+        {
+            await ReplyAsync(runtime, eventPayload, "This group is not bound to a server profile.", cancellationToken);
+            return;
+        }
+
+        var snapshot = runtime.Storage.GetLatestOsqSnapshot(snapshotHost, index);
         if (snapshot is null && index == 1)
         {
-            snapshot = TryImportLatestSharedOsqSnapshot(runtime, LocalServerSnapshotHost);
+            snapshot = TryImportLatestSharedOsqSnapshot(runtime, snapshotHost);
         }
 
         if (snapshot is null)
@@ -487,7 +503,10 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        var status = _serverProcessService.GetCurrentStatus();
+        var boundProfileId = ResolveBoundProfileIdForEvent(runtime, eventPayload);
+        var status = string.IsNullOrWhiteSpace(boundProfileId)
+            ? _serverProcessService.GetCurrentStatus()
+            : _serverProcessService.GetCurrentStatus(boundProfileId);
         if (string.IsNullOrWhiteSpace(status.ProfileId))
         {
             await ReplyAsync(runtime, eventPayload, "No local running profile. Password command only supports local bound server.", cancellationToken);
@@ -570,10 +589,17 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        var snapshot = runtime.Storage.GetLatestOsqSnapshot(LocalServerSnapshotHost, index);
+        var snapshotHost = ResolveBoundSnapshotHostForGroup(runtime, groupId);
+        if (string.IsNullOrWhiteSpace(snapshotHost))
+        {
+            await ReplyAsync(runtime, eventPayload, "This group is not bound to a server profile.", cancellationToken);
+            return;
+        }
+
+        var snapshot = runtime.Storage.GetLatestOsqSnapshot(snapshotHost, index);
         if (snapshot is null && index == 1)
         {
-            snapshot = TryImportLatestSharedOsqSnapshot(runtime, LocalServerSnapshotHost);
+            snapshot = TryImportLatestSharedOsqSnapshot(runtime, snapshotHost);
         }
 
         if (snapshot is null)
@@ -691,6 +717,30 @@ public sealed class Vs2QQProcessService
         return result;
     }
 
+    private static string ResolveBoundProfileIdForEvent(Vs2QQRuntimeContext runtime, JsonObject eventPayload)
+    {
+        if (!IsGroupMessage(eventPayload))
+        {
+            return string.Empty;
+        }
+
+        var groupId = GetInt64(eventPayload, "group_id");
+        return groupId <= 0 ? string.Empty : runtime.GetPrimaryProfileIdForGroup(groupId);
+    }
+
+    private static string ResolveBoundSnapshotHostForGroup(Vs2QQRuntimeContext runtime, long groupId)
+    {
+        var profileId = runtime.GetPrimaryProfileIdForGroup(groupId);
+        if (!string.IsNullOrWhiteSpace(profileId))
+        {
+            return BuildLocalProfileSnapshotHost(profileId);
+        }
+
+        return runtime.BoundGroupIds.Contains(groupId) && !runtime.HasProfileBindings
+            ? LocalServerSnapshotHost
+            : string.Empty;
+    }
+
     private async Task SendToGameServerAsync(Vs2QQRuntimeContext runtime, long groupId, string message, CancellationToken cancellationToken)
     {
         if (!runtime.BoundGroupIds.Contains(groupId))
@@ -711,8 +761,16 @@ public sealed class Vs2QQProcessService
 
             try
             {
-                _serverProcessService.GetCurrentStatus();
-                await _serverTransport.SendGroupMessageToServerAsync(groupId, outbound, cancellationToken);
+                var profileId = runtime.GetPrimaryProfileIdForGroup(groupId);
+                if (string.IsNullOrWhiteSpace(profileId))
+                {
+                    _serverProcessService.GetCurrentStatus();
+                    await _serverTransport.SendGroupMessageToServerAsync(groupId, outbound, cancellationToken);
+                }
+                else
+                {
+                    await _serverProcessService.SendCommandAsync(profileId, $"/announce {outbound}", cancellationToken);
+                }
                 if (attempt > 1)
                 {
                     EmitOutput($"[vs2qq] 群消息补发成功 group={groupId}");
@@ -859,7 +917,7 @@ public sealed class Vs2QQProcessService
                     parts.Add("[图片]");
                     break;
                 case "at":
-                    parts.Add("@" + (data is null ? string.Empty : GetString(data, "qq")));
+                    parts.Add(FormatAtSegmentText(data));
                     break;
                 case "record":
                     parts.Add("[语音]");
@@ -882,6 +940,35 @@ public sealed class Vs2QQProcessService
         }
 
         return string.Concat(parts);
+    }
+
+    private static string FormatAtSegmentText(JsonObject? data)
+    {
+        if (data is null)
+        {
+            return "@用户";
+        }
+
+        var qq = GetString(data, "qq");
+        if (string.Equals(qq, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            return "@全体成员";
+        }
+
+        var displayName = GetString(data, "name");
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            displayName = GetString(data, "card");
+        }
+
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            displayName = GetString(data, "nickname");
+        }
+
+        return string.IsNullOrWhiteSpace(displayName)
+            ? "@用户"
+            : "@" + Safe(displayName);
     }
 
     private async Task ReplyAsync(Vs2QQRuntimeContext runtime, JsonObject eventPayload, string message, CancellationToken cancellationToken)
@@ -1057,7 +1144,7 @@ public sealed class Vs2QQProcessService
         await forwardGate.WaitAsync(cancellationToken);
         try
         {
-            var groups = runtime.BoundGroupIds.ToList();
+            var groups = runtime.GetBoundGroupIdsForSnapshotHost(host).ToList();
             if (groups.Count == 0)
             {
                 return;
@@ -1574,22 +1661,19 @@ public sealed class Vs2QQProcessService
         return null;
     }
 
-    private static string ResolveBoundRemoteServerHostForSnapshot(
+    private static string ResolveBoundServerHostForSnapshot(
         Vs2QQRuntimeContext runtime,
-        string reportedHost,
-        out IReadOnlyList<long> groups)
+        string reportedHost)
     {
         foreach (var candidate in BuildServerHostCandidates(reportedHost))
         {
-            if (string.Equals(candidate, LocalServerSnapshotHost, StringComparison.OrdinalIgnoreCase))
+            if (runtime.HasBoundGroupsForSnapshotHost(candidate))
             {
-                groups = runtime.BoundGroupIds.ToList();
                 return candidate;
             }
         }
 
         var normalized = NormalizeServerHost(reportedHost);
-        groups = [];
         return string.IsNullOrWhiteSpace(normalized)
             ? (reportedHost ?? string.Empty).Trim()
             : normalized;
@@ -1612,12 +1696,18 @@ public sealed class Vs2QQProcessService
     private static IReadOnlyList<string> BuildServerHostCandidates(string? host)
     {
         var result = new List<string>();
-        AddServerHostCandidate(result, LocalServerSnapshotHost);
         AddServerHostCandidate(result, host);
 
         var raw = (host ?? string.Empty).Trim();
         if (raw.Length == 0)
         {
+            AddServerHostCandidate(result, LocalServerSnapshotHost);
+            return result;
+        }
+
+        if (IsLocalSnapshotHost(raw))
+        {
+            AddServerHostCandidate(result, NormalizeLocalSnapshotHost(raw));
             return result;
         }
 
@@ -1653,6 +1743,46 @@ public sealed class Vs2QQProcessService
         }
 
         candidates.Add(value);
+    }
+
+    private static string BuildLocalProfileSnapshotHost(string profileId)
+    {
+        var normalized = (profileId ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(normalized)
+            ? LocalServerSnapshotHost
+            : LocalProfileSnapshotHostPrefix + normalized;
+    }
+
+    private static bool IsLocalSnapshotHost(string? host)
+    {
+        var value = (host ?? string.Empty).Trim();
+        return value.Equals(LocalServerSnapshotHost, StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith(LocalProfileSnapshotHostPrefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeLocalSnapshotHost(string host)
+    {
+        var value = (host ?? string.Empty).Trim().TrimEnd('/');
+        if (!value.StartsWith(LocalProfileSnapshotHostPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return LocalServerSnapshotHost;
+        }
+
+        var profileId = value[LocalProfileSnapshotHostPrefix.Length..].Trim();
+        return BuildLocalProfileSnapshotHost(profileId);
+    }
+
+    private static bool TryGetLocalSnapshotProfileId(string? host, out string profileId)
+    {
+        var value = (host ?? string.Empty).Trim();
+        if (!value.StartsWith(LocalProfileSnapshotHostPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            profileId = string.Empty;
+            return false;
+        }
+
+        profileId = value[LocalProfileSnapshotHostPrefix.Length..].Trim();
+        return !string.IsNullOrWhiteSpace(profileId);
     }
 
     private static string NormalizeServerHost(string input)
@@ -1803,17 +1933,38 @@ public sealed class Vs2QQProcessService
         var normalizedSuperUsers = (settings.SuperUsers ?? [])
             .Where(x => x > 0)
             .Distinct()
-            .ToArray();
+            .ToList();
         var normalizedBoundGroupIds = (settings.BoundGroupIds ?? [])
             .Where(x => x > 0)
             .Distinct()
-            .ToArray();
+            .ToList();
+        var normalizedProfileBindings = NormalizeProfileBindings(settings.ProfileBindings);
+        foreach (var groupId in normalizedProfileBindings
+                     .Select(static binding => ParsePositiveInt64(binding.GroupId))
+                     .Where(static id => id > 0))
+        {
+            if (!normalizedBoundGroupIds.Contains(groupId))
+            {
+                normalizedBoundGroupIds.Add(groupId);
+            }
+        }
+
+        foreach (var superUserId in normalizedProfileBindings
+                     .Select(static binding => ParsePositiveInt64(binding.SuperUserId))
+                     .Where(static id => id > 0))
+        {
+            if (!normalizedSuperUsers.Contains(superUserId))
+            {
+                normalizedSuperUsers.Add(superUserId);
+            }
+        }
 
         return OperationResult<RobotSettings>.Success(new RobotSettings
         {
             OneBotWsUrl = wsUrl,
             AccessToken = string.IsNullOrWhiteSpace(settings.AccessToken) ? null : settings.AccessToken.Trim(),
             BoundGroupIds = normalizedBoundGroupIds,
+            ProfileBindings = normalizedProfileBindings,
             ReconnectIntervalSec = reconnectInterval,
             DatabasePath = dbPath,
             PollIntervalSec = pollInterval,
@@ -1826,6 +1977,46 @@ public sealed class Vs2QQProcessService
             OsqListenPrefix = osqListenPrefix,
             EnableOsqListener = false
         });
+    }
+
+    private static List<RobotProfileBinding> NormalizeProfileBindings(IEnumerable<RobotProfileBinding>? bindings)
+    {
+        var result = new List<RobotProfileBinding>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var binding in bindings ?? [])
+        {
+            var profileId = binding.ProfileId?.Trim() ?? string.Empty;
+            var groupId = ParsePositiveInt64(binding.GroupId);
+            var superUserId = ParsePositiveInt64(binding.SuperUserId);
+            if (string.IsNullOrWhiteSpace(profileId) && groupId <= 0 && superUserId <= 0)
+            {
+                continue;
+            }
+
+            var normalizedGroupId = groupId > 0 ? groupId.ToString(CultureInfo.InvariantCulture) : string.Empty;
+            var normalizedSuperUserId = superUserId > 0 ? superUserId.ToString(CultureInfo.InvariantCulture) : string.Empty;
+            var key = $"{profileId}|{normalizedGroupId}|{normalizedSuperUserId}";
+            if (!seen.Add(key))
+            {
+                continue;
+            }
+
+            result.Add(new RobotProfileBinding
+            {
+                ProfileId = profileId,
+                GroupId = normalizedGroupId,
+                SuperUserId = normalizedSuperUserId
+            });
+        }
+
+        return result;
+    }
+
+    private static long ParsePositiveInt64(string? value)
+    {
+        return long.TryParse(value?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) && id > 0
+            ? id
+            : 0;
     }
 
     private static string NormalizeListenPrefix(string? value)
@@ -1912,6 +2103,9 @@ public sealed class Vs2QQProcessService
             Storage = storage;
             SuperUsers = settings.SuperUsers?.ToHashSet() ?? [];
             BoundGroupIds = settings.BoundGroupIds?.Where(id => id > 0).ToHashSet() ?? [];
+            ProfileBindings = BuildRuntimeProfileBindings(settings.ProfileBindings);
+            GroupsByProfileId = BuildGroupsByProfileId(ProfileBindings);
+            ProfilesByGroupId = BuildProfilesByGroupId(ProfileBindings);
         }
 
         public RobotSettings Settings { get; }
@@ -1919,6 +2113,14 @@ public sealed class Vs2QQProcessService
         public HashSet<long> SuperUsers { get; }
 
         public HashSet<long> BoundGroupIds { get; }
+
+        public IReadOnlyList<Vs2QQProfileBinding> ProfileBindings { get; }
+
+        public bool HasProfileBindings => ProfileBindings.Count > 0;
+
+        private IReadOnlyDictionary<string, HashSet<long>> GroupsByProfileId { get; }
+
+        private IReadOnlyDictionary<long, List<string>> ProfilesByGroupId { get; }
 
         public Vs2QQStorage Storage { get; }
 
@@ -1936,6 +2138,43 @@ public sealed class Vs2QQProcessService
             return _osqForwardGates.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
         }
 
+        public IReadOnlyList<long> GetBoundGroupIdsForSnapshotHost(string host)
+        {
+            if (TryGetLocalSnapshotProfileId(host, out var profileId))
+            {
+                return GetBoundGroupIdsForProfile(profileId);
+            }
+
+            if (!HasProfileBindings)
+            {
+                return BoundGroupIds.ToList();
+            }
+
+            return [];
+        }
+
+        public bool HasBoundGroupsForSnapshotHost(string host)
+        {
+            return GetBoundGroupIdsForSnapshotHost(host).Count > 0;
+        }
+
+        public string GetPrimaryProfileIdForGroup(long groupId)
+        {
+            if (ProfilesByGroupId.TryGetValue(groupId, out var profiles) && profiles.Count > 0)
+            {
+                return profiles[0];
+            }
+
+            return string.Empty;
+        }
+
+        private IReadOnlyList<long> GetBoundGroupIdsForProfile(string profileId)
+        {
+            return GroupsByProfileId.TryGetValue(profileId, out var groups)
+                ? groups.ToList()
+                : [];
+        }
+
         public async ValueTask DisposeAsync()
         {
             if (Interlocked.Exchange(ref _disposedFlag, 1) == 1)
@@ -1951,7 +2190,77 @@ public sealed class Vs2QQProcessService
 
             Storage.Dispose();
         }
+
+        private static IReadOnlyList<Vs2QQProfileBinding> BuildRuntimeProfileBindings(IEnumerable<RobotProfileBinding>? bindings)
+        {
+            var result = new List<Vs2QQProfileBinding>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var binding in bindings ?? [])
+            {
+                var profileId = binding.ProfileId?.Trim() ?? string.Empty;
+                var groupId = ParsePositiveInt64(binding.GroupId);
+                var superUserId = ParsePositiveInt64(binding.SuperUserId);
+                if (string.IsNullOrWhiteSpace(profileId) || groupId <= 0)
+                {
+                    continue;
+                }
+
+                var key = $"{profileId}|{groupId}|{superUserId}";
+                if (!seen.Add(key))
+                {
+                    continue;
+                }
+
+                result.Add(new Vs2QQProfileBinding(profileId, groupId, superUserId));
+            }
+
+            return result;
+        }
+
+        private static IReadOnlyDictionary<string, HashSet<long>> BuildGroupsByProfileId(IEnumerable<Vs2QQProfileBinding> bindings)
+        {
+            var result = new Dictionary<string, HashSet<long>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var binding in bindings)
+            {
+                if (!result.TryGetValue(binding.ProfileId, out var groups))
+                {
+                    groups = [];
+                    result[binding.ProfileId] = groups;
+                }
+
+                groups.Add(binding.GroupId);
+            }
+
+            return result;
+        }
+
+        private static IReadOnlyDictionary<long, List<string>> BuildProfilesByGroupId(IEnumerable<Vs2QQProfileBinding> bindings)
+        {
+            var result = new Dictionary<long, List<string>>();
+            foreach (var binding in bindings)
+            {
+                if (!result.TryGetValue(binding.GroupId, out var profiles))
+                {
+                    profiles = [];
+                    result[binding.GroupId] = profiles;
+                }
+
+                if (!profiles.Contains(binding.ProfileId, StringComparer.OrdinalIgnoreCase))
+                {
+                    profiles.Add(binding.ProfileId);
+                }
+            }
+
+            foreach (var profiles in result.Values)
+            {
+                profiles.Sort(StringComparer.OrdinalIgnoreCase);
+            }
+
+            return result;
+        }
     }
+
+    private readonly record struct Vs2QQProfileBinding(string ProfileId, long GroupId, long SuperUserId);
 
     private sealed class Vs2QQOneBotClient : IAsyncDisposable
     {

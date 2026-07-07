@@ -24,6 +24,7 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
 {
     private const string DefaultListenPrefix = "http://127.0.0.1:18089/";
     private const string ReportPath = "/api/osq/report";
+    private const string LocalProfileSnapshotHostPrefix = "local:";
     private const int PushIntervalSec = 2;
     private const int MaxMarkerLayersInPayload = 32;
     private const int MaxMapMarkersPerLayerInPayload = 2048;
@@ -528,14 +529,44 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             ListenPrefix = globalSettings.ListenPrefix,
             AllowInsecureHttp = globalSettings.AllowInsecureHttp || endpointSettings.AllowInsecureHttp,
             RequestTimeoutSec = globalSettings.RequestTimeoutSec,
-            IncludeServerInfo = globalSettings.IncludeServerInfo && endpointSettings.IncludeServerInfo,
-            IncludePlayers = globalSettings.IncludePlayers && endpointSettings.IncludePlayers,
-            IncludePlayerEvents = globalSettings.IncludePlayerEvents && endpointSettings.IncludePlayerEvents,
-            IncludeChats = globalSettings.IncludeChats && endpointSettings.IncludeChats,
-            IncludeNotifications = globalSettings.IncludeNotifications && endpointSettings.IncludeNotifications,
-            IncludeMapData = globalSettings.IncludeMapData && endpointSettings.IncludeMapData,
+            IncludeServerInfo = endpointSettings.IncludeServerInfo,
+            IncludePlayers = endpointSettings.IncludePlayers,
+            IncludePlayerEvents = endpointSettings.IncludePlayerEvents,
+            IncludeChats = endpointSettings.IncludeChats,
+            IncludeNotifications = endpointSettings.IncludeNotifications,
+            IncludeMapData = endpointSettings.IncludeMapData,
             Endpoints = [endpointSettings]
         };
+    }
+
+    private static OpenServerQueryRuntimeSettings? ResolveLocalProfileSnapshotSettings(RuntimeState runtime, string profileId)
+    {
+        var profileEndpoints = runtime.EndpointsByHost.Values
+            .Where(endpoint =>
+                !string.IsNullOrWhiteSpace(endpoint.Settings.ProfileId) &&
+                endpoint.Settings.ProfileId.Equals(profileId, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (profileEndpoints.Count > 0)
+        {
+            var enabledProfileEndpoint = profileEndpoints.FirstOrDefault(static endpoint => endpoint.Settings.Enabled);
+            return enabledProfileEndpoint is null
+                ? null
+                : BuildEndpointRuntimeSettings(runtime.Settings, enabledProfileEndpoint.Settings);
+        }
+
+        var legacyEndpoint = runtime.EndpointsByHost.Values.FirstOrDefault(endpoint =>
+            endpoint.Settings.Enabled && string.IsNullOrWhiteSpace(endpoint.Settings.ProfileId));
+        return legacyEndpoint is null
+            ? runtime.Settings
+            : BuildEndpointRuntimeSettings(runtime.Settings, legacyEndpoint.Settings);
+    }
+
+    private static string BuildLocalProfileSnapshotHost(string profileId)
+    {
+        var normalized = (profileId ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(normalized)
+            ? "local"
+            : LocalProfileSnapshotHostPrefix + normalized;
     }
 
     private async Task PushLocalSnapshotAsync(RuntimeState runtime, CancellationToken cancellationToken)
@@ -563,21 +594,25 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             var context = contexts[index];
             var now = DateTimeOffset.UtcNow;
             var nonce = GenerateNonce();
-            var cachePayload = await BuildLocalServerSnapshotAsync(
-                context,
-                runtime.Settings,
-                now,
-                nonce,
-                includeMapData: false,
-                cancellationToken);
-            var qqPayload = CreateSnapshotForOutputTarget(cachePayload, runtime.Settings, includeMapData: false);
-            var qqJson = JsonSerializer.Serialize(qqPayload, OutboundJsonOptions);
-
-            var cachedNode = JsonNode.Parse(qqJson)?.AsObject();
-            if (cachedNode is not null)
+            var cacheSettings = ResolveLocalProfileSnapshotSettings(runtime, context.Profile.Id);
+            if (cacheSettings is not null)
             {
-                _osqSnapshotCacheService?.AddSnapshot("local", cachedNode, now);
-                _osqSnapshotCacheService?.AddSnapshot($"local:{context.Profile.Id}", cachedNode.DeepClone().AsObject(), now);
+                var cachePayload = await BuildLocalServerSnapshotAsync(
+                    context,
+                    cacheSettings,
+                    now,
+                    nonce,
+                    includeMapData: false,
+                    cancellationToken);
+                var qqPayload = CreateSnapshotForOutputTarget(cachePayload, cacheSettings, includeMapData: false);
+                var qqJson = JsonSerializer.Serialize(qqPayload, OutboundJsonOptions);
+
+                var cachedNode = JsonNode.Parse(qqJson)?.AsObject();
+                if (cachedNode is not null)
+                {
+                    _osqSnapshotCacheService?.AddSnapshot("local", cachedNode, now);
+                    _osqSnapshotCacheService?.AddSnapshot(BuildLocalProfileSnapshotHost(context.Profile.Id), cachedNode.DeepClone().AsObject(), now);
+                }
             }
 
             foreach (var pair in runtime.EndpointsByHost)
@@ -848,10 +883,10 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             Nonce = source.Nonce,
             Capabilities = BuildSnapshotCapabilities(settings, includeMapData && source.ServerMap is not null),
             Server = source.Server,
-            Players = source.Players,
-            PlayerEvents = source.PlayerEvents,
-            RecentChats = source.RecentChats,
-            ServerNotifications = source.ServerNotifications,
+            Players = settings.IncludePlayers ? source.Players ?? [] : [],
+            PlayerEvents = settings.IncludePlayerEvents ? source.PlayerEvents ?? [] : [],
+            RecentChats = settings.IncludeChats ? source.RecentChats ?? [] : [],
+            ServerNotifications = settings.IncludeNotifications ? source.ServerNotifications ?? [] : [],
             ServerMap = includeMapData ? source.ServerMap : null
         };
     }
@@ -3810,6 +3845,13 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
             var serverHost = runtime.EndpointsByHost.TryGetValue(endpointKey, out var resolvedEndpoint)
                 ? resolvedEndpoint.Settings.ServerHost
                 : endpointKey;
+            var endpointOutputSettings = resolvedEndpoint is null
+                ? runtime.Settings
+                : BuildEndpointRuntimeSettings(runtime.Settings, resolvedEndpoint.Settings);
+            var endpointProfileId = resolvedEndpoint?.Settings.ProfileId ?? string.Empty;
+            var cacheHost = !string.IsNullOrWhiteSpace(endpointProfileId)
+                ? BuildLocalProfileSnapshotHost(endpointProfileId)
+                : serverHost;
 
             var timestampRaw = context.Request.Headers["X-OSQ-Timestamp"] ?? string.Empty;
             var nonce = context.Request.Headers["X-OSQ-Nonce"] ?? string.Empty;
@@ -3864,11 +3906,15 @@ public sealed class OpenServerQueryService : IOpenServerQueryService
                 return;
             }
 
-            var cachePayload = CreateSnapshotForOutputTarget(payload, runtime.Settings, includeMapData: false);
+            var cachePayload = CreateSnapshotForOutputTarget(payload, endpointOutputSettings, includeMapData: false);
             var cachePayloadNode = JsonSerializer.SerializeToNode(cachePayload, OutboundJsonOptions)?.AsObject();
             if (cachePayloadNode is not null)
             {
-                _osqSnapshotCacheService?.AddSnapshot(serverHost, cachePayloadNode, DateTimeOffset.UtcNow);
+                _osqSnapshotCacheService?.AddSnapshot(cacheHost, cachePayloadNode, DateTimeOffset.UtcNow);
+                if (!cacheHost.Equals(serverHost, StringComparison.OrdinalIgnoreCase))
+                {
+                    _osqSnapshotCacheService?.AddSnapshot(serverHost, cachePayloadNode.DeepClone().AsObject(), DateTimeOffset.UtcNow);
+                }
             }
 
             lock (_stateSync)

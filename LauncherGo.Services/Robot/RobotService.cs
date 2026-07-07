@@ -122,6 +122,7 @@ public class RobotService : IRobotService
             OneBotWsUrl = "ws://127.0.0.1:3001/",
             AccessToken = string.Empty,
             BoundGroupIds = [],
+            ProfileBindings = [],
             ReconnectIntervalSec = 5,
             DatabasePath = Path.Combine(WorkspacePathHelper.RobotRoot, "vs2qq.db"),
             PollIntervalSec = 1.0,
@@ -172,6 +173,26 @@ public class RobotService : IRobotService
             .Where(id => id > 0)
             .Distinct()
             .ToList();
+        var profileBindings = NormalizeProfileBindings(settings.ProfileBindings);
+        foreach (var groupId in profileBindings
+                     .Select(static binding => ParsePositiveInt64(binding.GroupId))
+                     .Where(static id => id > 0))
+        {
+            if (!boundGroupIds.Contains(groupId))
+            {
+                boundGroupIds.Add(groupId);
+            }
+        }
+
+        foreach (var superUserId in profileBindings
+                     .Select(static binding => ParsePositiveInt64(binding.SuperUserId))
+                     .Where(static id => id > 0))
+        {
+            if (!superUsers.Contains(superUserId))
+            {
+                superUsers.Add(superUserId);
+            }
+        }
 
         var osqPollIntervalSec = settings.OsqPollIntervalSec <= 0 ? 20 : settings.OsqPollIntervalSec;
         var osqRequestTimeoutSec = settings.OsqRequestTimeoutSec <= 0 ? 8 : settings.OsqRequestTimeoutSec;
@@ -182,6 +203,7 @@ public class RobotService : IRobotService
             OneBotWsUrl = wsUrl,
             AccessToken = settings.AccessToken?.Trim() ?? string.Empty,
             BoundGroupIds = boundGroupIds,
+            ProfileBindings = profileBindings,
             ReconnectIntervalSec = reconnect,
             DatabasePath = dbPath,
             PollIntervalSec = poll,
@@ -194,6 +216,46 @@ public class RobotService : IRobotService
             OsqListenPrefix = osqListenPrefix,
             EnableOsqListener = false
         };
+    }
+
+    private static List<RobotProfileBinding> NormalizeProfileBindings(IEnumerable<RobotProfileBinding>? bindings)
+    {
+        var result = new List<RobotProfileBinding>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var binding in bindings ?? [])
+        {
+            var profileId = binding.ProfileId?.Trim() ?? string.Empty;
+            var groupId = ParsePositiveInt64(binding.GroupId);
+            var superUserId = ParsePositiveInt64(binding.SuperUserId);
+            if (string.IsNullOrWhiteSpace(profileId) && groupId <= 0 && superUserId <= 0)
+            {
+                continue;
+            }
+
+            var normalizedGroupId = groupId > 0 ? groupId.ToString(CultureInfo.InvariantCulture) : string.Empty;
+            var normalizedSuperUserId = superUserId > 0 ? superUserId.ToString(CultureInfo.InvariantCulture) : string.Empty;
+            var key = $"{profileId}|{normalizedGroupId}|{normalizedSuperUserId}";
+            if (!seen.Add(key))
+            {
+                continue;
+            }
+
+            result.Add(new RobotProfileBinding
+            {
+                ProfileId = profileId,
+                GroupId = normalizedGroupId,
+                SuperUserId = normalizedSuperUserId
+            });
+        }
+
+        return result;
+    }
+
+    private static long ParsePositiveInt64(string? value)
+    {
+        return long.TryParse(value?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) && id > 0
+            ? id
+            : 0;
     }
 
     private static string NormalizeListenPrefix(string? value)

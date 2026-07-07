@@ -11,6 +11,8 @@ public class RobotSettings
 
     public IReadOnlyList<long> BoundGroupIds { get; init; } = [];
 
+    public IReadOnlyList<RobotProfileBinding> ProfileBindings { get; init; } = [];
+
     public int ReconnectIntervalSec { get; init; } = 5;
 
     public string DatabasePath { get; init; } = string.Empty;

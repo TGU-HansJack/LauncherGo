@@ -4034,6 +4034,7 @@ public partial class LauncherMainWindow : Window
             OneBotWsUrl = settings.OneBotWsUrl,
             AccessToken = settings.AccessToken,
             BoundGroupIds = ParseQqIds(settings.BoundGroupIdsText),
+            ProfileBindings = settings.ProfileBindings ?? [],
             ReconnectIntervalSec = settings.ReconnectIntervalSec,
             DatabasePath = settings.DatabasePath,
             PollIntervalSec = settings.PollIntervalSec,
