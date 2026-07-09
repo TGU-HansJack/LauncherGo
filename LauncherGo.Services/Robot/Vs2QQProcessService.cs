@@ -31,6 +31,8 @@ public sealed class Vs2QQProcessService
     private static readonly Regex CqCodeRegex = new(@"\[CQ:[^\]]+\]", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex HtmlTagRegex = new(@"<[^>]+>", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex MultiWhitespaceRegex = new(@"\s{2,}", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex QqIdentifierRegex = new(@"^[1-9]\d{4,11}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex QqNumberMentionRegex = new(@"(?<![\p{L}\p{N}_])@[1-9]\d{4,11}(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex TimePartRegex = new(@"(?<time>\d{2}:\d{2}:\d{2})", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex GroupRelayEchoRegex = new(@"^\[(?:群聊|group)\s+\d{1,2}:\d{2}:\d{2}\]", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly Regex ServerRelayEchoRegex = new(@"^\[(?:服务器|server)\s+\d{1,2}:\d{2}:\d{2}\]", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -839,6 +841,7 @@ public sealed class Vs2QQProcessService
         text = CqCodeRegex.Replace(text, "[消息]");
         text = text.Replace('\r', ' ').Replace('\n', ' ').Trim();
         text = MultiWhitespaceRegex.Replace(text, " ");
+        text = SanitizeOutboundMentionText(text);
         return text;
     }
 
@@ -955,20 +958,60 @@ public sealed class Vs2QQProcessService
             return "@全体成员";
         }
 
-        var displayName = GetString(data, "name");
-        if (string.IsNullOrWhiteSpace(displayName))
-        {
-            displayName = GetString(data, "card");
-        }
-
-        if (string.IsNullOrWhiteSpace(displayName))
-        {
-            displayName = GetString(data, "nickname");
-        }
+        var displayName = GetSafeAtDisplayName(data, qq);
 
         return string.IsNullOrWhiteSpace(displayName)
             ? "@用户"
             : "@" + Safe(displayName);
+    }
+
+    private static string GetSafeAtDisplayName(JsonObject data, string qq)
+    {
+        var displayName = NormalizeSafeAtDisplayName(GetString(data, "name"), qq);
+        if (!string.IsNullOrWhiteSpace(displayName))
+        {
+            return displayName;
+        }
+
+        displayName = NormalizeSafeAtDisplayName(GetString(data, "card"), qq);
+        if (!string.IsNullOrWhiteSpace(displayName))
+        {
+            return displayName;
+        }
+
+        return NormalizeSafeAtDisplayName(GetString(data, "nickname"), qq);
+    }
+
+    private static string NormalizeSafeAtDisplayName(string candidate, string qq)
+    {
+        var displayName = NormalizeDisplayText(candidate).Trim();
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return string.Empty;
+        }
+
+        if (IsQqIdentifierText(displayName))
+        {
+            return string.Empty;
+        }
+
+        var normalizedCandidate = displayName.TrimStart('@').Trim();
+        var normalizedQq = (qq ?? string.Empty).Trim().TrimStart('@').Trim();
+        return !string.IsNullOrWhiteSpace(normalizedQq) &&
+               string.Equals(normalizedCandidate, normalizedQq, StringComparison.OrdinalIgnoreCase)
+            ? string.Empty
+            : displayName;
+    }
+
+    private static bool IsQqIdentifierText(string value)
+    {
+        var text = (value ?? string.Empty).Trim().TrimStart('@').Trim();
+        return QqIdentifierRegex.IsMatch(text);
+    }
+
+    private static string SanitizeOutboundMentionText(string text)
+    {
+        return QqNumberMentionRegex.Replace(text ?? string.Empty, "@用户");
     }
 
     private async Task ReplyAsync(Vs2QQRuntimeContext runtime, JsonObject eventPayload, string message, CancellationToken cancellationToken)
