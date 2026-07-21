@@ -27,7 +27,10 @@ public sealed class Vs2QQProcessService
     private const int MaxServerStatusQueryCount = 10;
     private const int MaxOneBotMessageLength = 1800;
     private static readonly TimeSpan RecentRelaySignatureWindow = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan GroupMemberDisplayNameCacheDuration = TimeSpan.FromMinutes(10);
     private static readonly Regex CqImageRegex = new(@"\[CQ:image,[^\]]+\]", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex CqAtRegex = new(@"\[CQ:at,(?<params>[^\]]+)\]", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex CqAtQqParameterRegex = new(@"(?:^|,)qq=(?<qq>[^,]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly Regex CqCodeRegex = new(@"\[CQ:[^\]]+\]", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex HtmlTagRegex = new(@"<[^>]+>", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex MultiWhitespaceRegex = new(@"\s{2,}", RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -292,7 +295,7 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        var rawMessage = ExtractPlainText(eventPayload).Trim();
+        var rawMessage = (await ExtractPlainTextAsync(runtime, eventPayload, cancellationToken)).Trim();
         if (string.IsNullOrWhiteSpace(rawMessage))
         {
             return;
@@ -871,11 +874,14 @@ public sealed class Vs2QQProcessService
         return GetString(eventPayload, "nickname");
     }
 
-    private static string ExtractPlainText(JsonObject eventPayload)
+    private async Task<string> ExtractPlainTextAsync(
+        Vs2QQRuntimeContext runtime,
+        JsonObject eventPayload,
+        CancellationToken cancellationToken)
     {
         if (eventPayload.TryGetPropertyValue("message", out var messageNode) && messageNode is not null)
         {
-            var segmentText = ExtractOneBotMessageNodeText(messageNode);
+            var segmentText = await ExtractOneBotMessageNodeTextAsync(runtime, eventPayload, messageNode, cancellationToken);
             if (!string.IsNullOrWhiteSpace(segmentText))
             {
                 return NormalizeOutboundText(segmentText);
@@ -885,17 +891,27 @@ public sealed class Vs2QQProcessService
         var message = GetString(eventPayload, "raw_message");
         if (!string.IsNullOrWhiteSpace(message))
         {
-            return NormalizeOutboundText(message);
+            var expandedMessage = await ExpandCqAtSegmentsAsync(runtime, eventPayload, message, cancellationToken);
+            return NormalizeOutboundText(expandedMessage);
         }
 
-        return NormalizeOutboundText(GetString(eventPayload, "message"));
+        var fallbackMessage = await ExpandCqAtSegmentsAsync(
+            runtime,
+            eventPayload,
+            GetString(eventPayload, "message"),
+            cancellationToken);
+        return NormalizeOutboundText(fallbackMessage);
     }
 
-    private static string ExtractOneBotMessageNodeText(JsonNode messageNode)
+    private async Task<string> ExtractOneBotMessageNodeTextAsync(
+        Vs2QQRuntimeContext runtime,
+        JsonObject eventPayload,
+        JsonNode messageNode,
+        CancellationToken cancellationToken)
     {
         if (messageNode is JsonValue valueNode && valueNode.TryGetValue<string>(out var textValue))
         {
-            return textValue;
+            return await ExpandCqAtSegmentsAsync(runtime, eventPayload, textValue, cancellationToken);
         }
 
         if (messageNode is not JsonArray segments)
@@ -920,7 +936,7 @@ public sealed class Vs2QQProcessService
                     parts.Add("[图片]");
                     break;
                 case "at":
-                    parts.Add(FormatAtSegmentText(data));
+                    parts.Add(await FormatAtSegmentTextAsync(runtime, eventPayload, data, cancellationToken));
                     break;
                 case "record":
                     parts.Add("[语音]");
@@ -945,7 +961,50 @@ public sealed class Vs2QQProcessService
         return string.Concat(parts);
     }
 
-    private static string FormatAtSegmentText(JsonObject? data)
+    private async Task<string> ExpandCqAtSegmentsAsync(
+        Vs2QQRuntimeContext runtime,
+        JsonObject eventPayload,
+        string text,
+        CancellationToken cancellationToken)
+    {
+        var source = text ?? string.Empty;
+        var matches = CqAtRegex.Matches(source);
+        if (matches.Count == 0)
+        {
+            return source;
+        }
+
+        var result = new StringBuilder(source.Length);
+        var position = 0;
+        foreach (Match match in matches)
+        {
+            result.Append(source, position, match.Index - position);
+            var qqMatch = CqAtQqParameterRegex.Match(match.Groups["params"].Value);
+            if (!qqMatch.Success)
+            {
+                result.Append("@用户");
+            }
+            else
+            {
+                var data = new JsonObject
+                {
+                    ["qq"] = WebUtility.HtmlDecode(qqMatch.Groups["qq"].Value)
+                };
+                result.Append(await FormatAtSegmentTextAsync(runtime, eventPayload, data, cancellationToken));
+            }
+
+            position = match.Index + match.Length;
+        }
+
+        result.Append(source, position, source.Length - position);
+        return result.ToString();
+    }
+
+    private async Task<string> FormatAtSegmentTextAsync(
+        Vs2QQRuntimeContext runtime,
+        JsonObject eventPayload,
+        JsonObject? data,
+        CancellationToken cancellationToken)
     {
         if (data is null)
         {
@@ -959,6 +1018,30 @@ public sealed class Vs2QQProcessService
         }
 
         var displayName = GetSafeAtDisplayName(data, qq);
+        if (string.IsNullOrWhiteSpace(displayName)
+            && long.TryParse(qq, NumberStyles.Integer, CultureInfo.InvariantCulture, out var userId)
+            && userId > 0)
+        {
+            var groupId = GetInt64(eventPayload, "group_id");
+            if (groupId > 0)
+            {
+                try
+                {
+                    displayName = await runtime.OneBot.GetGroupMemberDisplayNameAsync(
+                        groupId,
+                        userId,
+                        cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    EmitOutput($"[warn] OneBot 提及昵称查询失败 group={groupId}: {ex.Message}");
+                }
+            }
+        }
 
         return string.IsNullOrWhiteSpace(displayName)
             ? "@用户"
@@ -967,13 +1050,13 @@ public sealed class Vs2QQProcessService
 
     private static string GetSafeAtDisplayName(JsonObject data, string qq)
     {
-        var displayName = NormalizeSafeAtDisplayName(GetString(data, "name"), qq);
+        var displayName = NormalizeSafeAtDisplayName(GetString(data, "card"), qq);
         if (!string.IsNullOrWhiteSpace(displayName))
         {
             return displayName;
         }
 
-        displayName = NormalizeSafeAtDisplayName(GetString(data, "card"), qq);
+        displayName = NormalizeSafeAtDisplayName(GetString(data, "name"), qq);
         if (!string.IsNullOrWhiteSpace(displayName))
         {
             return displayName;
@@ -996,11 +1079,16 @@ public sealed class Vs2QQProcessService
         }
 
         var normalizedCandidate = displayName.TrimStart('@').Trim();
+        if (string.IsNullOrWhiteSpace(normalizedCandidate))
+        {
+            return string.Empty;
+        }
+
         var normalizedQq = (qq ?? string.Empty).Trim().TrimStart('@').Trim();
         return !string.IsNullOrWhiteSpace(normalizedQq) &&
                string.Equals(normalizedCandidate, normalizedQq, StringComparison.OrdinalIgnoreCase)
             ? string.Empty
-            : displayName;
+            : normalizedCandidate;
     }
 
     private static bool IsQqIdentifierText(string value)
@@ -2305,6 +2393,8 @@ public sealed class Vs2QQProcessService
 
     private readonly record struct Vs2QQProfileBinding(string ProfileId, long GroupId, long SuperUserId);
 
+    private readonly record struct GroupMemberDisplayNameCacheEntry(string DisplayName, DateTimeOffset ExpiresAtUtc);
+
     private sealed class Vs2QQOneBotClient : IAsyncDisposable
     {
         private static readonly JsonSerializerOptions JsonOptions = new()
@@ -2318,6 +2408,7 @@ public sealed class Vs2QQProcessService
         private readonly Action<string> _log;
         private readonly Func<JsonObject, CancellationToken, Task> _eventHandler;
         private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonObject>> _echoWaiters = new();
+        private readonly ConcurrentDictionary<(long GroupId, long UserId), GroupMemberDisplayNameCacheEntry> _groupMemberDisplayNames = new();
         private readonly SemaphoreSlim _sendGate = new(1, 1);
         private readonly object _socketGate = new();
         private ClientWebSocket? _socket;
@@ -2392,6 +2483,51 @@ public sealed class Vs2QQProcessService
             };
 
             await CallActionAsync("send_private_msg", parameters, TimeSpan.FromSeconds(20), cancellationToken);
+        }
+
+        public async Task<string> GetGroupMemberDisplayNameAsync(
+            long groupId,
+            long userId,
+            CancellationToken cancellationToken)
+        {
+            var cacheKey = (groupId, userId);
+            if (_groupMemberDisplayNames.TryGetValue(cacheKey, out var cached))
+            {
+                if (cached.ExpiresAtUtc > DateTimeOffset.UtcNow)
+                {
+                    return cached.DisplayName;
+                }
+
+                _groupMemberDisplayNames.TryRemove(cacheKey, out _);
+            }
+
+            var parameters = new JsonObject
+            {
+                ["group_id"] = groupId,
+                ["user_id"] = userId,
+                ["no_cache"] = false
+            };
+            var data = await CallActionAsync(
+                "get_group_member_info",
+                parameters,
+                TimeSpan.FromSeconds(5),
+                cancellationToken);
+            if (data is not JsonObject memberInfo)
+            {
+                return string.Empty;
+            }
+
+            var displayName = GetSafeAtDisplayName(
+                memberInfo,
+                userId.ToString(CultureInfo.InvariantCulture));
+            if (!string.IsNullOrWhiteSpace(displayName))
+            {
+                _groupMemberDisplayNames[cacheKey] = new GroupMemberDisplayNameCacheEntry(
+                    displayName,
+                    DateTimeOffset.UtcNow.Add(GroupMemberDisplayNameCacheDuration));
+            }
+
+            return displayName;
         }
 
         public async Task<JsonNode?> CallActionAsync(
