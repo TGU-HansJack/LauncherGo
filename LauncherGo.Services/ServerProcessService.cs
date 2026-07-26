@@ -207,30 +207,37 @@ public sealed partial class ServerProcessService : IServerProcessService
             return;
         }
 
-        var controller = GetExistingController(profileId.Trim());
-        if (controller is null)
+        var normalizedProfileId = profileId.Trim();
+        var controller = GetExistingController(normalizedProfileId);
+        InstanceProfile? profile;
+        lock (_gate)
+        {
+            _controllerProfiles.TryGetValue(normalizedProfileId, out profile);
+        }
+
+        if (controller is null || profile is null)
         {
             return;
         }
 
-        await controller.StopAsync(gracefulTimeout, cancellationToken);
+        await controller.StopAsync(profile, gracefulTimeout, cancellationToken);
     }
 
     public async Task StopAsync(TimeSpan gracefulTimeout, CancellationToken cancellationToken = default)
     {
-        List<(string ProfileId, SingleServerProcessController Controller)> controllers;
+        List<(InstanceProfile Profile, SingleServerProcessController Controller)> controllers;
         lock (_gate)
         {
             controllers = _controllers
-                .Select(pair => (pair.Key, pair.Value))
+                .Select(pair => (_controllerProfiles[pair.Key], pair.Value))
                 .ToList();
         }
 
-        foreach (var (_, controller) in controllers)
+        foreach (var (profile, controller) in controllers)
         {
             if (controller.GetCachedStatus().IsRunning)
             {
-                await controller.StopAsync(gracefulTimeout, cancellationToken);
+                await controller.StopAsync(profile, gracefulTimeout, cancellationToken);
             }
         }
     }
@@ -637,7 +644,10 @@ internal sealed partial class SingleServerProcessController
     }
 
     /// <inheritdoc />
-    public async Task StopAsync(TimeSpan gracefulTimeout, CancellationToken cancellationToken = default)
+    public async Task StopAsync(
+        InstanceProfile? preferredProfile,
+        TimeSpan gracefulTimeout,
+        CancellationToken cancellationToken = default)
     {
         await _processGate.WaitAsync(cancellationToken);
         try
@@ -645,10 +655,19 @@ internal sealed partial class SingleServerProcessController
             ClearTrackedProcessIfTerminated();
 
             var process = _process;
+            if (process is not null &&
+                !IsProcessTerminated(process) &&
+                preferredProfile is not null &&
+                !IsTrackedProcessForProfile(process, preferredProfile))
+            {
+                throw new InvalidOperationException(
+                    $"当前控制器跟踪的进程不属于目标档案 {preferredProfile.Name}，已拒绝停止以避免误停其他服务器。");
+            }
+
             if (process is null || IsProcessTerminated(process))
             {
-                if (!TryAttachToExistingWorkspaceServerRelay(preferredProfile: null, emitOutput: true) &&
-                    !TryAttachToExistingWorkspaceServerProcess(preferredProfile: null, emitOutput: true))
+                if (!TryAttachToExistingWorkspaceServerRelay(preferredProfile, emitOutput: true) &&
+                    !TryAttachToExistingWorkspaceServerProcess(preferredProfile, emitOutput: true))
                 {
                     PublishStoppedStatusIfStale();
                     return;
@@ -1700,7 +1719,19 @@ internal sealed partial class SingleServerProcessController
                 if (process is null || IsProcessTerminated(process))
                     continue;
 
-                var profile = ResolveProfileForProcess(
+                InstanceProfile? profile = null;
+                if (preferredProfile is not null &&
+                    string.Equals(liveState.ProfileId, preferredProfile.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    profile = preferredProfile;
+                }
+                else if (!string.IsNullOrWhiteSpace(liveState.ProfileId))
+                {
+                    profile = profiles.FirstOrDefault(candidate =>
+                        candidate.Id.Equals(liveState.ProfileId, StringComparison.OrdinalIgnoreCase));
+                }
+
+                profile ??= ResolveProfileForProcess(
                     preferredProfile,
                     profiles,
                     liveState.DataPath,
@@ -1984,17 +2015,18 @@ internal sealed partial class SingleServerProcessController
 
         if (!string.IsNullOrWhiteSpace(version))
         {
-            if (preferredProfile is not null &&
-                preferredProfile.Version.Equals(version, StringComparison.OrdinalIgnoreCase))
-            {
-                return preferredProfile;
-            }
-
             var versionMatches = profiles
                 .Where(profile => profile.Version.Equals(version, StringComparison.OrdinalIgnoreCase))
                 .ToList();
             if (versionMatches.Count == 1)
-                return versionMatches[0];
+            {
+                var versionMatch = versionMatches[0];
+                if (preferredProfile is null ||
+                    versionMatch.Id.Equals(preferredProfile.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    return preferredProfile ?? versionMatch;
+                }
+            }
         }
 
         return null;
@@ -2068,6 +2100,38 @@ internal sealed partial class SingleServerProcessController
         {
             return string.Empty;
         }
+    }
+
+    private bool IsTrackedProcessForProfile(Process process, InstanceProfile profile)
+    {
+        if (string.Equals(_currentProfile?.Id, profile.Id, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(_relayState?.ProfileId, profile.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var targetDataPath = NormalizeProfileDataPath(profile.DirectoryPath);
+        if (string.IsNullOrWhiteSpace(targetDataPath))
+        {
+            return false;
+        }
+
+        var relayDataPath = NormalizeProfileDataPath(_relayState?.DataPath);
+        if (!string.IsNullOrWhiteSpace(relayDataPath))
+        {
+            return relayDataPath.Equals(targetDataPath, StringComparison.OrdinalIgnoreCase);
+        }
+
+        var processId = TryGetProcessId(process);
+        if (!processId.HasValue)
+        {
+            return false;
+        }
+
+        var processDataPath = NormalizeProfileDataPath(
+            TryExtractDataPath(TryReadCommandLine(processId.Value)));
+        return !string.IsNullOrWhiteSpace(processDataPath) &&
+               processDataPath.Equals(targetDataPath, StringComparison.OrdinalIgnoreCase);
     }
 
     private string ResolveStopTargetDataPath(Process? process)

@@ -379,15 +379,17 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        var profileId = ResolveBoundProfileIdForEvent(runtime, eventPayload);
-        if (string.IsNullOrWhiteSpace(profileId))
+        var targetResolution = ResolveServerCommandProfile(runtime, eventPayload, string.Empty);
+        if (!string.IsNullOrWhiteSpace(targetResolution.ErrorMessage) || targetResolution.Profile is null)
         {
-            await _serverProcessService.SendCommandAsync(commandText, cancellationToken);
+            await ReplyAsync(runtime, eventPayload, targetResolution.ErrorMessage, cancellationToken);
+            return;
         }
-        else
-        {
-            await _serverProcessService.SendCommandAsync(profileId, commandText, cancellationToken);
-        }
+
+        await _serverProcessService.SendCommandAsync(
+            targetResolution.Profile.Id,
+            commandText,
+            cancellationToken);
         await ReplyAsync(runtime, eventPayload, $"已发送服务端指令：{commandText}", cancellationToken);
     }
 
@@ -396,7 +398,7 @@ public sealed class Vs2QQProcessService
         var parts = args.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0)
         {
-            await ReplyAsync(runtime, eventPayload, "Usage: /server status [n] | /server players [n] | /server start [档案名] | /server stop [档案名] | /server password get | /server password set <new_password>", cancellationToken);
+            await ReplyAsync(runtime, eventPayload, "Usage: /server status [n] | /server players [n] | /server start [档案名或ID] | /server stop [档案名或ID] | /server password get | /server password set <new_password>", cancellationToken);
             return;
         }
 
@@ -439,7 +441,7 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        await ReplyAsync(runtime, eventPayload, "Only /server status [n], /server players [n], /server start [档案名], /server stop [档案名], and /server password get|set are supported.", cancellationToken);
+        await ReplyAsync(runtime, eventPayload, "Only /server status [n], /server players [n], /server start [档案名或ID], /server stop [档案名或ID], and /server password get|set are supported.", cancellationToken);
     }
 
     private async Task HandleServerStatusCommandAsync(
@@ -516,17 +518,21 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        var boundProfileId = ResolveBoundProfileIdForEvent(runtime, eventPayload);
-        var status = string.IsNullOrWhiteSpace(boundProfileId)
-            ? _serverProcessService.GetCurrentStatus()
-            : _serverProcessService.GetCurrentStatus(boundProfileId);
-        if (string.IsNullOrWhiteSpace(status.ProfileId))
+        var targetResolution = ResolveServerCommandProfile(runtime, eventPayload, string.Empty);
+        if (!string.IsNullOrWhiteSpace(targetResolution.ErrorMessage) || targetResolution.Profile is null)
+        {
+            await ReplyAsync(runtime, eventPayload, targetResolution.ErrorMessage, cancellationToken);
+            return;
+        }
+
+        var status = _serverProcessService.GetCurrentStatus(targetResolution.Profile.Id);
+        if (!status.IsRunning)
         {
             await ReplyAsync(runtime, eventPayload, "No local running profile. Password command only supports local bound server.", cancellationToken);
             return;
         }
 
-        var profile = _instanceProfileService.GetProfileById(status.ProfileId);
+        var profile = _instanceProfileService.GetProfileById(targetResolution.Profile.Id);
         if (profile is null)
         {
             await ReplyAsync(runtime, eventPayload, "Cannot resolve local profile for password operation.", cancellationToken);
@@ -643,57 +649,22 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        var profiles = new List<InstanceProfile>();
-        if (targetResolution.Profile is not null)
+        var profile = targetResolution.Profile;
+        if (profile is null)
         {
-            profiles.Add(targetResolution.Profile);
-        }
-        else
-        {
-            var preferences = _launcherPreferencesService.Load();
-            var profileIds = SplitProfileIds(preferences.AutoStartServerProfileIds, preferences.AutoStartServerProfileId);
-            if (profileIds.Count == 0)
-            {
-                profileIds = SplitProfileIds(preferences.DefaultLaunchProfileIds, preferences.DefaultLaunchProfileId);
-            }
-
-            if (profileIds.Count == 0)
-            {
-                await ReplyAsync(runtime, eventPayload, "未设置服务器档案，请先在 LauncherGo 中设置默认档案或自启动档案。", cancellationToken);
-                return;
-            }
-
-            profiles.AddRange(profileIds
-                .Select(profileId => _instanceProfileService.GetProfileById(profileId))
-                .OfType<InstanceProfile>());
+            await ReplyAsync(runtime, eventPayload, "未解析到可启动的服务器档案。", cancellationToken);
+            return;
         }
 
-        var started = new List<string>();
-        var skipped = new List<string>();
-        foreach (var profile in profiles)
+        if (_serverProcessService.GetCurrentStatus(profile.Id).IsRunning)
         {
-            if (_serverProcessService.GetCurrentStatus(profile.Id).IsRunning)
-            {
-                skipped.Add(profile.Name);
-                continue;
-            }
-
-            var launchableProfile = await EnsureLaunchableProfileAsync(profile, profile.ActiveSaveFile, cancellationToken);
-            await _serverProcessService.StartAsync(launchableProfile, cancellationToken);
-            started.Add(launchableProfile.Name);
+            await ReplyAsync(runtime, eventPayload, $"服务器已在运行：{profile.Name}", cancellationToken);
+            return;
         }
 
-        var message = started.Count == 0
-            ? skipped.Count == 0
-                ? "没有可启动的服务器档案。"
-                : $"配置的服务器已在运行：{string.Join("、", skipped)}"
-            : $"已启动服务器：{string.Join("、", started)}";
-        if (started.Count > 0 && skipped.Count > 0)
-        {
-            message += $"；已跳过运行中：{string.Join("、", skipped)}";
-        }
-
-        await ReplyAsync(runtime, eventPayload, message, cancellationToken);
+        var launchableProfile = await EnsureLaunchableProfileAsync(profile, profile.ActiveSaveFile, cancellationToken);
+        await _serverProcessService.StartAsync(launchableProfile, cancellationToken);
+        await ReplyAsync(runtime, eventPayload, $"已启动服务器：{launchableProfile.Name}", cancellationToken);
     }
 
     private async Task HandleServerStopCommandAsync(
@@ -715,78 +686,49 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        if (targetResolution.Profile is not null)
+        if (targetResolution.Profile is null)
         {
-            var profile = targetResolution.Profile;
-            if (!_serverProcessService.GetCurrentStatus(profile.Id).IsRunning)
-            {
-                await ReplyAsync(runtime, eventPayload, $"服务器档案未运行：{profile.Name}", cancellationToken);
-                return;
-            }
-
-            await _serverProcessService.StopAsync(profile.Id, TimeSpan.FromSeconds(15), cancellationToken);
-            await ReplyAsync(runtime, eventPayload, $"已停止服务器：{profile.Name}", cancellationToken);
+            await ReplyAsync(runtime, eventPayload, "未解析到可停止的服务器档案。", cancellationToken);
             return;
         }
 
-        var statuses = _serverProcessService.GetCurrentStatuses()
-            .Where(static status => status.IsRunning)
-            .ToList();
-        if (statuses.Count == 0)
+        var profile = targetResolution.Profile;
+        if (!_serverProcessService.GetCurrentStatus(profile.Id).IsRunning)
         {
-            await ReplyAsync(runtime, eventPayload, "服务器未运行。", cancellationToken);
+            await ReplyAsync(runtime, eventPayload, $"服务器档案未运行：{profile.Name}", cancellationToken);
             return;
         }
 
-        await _serverProcessService.StopAsync(TimeSpan.FromSeconds(15), cancellationToken);
-        await ReplyAsync(runtime, eventPayload, "已停止服务器。", cancellationToken);
+        await _serverProcessService.StopAsync(profile.Id, TimeSpan.FromSeconds(15), cancellationToken);
+        await ReplyAsync(runtime, eventPayload, $"已停止服务器：{profile.Name}", cancellationToken);
     }
 
-    private ServerCommandProfileResolution ResolveServerCommandProfile(
+    private RobotServerCommandTargetResolution ResolveServerCommandProfile(
         Vs2QQRuntimeContext runtime,
         JsonObject eventPayload,
         string targetSelector)
     {
-        var selector = targetSelector.Trim();
-        if (!string.IsNullOrWhiteSpace(selector))
+        var preferences = _launcherPreferencesService.Load();
+        var fallbackProfileIds = SplitProfileIds(
+            preferences.AutoStartServerProfileIds,
+            preferences.AutoStartServerProfileId);
+        if (fallbackProfileIds.Count == 0)
         {
-            var profiles = _instanceProfileService.GetProfiles();
-            var idMatch = profiles.FirstOrDefault(profile =>
-                profile.Id.Equals(selector, StringComparison.OrdinalIgnoreCase));
-            if (idMatch is not null)
-            {
-                return new ServerCommandProfileResolution(idMatch, string.Empty);
-            }
-
-            var nameMatches = profiles
-                .Where(profile => profile.Name.Equals(selector, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            if (nameMatches.Count == 1)
-            {
-                return new ServerCommandProfileResolution(nameMatches[0], string.Empty);
-            }
-
-            if (nameMatches.Count > 1)
-            {
-                var choices = string.Join("、", nameMatches.Select(profile => $"{profile.Name} ({profile.Id})"));
-                return new ServerCommandProfileResolution(
-                    null,
-                    $"存在多个同名服务器档案，请使用档案 ID 明确选择：{choices}");
-            }
-
-            return new ServerCommandProfileResolution(null, $"未找到服务器档案：{selector}");
+            fallbackProfileIds = SplitProfileIds(
+                preferences.DefaultLaunchProfileIds,
+                preferences.DefaultLaunchProfileId);
         }
 
-        var boundProfileId = ResolveBoundProfileIdForEvent(runtime, eventPayload);
-        if (string.IsNullOrWhiteSpace(boundProfileId))
-        {
-            return new ServerCommandProfileResolution(null, string.Empty);
-        }
-
-        var boundProfile = _instanceProfileService.GetProfileById(boundProfileId);
-        return boundProfile is not null
-            ? new ServerCommandProfileResolution(boundProfile, string.Empty)
-            : new ServerCommandProfileResolution(null, "当前群绑定的服务器档案不存在，请在机器人设置中重新绑定。");
+        var groupId = IsGroupMessage(eventPayload)
+            ? GetInt64(eventPayload, "group_id")
+            : 0;
+        return RobotServerCommandTargetResolver.Resolve(
+            _instanceProfileService.GetProfiles(),
+            fallbackProfileIds,
+            runtime.CommandScope,
+            GetInt64(eventPayload, "user_id"),
+            groupId > 0 ? groupId : null,
+            targetSelector);
     }
 
     private static HashSet<string> SplitProfileIds(IEnumerable<string>? values, string legacyValue = "")
@@ -811,17 +753,6 @@ public sealed class Vs2QQProcessService
         }
 
         return result;
-    }
-
-    private static string ResolveBoundProfileIdForEvent(Vs2QQRuntimeContext runtime, JsonObject eventPayload)
-    {
-        if (!IsGroupMessage(eventPayload))
-        {
-            return string.Empty;
-        }
-
-        var groupId = GetInt64(eventPayload, "group_id");
-        return groupId <= 0 ? string.Empty : runtime.GetPrimaryProfileIdForGroup(groupId);
     }
 
     private static string ResolveBoundSnapshotHostForGroup(Vs2QQRuntimeContext runtime, long groupId)
@@ -850,6 +781,20 @@ public sealed class Vs2QQProcessService
             return;
         }
 
+        var boundProfileIds = runtime.CommandScope.GetProfileIdsForGroup(groupId);
+        if (boundProfileIds.Count > 1)
+        {
+            EmitOutput($"[warn] 群绑定了多个服务器档案，已拒绝转发群消息 group={groupId}");
+            return;
+        }
+
+        if (boundProfileIds.Count == 0 && runtime.HasProfileBindings)
+        {
+            return;
+        }
+
+        var boundProfileId = boundProfileIds.Count == 1 ? boundProfileIds[0] : string.Empty;
+
         Exception? lastError = null;
         for (var attempt = 1; attempt <= 2; attempt++)
         {
@@ -857,15 +802,14 @@ public sealed class Vs2QQProcessService
 
             try
             {
-                var profileId = runtime.GetPrimaryProfileIdForGroup(groupId);
-                if (string.IsNullOrWhiteSpace(profileId))
+                if (string.IsNullOrWhiteSpace(boundProfileId))
                 {
                     _serverProcessService.GetCurrentStatus();
                     await _serverTransport.SendGroupMessageToServerAsync(groupId, outbound, cancellationToken);
                 }
                 else
                 {
-                    await _serverProcessService.SendCommandAsync(profileId, $"/announce {outbound}", cancellationToken);
+                    await _serverProcessService.SendCommandAsync(boundProfileId, $"/announce {outbound}", cancellationToken);
                 }
                 if (attempt > 1)
                 {
@@ -1219,8 +1163,7 @@ public sealed class Vs2QQProcessService
 
     private static bool HasAdminPermission(Vs2QQRuntimeContext runtime, JsonObject eventPayload)
     {
-        var userId = GetInt64(eventPayload, "user_id");
-        return runtime.SuperUsers.Contains(userId);
+        return runtime.CommandScope.IsAdmin(GetInt64(eventPayload, "user_id"));
     }
 
     private static string BuildHelpText()
@@ -1231,8 +1174,8 @@ public sealed class Vs2QQProcessService
             /send <server_command> - 发送服务端指令（仅超级管理员）
             /server status [n] - 获取最近第 n 次服务器状态（默认1）
             /server players [n] - 获取最近第 n 次在线玩家列表（默认1）
-            /server start [档案名] - 启动指定或当前群绑定的服务器档案（仅超级管理员）
-            /server stop [档案名] - 停止指定或当前群绑定的服务器档案（仅超级管理员）
+            /server start [档案名或ID] - 启动指定或唯一绑定的服务器档案（仅超级管理员）
+            /server stop [档案名或ID] - 停止指定或唯一绑定的服务器档案（仅超级管理员）
             /server password get - 获取服务器密码
             /server password set <new_password> - 修改服务器密码（- 表示清空，仅超级管理员）
             """;
@@ -2323,26 +2266,23 @@ public sealed class Vs2QQProcessService
         {
             Settings = settings;
             Storage = storage;
-            SuperUsers = settings.SuperUsers?.ToHashSet() ?? [];
             BoundGroupIds = settings.BoundGroupIds?.Where(id => id > 0).ToHashSet() ?? [];
+            CommandScope = new RobotCommandScope(settings.SuperUsers, BoundGroupIds, settings.ProfileBindings);
             ProfileBindings = BuildRuntimeProfileBindings(settings.ProfileBindings);
             GroupsByProfileId = BuildGroupsByProfileId(ProfileBindings);
-            ProfilesByGroupId = BuildProfilesByGroupId(ProfileBindings);
         }
 
         public RobotSettings Settings { get; }
 
-        public HashSet<long> SuperUsers { get; }
-
         public HashSet<long> BoundGroupIds { get; }
+
+        public RobotCommandScope CommandScope { get; }
 
         public IReadOnlyList<Vs2QQProfileBinding> ProfileBindings { get; }
 
-        public bool HasProfileBindings => ProfileBindings.Count > 0;
+        public bool HasProfileBindings => ProfileBindings.Any(static binding => binding.GroupId > 0);
 
         private IReadOnlyDictionary<string, HashSet<long>> GroupsByProfileId { get; }
-
-        private IReadOnlyDictionary<long, List<string>> ProfilesByGroupId { get; }
 
         public Vs2QQStorage Storage { get; }
 
@@ -2382,12 +2322,8 @@ public sealed class Vs2QQProcessService
 
         public string GetPrimaryProfileIdForGroup(long groupId)
         {
-            if (ProfilesByGroupId.TryGetValue(groupId, out var profiles) && profiles.Count > 0)
-            {
-                return profiles[0];
-            }
-
-            return string.Empty;
+            var profiles = CommandScope.GetProfileIdsForGroup(groupId);
+            return profiles.Count == 1 ? profiles[0] : string.Empty;
         }
 
         private IReadOnlyList<long> GetBoundGroupIdsForProfile(string profileId)
@@ -2422,7 +2358,8 @@ public sealed class Vs2QQProcessService
                 var profileId = binding.ProfileId?.Trim() ?? string.Empty;
                 var groupId = ParsePositiveInt64(binding.GroupId);
                 var superUserId = ParsePositiveInt64(binding.SuperUserId);
-                if (string.IsNullOrWhiteSpace(profileId) || groupId <= 0)
+                if (string.IsNullOrWhiteSpace(profileId) ||
+                    (groupId <= 0 && superUserId <= 0))
                 {
                     continue;
                 }
@@ -2444,6 +2381,11 @@ public sealed class Vs2QQProcessService
             var result = new Dictionary<string, HashSet<long>>(StringComparer.OrdinalIgnoreCase);
             foreach (var binding in bindings)
             {
+                if (binding.GroupId <= 0)
+                {
+                    continue;
+                }
+
                 if (!result.TryGetValue(binding.ProfileId, out var groups))
                 {
                     groups = [];
@@ -2455,36 +2397,9 @@ public sealed class Vs2QQProcessService
 
             return result;
         }
-
-        private static IReadOnlyDictionary<long, List<string>> BuildProfilesByGroupId(IEnumerable<Vs2QQProfileBinding> bindings)
-        {
-            var result = new Dictionary<long, List<string>>();
-            foreach (var binding in bindings)
-            {
-                if (!result.TryGetValue(binding.GroupId, out var profiles))
-                {
-                    profiles = [];
-                    result[binding.GroupId] = profiles;
-                }
-
-                if (!profiles.Contains(binding.ProfileId, StringComparer.OrdinalIgnoreCase))
-                {
-                    profiles.Add(binding.ProfileId);
-                }
-            }
-
-            foreach (var profiles in result.Values)
-            {
-                profiles.Sort(StringComparer.OrdinalIgnoreCase);
-            }
-
-            return result;
-        }
     }
 
     private readonly record struct Vs2QQProfileBinding(string ProfileId, long GroupId, long SuperUserId);
-
-    private readonly record struct ServerCommandProfileResolution(InstanceProfile? Profile, string ErrorMessage);
 
     private readonly record struct GroupMemberDisplayNameCacheEntry(string DisplayName, DateTimeOffset ExpiresAtUtc);
 
