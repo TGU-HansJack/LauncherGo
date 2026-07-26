@@ -4,6 +4,8 @@
     <EmbeddedAuthModProject>$(MSBuildThisFileDirectory)EmbeddedMods\VsslAuthMod\VsslAuthMod.csproj</EmbeddedAuthModProject>
     <EmbeddedAuthModBuildOutput>$(MSBuildThisFileDirectory)EmbeddedMods\VsslAuthMod\bin\$(Configuration)\net10.0\</EmbeddedAuthModBuildOutput>
     <EmbeddedAuthRoot>$(MSBuildThisFileDirectory)EmbeddedMods\launchergoauth\</EmbeddedAuthRoot>
+    <EmbeddedAntiCheatModProject>$(MSBuildThisFileDirectory)EmbeddedMods\AntiCheatMod\AntiCheatMod.csproj</EmbeddedAntiCheatModProject>
+    <EmbeddedAntiCheatRoot>$(MSBuildThisFileDirectory)EmbeddedMods\launchergoanticheat\</EmbeddedAntiCheatRoot>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,6 +16,7 @@
   <ItemGroup>
     <Compile Remove="EmbeddedMods\VsslAuthMod\**\*.cs" />
     <Compile Remove="EmbeddedMods\TickHubMod\**\*.cs" />
+    <Compile Remove="EmbeddedMods\AntiCheatMod\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -30,6 +33,9 @@
     <None Update="EmbeddedMods\launchergoauth\README.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\launchergoauth\serverauth.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('EmbeddedMods\launchergoauth\serverauth.dll')" />
     <None Update="EmbeddedMods\servermap\**\*.*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="EmbeddedMods\launchergoanticheat\**\*.*"
+          CopyToOutputDirectory="PreserveNewest"
+          Condition="'$(EnableExperimentalAntiCheat)' == 'true'" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -43,6 +49,17 @@
              Targets="Restore"
              Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY)" />
     <MSBuild Projects="$(EmbeddedAuthModProject)"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY);NoRestore=true" />
+  </Target>
+
+  <Target Name="BuildEmbeddedAntiCheatMod"
+          BeforeTargets="BeforeBuild"
+          Condition="'$(EnableExperimentalAntiCheat)' == 'true' and '$(BuildEmbeddedAntiCheatMod)' == 'true'">
+    <MSBuild Projects="$(EmbeddedAntiCheatModProject)"
+             Targets="Restore"
+             Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY)" />
+    <MSBuild Projects="$(EmbeddedAntiCheatModProject)"
              Targets="Build"
              Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY);NoRestore=true" />
   </Target>

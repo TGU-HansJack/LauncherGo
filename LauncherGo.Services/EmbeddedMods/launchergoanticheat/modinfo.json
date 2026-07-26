@@ -1,0 +1,16 @@
+{
+  "type": "code",
+  "modid": "launchergoanticheat",
+  "name": "LauncherGo AntiCheat",
+  "description": "Server-side behavior analysis, evidence logging, scoped compatibility whitelist, and configurable enforcement.",
+  "authors": [
+    "HansJack"
+  ],
+  "version": "0.1.0",
+  "side": "server",
+  "requiredOnClient": false,
+  "requiredOnServer": true,
+  "dependencies": {
+    "game": "1.22.3"
+  }
+}

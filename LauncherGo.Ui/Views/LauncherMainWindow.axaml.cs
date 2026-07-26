@@ -23,6 +23,7 @@ using Avalonia.VisualTree;
 using LauncherGo.Abstractions.Services;
 using LauncherGo.Abstractions.Services.I18n;
 using LauncherGo.Domains.Enums;
+using LauncherGo.Domains.Features;
 using LauncherGo.Domains.Models;
 using LauncherGo.Ui;
 using LauncherGo.Ui.Platform;
@@ -152,6 +153,7 @@ public partial class LauncherMainWindow : Window
     private readonly IInstanceModService _instanceModService;
     private readonly IServerAuthService _serverAuthService;
     private readonly IServerMapService _serverMapService;
+    private readonly IServerAntiCheatService _serverAntiCheatService;
     private readonly ILogger<LauncherMainWindow> _logger;
     private readonly DispatcherTimer _dataTimer;
     private readonly DispatcherTimer _tickerTimer;
@@ -193,6 +195,9 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<InstanceProfile> _authProfileItems = [];
     private readonly ObservableCollection<ProfileConfigListItem> _authConfigItems = [];
     private readonly ObservableCollection<AuthPlayerListItem> _authPlayerItems = [];
+    private readonly ObservableCollection<InstanceProfile> _antiCheatProfileItems = [];
+    private readonly ObservableCollection<ProfileConfigListItem> _antiCheatConfigItems = [];
+    private readonly ObservableCollection<AntiCheatWhitelistRuleItem> _antiCheatWhitelistItems = [];
     private readonly ObservableCollection<RobotProfileBindingItem> _robotBindingItems = [];
     private readonly ObservableCollection<InstanceProfile> _robotProfileItems = [];
     private readonly ObservableCollection<OpenServerQueryProfileConfigItem> _openInfoConfigItems = [];
@@ -249,6 +254,7 @@ public partial class LauncherMainWindow : Window
     private bool _isRefreshingAutomation;
     private bool _isRefreshingMods;
     private bool _isRefreshingAuth;
+    private bool _isRefreshingAntiCheat;
     private bool _toastPointerOver;
     private string _editingConfigProfileId = string.Empty;
     private string _pendingConfigLoadProfileId = string.Empty;
@@ -256,6 +262,7 @@ public partial class LauncherMainWindow : Window
     private string _selectedConsoleProfileId = string.Empty;
     private string _editingAutomationProfileId = string.Empty;
     private string _editingAuthProfileId = string.Empty;
+    private string _editingAntiCheatProfileId = string.Empty;
     private string _editingOpenInfoProfileId = string.Empty;
     private long _configLoadVersion;
     private long _dashboardSettingsVersion;
@@ -282,6 +289,7 @@ public partial class LauncherMainWindow : Window
             ServiceLocator.GetRequiredService<IInstanceModService>(),
             ServiceLocator.GetRequiredService<IServerAuthService>(),
             ServiceLocator.GetRequiredService<IServerMapService>(),
+            ServiceLocator.GetRequiredService<IServerAntiCheatService>(),
             ServiceLocator.GetRequiredService<ILogger<LauncherMainWindow>>())
     {
     }
@@ -303,6 +311,7 @@ public partial class LauncherMainWindow : Window
         IInstanceModService instanceModService,
         IServerAuthService serverAuthService,
         IServerMapService serverMapService,
+        IServerAntiCheatService serverAntiCheatService,
         ILogger<LauncherMainWindow>? logger = null)
     {
         _preferencesService = preferencesService;
@@ -321,9 +330,12 @@ public partial class LauncherMainWindow : Window
         _instanceModService = instanceModService;
         _serverAuthService = serverAuthService;
         _serverMapService = serverMapService;
+        _serverAntiCheatService = serverAntiCheatService;
         _logger = logger ?? NullLogger<LauncherMainWindow>.Instance;
 
         InitializeComponent();
+        AntiCheatTabButton.IsVisible = ExperimentalFeatures.AntiCheatEnabled;
+        AntiCheatPanel.IsVisible = false;
         AddHandler(InputElement.PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
 
         _isChinese = CultureInfo.CurrentUICulture.Name.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
@@ -546,6 +558,7 @@ public partial class LauncherMainWindow : Window
         SavesTabButton.Content = T("存档", "Saves");
         AutomationTabButton.Content = T("自动化", "Automation");
         ModsTabButton.Content = T("模组", "Mods");
+        AntiCheatTabButton.Content = T("反作弊", "Anti-Cheat");
         DownloadVersionsTabButton.Content = T("下载版本", "Downloads");
         DownloadVersionsNavButton.Content = T("下载版本", "Downloads");
         ProfileNameTextBox.PlaceholderText = T("档案名称", "Profile name");
@@ -560,6 +573,7 @@ public partial class LauncherMainWindow : Window
         RefreshSavesButton.Content = T("刷新", "Refresh");
         InitializeAutomationStaticTexts();
         InitializeModStaticTexts();
+        InitializeAntiCheatStaticTexts();
         DownloadVersionSearchTextBox.PlaceholderText = T("搜索版本号", "Search version");
         ImportServerPackageButton.Content = T("导入", "Import");
         RefreshDownloadVersionsButton.Content = T("刷新", "Refresh");
@@ -620,6 +634,60 @@ public partial class LauncherMainWindow : Window
         DeployMapModButton.Content = T("部署地图模组", "Deploy Map Mod");
         DeleteSelectedModsButton.Content = T("删除", "Delete");
         RefreshModsButton.Content = T("刷新", "Refresh");
+    }
+
+    private void InitializeAntiCheatStaticTexts()
+    {
+        AntiCheatClearButton.Content = T("清空", "Clear");
+        AntiCheatBackButton.Content = T("返回", "Back");
+        AntiCheatSaveButton.Content = T("保存", "Save");
+        AntiCheatRefreshButton.Content = T("刷新", "Refresh");
+        AntiCheatDeployButton.Content = T("部署反作弊模组", "Deploy Anti-Cheat Mod");
+        AntiCheatModeTitleTextBlock.Text = T("运行模式", "Runtime Mode");
+        AntiCheatEnabledLabelTextBlock.Text = T("启用反作弊", "Enable Anti-Cheat");
+        AntiCheatMonitorOnlyLabelTextBlock.Text = T("仅监控", "Monitor Only");
+        AntiCheatActionsTitleTextBlock.Text = T("告警与处罚", "Alerts and Enforcement");
+        AntiCheatWarnAdminsLabelTextBlock.Text = T("警告管理员", "Warn Administrators");
+        AntiCheatKickEnabledLabelTextBlock.Text = T("自动踢出", "Automatic Kick");
+        AntiCheatBanEnabledLabelTextBlock.Text = T("自动封禁", "Automatic Ban");
+        AntiCheatPunishStatisticalLabelTextBlock.Text = T("统计信号进入处罚分", "Punish Statistical Signals");
+        AntiCheatWarningScoreLabelTextBlock.Text = T("告警分数", "Warning Score");
+        AntiCheatKickScoreLabelTextBlock.Text = T("踢出分数", "Kick Score");
+        AntiCheatBanScoreLabelTextBlock.Text = T("封禁分数", "Ban Score");
+        AntiCheatScoreDecayLabelTextBlock.Text = T("分数衰减秒数", "Score Decay Seconds");
+        AntiCheatAlertCooldownLabelTextBlock.Text = T("告警冷却秒数", "Alert Cooldown Seconds");
+        AntiCheatMovementTitleTextBlock.Text = T("移动检测", "Movement Detection");
+        AntiCheatMovementSpeedEnabledLabelTextBlock.Text = T("速度与传送", "Speed and Teleport");
+        AntiCheatFlightEnabledLabelTextBlock.Text = T("飞行与无摔落", "Flight and No-Fall");
+        AntiCheatNoClipEnabledLabelTextBlock.Text = T("穿墙", "No-Clip");
+        AntiCheatMaxHorizontalSpeedLabelTextBlock.Text = T("最大水平速度", "Max Horizontal Speed");
+        AntiCheatMaxVerticalSpeedLabelTextBlock.Text = T("最大垂直速度", "Max Vertical Speed");
+        AntiCheatTeleportDistanceLabelTextBlock.Text = T("传送距离", "Teleport Distance");
+        AntiCheatHoverSecondsLabelTextBlock.Text = T("悬停秒数", "Hover Seconds");
+        AntiCheatInteractionTitleTextBlock.Text = T("破坏与自动化", "Breaking and Automation");
+        AntiCheatFastBreakEnabledLabelTextBlock.Text = T("快速破坏", "Fast Breaking");
+        AntiCheatFastBreakMultiplierLabelTextBlock.Text = T("最短耗时比例", "Minimum Time Ratio");
+        AntiCheatFastBreakWindowLabelTextBlock.Text = T("破坏窗口秒数", "Break Window Seconds");
+        AntiCheatFastBreakSamplesLabelTextBlock.Text = T("最少破坏样本", "Minimum Break Samples");
+        AntiCheatAutomationEnabledLabelTextBlock.Text = T("自动化行为", "Automation Behavior");
+        AntiCheatMaxActionsPerSecondLabelTextBlock.Text = T("每秒最大操作", "Max Actions per Second");
+        AntiCheatAutomationWindowLabelTextBlock.Text = T("自动化窗口秒数", "Automation Window Seconds");
+        AntiCheatAutomationSamplesLabelTextBlock.Text = T("最少操作样本", "Minimum Action Samples");
+        AntiCheatCombatTitleTextBlock.Text = T("战斗与生命值", "Combat and Health");
+        AntiCheatCombatEnabledLabelTextBlock.Text = T("战斗检测", "Combat Detection");
+        AntiCheatMaxAttacksPerSecondLabelTextBlock.Text = T("每秒最大攻击", "Max Attacks per Second");
+        AntiCheatMaxAttackReachLabelTextBlock.Text = T("最大攻击距离", "Max Attack Reach");
+        AntiCheatHealthEnabledLabelTextBlock.Text = T("生命值检测", "Health Detection");
+        AntiCheatMaxUnexpectedHealLabelTextBlock.Text = T("最大异常治疗量", "Max Unexpected Healing");
+        AntiCheatMiningTitleTextBlock.Text = T("采矿与市场", "Mining and Market");
+        AntiCheatOrePatternEnabledLabelTextBlock.Text = T("矿石比例推断", "Ore Ratio Inference");
+        AntiCheatOreWindowLabelTextBlock.Text = T("采矿窗口分钟", "Mining Window Minutes");
+        AntiCheatOreSamplesLabelTextBlock.Text = T("最少采矿样本", "Minimum Mining Samples");
+        AntiCheatOreRatioLabelTextBlock.Text = T("矿石比例阈值", "Ore Ratio Threshold");
+        AntiCheatMarketRateEnabledLabelTextBlock.Text = T("商人频率", "Trader Frequency");
+        AntiCheatMarketInteractionsLabelTextBlock.Text = T("每分钟商人交互", "Trader Interactions per Minute");
+        AntiCheatWhitelistTitleTextBlock.Text = T("兼容白名单", "Compatibility Whitelist");
+        AntiCheatAddWhitelistButton.Content = T("添加规则", "Add Rule");
     }
 
     private void InitializeConfigStaticTexts()
@@ -841,6 +909,9 @@ public partial class LauncherMainWindow : Window
         AuthConfigItemsControl.ItemsSource = _authConfigItems;
         AuthProfileComboBox.ItemsSource = _authProfileItems;
         AuthPlayersListBox.ItemsSource = _authPlayerItems;
+        AntiCheatConfigItemsControl.ItemsSource = _antiCheatConfigItems;
+        AntiCheatProfileComboBox.ItemsSource = _antiCheatProfileItems;
+        AntiCheatWhitelistItemsControl.ItemsSource = _antiCheatWhitelistItems;
         DashboardServersItemsControl.ItemsSource = _dashboardServerItems;
         DashboardOnlinePlayersItemsControl.ItemsSource = _dashboardOnlinePlayerItems;
         DashboardUptimeItemsControl.ItemsSource = _dashboardUptimeItems;
@@ -1735,6 +1806,10 @@ public partial class LauncherMainWindow : Window
         _ = RefreshAutomationAsync();
         _ = RefreshModsAsync();
         _ = RefreshAuthProfilesAsync();
+        if (ExperimentalFeatures.AntiCheatEnabled)
+        {
+            _ = RefreshAntiCheatProfilesAsync();
+        }
     }
 
     private void RefreshLaunchOptions(IReadOnlyList<InstanceProfile>? profiles = null)
@@ -2051,6 +2126,15 @@ public partial class LauncherMainWindow : Window
         }
     }
 
+    private void SetAntiCheatStatus(string message, bool notify = true)
+    {
+        AntiCheatStatusTextBlock.Text = message;
+        if (notify)
+        {
+            ShowToast(message);
+        }
+    }
+
     private void ShowAutomationList()
     {
         _editingAutomationProfileId = string.Empty;
@@ -2125,6 +2209,32 @@ public partial class LauncherMainWindow : Window
         AuthProfileComboBox.SelectedItem = _authProfileItems.FirstOrDefault(item =>
             item.Id.Equals(profile.Id, StringComparison.OrdinalIgnoreCase)) ?? profile;
         await LoadAuthForProfileAsync(profile);
+    }
+
+    private void ShowAntiCheatList()
+    {
+        _editingAntiCheatProfileId = string.Empty;
+        AntiCheatListPanel.IsVisible = true;
+        AntiCheatEditorPanel.IsVisible = false;
+        AntiCheatBackButton.IsVisible = false;
+        AntiCheatSaveButton.IsVisible = false;
+        AntiCheatDeployButton.IsVisible = false;
+        AntiCheatClearButton.IsVisible = true;
+        RefreshAntiCheatConfigItems();
+    }
+
+    private async Task ShowAntiCheatEditorAsync(InstanceProfile profile)
+    {
+        _editingAntiCheatProfileId = profile.Id;
+        AntiCheatListPanel.IsVisible = false;
+        AntiCheatEditorPanel.IsVisible = true;
+        AntiCheatBackButton.IsVisible = true;
+        AntiCheatSaveButton.IsVisible = true;
+        AntiCheatDeployButton.IsVisible = true;
+        AntiCheatClearButton.IsVisible = false;
+        AntiCheatProfileComboBox.SelectedItem = _antiCheatProfileItems.FirstOrDefault(item =>
+            item.Id.Equals(profile.Id, StringComparison.OrdinalIgnoreCase)) ?? profile;
+        await LoadAntiCheatForProfileAsync(profile);
     }
 
     private static AutomationSettings BuildClearedAutomationSettings(string profileId)
@@ -2258,6 +2368,183 @@ public partial class LauncherMainWindow : Window
         SetModStatus(T(
             $"已加载 {mods.Count} 个模组，启用 {enabledCount} 个，关闭 {disabledCount} 个。",
             $"Loaded {mods.Count} mods, {enabledCount} enabled, {disabledCount} disabled."), notify: false);
+    }
+
+    private async Task RefreshAntiCheatProfilesAsync()
+    {
+        if (!ExperimentalFeatures.AntiCheatEnabled)
+            return;
+
+        if (_isRefreshingAntiCheat)
+            return;
+
+        _isRefreshingAntiCheat = true;
+        try
+        {
+            var profiles = _profileService.GetProfiles();
+            var selectedProfileId = !string.IsNullOrWhiteSpace(_editingAntiCheatProfileId)
+                ? _editingAntiCheatProfileId
+                : AntiCheatProfileComboBox.SelectedItem is InstanceProfile selectedProfile
+                    ? selectedProfile.Id
+                    : string.Empty;
+            _antiCheatProfileItems.Clear();
+            foreach (var profile in profiles)
+            {
+                _antiCheatProfileItems.Add(profile);
+            }
+
+            RefreshAntiCheatConfigItems(profiles);
+            AntiCheatProfileComboBox.ItemsSource = _antiCheatProfileItems;
+            if (_antiCheatProfileItems.Count == 0)
+            {
+                _antiCheatWhitelistItems.Clear();
+                SetAntiCheatStatus(T("暂无档案，请先创建档案。", "No profile found. Create a profile first."), notify: false);
+                return;
+            }
+
+            var target = _antiCheatProfileItems.FirstOrDefault(profile =>
+                !string.IsNullOrWhiteSpace(selectedProfileId) &&
+                profile.Id.Equals(selectedProfileId, StringComparison.OrdinalIgnoreCase))
+                ?? _antiCheatProfileItems.FirstOrDefault();
+            AntiCheatProfileComboBox.SelectedItem = target;
+            if (target is not null && AntiCheatEditorPanel.IsVisible)
+            {
+                await LoadAntiCheatForProfileAsync(target);
+            }
+        }
+        catch (Exception ex)
+        {
+            SetAntiCheatStatus(T($"反作弊加载失败：{ex.Message}", $"Anti-cheat load failed: {ex.Message}"));
+        }
+        finally
+        {
+            _isRefreshingAntiCheat = false;
+        }
+    }
+
+    private async Task LoadAntiCheatForProfileAsync(InstanceProfile profile)
+    {
+        var settings = await _serverAntiCheatService.LoadSettingsAsync(profile);
+        ApplyAntiCheatSettings(settings);
+        var modEnabled = await _serverAntiCheatService.GetAntiCheatModEnabledAsync(profile);
+        SetAntiCheatStatus(T(
+            $"已加载反作弊配置，模组{(modEnabled ? "已启用" : "未启用或未部署")}，白名单规则 {settings.Whitelist.Count} 条。",
+            $"Anti-cheat settings loaded; mod {(modEnabled ? "enabled" : "disabled or missing")}; {settings.Whitelist.Count} whitelist rules."),
+            notify: false);
+    }
+
+    private void ApplyAntiCheatSettings(AntiCheatSettings settings)
+    {
+        AntiCheatEnabledCheckBox.IsChecked = settings.Enabled;
+        AntiCheatMonitorOnlyCheckBox.IsChecked = settings.MonitorOnly;
+
+        var actions = settings.Actions;
+        SetNumericValue(AntiCheatWarningScoreNumericUpDown, actions.WarningScore);
+        SetNumericValue(AntiCheatKickScoreNumericUpDown, actions.KickScore);
+        SetNumericValue(AntiCheatBanScoreNumericUpDown, actions.BanScore);
+        SetNumericValue(AntiCheatScoreDecayNumericUpDown, actions.ScoreDecaySeconds);
+        SetNumericValue(AntiCheatAlertCooldownNumericUpDown, actions.AlertCooldownSeconds);
+        AntiCheatWarnAdminsCheckBox.IsChecked = actions.WarnAdministrators;
+        AntiCheatKickEnabledCheckBox.IsChecked = actions.KickEnabled;
+        AntiCheatBanEnabledCheckBox.IsChecked = actions.BanEnabled;
+        AntiCheatPunishStatisticalCheckBox.IsChecked = actions.PunishStatisticalDetections;
+
+        var detectors = settings.Detectors;
+        AntiCheatMovementSpeedEnabledCheckBox.IsChecked = detectors.MovementSpeedEnabled;
+        SetNumericValue(AntiCheatMaxHorizontalSpeedNumericUpDown, detectors.MaxHorizontalSpeed);
+        SetNumericValue(AntiCheatMaxVerticalSpeedNumericUpDown, detectors.MaxVerticalSpeed);
+        SetNumericValue(AntiCheatTeleportDistanceNumericUpDown, detectors.TeleportDistance);
+        SetNumericValue(AntiCheatHoverSecondsNumericUpDown, detectors.HoverSeconds);
+        AntiCheatFlightEnabledCheckBox.IsChecked = detectors.FlightEnabled;
+        AntiCheatNoClipEnabledCheckBox.IsChecked = detectors.NoClipEnabled;
+        AntiCheatFastBreakEnabledCheckBox.IsChecked = detectors.FastBreakEnabled;
+        SetNumericValue(AntiCheatFastBreakMultiplierNumericUpDown, detectors.FastBreakMultiplier);
+        SetNumericValue(AntiCheatFastBreakWindowNumericUpDown, detectors.FastBreakWindowSeconds);
+        SetNumericValue(AntiCheatFastBreakSamplesNumericUpDown, detectors.FastBreakMinimumSamples);
+        AntiCheatAutomationEnabledCheckBox.IsChecked = detectors.AutomationEnabled;
+        SetNumericValue(AntiCheatMaxActionsPerSecondNumericUpDown, detectors.MaxActionsPerSecond);
+        SetNumericValue(AntiCheatAutomationWindowNumericUpDown, detectors.AutomationWindowSeconds);
+        SetNumericValue(AntiCheatAutomationSamplesNumericUpDown, detectors.AutomationMinimumSamples);
+        AntiCheatCombatEnabledCheckBox.IsChecked = detectors.CombatEnabled;
+        SetNumericValue(AntiCheatMaxAttacksPerSecondNumericUpDown, detectors.MaxAttacksPerSecond);
+        SetNumericValue(AntiCheatMaxAttackReachNumericUpDown, detectors.MaxAttackReach);
+        AntiCheatHealthEnabledCheckBox.IsChecked = detectors.HealthEnabled;
+        SetNumericValue(AntiCheatMaxUnexpectedHealNumericUpDown, detectors.MaxUnexpectedHeal);
+        AntiCheatOrePatternEnabledCheckBox.IsChecked = detectors.OrePatternEnabled;
+        SetNumericValue(AntiCheatOreWindowNumericUpDown, detectors.OrePatternWindowMinutes);
+        SetNumericValue(AntiCheatOreSamplesNumericUpDown, detectors.OrePatternMinimumSamples);
+        SetNumericValue(AntiCheatOreRatioNumericUpDown, detectors.OrePatternRatio);
+        AntiCheatMarketRateEnabledCheckBox.IsChecked = detectors.MarketRateEnabled;
+        SetNumericValue(AntiCheatMarketInteractionsNumericUpDown, detectors.MarketInteractionsPerMinute);
+
+        _antiCheatWhitelistItems.Clear();
+        foreach (var rule in settings.Whitelist)
+        {
+            _antiCheatWhitelistItems.Add(AntiCheatWhitelistRuleItem.FromModel(rule));
+        }
+    }
+
+    private AntiCheatSettings CollectAntiCheatSettings()
+    {
+        return new AntiCheatSettings
+        {
+            Enabled = AntiCheatEnabledCheckBox.IsChecked == true,
+            MonitorOnly = AntiCheatMonitorOnlyCheckBox.IsChecked == true,
+            Actions = new AntiCheatActionSettings
+            {
+                WarningScore = GetNumericValue(AntiCheatWarningScoreNumericUpDown, 3),
+                KickScore = GetNumericValue(AntiCheatKickScoreNumericUpDown, 8),
+                BanScore = GetNumericValue(AntiCheatBanScoreNumericUpDown, 16),
+                ScoreDecaySeconds = GetNumericValue(AntiCheatScoreDecayNumericUpDown, 120),
+                AlertCooldownSeconds = GetNumericValue(AntiCheatAlertCooldownNumericUpDown, 30),
+                WarnAdministrators = AntiCheatWarnAdminsCheckBox.IsChecked == true,
+                KickEnabled = AntiCheatKickEnabledCheckBox.IsChecked == true,
+                BanEnabled = AntiCheatBanEnabledCheckBox.IsChecked == true,
+                PunishStatisticalDetections = AntiCheatPunishStatisticalCheckBox.IsChecked == true
+            },
+            Detectors = new AntiCheatDetectorSettings
+            {
+                MovementSpeedEnabled = AntiCheatMovementSpeedEnabledCheckBox.IsChecked == true,
+                MaxHorizontalSpeed = GetNumericDoubleValue(AntiCheatMaxHorizontalSpeedNumericUpDown, 12),
+                MaxVerticalSpeed = GetNumericDoubleValue(AntiCheatMaxVerticalSpeedNumericUpDown, 18),
+                TeleportDistance = GetNumericDoubleValue(AntiCheatTeleportDistanceNumericUpDown, 24),
+                HoverSeconds = GetNumericValue(AntiCheatHoverSecondsNumericUpDown, 4),
+                FlightEnabled = AntiCheatFlightEnabledCheckBox.IsChecked == true,
+                NoClipEnabled = AntiCheatNoClipEnabledCheckBox.IsChecked == true,
+                FastBreakEnabled = AntiCheatFastBreakEnabledCheckBox.IsChecked == true,
+                FastBreakMultiplier = GetNumericDoubleValue(AntiCheatFastBreakMultiplierNumericUpDown, 0.35),
+                FastBreakWindowSeconds = GetNumericValue(AntiCheatFastBreakWindowNumericUpDown, 12),
+                FastBreakMinimumSamples = GetNumericValue(AntiCheatFastBreakSamplesNumericUpDown, 4),
+                AutomationEnabled = AntiCheatAutomationEnabledCheckBox.IsChecked == true,
+                MaxActionsPerSecond = GetNumericValue(AntiCheatMaxActionsPerSecondNumericUpDown, 12),
+                AutomationWindowSeconds = GetNumericValue(AntiCheatAutomationWindowNumericUpDown, 10),
+                AutomationMinimumSamples = GetNumericValue(AntiCheatAutomationSamplesNumericUpDown, 12),
+                CombatEnabled = AntiCheatCombatEnabledCheckBox.IsChecked == true,
+                MaxAttacksPerSecond = GetNumericValue(AntiCheatMaxAttacksPerSecondNumericUpDown, 8),
+                MaxAttackReach = GetNumericDoubleValue(AntiCheatMaxAttackReachNumericUpDown, 6),
+                HealthEnabled = AntiCheatHealthEnabledCheckBox.IsChecked == true,
+                MaxUnexpectedHeal = GetNumericDoubleValue(AntiCheatMaxUnexpectedHealNumericUpDown, 25),
+                OrePatternEnabled = AntiCheatOrePatternEnabledCheckBox.IsChecked == true,
+                OrePatternWindowMinutes = GetNumericValue(AntiCheatOreWindowNumericUpDown, 10),
+                OrePatternMinimumSamples = GetNumericValue(AntiCheatOreSamplesNumericUpDown, 20),
+                OrePatternRatio = GetNumericDoubleValue(AntiCheatOreRatioNumericUpDown, 0.65),
+                MarketRateEnabled = AntiCheatMarketRateEnabledCheckBox.IsChecked == true,
+                MarketInteractionsPerMinute = GetNumericValue(AntiCheatMarketInteractionsNumericUpDown, 30)
+            },
+            Whitelist = _antiCheatWhitelistItems.Select(static item => item.ToModel()).ToList()
+        };
+    }
+
+    private void RefreshAntiCheatConfigItems(IReadOnlyList<InstanceProfile>? profiles = null)
+    {
+        var profileList = profiles ?? _profileService.GetProfiles();
+        _antiCheatConfigItems.Clear();
+        foreach (var profile in profileList)
+        {
+            _antiCheatConfigItems.Add(ProfileConfigListItem.FromPath(
+                profile,
+                GetAntiCheatSettingsPath(profile)));
+        }
     }
 
     private async Task RefreshAuthProfilesAsync()
@@ -2633,12 +2920,18 @@ public partial class LauncherMainWindow : Window
 
     private void SelectInstanceManageTab(InstanceManageTab tab)
     {
+        if (tab == InstanceManageTab.AntiCheat && !ExperimentalFeatures.AntiCheatEnabled)
+        {
+            tab = InstanceManageTab.Profiles;
+        }
+
         _selectedInstanceManageTab = tab;
         ProfilesPanel.IsVisible = tab == InstanceManageTab.Profiles;
         ConfigPanel.IsVisible = tab == InstanceManageTab.Config;
         SavesPanel.IsVisible = tab == InstanceManageTab.Saves;
         AutomationPanel.IsVisible = tab == InstanceManageTab.Automation;
         ModsPanel.IsVisible = tab == InstanceManageTab.Mods;
+        AntiCheatPanel.IsVisible = ExperimentalFeatures.AntiCheatEnabled && tab == InstanceManageTab.AntiCheat;
         DownloadVersionsPanel.IsVisible = tab == InstanceManageTab.DownloadVersions;
         RefreshSidebarSelection();
 
@@ -2657,6 +2950,11 @@ public partial class LauncherMainWindow : Window
         else if (tab == InstanceManageTab.Mods)
         {
             _ = RefreshModsAsync();
+        }
+        else if (tab == InstanceManageTab.AntiCheat)
+        {
+            ShowAntiCheatList();
+            _ = RefreshAntiCheatProfilesAsync();
         }
         else if (tab == InstanceManageTab.DownloadVersions)
         {
@@ -2755,6 +3053,7 @@ public partial class LauncherMainWindow : Window
         SetSelectedClass(SavesTabButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.Saves);
         SetSelectedClass(AutomationTabButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.Automation);
         SetSelectedClass(ModsTabButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.Mods);
+        SetSelectedClass(AntiCheatTabButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.AntiCheat);
         SetSelectedClass(DownloadVersionsTabButton, false);
         SetSelectedClass(DownloadVersionsNavButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.DownloadVersions);
         SetSelectedClass(ConnectionAuthTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Auth);
@@ -5266,6 +5565,15 @@ public partial class LauncherMainWindow : Window
         SelectInstanceManageTab(InstanceManageTab.Mods);
     }
 
+    private void OnAntiCheatSubTabClick(object? sender, RoutedEventArgs e)
+    {
+        if (!ExperimentalFeatures.AntiCheatEnabled)
+            return;
+
+        SelectTab(MainTab.InstanceManage);
+        SelectInstanceManageTab(InstanceManageTab.AntiCheat);
+    }
+
     private void OnDownloadVersionsSubTabClick(object? sender, RoutedEventArgs e)
     {
         SelectTab(MainTab.InstanceManage);
@@ -5692,6 +6000,167 @@ public partial class LauncherMainWindow : Window
         catch (Exception ex)
         {
             SetModStatus(T($"导入失败：{ex.Message}", $"Import failed: {ex.Message}"));
+        }
+    }
+
+    private async void OnAntiCheatProfileSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_isRefreshingAntiCheat)
+            return;
+
+        if (AntiCheatEditorPanel.IsVisible && AntiCheatProfileComboBox.SelectedItem is InstanceProfile profile)
+        {
+            _editingAntiCheatProfileId = profile.Id;
+            await LoadAntiCheatForProfileAsync(profile);
+        }
+    }
+
+    private async void OnAntiCheatSaveClick(object? sender, RoutedEventArgs e)
+    {
+        if (AntiCheatProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            SetAntiCheatStatus(T("请先选择档案。", "Select a profile first."));
+            return;
+        }
+
+        AntiCheatSaveButton.IsEnabled = false;
+        try
+        {
+            await SaveAntiCheatEditorAsync(profile, deployPackage: false);
+            await LoadAntiCheatForProfileAsync(profile);
+            SetAntiCheatStatus(T("反作弊配置已保存。", "Anti-cheat settings saved."));
+        }
+        catch (Exception ex)
+        {
+            SetAntiCheatStatus(T($"保存失败：{ex.Message}", $"Save failed: {ex.Message}"));
+        }
+        finally
+        {
+            AntiCheatSaveButton.IsEnabled = true;
+        }
+    }
+
+    private async void OnAntiCheatDeployClick(object? sender, RoutedEventArgs e)
+    {
+        if (AntiCheatProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            SetAntiCheatStatus(T("请先选择档案。", "Select a profile first."));
+            return;
+        }
+
+        AntiCheatDeployButton.IsEnabled = false;
+        try
+        {
+            var settings = await SaveAntiCheatEditorAsync(profile, deployPackage: true);
+            await LoadAntiCheatForProfileAsync(profile);
+            SetAntiCheatStatus(settings.Enabled
+                ? T("反作弊模组已部署并启用。", "Anti-cheat mod deployed and enabled.")
+                : T("反作弊模组已部署，但总开关关闭，模组保持禁用。", "Anti-cheat mod deployed but remains disabled because the master switch is off."));
+        }
+        catch (Exception ex)
+        {
+            SetAntiCheatStatus(T($"部署失败：{ex.Message}", $"Deployment failed: {ex.Message}"));
+        }
+        finally
+        {
+            AntiCheatDeployButton.IsEnabled = true;
+        }
+    }
+
+    private async Task<AntiCheatSettings> SaveAntiCheatEditorAsync(
+        InstanceProfile profile,
+        bool deployPackage)
+    {
+        var settings = CollectAntiCheatSettings();
+        await _serverAntiCheatService.SaveSettingsAsync(profile, settings);
+        if (deployPackage || settings.Enabled)
+        {
+            await _serverAntiCheatService.EnsureAntiCheatModDeployedAsync(
+                profile,
+                enableMod: settings.Enabled);
+        }
+        else
+        {
+            await _serverAntiCheatService.SetAntiCheatModEnabledAsync(profile, enabled: false);
+        }
+
+        return settings;
+    }
+
+    private async void OnAntiCheatRefreshClick(object? sender, RoutedEventArgs e)
+    {
+        if (AntiCheatEditorPanel.IsVisible && AntiCheatProfileComboBox.SelectedItem is InstanceProfile profile)
+        {
+            await LoadAntiCheatForProfileAsync(profile);
+            return;
+        }
+
+        await RefreshAntiCheatProfilesAsync();
+    }
+
+    private async void OnAntiCheatEditConfigClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ProfileConfigListItem item })
+            return;
+
+        var profile = _profileService.GetProfileById(item.ProfileId);
+        if (profile is not null)
+        {
+            await ShowAntiCheatEditorAsync(profile);
+        }
+    }
+
+    private void OnAntiCheatBackClick(object? sender, RoutedEventArgs e)
+    {
+        ShowAntiCheatList();
+    }
+
+    private async void OnAntiCheatClearClick(object? sender, RoutedEventArgs e)
+    {
+        var selected = _antiCheatConfigItems.Where(static item => item.IsSelected).ToList();
+        try
+        {
+            foreach (var item in selected)
+            {
+                var profile = _profileService.GetProfileById(item.ProfileId);
+                if (profile is null)
+                    continue;
+
+                await _serverAntiCheatService.SaveSettingsAsync(profile, new AntiCheatSettings());
+                await _serverAntiCheatService.SetAntiCheatModEnabledAsync(profile, enabled: false);
+            }
+
+            if (selected.Count > 0)
+            {
+                RefreshAntiCheatConfigItems();
+                SetAntiCheatStatus(T(
+                    $"已清空 {selected.Count} 个反作弊配置。",
+                    $"Cleared {selected.Count} anti-cheat configurations."));
+            }
+        }
+        catch (Exception ex)
+        {
+            SetAntiCheatStatus(T($"清空失败：{ex.Message}", $"Clear failed: {ex.Message}"));
+        }
+    }
+
+    private void OnAntiCheatAddWhitelistClick(object? sender, RoutedEventArgs e)
+    {
+        _antiCheatWhitelistItems.Add(new AntiCheatWhitelistRuleItem
+        {
+            Enabled = true,
+            Bypass = false,
+            Id = $"rule-{_antiCheatWhitelistItems.Count + 1}",
+            SpeedMultiplier = 1,
+            ActionRateMultiplier = 1
+        });
+    }
+
+    private void OnAntiCheatRemoveWhitelistClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: AntiCheatWhitelistRuleItem item })
+        {
+            _antiCheatWhitelistItems.Remove(item);
         }
     }
 
@@ -7911,6 +8380,19 @@ public partial class LauncherMainWindow : Window
         }
     }
 
+    private static string GetAntiCheatSettingsPath(InstanceProfile profile)
+    {
+        var configPath = Path.Combine(profile.DirectoryPath, "ModConfig", "launchergoanticheat.json");
+        try
+        {
+            return Path.GetFullPath(configPath);
+        }
+        catch
+        {
+            return configPath;
+        }
+    }
+
     private string GetWorkspaceRootForUi()
     {
         var root = _preferencesService.Load().WorkspaceRoot;
@@ -8887,6 +9369,7 @@ public partial class LauncherMainWindow : Window
         Saves,
         Automation,
         Mods,
+        AntiCheat,
         DownloadVersions
     }
 
@@ -9041,6 +9524,103 @@ public partial class LauncherMainWindow : Window
         public string DownloadedText { get; } = downloadedText;
 
         public string ActionText { get; } = actionText;
+    }
+
+    public sealed class AntiCheatWhitelistRuleItem
+    {
+        public bool Enabled { get; set; } = true;
+
+        public bool Bypass { get; set; }
+
+        public string Id { get; set; } = string.Empty;
+
+        public string PlayerUid { get; set; } = string.Empty;
+
+        public string PlayerName { get; set; } = string.Empty;
+
+        public string Role { get; set; } = string.Empty;
+
+        public string GroupsText { get; set; } = string.Empty;
+
+        public string DetectorsText { get; set; } = string.Empty;
+
+        public string ContextsText { get; set; } = string.Empty;
+
+        public decimal SpeedMultiplier { get; set; } = 1;
+
+        public decimal ActionRateMultiplier { get; set; } = 1;
+
+        public string ExpiresAtUtcText { get; set; } = string.Empty;
+
+        public string Reason { get; set; } = string.Empty;
+
+        public string CreatedBy { get; set; } = string.Empty;
+
+        public AntiCheatWhitelistRule ToModel()
+        {
+            DateTimeOffset? expiresAtUtc = null;
+            if (!string.IsNullOrWhiteSpace(ExpiresAtUtcText))
+            {
+                if (!DateTimeOffset.TryParse(
+                        ExpiresAtUtcText.Trim(),
+                        CultureInfo.InvariantCulture,
+                        DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                        out var parsed))
+                {
+                    throw new FormatException($"白名单规则 {Id} 的 UTC 到期时间格式无效。");
+                }
+
+                expiresAtUtc = parsed;
+            }
+
+            return new AntiCheatWhitelistRule
+            {
+                Enabled = Enabled,
+                Bypass = Bypass,
+                Id = Id?.Trim() ?? string.Empty,
+                PlayerUid = PlayerUid?.Trim() ?? string.Empty,
+                PlayerName = PlayerName?.Trim() ?? string.Empty,
+                Role = Role?.Trim() ?? string.Empty,
+                Groups = SplitValues(GroupsText),
+                Detectors = SplitValues(DetectorsText),
+                Contexts = SplitValues(ContextsText),
+                ExpiresAtUtc = expiresAtUtc,
+                SpeedMultiplier = decimal.ToDouble(SpeedMultiplier),
+                ActionRateMultiplier = decimal.ToDouble(ActionRateMultiplier),
+                Reason = Reason?.Trim() ?? string.Empty,
+                CreatedBy = CreatedBy?.Trim() ?? string.Empty
+            };
+        }
+
+        public static AntiCheatWhitelistRuleItem FromModel(AntiCheatWhitelistRule model)
+        {
+            return new AntiCheatWhitelistRuleItem
+            {
+                Enabled = model.Enabled,
+                Bypass = model.Bypass,
+                Id = model.Id,
+                PlayerUid = model.PlayerUid,
+                PlayerName = model.PlayerName,
+                Role = model.Role,
+                GroupsText = string.Join(", ", model.Groups),
+                DetectorsText = string.Join(", ", model.Detectors),
+                ContextsText = string.Join(", ", model.Contexts),
+                ExpiresAtUtcText = model.ExpiresAtUtc?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture) ?? string.Empty,
+                SpeedMultiplier = (decimal)model.SpeedMultiplier,
+                ActionRateMultiplier = (decimal)model.ActionRateMultiplier,
+                Reason = model.Reason,
+                CreatedBy = model.CreatedBy
+            };
+        }
+
+        private static IReadOnlyList<string> SplitValues(string? value)
+        {
+            return (value ?? string.Empty)
+                .Split([',', ';', '|', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(static item => !string.IsNullOrWhiteSpace(item))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
     }
 
     public sealed class ProfileConfigListItem : INotifyPropertyChanged

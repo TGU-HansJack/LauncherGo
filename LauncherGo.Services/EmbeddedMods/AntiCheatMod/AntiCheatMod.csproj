@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>launchergoanticheat</AssemblyName>
+    <RootNamespace>LauncherGoAntiCheat</RootNamespace>
+    <VintageStoryDir Condition="'$(VINTAGE_STORY)' != ''">$(VINTAGE_STORY)</VintageStoryDir>
+    <VintageStoryDir Condition="'$(VintageStoryDir)' == '' and Exists('E:\vintagestory\vs_server_linux-x64_1.22.3\VintagestoryAPI.dll')">E:\vintagestory\vs_server_linux-x64_1.22.3</VintageStoryDir>
+    <EmbeddedPackageDir>$(MSBuildThisFileDirectory)..\launchergoanticheat\</EmbeddedPackageDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="VintagestoryAPI">
+      <HintPath>$(VintageStoryDir)\VintagestoryAPI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="VintagestoryLib">
+      <HintPath>$(VintageStoryDir)\VintagestoryLib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="VSEssentials">
+      <HintPath>$(VintageStoryDir)\Mods\VSEssentials.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="VSSurvivalMod">
+      <HintPath>$(VintageStoryDir)\Mods\VSSurvivalMod.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="ValidateVintageStoryDir" BeforeTargets="BeforeBuild">
+    <Error
+      Condition="'$(VintageStoryDir)' == '' or !Exists('$(VintageStoryDir)\VintagestoryAPI.dll') or !Exists('$(VintageStoryDir)\Mods\VSSurvivalMod.dll')"
+      Text="LauncherGo AntiCheat build failed: set VINTAGE_STORY to a Vintage Story 1.22.3 server root." />
+  </Target>
+
+  <Target Name="CopyToEmbeddedPackage" AfterTargets="Build">
+    <MakeDir Directories="$(EmbeddedPackageDir)" />
+    <Copy SourceFiles="$(TargetPath)"
+          DestinationFiles="$(EmbeddedPackageDir)launchergoanticheat.dll"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

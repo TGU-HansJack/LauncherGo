@@ -1036,6 +1036,7 @@
                                     <Button x:Name="ModsTabButton" Classes="SidebarNavButton" Content="模组" Click="OnModsSubTabClick" />
                                     <Button x:Name="AutomationTabButton" Classes="SidebarNavButton" Content="自动化" Click="OnAutomationSubTabClick" />
                                     <Button x:Name="ConnectionAuthTabButton" Classes="SidebarNavButton" Content="安全" Click="OnConnectionAuthTabClick" />
+                                    <Button x:Name="AntiCheatTabButton" Classes="SidebarNavButton" Content="反作弊" Click="OnAntiCheatSubTabClick" />
                                     <Button x:Name="LogsNavButton" Classes="SidebarNavButton" Content="日志" Click="OnLogsNavClick" />
                                     <Button x:Name="DownloadVersionsNavButton" Classes="SidebarNavButton" Content="下载版本" Click="OnDownloadVersionsSubTabClick" />
 
@@ -1983,6 +1984,340 @@
                                                     </ListBox.ItemTemplate>
                                                 </ListBox>
                                             </Border>
+                                        </Grid>
+                                    </Grid>
+
+                                    <Grid x:Name="AntiCheatPanel" RowDefinitions="Auto,Auto,*" RowSpacing="8" IsVisible="False">
+                                        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                            <ComboBox x:Name="AntiCheatProfileComboBox" IsVisible="False" Classes="CompactCombo" SelectionChanged="OnAntiCheatProfileSelectionChanged">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <Button x:Name="AntiCheatClearButton" Classes="SecondaryActionButton" Content="清空" Click="OnAntiCheatClearClick" />
+                                            <Button x:Name="AntiCheatBackButton" Grid.Column="1" Classes="SecondaryActionButton" Content="返回" Click="OnAntiCheatBackClick" IsVisible="False" />
+                                            <Button x:Name="AntiCheatSaveButton" Grid.Column="2" Classes="ActionButton" Content="保存" Click="OnAntiCheatSaveClick" IsVisible="False" />
+                                            <Button x:Name="AntiCheatRefreshButton" Grid.Column="3" Classes="SecondaryActionButton" Content="刷新" Click="OnAntiCheatRefreshClick" />
+                                            <Button x:Name="AntiCheatDeployButton" Grid.Column="4" Classes="SecondaryActionButton" Content="部署反作弊模组" Click="OnAntiCheatDeployClick" IsVisible="False" />
+                                        </Grid>
+                                        <TextBlock x:Name="AntiCheatStatusTextBlock" Grid.Row="1" Classes="ConfigHintText" TextWrapping="Wrap" />
+                                        <Grid Grid.Row="2">
+                                            <Grid x:Name="AntiCheatListPanel" RowDefinitions="Auto,*">
+                                                <Border Grid.Row="0" Classes="TableHeader">
+                                                    <Grid ColumnDefinitions="44,1.2*,2.4*,1*,Auto" ColumnSpacing="8">
+                                                        <TextBlock Classes="TableHeaderText" Text="选择" HorizontalAlignment="Center" />
+                                                        <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="服务器名称" />
+                                                        <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="配置路径" />
+                                                        <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="修改时间" />
+                                                        <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                    </Grid>
+                                                </Border>
+                                                <Border Grid.Row="1" Classes="TableBody">
+                                                    <ItemsControl x:Name="AntiCheatConfigItemsControl">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border Classes="TableRow">
+                                                                    <Grid ColumnDefinitions="44,1.2*,2.4*,1*,Auto" ColumnSpacing="8">
+                                                                        <CheckBox Classes="TableSelectCheck" IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                                                        <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding ProfileName}" FontWeight="SemiBold" />
+                                                                        <Button Grid.Column="2" Classes="DownloadTextButton" Tag="{Binding ConfigPath}" HorizontalAlignment="Stretch" Click="OnOpenConfigFileClick">
+                                                                            <TextBlock Classes="TableCellText" Text="{Binding ConfigPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
+                                                                        </Button>
+                                                                        <TextBlock Grid.Column="3" Classes="TableCellText" Text="{Binding ModifiedText}" />
+                                                                        <Button Grid.Column="4" Classes="SecondaryActionButton" Tag="{Binding}" Content="修改" Click="OnAntiCheatEditConfigClick" />
+                                                                    </Grid>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </Border>
+                                            </Grid>
+
+                                            <ScrollViewer x:Name="AntiCheatEditorPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                                                <StackPanel Spacing="10">
+                                                    <Border Classes="ConfigCard">
+                                                        <StackPanel Spacing="10">
+                                                            <TextBlock x:Name="AntiCheatModeTitleTextBlock" Classes="ConfigSectionTitle" Text="运行模式" />
+                                                            <WrapPanel Orientation="Horizontal">
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="AntiCheatEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="启用反作弊" />
+                                                                    <ToggleSwitch x:Name="AntiCheatEnabledCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="AntiCheatMonitorOnlyLabelTextBlock" Classes="ConfigFieldLabel" Text="仅监控" />
+                                                                    <ToggleSwitch x:Name="AntiCheatMonitorOnlyCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                            </WrapPanel>
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <Border Classes="ConfigCard">
+                                                        <StackPanel Spacing="10">
+                                                            <TextBlock x:Name="AntiCheatActionsTitleTextBlock" Classes="ConfigSectionTitle" Text="告警与处罚" />
+                                                            <WrapPanel Orientation="Horizontal">
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="AntiCheatWarnAdminsLabelTextBlock" Classes="ConfigFieldLabel" Text="警告管理员" />
+                                                                    <ToggleSwitch x:Name="AntiCheatWarnAdminsCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="AntiCheatKickEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="自动踢出" />
+                                                                    <ToggleSwitch x:Name="AntiCheatKickEnabledCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="AntiCheatBanEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="自动封禁" />
+                                                                    <ToggleSwitch x:Name="AntiCheatBanEnabledCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="AntiCheatPunishStatisticalLabelTextBlock" Classes="ConfigFieldLabel" Text="统计信号进入处罚分" />
+                                                                    <ToggleSwitch x:Name="AntiCheatPunishStatisticalCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatWarningScoreLabelTextBlock" Classes="ConfigFieldLabel" Text="告警分数" />
+                                                                    <NumericUpDown x:Name="AntiCheatWarningScoreNumericUpDown" Classes="CompactNumber" Minimum="1" Maximum="1000" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatKickScoreLabelTextBlock" Classes="ConfigFieldLabel" Text="踢出分数" />
+                                                                    <NumericUpDown x:Name="AntiCheatKickScoreNumericUpDown" Classes="CompactNumber" Minimum="1" Maximum="2000" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatBanScoreLabelTextBlock" Classes="ConfigFieldLabel" Text="封禁分数" />
+                                                                    <NumericUpDown x:Name="AntiCheatBanScoreNumericUpDown" Classes="CompactNumber" Minimum="1" Maximum="5000" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatScoreDecayLabelTextBlock" Classes="ConfigFieldLabel" Text="分数衰减秒数" />
+                                                                    <NumericUpDown x:Name="AntiCheatScoreDecayNumericUpDown" Classes="CompactNumber" Minimum="10" Maximum="86400" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatAlertCooldownLabelTextBlock" Classes="ConfigFieldLabel" Text="告警冷却秒数" />
+                                                                    <NumericUpDown x:Name="AntiCheatAlertCooldownNumericUpDown" Classes="CompactNumber" Minimum="1" Maximum="3600" />
+                                                                </StackPanel>
+                                                            </WrapPanel>
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <Border Classes="ConfigCard">
+                                                        <StackPanel Spacing="10">
+                                                            <TextBlock x:Name="AntiCheatMovementTitleTextBlock" Classes="ConfigSectionTitle" Text="移动检测" />
+                                                            <WrapPanel Orientation="Horizontal">
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="AntiCheatMovementSpeedEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="速度与传送" />
+                                                                    <ToggleSwitch x:Name="AntiCheatMovementSpeedEnabledCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="AntiCheatFlightEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="飞行与无摔落" />
+                                                                    <ToggleSwitch x:Name="AntiCheatFlightEnabledCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="AntiCheatNoClipEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="穿墙" />
+                                                                    <ToggleSwitch x:Name="AntiCheatNoClipEnabledCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatMaxHorizontalSpeedLabelTextBlock" Classes="ConfigFieldLabel" Text="最大水平速度" />
+                                                                    <NumericUpDown x:Name="AntiCheatMaxHorizontalSpeedNumericUpDown" Classes="CompactNumber" Minimum="0.5" Maximum="1000" Increment="0.5" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatMaxVerticalSpeedLabelTextBlock" Classes="ConfigFieldLabel" Text="最大垂直速度" />
+                                                                    <NumericUpDown x:Name="AntiCheatMaxVerticalSpeedNumericUpDown" Classes="CompactNumber" Minimum="0.5" Maximum="1000" Increment="0.5" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatTeleportDistanceLabelTextBlock" Classes="ConfigFieldLabel" Text="传送距离" />
+                                                                    <NumericUpDown x:Name="AntiCheatTeleportDistanceNumericUpDown" Classes="CompactNumber" Minimum="4" Maximum="10000" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatHoverSecondsLabelTextBlock" Classes="ConfigFieldLabel" Text="悬停秒数" />
+                                                                    <NumericUpDown x:Name="AntiCheatHoverSecondsNumericUpDown" Classes="CompactNumber" Minimum="2" Maximum="600" />
+                                                                </StackPanel>
+                                                            </WrapPanel>
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <Border Classes="ConfigCard">
+                                                        <StackPanel Spacing="10">
+                                                            <TextBlock x:Name="AntiCheatInteractionTitleTextBlock" Classes="ConfigSectionTitle" Text="破坏与自动化" />
+                                                            <WrapPanel Orientation="Horizontal">
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="AntiCheatFastBreakEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="快速破坏" />
+                                                                    <ToggleSwitch x:Name="AntiCheatFastBreakEnabledCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatFastBreakMultiplierLabelTextBlock" Classes="ConfigFieldLabel" Text="最短耗时比例" />
+                                                                    <NumericUpDown x:Name="AntiCheatFastBreakMultiplierNumericUpDown" Classes="CompactNumber" Minimum="0.01" Maximum="1" Increment="0.05" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatFastBreakWindowLabelTextBlock" Classes="ConfigFieldLabel" Text="破坏窗口秒数" />
+                                                                    <NumericUpDown x:Name="AntiCheatFastBreakWindowNumericUpDown" Classes="CompactNumber" Minimum="3" Maximum="3600" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatFastBreakSamplesLabelTextBlock" Classes="ConfigFieldLabel" Text="最少破坏样本" />
+                                                                    <NumericUpDown x:Name="AntiCheatFastBreakSamplesNumericUpDown" Classes="CompactNumber" Minimum="2" Maximum="1000" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="AntiCheatAutomationEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="自动化行为" />
+                                                                    <ToggleSwitch x:Name="AntiCheatAutomationEnabledCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatMaxActionsPerSecondLabelTextBlock" Classes="ConfigFieldLabel" Text="每秒最大操作" />
+                                                                    <NumericUpDown x:Name="AntiCheatMaxActionsPerSecondNumericUpDown" Classes="CompactNumber" Minimum="1" Maximum="1000" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatAutomationWindowLabelTextBlock" Classes="ConfigFieldLabel" Text="自动化窗口秒数" />
+                                                                    <NumericUpDown x:Name="AntiCheatAutomationWindowNumericUpDown" Classes="CompactNumber" Minimum="3" Maximum="3600" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatAutomationSamplesLabelTextBlock" Classes="ConfigFieldLabel" Text="最少操作样本" />
+                                                                    <NumericUpDown x:Name="AntiCheatAutomationSamplesNumericUpDown" Classes="CompactNumber" Minimum="2" Maximum="5000" />
+                                                                </StackPanel>
+                                                            </WrapPanel>
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <Border Classes="ConfigCard">
+                                                        <StackPanel Spacing="10">
+                                                            <TextBlock x:Name="AntiCheatCombatTitleTextBlock" Classes="ConfigSectionTitle" Text="战斗与生命值" />
+                                                            <WrapPanel Orientation="Horizontal">
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="AntiCheatCombatEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="战斗检测" />
+                                                                    <ToggleSwitch x:Name="AntiCheatCombatEnabledCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatMaxAttacksPerSecondLabelTextBlock" Classes="ConfigFieldLabel" Text="每秒最大攻击" />
+                                                                    <NumericUpDown x:Name="AntiCheatMaxAttacksPerSecondNumericUpDown" Classes="CompactNumber" Minimum="1" Maximum="1000" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatMaxAttackReachLabelTextBlock" Classes="ConfigFieldLabel" Text="最大攻击距离" />
+                                                                    <NumericUpDown x:Name="AntiCheatMaxAttackReachNumericUpDown" Classes="CompactNumber" Minimum="2" Maximum="100" Increment="0.1" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="AntiCheatHealthEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="生命值检测" />
+                                                                    <ToggleSwitch x:Name="AntiCheatHealthEnabledCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatMaxUnexpectedHealLabelTextBlock" Classes="ConfigFieldLabel" Text="最大异常治疗量" />
+                                                                    <NumericUpDown x:Name="AntiCheatMaxUnexpectedHealNumericUpDown" Classes="CompactNumber" Minimum="1" Maximum="10000" Increment="1" />
+                                                                </StackPanel>
+                                                            </WrapPanel>
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <Border Classes="ConfigCard">
+                                                        <StackPanel Spacing="10">
+                                                            <TextBlock x:Name="AntiCheatMiningTitleTextBlock" Classes="ConfigSectionTitle" Text="采矿与市场" />
+                                                            <WrapPanel Orientation="Horizontal">
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="AntiCheatOrePatternEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="矿石比例推断" />
+                                                                    <ToggleSwitch x:Name="AntiCheatOrePatternEnabledCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatOreWindowLabelTextBlock" Classes="ConfigFieldLabel" Text="采矿窗口分钟" />
+                                                                    <NumericUpDown x:Name="AntiCheatOreWindowNumericUpDown" Classes="CompactNumber" Minimum="1" Maximum="1440" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatOreSamplesLabelTextBlock" Classes="ConfigFieldLabel" Text="最少采矿样本" />
+                                                                    <NumericUpDown x:Name="AntiCheatOreSamplesNumericUpDown" Classes="CompactNumber" Minimum="5" Maximum="10000" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatOreRatioLabelTextBlock" Classes="ConfigFieldLabel" Text="矿石比例阈值" />
+                                                                    <NumericUpDown x:Name="AntiCheatOreRatioNumericUpDown" Classes="CompactNumber" Minimum="0.05" Maximum="1" Increment="0.05" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="AntiCheatMarketRateEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="商人频率" />
+                                                                    <ToggleSwitch x:Name="AntiCheatMarketRateEnabledCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ConfigFormField">
+                                                                    <TextBlock x:Name="AntiCheatMarketInteractionsLabelTextBlock" Classes="ConfigFieldLabel" Text="每分钟商人交互" />
+                                                                    <NumericUpDown x:Name="AntiCheatMarketInteractionsNumericUpDown" Classes="CompactNumber" Minimum="1" Maximum="10000" />
+                                                                </StackPanel>
+                                                            </WrapPanel>
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <Border Classes="ConfigCard">
+                                                        <StackPanel Spacing="8">
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                <TextBlock x:Name="AntiCheatWhitelistTitleTextBlock" Classes="ConfigSectionTitle" Text="兼容白名单" />
+                                                                <Button x:Name="AntiCheatAddWhitelistButton" Grid.Column="1" Classes="SecondaryActionButton" Content="添加规则" Click="OnAntiCheatAddWhitelistClick" />
+                                                            </Grid>
+                                                            <Border Classes="TableBody">
+                                                                <ItemsControl x:Name="AntiCheatWhitelistItemsControl">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Border Classes="TableRow">
+                                                                                <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                                                                                    <Grid ColumnDefinitions="110,110,1.1*,1.1*,1.4*,Auto" ColumnSpacing="8">
+                                                                                        <StackPanel>
+                                                                                            <TextBlock Classes="ConfigFieldLabel" Text="启用" />
+                                                                                            <ToggleSwitch Classes="TableSwitch" IsChecked="{Binding Enabled, Mode=TwoWay}" />
+                                                                                        </StackPanel>
+                                                                                        <StackPanel Grid.Column="1">
+                                                                                            <TextBlock Classes="ConfigFieldLabel" Text="完全豁免" />
+                                                                                            <ToggleSwitch Classes="TableSwitch" IsChecked="{Binding Bypass, Mode=TwoWay}" />
+                                                                                        </StackPanel>
+                                                                                        <StackPanel Grid.Column="2">
+                                                                                            <TextBlock Classes="ConfigFieldLabel" Text="规则 ID" />
+                                                                                            <TextBox Classes="CompactInput" Text="{Binding Id, Mode=TwoWay}" />
+                                                                                        </StackPanel>
+                                                                                        <StackPanel Grid.Column="3">
+                                                                                            <TextBlock Classes="ConfigFieldLabel" Text="玩家 UID" />
+                                                                                            <TextBox Classes="CompactInput" Text="{Binding PlayerUid, Mode=TwoWay}" />
+                                                                                        </StackPanel>
+                                                                                        <StackPanel Grid.Column="4">
+                                                                                            <TextBlock Classes="ConfigFieldLabel" Text="玩家名称" />
+                                                                                            <TextBox Classes="CompactInput" Text="{Binding PlayerName, Mode=TwoWay}" />
+                                                                                        </StackPanel>
+                                                                                        <Button Grid.Column="5" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAntiCheatRemoveWhitelistClick" VerticalAlignment="Bottom" />
+                                                                                    </Grid>
+                                                                                    <Grid Grid.Row="1" ColumnDefinitions="1.1*,1.2*,1.7*,1.5*" ColumnSpacing="8">
+                                                                                        <StackPanel>
+                                                                                            <TextBlock Classes="ConfigFieldLabel" Text="角色" />
+                                                                                            <TextBox Classes="CompactInput" Text="{Binding Role, Mode=TwoWay}" />
+                                                                                        </StackPanel>
+                                                                                        <StackPanel Grid.Column="1">
+                                                                                            <TextBlock Classes="ConfigFieldLabel" Text="群组（逗号分隔）" />
+                                                                                            <TextBox Classes="CompactInput" Text="{Binding GroupsText, Mode=TwoWay}" />
+                                                                                        </StackPanel>
+                                                                                        <StackPanel Grid.Column="2">
+                                                                                            <TextBlock Classes="ConfigFieldLabel" Text="检测器（逗号分隔）" />
+                                                                                            <TextBox Classes="CompactInput" Text="{Binding DetectorsText, Mode=TwoWay}" />
+                                                                                        </StackPanel>
+                                                                                        <StackPanel Grid.Column="3">
+                                                                                            <TextBlock Classes="ConfigFieldLabel" Text="场景（逗号分隔）" />
+                                                                                            <TextBox Classes="CompactInput" Text="{Binding ContextsText, Mode=TwoWay}" />
+                                                                                        </StackPanel>
+                                                                                    </Grid>
+                                                                                    <Grid Grid.Row="2" ColumnDefinitions="120,120,1.2*,1.4*,1.2*" ColumnSpacing="8">
+                                                                                        <StackPanel>
+                                                                                            <TextBlock Classes="ConfigFieldLabel" Text="速度倍率" />
+                                                                                            <NumericUpDown Classes="CompactNumber" Minimum="1" Maximum="20" Increment="0.1" Value="{Binding SpeedMultiplier, Mode=TwoWay}" />
+                                                                                        </StackPanel>
+                                                                                        <StackPanel Grid.Column="1">
+                                                                                            <TextBlock Classes="ConfigFieldLabel" Text="操作频率倍率" />
+                                                                                            <NumericUpDown Classes="CompactNumber" Minimum="1" Maximum="20" Increment="0.1" Value="{Binding ActionRateMultiplier, Mode=TwoWay}" />
+                                                                                        </StackPanel>
+                                                                                        <StackPanel Grid.Column="2">
+                                                                                            <TextBlock Classes="ConfigFieldLabel" Text="到期时间 UTC" />
+                                                                                            <TextBox Classes="CompactInput" Text="{Binding ExpiresAtUtcText, Mode=TwoWay}" />
+                                                                                        </StackPanel>
+                                                                                        <StackPanel Grid.Column="3">
+                                                                                            <TextBlock Classes="ConfigFieldLabel" Text="原因" />
+                                                                                            <TextBox Classes="CompactInput" Text="{Binding Reason, Mode=TwoWay}" />
+                                                                                        </StackPanel>
+                                                                                        <StackPanel Grid.Column="4">
+                                                                                            <TextBlock Classes="ConfigFieldLabel" Text="创建人" />
+                                                                                            <TextBox Classes="CompactInput" Text="{Binding CreatedBy, Mode=TwoWay}" />
+                                                                                        </StackPanel>
+                                                                                    </Grid>
+                                                                                </Grid>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </Border>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </StackPanel>
+                                            </ScrollViewer>
                                         </Grid>
                                     </Grid>
 

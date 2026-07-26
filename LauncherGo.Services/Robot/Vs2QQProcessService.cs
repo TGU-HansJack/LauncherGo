@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using System.Text.Json.Serialization;
 using Microsoft.Data.Sqlite;
 using LauncherGo.Abstractions.Services;
+using LauncherGo.Domains.Features;
 using LauncherGo.Domains.Models;
 
 namespace LauncherGo.Services;
@@ -109,6 +110,8 @@ public sealed class Vs2QQProcessService
             runtime.OsqSnapshotHandler = (_, args) => OnSharedOsqSnapshotReceived(runtime, args);
             _osqSnapshotCacheService.SnapshotReceived += runtime.OsqSnapshotHandler;
             TryImportLatestSharedOsqSnapshot(runtime, LocalServerSnapshotHost);
+            runtime.ServerOutputHandler = (_, output) => OnServerProfileOutputReceived(runtime, output);
+            _serverProcessService.ProfileOutputReceived += runtime.ServerOutputHandler;
 
             _runCts = new CancellationTokenSource();
             _runtime = runtime;
@@ -241,6 +244,10 @@ public sealed class Vs2QQProcessService
         if (runtime.OsqSnapshotHandler is not null)
         {
             _osqSnapshotCacheService.SnapshotReceived -= runtime.OsqSnapshotHandler;
+        }
+        if (runtime.ServerOutputHandler is not null)
+        {
+            _serverProcessService.ProfileOutputReceived -= runtime.ServerOutputHandler;
         }
         await runtime.DisposeAsync();
 
@@ -1164,6 +1171,39 @@ public sealed class Vs2QQProcessService
     private static bool HasAdminPermission(Vs2QQRuntimeContext runtime, JsonObject eventPayload)
     {
         return runtime.CommandScope.IsAdmin(GetInt64(eventPayload, "user_id"));
+    }
+
+    private void OnServerProfileOutputReceived(Vs2QQRuntimeContext runtime, ServerOutputLine output)
+    {
+        if (!ExperimentalFeatures.AntiCheatEnabled)
+            return;
+
+        if (!AntiCheatAlertRelay.TryBuildMessage(output, out var message))
+            return;
+        var messages = SplitOneBotMessages([message]);
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (!ReferenceEquals(_runtime, runtime))
+                    return;
+
+                var groups = runtime.GetBoundGroupIdsForProfile(output.ProfileId);
+                foreach (var groupId in groups)
+                {
+                    foreach (var part in messages)
+                    {
+                        await runtime.OneBot.SendGroupMsgAsync(groupId, part, CancellationToken.None);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                EmitOutput(
+                    $"[warn] 反作弊告警转发失败 profile={output.ProfileId}: {ex.Message}");
+            }
+        }, CancellationToken.None);
     }
 
     private static string BuildHelpText()
@@ -2290,6 +2330,8 @@ public sealed class Vs2QQProcessService
 
         public EventHandler<OsqSnapshotReceivedEventArgs>? OsqSnapshotHandler { get; set; }
 
+        public EventHandler<ServerOutputLine>? ServerOutputHandler { get; set; }
+
         public Dictionary<string, DateTimeOffset> RecentRelaySignatures { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         private readonly ConcurrentDictionary<string, SemaphoreSlim> _osqForwardGates = new(StringComparer.OrdinalIgnoreCase);
@@ -2326,7 +2368,7 @@ public sealed class Vs2QQProcessService
             return profiles.Count == 1 ? profiles[0] : string.Empty;
         }
 
-        private IReadOnlyList<long> GetBoundGroupIdsForProfile(string profileId)
+        public IReadOnlyList<long> GetBoundGroupIdsForProfile(string profileId)
         {
             return GroupsByProfileId.TryGetValue(profileId, out var groups)
                 ? groups.ToList()

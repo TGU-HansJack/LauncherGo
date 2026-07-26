@@ -13,6 +13,11 @@ on:
         required: true
         default: "1.22.2"
         type: string
+      enable_experimental_anticheat:
+        description: "Include the experimental AntiCheat feature and server mod"
+        required: true
+        default: false
+        type: boolean
   push:
     tags:
       - "v*"
@@ -27,6 +32,7 @@ jobs:
       CONFIGURATION: Release
       PUBLISH_PROFILE: SmallPackage-win-x64
       VINTAGE_STORY_VERSION: 1.22.2
+      ENABLE_EXPERIMENTAL_ANTICHEAT: ${{ inputs.enable_experimental_anticheat || false }}
 
     steps:
       - name: Checkout
@@ -149,7 +155,7 @@ jobs:
           Copy-Item -LiteralPath $dllPath -Destination $targetPath -Force
 
       - name: Publish framework-dependent small package
-        run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -p:PublishProfile=$env:PUBLISH_PROFILE -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -o artifacts/publish/small-package
+        run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -p:PublishProfile=$env:PUBLISH_PROFILE -p:EnableExperimentalAntiCheat=$env:ENABLE_EXPERIMENTAL_ANTICHEAT -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -o artifacts/publish/small-package
 
       - name: Copy embedded ServerAuth payload to publish output
         shell: pwsh
