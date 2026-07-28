@@ -1035,6 +1035,7 @@
                                     <Button x:Name="SavesTabButton" Classes="SidebarNavButton" Content="存档" Click="OnSavesSubTabClick" />
                                     <Button x:Name="ModsTabButton" Classes="SidebarNavButton" Content="模组" Click="OnModsSubTabClick" />
                                     <Button x:Name="AutomationTabButton" Classes="SidebarNavButton" Content="自动化" Click="OnAutomationSubTabClick" />
+                                    <Button x:Name="RestrictionTabButton" Classes="SidebarNavButton" Content="限制" Click="OnRestrictionSubTabClick" />
                                     <Button x:Name="ConnectionAuthTabButton" Classes="SidebarNavButton" Content="安全" Click="OnConnectionAuthTabClick" />
                                     <Button x:Name="LogsNavButton" Classes="SidebarNavButton" Content="日志" Click="OnLogsNavClick" />
                                     <Button x:Name="DownloadVersionsNavButton" Classes="SidebarNavButton" Content="下载版本" Click="OnDownloadVersionsSubTabClick" />
@@ -1635,6 +1636,112 @@
                                                     </ListBox.ItemTemplate>
                                                 </ListBox>
                                             </Border>
+                                        </Grid>
+                                    </Grid>
+
+                                    <Grid x:Name="RestrictionPanel" RowDefinitions="Auto,*" RowSpacing="8" IsVisible="False">
+                                        <TextBlock x:Name="RestrictionStatusTextBlock" Grid.Row="0" Classes="ConfigHintText" TextWrapping="Wrap" />
+                                        <Grid Grid.Row="1">
+                                            <Grid x:Name="RestrictionListPanel" RowDefinitions="Auto,*" RowSpacing="8">
+                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                    <Button x:Name="RestrictionListRefreshButton" Classes="SecondaryActionButton" Content="刷新" Click="OnRestrictionRefreshClick" />
+                                                </Grid>
+                                                <Grid Grid.Row="1" RowDefinitions="Auto,*">
+                                                    <Border Grid.Row="0" Classes="TableHeader">
+                                                        <Grid ColumnDefinitions="1.2*,2.2*,1.5*,Auto" ColumnSpacing="8">
+                                                            <TextBlock Classes="TableHeaderText" Text="服务器名称" />
+                                                            <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="配置路径" />
+                                                            <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="规则" />
+                                                            <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                        </Grid>
+                                                    </Border>
+                                                    <Border Grid.Row="1" Classes="TableBody">
+                                                        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                                                            <ItemsControl x:Name="RestrictionConfigItemsControl">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Classes="TableRow">
+                                                                            <Grid ColumnDefinitions="1.2*,2.2*,1.5*,Auto" ColumnSpacing="8">
+                                                                                <TextBlock Classes="TableCellText" Text="{Binding ProfileName}" FontWeight="SemiBold" />
+                                                                                <Button Grid.Column="1" Classes="DownloadTextButton" Tag="{Binding ConfigPath}" HorizontalAlignment="Stretch" Click="OnOpenConfigFileClick">
+                                                                                    <TextBlock Classes="TableCellText" Text="{Binding ConfigPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
+                                                                                </Button>
+                                                                                <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding SummaryText}" />
+                                                                                <Button Grid.Column="3" Classes="SecondaryActionButton" Tag="{Binding}" Content="修改" Click="OnRestrictionEditConfigClick" />
+                                                                            </Grid>
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </ScrollViewer>
+                                                    </Border>
+                                                </Grid>
+                                            </Grid>
+
+                                            <Grid x:Name="RestrictionEditorPanel" RowDefinitions="Auto,*" RowSpacing="8" IsVisible="False">
+                                                <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+                                                    <TextBlock x:Name="RestrictionProfileNameTextBlock" Classes="ConfigSectionTitle" VerticalAlignment="Center" />
+                                                    <Button x:Name="RestrictionBackButton" Grid.Column="1" Classes="SecondaryActionButton" Content="返回" Click="OnRestrictionBackClick" />
+                                                    <Button x:Name="RestrictionSaveButton" Grid.Column="2" Classes="ActionButton" Content="保存" Click="OnRestrictionSaveClick" />
+                                                    <Button x:Name="RestrictionRefreshButton" Grid.Column="3" Classes="SecondaryActionButton" Content="刷新" Click="OnRestrictionRefreshClick" />
+                                                </Grid>
+                                                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                                                    <StackPanel Spacing="10">
+                                                        <Border Classes="ConfigCard">
+                                                            <WrapPanel Orientation="Horizontal">
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="RestrictionBlacklistEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="启用黑名单" />
+                                                                    <ToggleSwitch x:Name="RestrictionBlacklistEnabledCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                                <StackPanel Classes="ToggleField">
+                                                                    <TextBlock x:Name="RestrictionForceWhitelistLabelTextBlock" Classes="ConfigFieldLabel" Text="强制白名单" />
+                                                                    <ToggleSwitch x:Name="RestrictionForceWhitelistCheckBox" Classes="LabelledToggle" />
+                                                                </StackPanel>
+                                                            </WrapPanel>
+                                                        </Border>
+
+                                                        <Border Classes="ConfigCard">
+                                                            <StackPanel Spacing="10">
+                                                                <Grid ColumnDefinitions="*,220,Auto" ColumnSpacing="8">
+                                                                    <TextBlock x:Name="RestrictionWhitelistTitleTextBlock" Classes="ConfigSectionTitle" Text="白名单模组" VerticalAlignment="Center" />
+                                                                    <TextBox x:Name="RestrictionWhitelistInputTextBox" Grid.Column="1" Classes="CompactInput" PlaceholderText="Mod ID" />
+                                                                    <Button x:Name="RestrictionAddWhitelistButton" Grid.Column="2" Classes="SecondaryActionButton" Content="添加" Click="OnRestrictionAddWhitelistClick" />
+                                                                </Grid>
+                                                                <ItemsControl x:Name="RestrictionWhitelistItemsControl">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,3" MinHeight="34">
+                                                                                <TextBox Classes="CompactInput" Text="{Binding ModId, Mode=TwoWay}" />
+                                                                                <Button Grid.Column="1" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnRestrictionRemoveWhitelistClick" />
+                                                                            </Grid>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </StackPanel>
+                                                        </Border>
+
+                                                        <Border Classes="ConfigCard">
+                                                            <StackPanel Spacing="10">
+                                                                <Grid ColumnDefinitions="*,220,Auto" ColumnSpacing="8">
+                                                                    <TextBlock x:Name="RestrictionBlacklistTitleTextBlock" Classes="ConfigSectionTitle" Text="黑名单模组" VerticalAlignment="Center" />
+                                                                    <TextBox x:Name="RestrictionBlacklistInputTextBox" Grid.Column="1" Classes="CompactInput" PlaceholderText="Mod ID" />
+                                                                    <Button x:Name="RestrictionAddBlacklistButton" Grid.Column="2" Classes="SecondaryActionButton" Content="添加" Click="OnRestrictionAddBlacklistClick" />
+                                                                </Grid>
+                                                                <ItemsControl x:Name="RestrictionBlacklistItemsControl">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,3" MinHeight="34">
+                                                                                <TextBox Classes="CompactInput" Text="{Binding ModId, Mode=TwoWay}" />
+                                                                                <Button Grid.Column="1" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnRestrictionRemoveBlacklistClick" />
+                                                                            </Grid>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </StackPanel>
+                                                </ScrollViewer>
+                                            </Grid>
                                         </Grid>
                                     </Grid>
 

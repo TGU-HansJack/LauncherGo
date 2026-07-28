@@ -9,7 +9,7 @@ on:
         default: "0.0.0"
         type: string
       vintage_story_version:
-        description: "Vintage Story server version used to build embedded ServerAuth mod"
+        description: "Vintage Story server version used to build embedded mods"
         required: true
         default: "1.22.2"
         type: string
@@ -24,6 +24,7 @@ jobs:
     env:
       PROJECT_PATH: LauncherGo.App/LauncherGo.App.csproj
       EMBEDDED_AUTH_PROJECT: LauncherGo.Services/EmbeddedMods/VsslAuthMod/VsslAuthMod.csproj
+      EMBEDDED_RESTRICTION_PROJECT: LauncherGo.Services/EmbeddedMods/LauncherGoRestrictionMod/LauncherGoRestrictionMod.csproj
       CONFIGURATION: Release
       PUBLISH_PROFILE: SmallPackage-win-x64
       VINTAGE_STORY_VERSION: 1.22.2
@@ -108,6 +109,9 @@ jobs:
       - name: Restore embedded ServerAuth mod project
         run: dotnet restore $env:EMBEDDED_AUTH_PROJECT
 
+      - name: Restore embedded LauncherGo Restriction mod project
+        run: dotnet restore $env:EMBEDDED_RESTRICTION_PROJECT
+
       - name: Resolve package version
         id: resolve_version
         shell: pwsh
@@ -148,6 +152,25 @@ jobs:
           New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
           Copy-Item -LiteralPath $dllPath -Destination $targetPath -Force
 
+      - name: Build embedded LauncherGo Restriction mod
+        shell: pwsh
+        run: |
+          dotnet build $env:EMBEDDED_RESTRICTION_PROJECT -c $env:CONFIGURATION --no-restore
+          if ($LASTEXITCODE -ne 0) {
+            throw "Build failed: $env:EMBEDDED_RESTRICTION_PROJECT"
+          }
+
+          $dllPath = "LauncherGo.Services/EmbeddedMods/LauncherGoRestrictionMod/bin/$env:CONFIGURATION/net10.0/launchergorestriction.dll"
+          $targetDir = "LauncherGo.Services/EmbeddedMods/launchergorestriction"
+          $targetPath = Join-Path $targetDir "launchergorestriction.dll"
+
+          if (!(Test-Path $dllPath)) {
+            throw "Missing built LauncherGo Restriction DLL: $dllPath"
+          }
+
+          New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+          Copy-Item -LiteralPath $dllPath -Destination $targetPath -Force
+
       - name: Publish framework-dependent small package
         run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -p:PublishProfile=$env:PUBLISH_PROFILE -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -o artifacts/publish/small-package
 
@@ -170,6 +193,25 @@ jobs:
             Copy-Item -LiteralPath (Join-Path $sourceRoot $fileName) -Destination (Join-Path $targetRoot $fileName) -Force
           }
 
+      - name: Copy embedded LauncherGo Restriction payload to publish output
+        shell: pwsh
+        run: |
+          $sourceRoot = "LauncherGo.Services/EmbeddedMods/launchergorestriction"
+          $requiredFiles = @("launchergorestriction.dll", "modinfo.json", "README.txt")
+          $targetRoot = "artifacts/publish/small-package/EmbeddedMods/launchergorestriction"
+
+          foreach ($fileName in $requiredFiles) {
+            $sourcePath = Join-Path $sourceRoot $fileName
+            if (!(Test-Path $sourcePath)) {
+              throw "Missing embedded LauncherGo Restriction source payload: $sourcePath"
+            }
+          }
+
+          New-Item -ItemType Directory -Force -Path $targetRoot | Out-Null
+          foreach ($fileName in $requiredFiles) {
+            Copy-Item -LiteralPath (Join-Path $sourceRoot $fileName) -Destination (Join-Path $targetRoot $fileName) -Force
+          }
+
       - name: Verify small package publish output
         shell: pwsh
         run: |
@@ -179,7 +221,10 @@ jobs:
             "artifacts/publish/small-package/LauncherGo.App.runtimeconfig.json",
             "artifacts/publish/small-package/EmbeddedMods/launchergoauth/serverauth.dll",
             "artifacts/publish/small-package/EmbeddedMods/launchergoauth/modinfo.json",
-            "artifacts/publish/small-package/EmbeddedMods/launchergoauth/README.txt"
+            "artifacts/publish/small-package/EmbeddedMods/launchergoauth/README.txt",
+            "artifacts/publish/small-package/EmbeddedMods/launchergorestriction/launchergorestriction.dll",
+            "artifacts/publish/small-package/EmbeddedMods/launchergorestriction/modinfo.json",
+            "artifacts/publish/small-package/EmbeddedMods/launchergorestriction/README.txt"
           )
 
           foreach ($path in $requiredPaths) {

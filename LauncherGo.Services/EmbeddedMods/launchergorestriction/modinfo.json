@@ -1,0 +1,16 @@
+{
+  "type": "code",
+  "modid": "launchergorestriction",
+  "name": "LauncherGo Restriction",
+  "description": "LauncherGo 双端模组限制服务，在连接握手阶段使被限制的客户端模组不加载。",
+  "authors": [
+    "HansJack"
+  ],
+  "version": "1.0.0",
+  "side": "universal",
+  "requiredOnClient": true,
+  "requiredOnServer": true,
+  "dependencies": {
+    "game": "1.22.0"
+  }
+}

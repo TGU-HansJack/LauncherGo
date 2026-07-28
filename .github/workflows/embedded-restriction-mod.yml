@@ -1,0 +1,100 @@
+name: Build Embedded Restriction Mod
+
+on:
+  workflow_dispatch:
+    inputs:
+      vintage_story_version:
+        description: "Vintage Story server version used for API references"
+        required: true
+        default: "1.22.2"
+        type: string
+
+jobs:
+  build-launchergorestriction:
+    runs-on: windows-latest
+
+    env:
+      CONFIGURATION: Release
+      VINTAGE_STORY_VERSION: ${{ inputs.vintage_story_version }}
+      RESTRICTION_PROJECT: LauncherGo.Services/EmbeddedMods/LauncherGoRestrictionMod/LauncherGoRestrictionMod.csproj
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Prepare Vintage Story API refs
+        shell: pwsh
+        run: |
+          $vsVersion = $env:VINTAGE_STORY_VERSION.Trim()
+          if ([string]::IsNullOrWhiteSpace($vsVersion)) { throw "VINTAGE_STORY_VERSION is empty." }
+
+          $vsRoot = Join-Path $pwd ".vintagestory-runtime"
+          $apiDll = Join-Path $vsRoot "VintagestoryAPI.dll"
+
+          if (!(Test-Path $apiDll)) {
+            New-Item -ItemType Directory -Force -Path $vsRoot | Out-Null
+            $zipPath = Join-Path $vsRoot "vs_server_win-x64_$vsVersion.zip"
+            $downloadUrl = "https://cdn.vintagestory.at/gamefiles/stable/vs_server_win-x64_$vsVersion.zip"
+
+            Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+            try {
+              $entry = $zip.GetEntry("VintagestoryAPI.dll")
+              if ($null -eq $entry) { throw "Missing VintagestoryAPI.dll in $downloadUrl" }
+
+              $entryStream = $entry.Open()
+              $fileStream = [System.IO.File]::Open($apiDll, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
+              try { $entryStream.CopyTo($fileStream) }
+              finally {
+                $entryStream.Dispose()
+                $fileStream.Dispose()
+              }
+            }
+            finally {
+              $zip.Dispose()
+            }
+
+            Remove-Item -LiteralPath $zipPath -Force
+          }
+
+          "VINTAGE_STORY=$vsRoot" >> $env:GITHUB_ENV
+
+      - name: Restore restriction mod
+        run: dotnet restore $env:RESTRICTION_PROJECT
+
+      - name: Build restriction mod
+        run: dotnet build $env:RESTRICTION_PROJECT -c $env:CONFIGURATION --no-restore
+
+      - name: Package restriction mod
+        shell: pwsh
+        run: |
+          $projectDir = "LauncherGo.Services/EmbeddedMods/LauncherGoRestrictionMod"
+          $metadataDir = "LauncherGo.Services/EmbeddedMods/launchergorestriction"
+          $outputDir = "artifacts/embedded-mods/launchergorestriction"
+          $zipPath = "artifacts/embedded-mods/launchergorestriction.zip"
+          $dllPath = Join-Path $projectDir "bin/$env:CONFIGURATION/net10.0/launchergorestriction.dll"
+
+          if (!(Test-Path $dllPath)) { throw "Missing built DLL: $dllPath" }
+          foreach ($file in @("modinfo.json", "README.txt")) {
+            $path = Join-Path $metadataDir $file
+            if (!(Test-Path $path)) { throw "Missing restriction mod metadata: $path" }
+          }
+
+          New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+          Copy-Item -LiteralPath $dllPath -Destination (Join-Path $outputDir "launchergorestriction.dll") -Force
+          Copy-Item -LiteralPath (Join-Path $metadataDir "modinfo.json") -Destination $outputDir -Force
+          Copy-Item -LiteralPath (Join-Path $metadataDir "README.txt") -Destination $outputDir -Force
+          Compress-Archive -Path (Join-Path $outputDir "*") -DestinationPath $zipPath -Force
+
+      - name: Upload restriction mod artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LauncherGo-launchergorestriction
+          path: artifacts/embedded-mods/launchergorestriction.zip
+          if-no-files-found: error
