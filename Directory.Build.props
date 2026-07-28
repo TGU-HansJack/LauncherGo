@@ -1,6 +1,0 @@
-<Project>
-  <PropertyGroup>
-    <EnableExperimentalAntiCheat Condition="'$(EnableExperimentalAntiCheat)' == ''">false</EnableExperimentalAntiCheat>
-    <DefineConstants Condition="'$(EnableExperimentalAntiCheat)' == 'true'">$(DefineConstants);EXPERIMENTAL_ANTICHEAT</DefineConstants>
-  </PropertyGroup>
-</Project>

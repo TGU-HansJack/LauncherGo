@@ -8,7 +8,6 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using LauncherGo.Abstractions.Services;
-using LauncherGo.Domains.Features;
 using LauncherGo.Domains.Models;
 
 namespace LauncherGo.Services;
@@ -26,13 +25,12 @@ public sealed partial class ServerProcessService : IServerProcessService
     private readonly IInstanceProfileService? _profileService;
     private readonly IServerAuthService? _serverAuthService;
     private readonly IServerMapService? _serverMapService;
-    private readonly IServerAntiCheatService? _serverAntiCheatService;
     private readonly ILogger<ServerProcessService> _logger;
     private DateTimeOffset _lastDiscoveryUtc = DateTimeOffset.MinValue;
     private string _activeProfileId = string.Empty;
 
     public ServerProcessService()
-        : this(null, null, null, null, NullLogger<ServerProcessService>.Instance)
+        : this(null, null, null, NullLogger<ServerProcessService>.Instance)
     {
     }
 
@@ -40,13 +38,11 @@ public sealed partial class ServerProcessService : IServerProcessService
         IInstanceProfileService? profileService,
         IServerAuthService? serverAuthService = null,
         IServerMapService? serverMapService = null,
-        IServerAntiCheatService? serverAntiCheatService = null,
         ILogger<ServerProcessService>? logger = null)
     {
         _profileService = profileService;
         _serverAuthService = serverAuthService;
         _serverMapService = serverMapService;
-        _serverAntiCheatService = serverAntiCheatService;
         _logger = logger ?? NullLogger<ServerProcessService>.Instance;
     }
 
@@ -310,7 +306,6 @@ public sealed partial class ServerProcessService : IServerProcessService
                 _profileService,
                 _serverAuthService,
                 _serverMapService,
-                _serverAntiCheatService,
                 _logger);
             _controllers[profile.Id] = controller;
             _controllerProfiles[profile.Id] = profile;
@@ -416,7 +411,6 @@ internal sealed partial class SingleServerProcessController
     private readonly IInstanceProfileService? _profileService;
     private readonly IServerAuthService? _serverAuthService;
     private readonly IServerMapService? _serverMapService;
-    private readonly IServerAntiCheatService? _serverAntiCheatService;
     private readonly ILogger<ServerProcessService> _logger;
     private Process? _process;
     private InstanceProfile? _currentProfile;
@@ -437,7 +431,7 @@ internal sealed partial class SingleServerProcessController
     private double _lastCpuPercent;
 
     public SingleServerProcessController()
-        : this(null, null, null, null, NullLogger<ServerProcessService>.Instance)
+        : this(null, null, null, NullLogger<ServerProcessService>.Instance)
     {
     }
 
@@ -445,13 +439,11 @@ internal sealed partial class SingleServerProcessController
         IInstanceProfileService? profileService,
         IServerAuthService? serverAuthService = null,
         IServerMapService? serverMapService = null,
-        IServerAntiCheatService? serverAntiCheatService = null,
         ILogger<ServerProcessService>? logger = null)
     {
         _profileService = profileService;
         _serverAuthService = serverAuthService;
         _serverMapService = serverMapService;
-        _serverAntiCheatService = serverAntiCheatService;
         _logger = logger ?? NullLogger<ServerProcessService>.Instance;
     }
 
@@ -589,17 +581,6 @@ internal sealed partial class SingleServerProcessController
             await _serverMapService.EnsureMapModDeployedAsync(profile, cancellationToken);
             OutputReceived?.Invoke(this, "[system] 已在启动前检查并部署 ServerMap 地图模组。");
         }
-
-        if (ExperimentalFeatures.AntiCheatEnabled &&
-            _serverAntiCheatService is not null &&
-            await IsAntiCheatEnabledAsync(profile, cancellationToken))
-        {
-            await _serverAntiCheatService.EnsureAntiCheatModDeployedAsync(
-                profile,
-                cancellationToken,
-                enableMod: true);
-            OutputReceived?.Invoke(this, "[system] 已在启动前检查并部署 LauncherGo AntiCheat 模组。");
-        }
     }
 
     private async Task<bool> IsAuthEnabledAsync(
@@ -616,28 +597,6 @@ internal sealed partial class SingleServerProcessController
         }
         catch
         {
-            return false;
-        }
-    }
-
-    private async Task<bool> IsAntiCheatEnabledAsync(
-        InstanceProfile profile,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            if (_serverAntiCheatService is null)
-                return false;
-
-            var settings = await _serverAntiCheatService.LoadSettingsAsync(profile, cancellationToken);
-            return settings.Enabled;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(
-                ex,
-                "Failed to read anti-cheat settings before server start. ProfileId={ProfileId}.",
-                profile.Id);
             return false;
         }
     }

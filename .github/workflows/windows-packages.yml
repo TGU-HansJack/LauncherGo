@@ -13,11 +13,6 @@ on:
         required: true
         default: "1.22.2"
         type: string
-      enable_experimental_anticheat:
-        description: "Include the experimental AntiCheat feature and server mod"
-        required: true
-        default: false
-        type: boolean
   push:
     tags:
       - "v*"
@@ -32,7 +27,6 @@ jobs:
       CONFIGURATION: Release
       RUNTIME: win-x64
       VINTAGE_STORY_VERSION: 1.22.2
-      ENABLE_EXPERIMENTAL_ANTICHEAT: ${{ inputs.enable_experimental_anticheat || false }}
 
     steps:
       - name: Checkout
@@ -155,10 +149,10 @@ jobs:
           Copy-Item -LiteralPath $dllPath -Destination $targetPath -Force
 
       - name: Publish installer payload
-        run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:EnableExperimentalAntiCheat=$env:ENABLE_EXPERIMENTAL_ANTICHEAT -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -o artifacts/publish/win-x64
+        run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -o artifacts/publish/win-x64
 
       - name: Publish portable single-file
-        run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:EnableExperimentalAntiCheat=$env:ENABLE_EXPERIMENTAL_ANTICHEAT -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o artifacts/publish/portable
+        run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o artifacts/publish/portable
 
       - name: Copy embedded ServerAuth payload to publish outputs
         shell: pwsh

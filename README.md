@@ -7,7 +7,7 @@
 
 ## 项目定位
 
-LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标是把服务端下载、档案管理、存档管理、配置编辑、进程控制、自动化任务、模组管理、认证模组、行为反作弊、开放信息传输、QQ 机器人和内网穿透整合到同一个桌面应用中。
+LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标是把服务端下载、档案管理、存档管理、配置编辑、进程控制、自动化任务、模组管理、认证模组、开放信息传输、QQ 机器人和内网穿透整合到同一个桌面应用中。
 
 ## 版本信息
 
@@ -35,7 +35,6 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | 存档管理 | 创建存档、导入存档、删除存档、默认启动存档锁定、点击存档路径打开文件夹 |
 | 自动化 | 定时开关服、定时备份、关服前备份、定时广播、日志导出 |
 | 模组管理 | 模组扫描、启用与禁用、依赖与问题展示、文件状态展示 |
-| 行为反作弊 | Vintage Story 1.22.3 服务端行为分析、证据日志、按检测器和场景配置的兼容白名单、可选告警/踢出/封禁；默认关闭且仅监控 |
 | 下载版本 | 服务端版本列表、搜索、下载、导入服务端压缩包、下载缓存清理 |
 | 连接功能 | 常规内网穿透、第三方 FRPC、OpenServerQuery 开放信息、QQ 机器人、ServerAuth 认证配置 |
 | 设置 | 服务器设置、外观、网络、高级、关于、赞助者、贡献者 |
@@ -79,7 +78,6 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | `LauncherGo.Abstractions` | 服务接口与跨层抽象 |
 | `LauncherGo.Domains` | 领域模型、配置模型、枚举与数据结构 |
 | `LauncherGo.Services/EmbeddedMods/VsslAuthMod` | 嵌入式 ServerAuth 模组源码 |
-| `LauncherGo.Services/EmbeddedMods/AntiCheatMod` | 嵌入式 LauncherGo AntiCheat 服务端模组源码 |
 | `installer` | Inno Setup Windows 安装包脚本 |
 | `.github/workflows` | Windows 打包、小体积分发打包、Release 发布与嵌入认证模组构建工作流 |
 
@@ -118,7 +116,7 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | .NET SDK | `10.0.x` |
 | 推荐系统 | Windows 10 或更高版本 |
 | 运行系统 | Avalonia 支持跨平台运行，但当前发布工作流主要面向 Windows x64 |
-| 内置服务端模组构建 | 需要 Vintage Story 服务端目录或通过 `VINTAGE_STORY` 环境变量指定包含 `VintagestoryAPI.dll` 的目录；AntiCheat 当前针对 `1.22.3` |
+| ServerAuth 构建 | 需要 Vintage Story 服务端目录或通过 `VINTAGE_STORY` 环境变量指定包含 `VintagestoryAPI.dll` 的目录 |
 
 ## 本地运行
 
@@ -153,25 +151,6 @@ dotnet build .\LauncherGo.Services\EmbeddedMods\VsslAuthMod\VsslAuthMod.csproj -
 ```
 
 `VINTAGE_STORY` 指向的目录需要包含 `VintagestoryAPI.dll`、`VintagestoryLib.dll` 和 `Lib\protobuf-net.dll`。
-
-## 构建嵌入式 AntiCheat 模组
-
-反作弊目前是实验功能，普通构建和发布包默认不显示该页面、不启用相关运行逻辑，也不携带反作弊模组。测试打包时需要显式开启：
-
-```powershell
-dotnet publish .\LauncherGo.App\LauncherGo.App.csproj -c Release -p:EnableExperimentalAntiCheat=true
-```
-
-手动运行 GitHub Actions 打包工作流时，也可以勾选 `enable_experimental_anticheat`；该选项默认关闭，标签触发的常规包同样保持关闭。
-
-如需在构建 LauncherGo 时同时重新编译嵌入式模组，再设置 `BuildEmbeddedAntiCheatMod=true` 和游戏服务端目录：
-
-```powershell
-$env:VINTAGE_STORY="E:\\Path\\To\\VintageStoryServer-1.22.3"
-dotnet build .\LauncherGo.App\LauncherGo.App.csproj -c Release -p:EnableExperimentalAntiCheat=true -p:BuildEmbeddedAntiCheatMod=true
-```
-
-侧栏“管理 > 反作弊”提供按档案配置列表，可编辑检测阈值、告警与处罚、总开关和兼容白名单，并部署对应服务端模组。新配置默认 `MonitorOnly=true`，不会自动踢出或封禁；也可使用游戏内 `/anticheat whitelist` 命令维护白名单。
 
 ## 许可证
 

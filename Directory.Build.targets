@@ -1,7 +1,0 @@
-<Project>
-  <Target Name="RemoveDisabledEmbeddedAntiCheatFromOutput"
-          AfterTargets="Build;Publish"
-          Condition="'$(EnableExperimentalAntiCheat)' != 'true'">
-    <RemoveDir Directories="$(TargetDir)EmbeddedMods\launchergoanticheat;$(PublishDir)EmbeddedMods\launchergoanticheat" />
-  </Target>
-</Project>

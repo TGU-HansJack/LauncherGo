@@ -7,7 +7,7 @@
 
 ## Project Positioning
 
-LauncherGo is a graphical server launcher for Vintage Story. Its goal is to integrate server downloads, profile management, save management, configuration editing, process control, automation, mod management, authentication, behavioral anti-cheat, open server information transport, QQ bot integration, and FRP tunneling into one desktop application.
+LauncherGo is a graphical server launcher for Vintage Story. Its goal is to integrate server downloads, profile management, save management, configuration editing, process control, automation, mod management, authentication, open server information transport, QQ bot integration, and FRP tunneling into one desktop application.
 
 ## Version Information
 
@@ -35,7 +35,6 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 | Saves | Save creation, import, deletion, default launch save locking, and clickable save directory paths |
 | Automation | Scheduled start and stop, scheduled backup, backup before shutdown, scheduled broadcast, and log export |
 | Mod management | Mod scanning, enable and disable operations, dependency display, issue display, and file status display |
-| Behavioral anti-cheat | Vintage Story 1.22.3 server-side behavior analysis, evidence logs, detector/context-scoped compatibility rules, and optional alerts/kicks/bans; disabled and monitor-only by default |
 | Downloads | Server version list, search, download, server package import, and download cache cleanup |
 | Connections | Regular FRP, third-party FRPC, OpenServerQuery open information, QQ bot, and ServerAuth configuration |
 | Settings | Server, appearance, network, advanced, about, sponsors, and contributors pages |
@@ -79,7 +78,6 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 | `LauncherGo.Abstractions` | Service interfaces and cross-layer abstractions |
 | `LauncherGo.Domains` | Domain models, configuration models, enums, and data structures |
 | `LauncherGo.Services/EmbeddedMods/VsslAuthMod` | Embedded ServerAuth mod source code |
-| `LauncherGo.Services/EmbeddedMods/AntiCheatMod` | Embedded LauncherGo AntiCheat server mod source code |
 | `installer` | Inno Setup script for Windows installer packages |
 | `.github/workflows` | Windows packaging, small-package distribution, Release publishing, and embedded authentication mod build workflows |
 
@@ -118,7 +116,7 @@ The copyrights and licenses of the projects above belong to their respective own
 | .NET SDK | `10.0.x` |
 | Recommended system | Windows 10 or later |
 | Runtime system | Avalonia supports cross-platform runtime, while the current release workflow mainly targets Windows x64 |
-| Embedded server mod build | Requires a Vintage Story server directory, or `VINTAGE_STORY` pointing to a directory containing `VintagestoryAPI.dll`; AntiCheat currently targets `1.22.3` |
+| ServerAuth build | Requires a Vintage Story server directory, or the `VINTAGE_STORY` environment variable pointing to a directory containing `VintagestoryAPI.dll` |
 
 ## Local Run
 
@@ -153,25 +151,6 @@ dotnet build .\LauncherGo.Services\EmbeddedMods\VsslAuthMod\VsslAuthMod.csproj -
 ```
 
 The directory referenced by `VINTAGE_STORY` must contain `VintagestoryAPI.dll`, `VintagestoryLib.dll`, and `Lib\protobuf-net.dll`.
-
-## Building the Embedded AntiCheat Mod
-
-Anti-Cheat is currently experimental. Regular builds and release packages hide the page, disable its runtime paths, and omit the server mod. Enable it explicitly for a test package:
-
-```powershell
-dotnet publish .\LauncherGo.App\LauncherGo.App.csproj -c Release -p:EnableExperimentalAntiCheat=true
-```
-
-Manual GitHub Actions package runs also expose the `enable_experimental_anticheat` checkbox. It defaults to off, and tag-triggered regular packages remain off as well.
-
-To rebuild the embedded mod as part of the LauncherGo build, also set `BuildEmbeddedAntiCheatMod=true` and the game server directory:
-
-```powershell
-$env:VINTAGE_STORY="E:\\Path\\To\\VintageStoryServer-1.22.3"
-dotnet build .\LauncherGo.App\LauncherGo.App.csproj -c Release -p:EnableExperimentalAntiCheat=true -p:BuildEmbeddedAntiCheatMod=true
-```
-
-The sidebar page at Management > Anti-Cheat provides per-profile settings for detector thresholds, alerts and enforcement, the master switch, compatibility rules, and server-mod deployment. New configurations default to `MonitorOnly=true`, so they cannot kick or ban automatically; whitelist rules can also be managed with the in-game `/anticheat whitelist` commands.
 
 ## License
 
