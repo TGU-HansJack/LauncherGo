@@ -12,8 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="EmbeddedMods\VsslAuthMod\**\*.cs" />
-    <Compile Remove="EmbeddedMods\TickHubMod\**\*.cs" />
+    <Compile Remove="EmbeddedMods\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>

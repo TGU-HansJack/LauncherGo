@@ -72,7 +72,7 @@ public static class ServerProcessRelay
         using var relayCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         process.Exited += (_, _) => relayCts.Cancel();
 
-        var pipeTask = RunPipeLoopAsync(process, options.StatePath, state, relayCts.Token);
+        var pipeTask = RunPipeLoopAsync(process, state, relayCts.Token);
 
         try
         {
@@ -97,24 +97,52 @@ public static class ServerProcessRelay
 
     private static async Task RunPipeLoopAsync(
         Process process,
-        string statePath,
         ServerRelayState state,
         CancellationToken cancellationToken)
     {
+        await RunPipeLoopAsync(
+            state.PipeName,
+            state,
+            () => IsProcessTerminated(process),
+            () => TryGetProcessId(process),
+            (command, commandCancellationToken) =>
+                WriteConsoleCommandAsync(process, command, commandCancellationToken),
+            ServerRelayProtocol.DefaultTimeouts,
+            cancellationToken);
+    }
+
+    internal static async Task RunPipeLoopAsync(
+        string pipeName,
+        ServerRelayState state,
+        Func<bool> isProcessTerminated,
+        Func<int?> getProcessId,
+        Func<string, CancellationToken, Task> writeConsoleCommand,
+        ServerRelayTimeouts timeouts,
+        CancellationToken cancellationToken)
+    {
+        var commandForwarder = new ServerRelayCommandForwarder(writeConsoleCommand);
+
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
                 await using var pipe = new NamedPipeServerStream(
-                    state.PipeName,
+                    pipeName,
                     PipeDirection.InOut,
                     1,
                     PipeTransmissionMode.Byte,
                     PipeOptions.Asynchronous);
                 await pipe.WaitForConnectionAsync(cancellationToken);
-                await HandleClientAsync(pipe, process, statePath, state, cancellationToken);
+                await HandleClientAsync(
+                    pipe,
+                    state,
+                    isProcessTerminated,
+                    getProcessId,
+                    commandForwarder,
+                    timeouts,
+                    cancellationToken);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 break;
             }
@@ -132,27 +160,65 @@ public static class ServerProcessRelay
         }
     }
 
-    private static async Task HandleClientAsync(
+    internal static async Task HandleClientAsync(
         Stream pipe,
-        Process process,
-        string statePath,
         ServerRelayState state,
-        CancellationToken cancellationToken)
+        Func<bool> isProcessTerminated,
+        Func<int?> getProcessId,
+        ServerRelayCommandForwarder commandForwarder,
+        ServerRelayTimeouts timeouts,
+        CancellationToken relayCancellationToken)
     {
-        using var reader = new StreamReader(pipe, Encoding.UTF8, leaveOpen: true);
-        await using var writer = new StreamWriter(pipe, new UTF8Encoding(false), leaveOpen: true)
+        string? requestJson;
+        using (var requestCts = CreateTimeoutCts(relayCancellationToken, timeouts.RequestRead))
         {
-            AutoFlush = true
-        };
+            try
+            {
+                requestJson = await ReadRequestLineAsync(pipe, requestCts.Token);
+            }
+            catch (OperationCanceledException) when (relayCancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (OperationCanceledException)
+            {
+                await TryWriteResponseAsync(
+                    pipe,
+                    new ServerRelayResponse
+                    {
+                        Success = false,
+                        Error = "Relay request read timed out."
+                    },
+                    timeouts.ResponseWrite,
+                    relayCancellationToken);
+                return;
+            }
+            catch (Exception ex)
+            {
+                await TryWriteResponseAsync(
+                    pipe,
+                    new ServerRelayResponse
+                    {
+                        Success = false,
+                        Error = $"Failed to read relay request: {ex.Message}"
+                    },
+                    timeouts.ResponseWrite,
+                    relayCancellationToken);
+                return;
+            }
+        }
 
-        var requestJson = await reader.ReadLineAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(requestJson))
         {
-            await WriteResponseAsync(writer, new ServerRelayResponse
-            {
-                Success = false,
-                Error = "Empty relay request."
-            }, cancellationToken);
+            await TryWriteResponseAsync(
+                pipe,
+                new ServerRelayResponse
+                {
+                    Success = false,
+                    Error = "Empty relay request."
+                },
+                timeouts.ResponseWrite,
+                relayCancellationToken);
             return;
         }
 
@@ -165,37 +231,49 @@ public static class ServerProcessRelay
         }
         catch (Exception ex)
         {
-            await WriteResponseAsync(writer, new ServerRelayResponse
-            {
-                Success = false,
-                Error = $"Invalid relay request: {ex.Message}"
-            }, cancellationToken);
+            await TryWriteResponseAsync(
+                pipe,
+                new ServerRelayResponse
+                {
+                    Success = false,
+                    Error = $"Invalid relay request: {ex.Message}"
+                },
+                timeouts.ResponseWrite,
+                relayCancellationToken);
             return;
         }
 
         if (request is null)
         {
-            await WriteResponseAsync(writer, new ServerRelayResponse
-            {
-                Success = false,
-                Error = "Relay request could not be parsed."
-            }, cancellationToken);
+            await TryWriteResponseAsync(
+                pipe,
+                new ServerRelayResponse
+                {
+                    Success = false,
+                    Error = "Relay request could not be parsed."
+                },
+                timeouts.ResponseWrite,
+                relayCancellationToken);
             return;
         }
 
         state.UpdatedAtUtc = DateTimeOffset.UtcNow;
-        state.ServerProcessId = TryGetProcessId(process);
-        TryWriteState(statePath, state);
+        state.ServerProcessId = getProcessId();
 
         if (request.Type.Equals(ServerRelayProtocol.RequestTypePing, StringComparison.OrdinalIgnoreCase) ||
             request.Type.Equals(ServerRelayProtocol.RequestTypeStatus, StringComparison.OrdinalIgnoreCase))
         {
-            await WriteResponseAsync(writer, new ServerRelayResponse
-            {
-                Success = !IsProcessTerminated(process),
-                Error = IsProcessTerminated(process) ? "Server process has exited." : null,
-                State = state
-            }, cancellationToken);
+            var processTerminated = isProcessTerminated();
+            await TryWriteResponseAsync(
+                pipe,
+                new ServerRelayResponse
+                {
+                    Success = !processTerminated,
+                    Error = processTerminated ? "Server process has exited." : null,
+                    State = state
+                },
+                timeouts.ResponseWrite,
+                relayCancellationToken);
             return;
         }
 
@@ -204,65 +282,160 @@ public static class ServerProcessRelay
             var command = NormalizeCommand(request.Command);
             if (string.IsNullOrWhiteSpace(command))
             {
-                await WriteResponseAsync(writer, new ServerRelayResponse
-                {
-                    Success = false,
-                    Error = "Command is empty.",
-                    State = state
-                }, cancellationToken);
+                await TryWriteResponseAsync(
+                    pipe,
+                    new ServerRelayResponse
+                    {
+                        Success = false,
+                        Error = "Command is empty.",
+                        State = state
+                    },
+                    timeouts.ResponseWrite,
+                    relayCancellationToken);
                 return;
             }
 
-            if (IsProcessTerminated(process))
+            if (isProcessTerminated())
             {
-                await WriteResponseAsync(writer, new ServerRelayResponse
-                {
-                    Success = false,
-                    Error = "Server process has exited.",
-                    State = state
-                }, cancellationToken);
+                await TryWriteResponseAsync(
+                    pipe,
+                    new ServerRelayResponse
+                    {
+                        Success = false,
+                        Error = "Server process has exited.",
+                        State = state
+                    },
+                    timeouts.ResponseWrite,
+                    relayCancellationToken);
                 return;
             }
 
             try
             {
-                await WriteConsoleCommandAsync(process, command, cancellationToken);
+                await commandForwarder.ForwardAsync(
+                    command,
+                    timeouts.CommandForward,
+                    relayCancellationToken);
                 state.UpdatedAtUtc = DateTimeOffset.UtcNow;
-                TryWriteState(statePath, state);
-                await WriteResponseAsync(writer, new ServerRelayResponse
-                {
-                    Success = true,
-                    State = state
-                }, cancellationToken);
+                await TryWriteResponseAsync(
+                    pipe,
+                    new ServerRelayResponse
+                    {
+                        Success = true,
+                        State = state
+                    },
+                    timeouts.ResponseWrite,
+                    relayCancellationToken);
+                return;
+            }
+            catch (OperationCanceledException) when (relayCancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (TimeoutException ex)
+            {
+                await TryWriteResponseAsync(
+                    pipe,
+                    new ServerRelayResponse
+                    {
+                        Success = false,
+                        Error = ex.Message,
+                        State = state
+                    },
+                    timeouts.ResponseWrite,
+                    relayCancellationToken);
                 return;
             }
             catch (Exception ex)
             {
-                await WriteResponseAsync(writer, new ServerRelayResponse
-                {
-                    Success = false,
-                    Error = ex.Message,
-                    State = state
-                }, cancellationToken);
+                await TryWriteResponseAsync(
+                    pipe,
+                    new ServerRelayResponse
+                    {
+                        Success = false,
+                        Error = ex.Message,
+                        State = state
+                    },
+                    timeouts.ResponseWrite,
+                    relayCancellationToken);
                 return;
             }
         }
 
-        await WriteResponseAsync(writer, new ServerRelayResponse
-        {
-            Success = false,
-            Error = $"Unknown relay request type: {request.Type}",
-            State = state
-        }, cancellationToken);
+        await TryWriteResponseAsync(
+            pipe,
+            new ServerRelayResponse
+            {
+                Success = false,
+                Error = $"Unknown relay request type: {request.Type}",
+                State = state
+            },
+            timeouts.ResponseWrite,
+            relayCancellationToken);
     }
 
-    private static async Task WriteResponseAsync(
-        TextWriter writer,
+    private static async Task<bool> TryWriteResponseAsync(
+        Stream pipe,
         ServerRelayResponse response,
+        TimeSpan timeout,
+        CancellationToken relayCancellationToken)
+    {
+        using var responseCts = CreateTimeoutCts(relayCancellationToken, timeout);
+        try
+        {
+            var json = JsonSerializer.Serialize(response, ServerRelayProtocol.JsonOptions);
+            var bytes = Encoding.UTF8.GetBytes(json + "\n");
+            await pipe.WriteAsync(bytes.AsMemory(), responseCts.Token);
+            await pipe.FlushAsync(responseCts.Token);
+            return true;
+        }
+        catch
+        {
+            // A disconnected or stalled client must never prevent the relay from
+            // accepting the next request.
+            return false;
+        }
+    }
+
+    private static async Task<string?> ReadRequestLineAsync(
+        Stream pipe,
         CancellationToken cancellationToken)
     {
-        var json = JsonSerializer.Serialize(response, ServerRelayProtocol.JsonOptions);
-        await writer.WriteLineAsync(json.AsMemory(), cancellationToken);
+        const int maxRequestBytes = 64 * 1024;
+        using var buffer = new MemoryStream();
+        var chunk = new byte[4096];
+
+        while (true)
+        {
+            var bytesRead = await pipe.ReadAsync(chunk.AsMemory(), cancellationToken);
+            if (bytesRead == 0)
+                break;
+
+            var newlineIndex = Array.IndexOf(chunk, (byte)'\n', 0, bytesRead);
+            var bytesToAppend = newlineIndex >= 0 ? newlineIndex : bytesRead;
+            if (buffer.Length + bytesToAppend > maxRequestBytes)
+                throw new InvalidDataException($"Relay request exceeds {maxRequestBytes} bytes.");
+
+            buffer.Write(chunk, 0, bytesToAppend);
+            if (newlineIndex >= 0)
+                break;
+        }
+
+        if (buffer.Length == 0)
+            return null;
+
+        return Encoding.UTF8
+            .GetString(buffer.GetBuffer(), 0, (int)buffer.Length)
+            .TrimEnd('\r');
+    }
+
+    private static CancellationTokenSource CreateTimeoutCts(
+        CancellationToken cancellationToken,
+        TimeSpan timeout)
+    {
+        var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(timeout > TimeSpan.Zero ? timeout : TimeSpan.FromMilliseconds(1));
+        return timeoutCts;
     }
 
     private static async Task WriteConsoleCommandAsync(
@@ -416,6 +589,77 @@ public static class ServerProcessRelay
                 return value;
 
             throw new ArgumentException($"Missing required relay argument '{key}'.");
+        }
+    }
+}
+
+internal sealed class ServerRelayCommandForwarder
+{
+    private readonly SemaphoreSlim _writeGate = new(1, 1);
+    private readonly Func<string, CancellationToken, Task> _writeConsoleCommand;
+
+    public ServerRelayCommandForwarder(Func<string, CancellationToken, Task> writeConsoleCommand)
+    {
+        _writeConsoleCommand = writeConsoleCommand;
+    }
+
+    public async Task ForwardAsync(
+        string command,
+        TimeSpan timeout,
+        CancellationToken relayCancellationToken)
+    {
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(relayCancellationToken);
+        timeoutCts.CancelAfter(timeout > TimeSpan.Zero ? timeout : TimeSpan.FromMilliseconds(1));
+
+        var gateAcquired = false;
+        try
+        {
+            await _writeGate.WaitAsync(timeoutCts.Token);
+            gateAcquired = true;
+
+            // The Process standard-input stream can be backed by a synchronous
+            // Windows pipe. Run the write outside the request handler so even a
+            // synchronously blocked WriteAsync call cannot freeze the relay loop.
+            var writeTask = Task.Run(
+                () => WriteAndReleaseGateAsync(command, relayCancellationToken),
+                CancellationToken.None);
+            gateAcquired = false;
+
+            // Observe a later failure even if this caller reaches its deadline first.
+            _ = writeTask.ContinueWith(
+                static task => _ = task.Exception,
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+
+            await writeTask.WaitAsync(timeoutCts.Token);
+        }
+        catch (OperationCanceledException) when (relayCancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            throw new TimeoutException("Relay command forwarding timed out.");
+        }
+        finally
+        {
+            if (gateAcquired)
+                _writeGate.Release();
+        }
+    }
+
+    private async Task WriteAndReleaseGateAsync(
+        string command,
+        CancellationToken relayCancellationToken)
+    {
+        try
+        {
+            await _writeConsoleCommand(command, relayCancellationToken);
+        }
+        finally
+        {
+            _writeGate.Release();
         }
     }
 }

@@ -11,6 +11,11 @@ internal static class ServerRelayProtocol
     public const string RequestTypeStatus = "status";
     public const string RequestTypeCommand = "command";
 
+    public static readonly ServerRelayTimeouts DefaultTimeouts = new(
+        RequestRead: TimeSpan.FromSeconds(1),
+        CommandForward: TimeSpan.FromSeconds(3),
+        ResponseWrite: TimeSpan.FromSeconds(1));
+
     public static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public static string CreatePipeName(string profileId)
@@ -28,6 +33,11 @@ internal static class ServerRelayProtocol
         return Convert.ToHexString(bytes, 0, 12).ToLowerInvariant();
     }
 }
+
+internal readonly record struct ServerRelayTimeouts(
+    TimeSpan RequestRead,
+    TimeSpan CommandForward,
+    TimeSpan ResponseWrite);
 
 internal sealed class ServerRelayRequest
 {
