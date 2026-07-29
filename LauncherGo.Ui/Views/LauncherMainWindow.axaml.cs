@@ -147,7 +147,6 @@ public partial class LauncherMainWindow : Window
     private readonly ILogTailService _logTailService;
     private readonly IAutomationService _automationService;
     private readonly IAutomationSettingsService _automationSettingsService;
-    private readonly IModRestrictionService _modRestrictionService;
     private readonly IFrpService _frpService;
     private readonly IThirdPartyFrpcService _thirdPartyFrpcService;
     private readonly IInstanceModService _instanceModService;
@@ -183,9 +182,6 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<SettingsSponsorItem> _settingsSponsorItems = [];
     private readonly ObservableCollection<InstanceProfile> _automationProfileItems = [];
     private readonly ObservableCollection<ProfileConfigListItem> _automationConfigItems = [];
-    private readonly ObservableCollection<RestrictionProfileConfigItem> _restrictionConfigItems = [];
-    private readonly ObservableCollection<RestrictionModIdItem> _restrictionWhitelistItems = [];
-    private readonly ObservableCollection<RestrictionModIdItem> _restrictionBlacklistItems = [];
     private readonly ObservableCollection<AutomationActionWindowItem> _automationActionWindowItems = [];
     private readonly ObservableCollection<AutomationTimeItem> _automationBackupTimeItems = [];
     private readonly ObservableCollection<ScheduledBroadcastItem> _automationBroadcastItems = [];
@@ -251,7 +247,6 @@ public partial class LauncherMainWindow : Window
     private bool _isTogglingRobot;
     private bool _isExitRequested;
     private bool _isRefreshingAutomation;
-    private bool _isRefreshingRestriction;
     private bool _isRefreshingMods;
     private bool _isRefreshingAuth;
     private bool _toastPointerOver;
@@ -260,7 +255,6 @@ public partial class LauncherMainWindow : Window
     private string _loadedConfigProfileId = string.Empty;
     private string _selectedConsoleProfileId = string.Empty;
     private string _editingAutomationProfileId = string.Empty;
-    private string _editingRestrictionProfileId = string.Empty;
     private string _editingAuthProfileId = string.Empty;
     private string _editingOpenInfoProfileId = string.Empty;
     private long _configLoadVersion;
@@ -283,7 +277,6 @@ public partial class LauncherMainWindow : Window
             ServiceLocator.GetRequiredService<ILogTailService>(),
             ServiceLocator.GetRequiredService<IAutomationService>(),
             ServiceLocator.GetRequiredService<IAutomationSettingsService>(),
-            ServiceLocator.GetRequiredService<IModRestrictionService>(),
             ServiceLocator.GetRequiredService<IFrpService>(),
             ServiceLocator.GetRequiredService<IThirdPartyFrpcService>(),
             ServiceLocator.GetRequiredService<IInstanceModService>(),
@@ -305,7 +298,6 @@ public partial class LauncherMainWindow : Window
         ILogTailService logTailService,
         IAutomationService automationService,
         IAutomationSettingsService automationSettingsService,
-        IModRestrictionService modRestrictionService,
         IFrpService frpService,
         IThirdPartyFrpcService thirdPartyFrpcService,
         IInstanceModService instanceModService,
@@ -324,7 +316,6 @@ public partial class LauncherMainWindow : Window
         _logTailService = logTailService;
         _automationService = automationService;
         _automationSettingsService = automationSettingsService;
-        _modRestrictionService = modRestrictionService;
         _frpService = frpService;
         _thirdPartyFrpcService = thirdPartyFrpcService;
         _instanceModService = instanceModService;
@@ -554,7 +545,6 @@ public partial class LauncherMainWindow : Window
         ConfigTabButton.Content = T("配置", "Config");
         SavesTabButton.Content = T("存档", "Saves");
         AutomationTabButton.Content = T("自动化", "Automation");
-        RestrictionTabButton.Content = T("限制", "Restriction");
         ModsTabButton.Content = T("模组", "Mods");
         DownloadVersionsTabButton.Content = T("下载版本", "Downloads");
         DownloadVersionsNavButton.Content = T("下载版本", "Downloads");
@@ -569,7 +559,6 @@ public partial class LauncherMainWindow : Window
         DeleteSaveButton.Content = T("删除", "Delete");
         RefreshSavesButton.Content = T("刷新", "Refresh");
         InitializeAutomationStaticTexts();
-        InitializeRestrictionStaticTexts();
         InitializeModStaticTexts();
         DownloadVersionSearchTextBox.PlaceholderText = T("搜索版本号", "Search version");
         ImportServerPackageButton.Content = T("导入", "Import");
@@ -621,22 +610,6 @@ public partial class LauncherMainWindow : Window
         AutomationAddExportTimeButton.Content = T("添加", "Add");
         AutomationAddBroadcastButton.Content = T("添加", "Add");
         AutomationAddCommandButton.Content = T("添加", "Add");
-    }
-
-    private void InitializeRestrictionStaticTexts()
-    {
-        RestrictionListRefreshButton.Content = T("刷新", "Refresh");
-        RestrictionBackButton.Content = T("返回", "Back");
-        RestrictionSaveButton.Content = T("保存", "Save");
-        RestrictionRefreshButton.Content = T("刷新", "Refresh");
-        RestrictionBlacklistEnabledLabelTextBlock.Text = T("启用黑名单", "Enable blacklist");
-        RestrictionForceWhitelistLabelTextBlock.Text = T("强制白名单", "Force whitelist");
-        RestrictionWhitelistTitleTextBlock.Text = T("白名单模组", "Whitelisted mods");
-        RestrictionBlacklistTitleTextBlock.Text = T("黑名单模组", "Blacklisted mods");
-        RestrictionWhitelistInputTextBox.PlaceholderText = T("输入 Mod ID", "Enter Mod ID");
-        RestrictionBlacklistInputTextBox.PlaceholderText = T("输入 Mod ID", "Enter Mod ID");
-        RestrictionAddWhitelistButton.Content = T("添加", "Add");
-        RestrictionAddBlacklistButton.Content = T("添加", "Add");
     }
 
     private void InitializeModStaticTexts()
@@ -861,9 +834,6 @@ public partial class LauncherMainWindow : Window
         AutomationCommandsItemsControl.ItemsSource = _automationCommandItems;
         AutomationExportTimesItemsControl.ItemsSource = _automationExportTimeItems;
         AutomationRuntimeLogsListBox.ItemsSource = _automationRuntimeLogItems;
-        RestrictionConfigItemsControl.ItemsSource = _restrictionConfigItems;
-        RestrictionWhitelistItemsControl.ItemsSource = _restrictionWhitelistItems;
-        RestrictionBlacklistItemsControl.ItemsSource = _restrictionBlacklistItems;
         ModProfileComboBox.ItemsSource = _modProfileItems;
         ModsListBox.ItemsSource = _modItems;
         RobotBindingsItemsControl.ItemsSource = _robotBindingItems;
@@ -1763,7 +1733,6 @@ public partial class LauncherMainWindow : Window
         _ = RefreshSavesAsync();
         _ = RefreshConfigProfilesAsync();
         _ = RefreshAutomationAsync();
-        _ = RefreshRestrictionAsync();
         _ = RefreshModsAsync();
         _ = RefreshAuthProfilesAsync();
     }
@@ -2052,129 +2021,6 @@ public partial class LauncherMainWindow : Window
         catch (Exception ex)
         {
             SetAutomationStatus(T($"自动化保存失败：{ex.Message}", $"Automation save failed: {ex.Message}"));
-        }
-    }
-
-    private async Task RefreshRestrictionAsync()
-    {
-        if (_isRefreshingRestriction)
-        {
-            return;
-        }
-
-        _isRefreshingRestriction = true;
-        try
-        {
-            var profiles = _profileService.GetProfiles();
-            _restrictionConfigItems.Clear();
-            foreach (var profile in profiles)
-            {
-                var settings = await _modRestrictionService.LoadAsync(profile);
-                _restrictionConfigItems.Add(RestrictionProfileConfigItem.FromSettings(
-                    profile,
-                    settings,
-                    _modRestrictionService.GetSettingsPath(profile),
-                    _isChinese));
-            }
-
-            if (RestrictionEditorPanel.IsVisible &&
-                !string.IsNullOrWhiteSpace(_editingRestrictionProfileId))
-            {
-                var editingProfile = _profileService.GetProfileById(_editingRestrictionProfileId);
-                if (editingProfile is not null)
-                {
-                    ApplyRestrictionSettings(await _modRestrictionService.LoadAsync(editingProfile));
-                    RestrictionProfileNameTextBlock.Text = editingProfile.Name;
-                }
-            }
-
-            SetRestrictionStatus(T("限制配置已加载。", "Restriction settings loaded."), notify: false);
-        }
-        catch (Exception ex)
-        {
-            SetRestrictionStatus(T($"限制配置加载失败：{ex.Message}", $"Failed to load restrictions: {ex.Message}"));
-        }
-        finally
-        {
-            _isRefreshingRestriction = false;
-        }
-    }
-
-    private void ApplyRestrictionSettings(ModRestrictionSettings settings)
-    {
-        RestrictionBlacklistEnabledCheckBox.IsChecked = settings.BlacklistEnabled;
-        RestrictionForceWhitelistCheckBox.IsChecked = settings.ForceWhitelistEnabled;
-
-        _restrictionWhitelistItems.Clear();
-        foreach (var modId in settings.WhitelistModIds)
-        {
-            _restrictionWhitelistItems.Add(new RestrictionModIdItem(modId));
-        }
-
-        _restrictionBlacklistItems.Clear();
-        foreach (var modId in settings.BlacklistModIds)
-        {
-            _restrictionBlacklistItems.Add(new RestrictionModIdItem(modId));
-        }
-    }
-
-    private ModRestrictionSettings CollectRestrictionSettings()
-    {
-        return new ModRestrictionSettings
-        {
-            BlacklistEnabled = RestrictionBlacklistEnabledCheckBox.IsChecked == true,
-            ForceWhitelistEnabled = RestrictionForceWhitelistCheckBox.IsChecked == true,
-            WhitelistModIds = _restrictionWhitelistItems.Select(static item => item.ModId).ToList(),
-            BlacklistModIds = _restrictionBlacklistItems.Select(static item => item.ModId).ToList()
-        };
-    }
-
-    private async Task SaveRestrictionAsync()
-    {
-        var profile = _profileService.GetProfileById(_editingRestrictionProfileId);
-        if (profile is null)
-        {
-            SetRestrictionStatus(T("请先选择档案。", "Select a profile first."));
-            return;
-        }
-
-        try
-        {
-            await _modRestrictionService.SaveAsync(profile, CollectRestrictionSettings());
-            await RefreshRestrictionAsync();
-            SetRestrictionStatus(T(
-                "限制配置已保存；正在运行的服务器需重启后应用。",
-                "Restrictions saved; restart a running server to apply them."));
-        }
-        catch (Exception ex)
-        {
-            SetRestrictionStatus(T($"限制配置保存失败：{ex.Message}", $"Failed to save restrictions: {ex.Message}"));
-        }
-    }
-
-    private void ShowRestrictionList()
-    {
-        _editingRestrictionProfileId = string.Empty;
-        RestrictionListPanel.IsVisible = true;
-        RestrictionEditorPanel.IsVisible = false;
-    }
-
-    private async Task ShowRestrictionEditorAsync(InstanceProfile profile)
-    {
-        _editingRestrictionProfileId = profile.Id;
-        RestrictionListPanel.IsVisible = false;
-        RestrictionEditorPanel.IsVisible = true;
-        RestrictionProfileNameTextBlock.Text = profile.Name;
-        ApplyRestrictionSettings(await _modRestrictionService.LoadAsync(profile));
-        SetRestrictionStatus(T($"正在编辑限制配置：{profile.Name}", $"Editing restrictions: {profile.Name}"), notify: false);
-    }
-
-    private void SetRestrictionStatus(string message, bool notify = true)
-    {
-        RestrictionStatusTextBlock.Text = message;
-        if (notify)
-        {
-            ShowToast(message);
         }
     }
 
@@ -2792,7 +2638,6 @@ public partial class LauncherMainWindow : Window
         ConfigPanel.IsVisible = tab == InstanceManageTab.Config;
         SavesPanel.IsVisible = tab == InstanceManageTab.Saves;
         AutomationPanel.IsVisible = tab == InstanceManageTab.Automation;
-        RestrictionPanel.IsVisible = tab == InstanceManageTab.Restriction;
         ModsPanel.IsVisible = tab == InstanceManageTab.Mods;
         DownloadVersionsPanel.IsVisible = tab == InstanceManageTab.DownloadVersions;
         RefreshSidebarSelection();
@@ -2808,11 +2653,6 @@ public partial class LauncherMainWindow : Window
         {
             ShowAutomationList();
             _ = RefreshAutomationAsync();
-        }
-        else if (tab == InstanceManageTab.Restriction)
-        {
-            ShowRestrictionList();
-            _ = RefreshRestrictionAsync();
         }
         else if (tab == InstanceManageTab.Mods)
         {
@@ -2914,7 +2754,6 @@ public partial class LauncherMainWindow : Window
         SetSelectedClass(ConfigTabButton, false);
         SetSelectedClass(SavesTabButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.Saves);
         SetSelectedClass(AutomationTabButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.Automation);
-        SetSelectedClass(RestrictionTabButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.Restriction);
         SetSelectedClass(ModsTabButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.Mods);
         SetSelectedClass(DownloadVersionsTabButton, false);
         SetSelectedClass(DownloadVersionsNavButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.DownloadVersions);
@@ -5421,12 +5260,6 @@ public partial class LauncherMainWindow : Window
         SelectInstanceManageTab(InstanceManageTab.Automation);
     }
 
-    private void OnRestrictionSubTabClick(object? sender, RoutedEventArgs e)
-    {
-        SelectTab(MainTab.InstanceManage);
-        SelectInstanceManageTab(InstanceManageTab.Restriction);
-    }
-
     private void OnModsSubTabClick(object? sender, RoutedEventArgs e)
     {
         SelectTab(MainTab.InstanceManage);
@@ -5736,130 +5569,6 @@ public partial class LauncherMainWindow : Window
             RefreshAutomationConfigItems();
             SetAutomationStatus(T($"已清空 {selected.Count} 个自动化配置。", $"Cleared {selected.Count} automation configs."));
         }
-    }
-
-    private async void OnRestrictionRefreshClick(object? sender, RoutedEventArgs e)
-    {
-        await RefreshRestrictionAsync();
-    }
-
-    private async void OnRestrictionSaveClick(object? sender, RoutedEventArgs e)
-    {
-        await SaveRestrictionAsync();
-    }
-
-    private async void OnRestrictionEditConfigClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: RestrictionProfileConfigItem item })
-        {
-            return;
-        }
-
-        var profile = _profileService.GetProfileById(item.ProfileId);
-        if (profile is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await ShowRestrictionEditorAsync(profile);
-        }
-        catch (Exception ex)
-        {
-            SetRestrictionStatus(T($"限制配置加载失败：{ex.Message}", $"Failed to load restrictions: {ex.Message}"));
-        }
-    }
-
-    private void OnRestrictionBackClick(object? sender, RoutedEventArgs e)
-    {
-        ShowRestrictionList();
-    }
-
-    private void OnRestrictionAddWhitelistClick(object? sender, RoutedEventArgs e)
-    {
-        AddRestrictionModId(
-            RestrictionWhitelistInputTextBox,
-            _restrictionWhitelistItems,
-            _restrictionBlacklistItems,
-            isBlacklist: false);
-    }
-
-    private void OnRestrictionAddBlacklistClick(object? sender, RoutedEventArgs e)
-    {
-        AddRestrictionModId(
-            RestrictionBlacklistInputTextBox,
-            _restrictionBlacklistItems,
-            _restrictionWhitelistItems,
-            isBlacklist: true);
-    }
-
-    private void OnRestrictionRemoveWhitelistClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: RestrictionModIdItem item })
-        {
-            _restrictionWhitelistItems.Remove(item);
-        }
-    }
-
-    private void OnRestrictionRemoveBlacklistClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: RestrictionModIdItem item })
-        {
-            _restrictionBlacklistItems.Remove(item);
-        }
-    }
-
-    private void AddRestrictionModId(
-        TextBox input,
-        ObservableCollection<RestrictionModIdItem> target,
-        ObservableCollection<RestrictionModIdItem> opposite,
-        bool isBlacklist)
-    {
-        var modId = NormalizeRestrictionModId(input.Text);
-        if (string.IsNullOrWhiteSpace(modId))
-        {
-            SetRestrictionStatus(T("请输入 Mod ID。", "Enter a Mod ID."));
-            return;
-        }
-
-        if (isBlacklist && modId.Equals("launchergorestriction", StringComparison.OrdinalIgnoreCase))
-        {
-            SetRestrictionStatus(T("不能将 launchergorestriction 加入黑名单。", "launchergorestriction cannot be blacklisted."));
-            return;
-        }
-
-        if (target.Any(item => item.ModId.Equals(modId, StringComparison.OrdinalIgnoreCase)))
-        {
-            SetRestrictionStatus(T($"{modId} 已存在。", $"{modId} already exists."));
-            return;
-        }
-
-        if (RestrictionBlacklistEnabledCheckBox.IsChecked == true &&
-            RestrictionForceWhitelistCheckBox.IsChecked == true &&
-            opposite.Any(item => item.ModId.Equals(modId, StringComparison.OrdinalIgnoreCase)))
-        {
-            SetRestrictionStatus(T(
-                $"{modId} 已在另一份启用的名单中。",
-                $"{modId} is already in the other enabled list."));
-            return;
-        }
-
-        target.Add(new RestrictionModIdItem(modId));
-        input.Text = string.Empty;
-        SetRestrictionStatus(T($"已添加：{modId}", $"Added: {modId}"), notify: false);
-    }
-
-    private static string NormalizeRestrictionModId(string? value)
-    {
-        var normalized = value?.Trim().Trim('"', '\'', ',', ';') ?? string.Empty;
-        var versionSeparator = normalized.IndexOf('@');
-        if (versionSeparator > 0)
-        {
-            normalized = normalized[..versionSeparator];
-        }
-
-        return normalized.Trim().ToLowerInvariant();
     }
 
     private void OnAutomationAddActionClick(object? sender, RoutedEventArgs e)
@@ -9177,7 +8886,6 @@ public partial class LauncherMainWindow : Window
         Config,
         Saves,
         Automation,
-        Restriction,
         Mods,
         DownloadVersions
     }
@@ -9333,66 +9041,6 @@ public partial class LauncherMainWindow : Window
         public string DownloadedText { get; } = downloadedText;
 
         public string ActionText { get; } = actionText;
-    }
-
-    public sealed class RestrictionProfileConfigItem
-    {
-        public string ProfileId { get; init; } = string.Empty;
-
-        public string ProfileName { get; init; } = string.Empty;
-
-        public string ConfigPath { get; init; } = string.Empty;
-
-        public string SummaryText { get; init; } = string.Empty;
-
-        public static RestrictionProfileConfigItem FromSettings(
-            InstanceProfile profile,
-            ModRestrictionSettings settings,
-            string path,
-            bool isChinese)
-        {
-            var whitelist = settings.ForceWhitelistEnabled
-                ? isChinese ? $"强制白名单 {settings.WhitelistModIds.Count}" : $"Whitelist {settings.WhitelistModIds.Count}"
-                : isChinese ? "白名单未强制" : "Whitelist not forced";
-            var blacklist = settings.BlacklistEnabled
-                ? isChinese ? $"黑名单 {settings.BlacklistModIds.Count}" : $"Blacklist {settings.BlacklistModIds.Count}"
-                : isChinese ? "黑名单关闭" : "Blacklist off";
-            return new RestrictionProfileConfigItem
-            {
-                ProfileId = profile.Id,
-                ProfileName = profile.Name,
-                ConfigPath = path,
-                SummaryText = $"{whitelist} / {blacklist}"
-            };
-        }
-    }
-
-    public sealed class RestrictionModIdItem : INotifyPropertyChanged
-    {
-        private string _modId;
-
-        public RestrictionModIdItem(string modId)
-        {
-            _modId = modId;
-        }
-
-        public string ModId
-        {
-            get => _modId;
-            set
-            {
-                var normalized = value ?? string.Empty;
-                if (_modId == normalized)
-                {
-                    return;
-                }
-
-                _modId = normalized;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ModId)));
-            }
-        }
-
-        public event PropertyChangedEventHandler? PropertyChanged;
     }
 
     public sealed class ProfileConfigListItem : INotifyPropertyChanged

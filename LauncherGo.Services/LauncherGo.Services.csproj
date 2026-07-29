@@ -4,9 +4,6 @@
     <EmbeddedAuthModProject>$(MSBuildThisFileDirectory)EmbeddedMods\VsslAuthMod\VsslAuthMod.csproj</EmbeddedAuthModProject>
     <EmbeddedAuthModBuildOutput>$(MSBuildThisFileDirectory)EmbeddedMods\VsslAuthMod\bin\$(Configuration)\net10.0\</EmbeddedAuthModBuildOutput>
     <EmbeddedAuthRoot>$(MSBuildThisFileDirectory)EmbeddedMods\launchergoauth\</EmbeddedAuthRoot>
-    <EmbeddedRestrictionModProject>$(MSBuildThisFileDirectory)EmbeddedMods\LauncherGoRestrictionMod\LauncherGoRestrictionMod.csproj</EmbeddedRestrictionModProject>
-    <EmbeddedRestrictionModBuildOutput>$(MSBuildThisFileDirectory)EmbeddedMods\LauncherGoRestrictionMod\bin\$(Configuration)\net10.0\</EmbeddedRestrictionModBuildOutput>
-    <EmbeddedRestrictionRoot>$(MSBuildThisFileDirectory)EmbeddedMods\launchergorestriction\</EmbeddedRestrictionRoot>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,7 +12,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="EmbeddedMods\**\*.cs" />
+    <Compile Remove="EmbeddedMods\VsslAuthMod\**\*.cs" />
+    <Compile Remove="EmbeddedMods\TickHubMod\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -31,9 +29,6 @@
     <None Update="EmbeddedMods\launchergoauth\modinfo.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\launchergoauth\README.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\launchergoauth\serverauth.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('EmbeddedMods\launchergoauth\serverauth.dll')" />
-    <None Update="EmbeddedMods\launchergorestriction\modinfo.json" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="EmbeddedMods\launchergorestriction\README.txt" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="EmbeddedMods\launchergorestriction\launchergorestriction.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('EmbeddedMods\launchergorestriction\launchergorestriction.dll')" />
     <None Update="EmbeddedMods\servermap\**\*.*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
@@ -62,28 +57,6 @@
           SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(EmbeddedAuthRoot)modinfo.json;$(EmbeddedAuthRoot)README.txt"
           DestinationFolder="$(_EmbeddedAuthOutputDir)"
-          SkipUnchangedFiles="true" />
-  </Target>
-
-  <Target Name="BuildEmbeddedRestrictionMod" BeforeTargets="BeforeBuild" Condition="'$(BuildEmbeddedRestrictionMod)' == 'true'">
-    <MSBuild Projects="$(EmbeddedRestrictionModProject)"
-             Targets="Restore"
-             Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY)" />
-    <MSBuild Projects="$(EmbeddedRestrictionModProject)"
-             Targets="Build"
-             Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY);NoRestore=true" />
-  </Target>
-
-  <Target Name="CopyBuiltEmbeddedRestrictionModToOutput" AfterTargets="Build" Condition="'$(BuildEmbeddedRestrictionMod)' == 'true' and Exists('$(EmbeddedRestrictionModBuildOutput)launchergorestriction.dll')">
-    <PropertyGroup>
-      <_EmbeddedRestrictionOutputDir>$(TargetDir)EmbeddedMods\launchergorestriction\</_EmbeddedRestrictionOutputDir>
-    </PropertyGroup>
-    <MakeDir Directories="$(_EmbeddedRestrictionOutputDir)" />
-    <Copy SourceFiles="$(EmbeddedRestrictionModBuildOutput)launchergorestriction.dll"
-          DestinationFiles="$(_EmbeddedRestrictionOutputDir)launchergorestriction.dll"
-          SkipUnchangedFiles="true" />
-    <Copy SourceFiles="$(EmbeddedRestrictionRoot)modinfo.json;$(EmbeddedRestrictionRoot)README.txt"
-          DestinationFolder="$(_EmbeddedRestrictionOutputDir)"
           SkipUnchangedFiles="true" />
   </Target>
 

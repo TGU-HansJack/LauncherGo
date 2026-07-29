@@ -25,13 +25,12 @@ public sealed partial class ServerProcessService : IServerProcessService
     private readonly IInstanceProfileService? _profileService;
     private readonly IServerAuthService? _serverAuthService;
     private readonly IServerMapService? _serverMapService;
-    private readonly IModRestrictionService? _modRestrictionService;
     private readonly ILogger<ServerProcessService> _logger;
     private DateTimeOffset _lastDiscoveryUtc = DateTimeOffset.MinValue;
     private string _activeProfileId = string.Empty;
 
     public ServerProcessService()
-        : this(null, null, null, null, NullLogger<ServerProcessService>.Instance)
+        : this(null, null, null, NullLogger<ServerProcessService>.Instance)
     {
     }
 
@@ -39,13 +38,11 @@ public sealed partial class ServerProcessService : IServerProcessService
         IInstanceProfileService? profileService,
         IServerAuthService? serverAuthService = null,
         IServerMapService? serverMapService = null,
-        IModRestrictionService? modRestrictionService = null,
         ILogger<ServerProcessService>? logger = null)
     {
         _profileService = profileService;
         _serverAuthService = serverAuthService;
         _serverMapService = serverMapService;
-        _modRestrictionService = modRestrictionService;
         _logger = logger ?? NullLogger<ServerProcessService>.Instance;
     }
 
@@ -309,7 +306,6 @@ public sealed partial class ServerProcessService : IServerProcessService
                 _profileService,
                 _serverAuthService,
                 _serverMapService,
-                _modRestrictionService,
                 _logger);
             _controllers[profile.Id] = controller;
             _controllerProfiles[profile.Id] = profile;
@@ -415,7 +411,6 @@ internal sealed partial class SingleServerProcessController
     private readonly IInstanceProfileService? _profileService;
     private readonly IServerAuthService? _serverAuthService;
     private readonly IServerMapService? _serverMapService;
-    private readonly IModRestrictionService? _modRestrictionService;
     private readonly ILogger<ServerProcessService> _logger;
     private Process? _process;
     private InstanceProfile? _currentProfile;
@@ -436,7 +431,7 @@ internal sealed partial class SingleServerProcessController
     private double _lastCpuPercent;
 
     public SingleServerProcessController()
-        : this(null, null, null, null, NullLogger<ServerProcessService>.Instance)
+        : this(null, null, null, NullLogger<ServerProcessService>.Instance)
     {
     }
 
@@ -444,13 +439,11 @@ internal sealed partial class SingleServerProcessController
         IInstanceProfileService? profileService,
         IServerAuthService? serverAuthService = null,
         IServerMapService? serverMapService = null,
-        IModRestrictionService? modRestrictionService = null,
         ILogger<ServerProcessService>? logger = null)
     {
         _profileService = profileService;
         _serverAuthService = serverAuthService;
         _serverMapService = serverMapService;
-        _modRestrictionService = modRestrictionService;
         _logger = logger ?? NullLogger<ServerProcessService>.Instance;
     }
 
@@ -553,7 +546,6 @@ internal sealed partial class SingleServerProcessController
 
             // 缺失配置时自动生成；已有配置仅做必要的非破坏性归一化。
             ServerConfigBootstrapper.EnsureGenerated(installPath, profile);
-            await EnsureRestrictionModBeforeStartAsync(profile, cancellationToken);
             RepairLaunchModPaths(profile);
             PrepareSaveFileForStart(profile);
             SqliteConnection.ClearAllPools();
@@ -589,21 +581,6 @@ internal sealed partial class SingleServerProcessController
             await _serverMapService.EnsureMapModDeployedAsync(profile, cancellationToken);
             OutputReceived?.Invoke(this, "[system] 已在启动前检查并部署 ServerMap 地图模组。");
         }
-    }
-
-    private async Task EnsureRestrictionModBeforeStartAsync(
-        InstanceProfile profile,
-        CancellationToken cancellationToken)
-    {
-        if (_modRestrictionService is null ||
-            !File.Exists(_modRestrictionService.GetSettingsPath(profile)))
-        {
-            return;
-        }
-
-        var settings = await _modRestrictionService.LoadAsync(profile, cancellationToken);
-        await _modRestrictionService.SaveAsync(profile, settings, cancellationToken);
-        OutputReceived?.Invoke(this, "[system] 已在启动前检查并部署 LauncherGo Restriction 模组。");
     }
 
     private async Task<bool> IsAuthEnabledAsync(

@@ -20,7 +20,6 @@ public static class ServiceCollectionExtension
         services.AddSingleton<IFrpService, FrpService>();
         services.AddSingleton<IThirdPartyFrpcService, ThirdPartyFrpcService>();
         services.AddSingleton<IInstanceModService, InstanceModService>();
-        services.AddSingleton<IModRestrictionService, ModRestrictionService>();
         services.AddSingleton<IServerAuthService, ServerAuthService>();
         services.AddSingleton<IServerMapService, ServerMapService>();
         services.AddSingleton<IOsqSnapshotCacheService, OsqSnapshotCacheService>();
