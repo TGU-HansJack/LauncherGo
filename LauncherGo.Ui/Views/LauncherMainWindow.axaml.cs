@@ -789,7 +789,22 @@ public partial class LauncherMainWindow : Window
         AuthDiscourseSecretLabelTextBlock.Text = T("共享密钥", "Shared Secret");
         AuthDiscoursePublicCallbackLabelTextBlock.Text = T("公开回调地址", "Public Callback URL");
         AuthDiscourseListenPrefixLabelTextBlock.Text = T("本地监听地址", "Local Listen Prefix");
+        AuthOAuth2EnabledLabelTextBlock.Text = T("启用 OAuth2/OIDC 登录", "Enable OAuth2/OIDC Login");
+        AuthOAuth2DiscoveryUrlLabelTextBlock.Text = T("Discovery 地址（可选）", "Discovery URL (Optional)");
+        AuthOAuth2AuthorizationEndpointLabelTextBlock.Text = T("授权端点", "Authorization Endpoint");
+        AuthOAuth2TokenEndpointLabelTextBlock.Text = T("Token 端点", "Token Endpoint");
+        AuthOAuth2UserInfoEndpointLabelTextBlock.Text = T("UserInfo 端点", "UserInfo Endpoint");
+        AuthOAuth2ClientIdLabelTextBlock.Text = T("Client ID", "Client ID");
+        AuthOAuth2ClientSecretLabelTextBlock.Text = T("Client Secret", "Client Secret");
+        AuthOAuth2ScopeLabelTextBlock.Text = T("Scope", "Scope");
+        AuthOAuth2PublicCallbackLabelTextBlock.Text = T("公开回调地址", "Public Callback URL");
+        AuthOAuth2ListenPrefixLabelTextBlock.Text = T("本地监听地址", "Local Listen Prefix");
+        AuthOAuth2UserIdClaimLabelTextBlock.Text = T("用户 ID claim", "User ID Claim");
+        AuthOAuth2UsernameClaimLabelTextBlock.Text = T("用户名 claim", "Username Claim");
+        AuthOAuth2DisplayNameClaimLabelTextBlock.Text = T("显示名 claim", "Display Name Claim");
+        AuthOAuth2EmailClaimLabelTextBlock.Text = T("邮箱 claim", "Email Claim");
         AuthPlayersTitleTextBlock.Text = T("玩家认证数据", "Player Auth Data");
+        AuthExternalAccountHeaderTextBlock.Text = T("外部账号", "External Account");
         AuthRefreshPlayersButton.Content = T("刷新玩家", "Refresh Players");
         RebuildThirdPartyFrpcModeOptions();
     }
@@ -2181,6 +2196,23 @@ public partial class LauncherMainWindow : Window
                 SharedSecret = string.Empty,
                 PublicCallbackBaseUrl = "http://127.0.0.1:18092/",
                 ListenPrefix = "http://127.0.0.1:18092/"
+            },
+            OAuth2 = new ServerAuthOAuth2Settings
+            {
+                Enabled = false,
+                DiscoveryUrl = string.Empty,
+                AuthorizationEndpoint = string.Empty,
+                TokenEndpoint = string.Empty,
+                UserInfoEndpoint = string.Empty,
+                ClientId = string.Empty,
+                ClientSecret = string.Empty,
+                Scope = "openid profile email",
+                PublicCallbackBaseUrl = "http://127.0.0.1:18092/",
+                ListenPrefix = "http://127.0.0.1:18092/",
+                UserIdClaim = "sub",
+                UsernameClaim = "preferred_username",
+                DisplayNameClaim = "name",
+                EmailClaim = "email"
             }
         };
     }
@@ -2327,11 +2359,25 @@ public partial class LauncherMainWindow : Window
         AuthEnabledCheckBox.IsChecked = settings.Enabled;
         AuthLoginTimeoutNumericUpDown.Value = settings.LoginTimeoutSeconds;
         AuthRememberSessionNumericUpDown.Value = settings.RememberSessionMinutes;
-        AuthDiscourseEnabledCheckBox.IsChecked = settings.Discourse.Enabled;
+        AuthDiscourseEnabledCheckBox.IsChecked = settings.Discourse.Enabled && !settings.OAuth2.Enabled;
         AuthDiscourseBaseUrlTextBox.Text = settings.Discourse.BaseUrl;
         AuthDiscourseSecretTextBox.Text = settings.Discourse.SharedSecret;
         AuthDiscoursePublicCallbackTextBox.Text = settings.Discourse.PublicCallbackBaseUrl;
         AuthDiscourseListenPrefixTextBox.Text = settings.Discourse.ListenPrefix;
+        AuthOAuth2EnabledCheckBox.IsChecked = settings.OAuth2.Enabled;
+        AuthOAuth2DiscoveryUrlTextBox.Text = settings.OAuth2.DiscoveryUrl;
+        AuthOAuth2AuthorizationEndpointTextBox.Text = settings.OAuth2.AuthorizationEndpoint;
+        AuthOAuth2TokenEndpointTextBox.Text = settings.OAuth2.TokenEndpoint;
+        AuthOAuth2UserInfoEndpointTextBox.Text = settings.OAuth2.UserInfoEndpoint;
+        AuthOAuth2ClientIdTextBox.Text = settings.OAuth2.ClientId;
+        AuthOAuth2ClientSecretTextBox.Text = settings.OAuth2.ClientSecret;
+        AuthOAuth2ScopeTextBox.Text = settings.OAuth2.Scope;
+        AuthOAuth2PublicCallbackTextBox.Text = settings.OAuth2.PublicCallbackBaseUrl;
+        AuthOAuth2ListenPrefixTextBox.Text = settings.OAuth2.ListenPrefix;
+        AuthOAuth2UserIdClaimTextBox.Text = settings.OAuth2.UserIdClaim;
+        AuthOAuth2UsernameClaimTextBox.Text = settings.OAuth2.UsernameClaim;
+        AuthOAuth2DisplayNameClaimTextBox.Text = settings.OAuth2.DisplayNameClaim;
+        AuthOAuth2EmailClaimTextBox.Text = settings.OAuth2.EmailClaim;
     }
 
     private ServerAuthSettings CollectAuthSettings()
@@ -2348,6 +2394,23 @@ public partial class LauncherMainWindow : Window
                 SharedSecret = AuthDiscourseSecretTextBox.Text?.Trim() ?? string.Empty,
                 PublicCallbackBaseUrl = AuthDiscoursePublicCallbackTextBox.Text?.Trim() ?? string.Empty,
                 ListenPrefix = AuthDiscourseListenPrefixTextBox.Text?.Trim() ?? string.Empty
+            },
+            OAuth2 = new ServerAuthOAuth2Settings
+            {
+                Enabled = AuthOAuth2EnabledCheckBox.IsChecked == true,
+                DiscoveryUrl = AuthOAuth2DiscoveryUrlTextBox.Text?.Trim() ?? string.Empty,
+                AuthorizationEndpoint = AuthOAuth2AuthorizationEndpointTextBox.Text?.Trim() ?? string.Empty,
+                TokenEndpoint = AuthOAuth2TokenEndpointTextBox.Text?.Trim() ?? string.Empty,
+                UserInfoEndpoint = AuthOAuth2UserInfoEndpointTextBox.Text?.Trim() ?? string.Empty,
+                ClientId = AuthOAuth2ClientIdTextBox.Text?.Trim() ?? string.Empty,
+                ClientSecret = AuthOAuth2ClientSecretTextBox.Text?.Trim() ?? string.Empty,
+                Scope = AuthOAuth2ScopeTextBox.Text?.Trim() ?? string.Empty,
+                PublicCallbackBaseUrl = AuthOAuth2PublicCallbackTextBox.Text?.Trim() ?? string.Empty,
+                ListenPrefix = AuthOAuth2ListenPrefixTextBox.Text?.Trim() ?? string.Empty,
+                UserIdClaim = AuthOAuth2UserIdClaimTextBox.Text?.Trim() ?? string.Empty,
+                UsernameClaim = AuthOAuth2UsernameClaimTextBox.Text?.Trim() ?? string.Empty,
+                DisplayNameClaim = AuthOAuth2DisplayNameClaimTextBox.Text?.Trim() ?? string.Empty,
+                EmailClaim = AuthOAuth2EmailClaimTextBox.Text?.Trim() ?? string.Empty
             }
         };
     }
@@ -5854,6 +5917,18 @@ public partial class LauncherMainWindow : Window
         {
             await LoadAuthForProfileAsync(profile);
         }
+    }
+
+    private void OnAuthDiscourseModeClick(object? sender, RoutedEventArgs e)
+    {
+        if (AuthDiscourseEnabledCheckBox.IsChecked == true)
+            AuthOAuth2EnabledCheckBox.IsChecked = false;
+    }
+
+    private void OnAuthOAuth2ModeClick(object? sender, RoutedEventArgs e)
+    {
+        if (AuthOAuth2EnabledCheckBox.IsChecked == true)
+            AuthDiscourseEnabledCheckBox.IsChecked = false;
     }
 
     private async void OnAuthSaveClick(object? sender, RoutedEventArgs e)
@@ -9791,7 +9866,7 @@ public partial class LauncherMainWindow : Window
 
         public required string PasswordStateText { get; init; }
 
-        public required string DiscourseUsername { get; init; }
+        public required string ExternalUsername { get; init; }
 
         public static AuthPlayerListItem FromModel(ServerAuthPlayerSummary model)
         {
@@ -9806,7 +9881,14 @@ public partial class LauncherMainWindow : Window
                 PasswordStateText = model.PasswordResetRequired
                     ? "重置待处理"
                     : model.HasPassword ? "已设置" : "未设置",
-                DiscourseUsername = string.IsNullOrWhiteSpace(model.DiscourseUsername) ? "-" : model.DiscourseUsername
+                ExternalUsername = !string.IsNullOrWhiteSpace(model.OAuth2Username) ||
+                                   !string.IsNullOrWhiteSpace(model.OAuth2DisplayName)
+                    ? "OAuth2: " + (string.IsNullOrWhiteSpace(model.OAuth2Username)
+                        ? model.OAuth2DisplayName
+                        : model.OAuth2Username)
+                    : !string.IsNullOrWhiteSpace(model.DiscourseUsername)
+                        ? "Discourse: " + model.DiscourseUsername
+                        : "-"
             };
         }
     }

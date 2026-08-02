@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Net;
+using System.Net.Http.Headers;
 using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
 using Vintagestory.API.Config;
@@ -25,6 +26,11 @@ public sealed class VsslAuthServerSystem : ModSystem
     private const int DiscourseChallengeMinutes = 10;
     private const EnumChatType SystemChatType = (EnumChatType)4;
 
+    private static readonly HttpClient OAuth2HttpClient = new()
+    {
+        Timeout = TimeSpan.FromSeconds(20)
+    };
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -35,6 +41,7 @@ public sealed class VsslAuthServerSystem : ModSystem
     private readonly object _authLock = new();
     private readonly Dictionary<string, PendingAuthState> _pendingByUid = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DiscourseChallengeState> _discourseByNonce = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, OAuth2ChallengeState> _oauth2ByState = new(StringComparer.Ordinal);
 
     private ICoreServerAPI? _api;
     private IServerNetworkChannel? _channel;
@@ -93,13 +100,13 @@ public sealed class VsslAuthServerSystem : ModSystem
         api.Event.OnPlayerInteractEntity += OnPlayerInteractEntity;
         api.Event.RegisterGameTickListener(OnAuthTick, 1000, 0);
 
-        if (_settings.Enabled && _settings.Discourse.Enabled)
-            StartDiscourseListener();
+        if (_settings.Enabled && IsExternalAuthEnabled())
+            StartAuthListener();
     }
 
     public override void Dispose()
     {
-        StopDiscourseListener();
+        StopAuthListener();
     }
 
     private TextCommandResult CmdRegister(TextCommandCallingArgs args)
@@ -110,8 +117,8 @@ public sealed class VsslAuthServerSystem : ModSystem
         if (!_settings.Enabled)
             return TextCommandResult.Success("服务器未启用 ServerAuth。", null);
 
-        if (_settings.Discourse.Enabled)
-            return TextCommandResult.Error("当前服务器使用社区认证，请在浏览器中完成认证。", "");
+        if (IsExternalAuthEnabled())
+            return TextCommandResult.Error("当前服务器使用外部账号认证，请在浏览器中完成认证。", "");
 
         var password = (args[0] as string ?? string.Empty).Trim();
         var confirmPassword = (args[1] as string ?? string.Empty).Trim();
@@ -176,8 +183,8 @@ public sealed class VsslAuthServerSystem : ModSystem
         if (!_settings.Enabled)
             return TextCommandResult.Success("服务器未启用 ServerAuth。", null);
 
-        if (_settings.Discourse.Enabled)
-            return TextCommandResult.Error("当前服务器使用社区认证，请在浏览器中完成认证。", "");
+        if (IsExternalAuthEnabled())
+            return TextCommandResult.Error("当前服务器使用外部账号认证，请在浏览器中完成认证。", "");
 
         var password = (args[0] as string ?? string.Empty).Trim();
 
@@ -320,6 +327,12 @@ public sealed class VsslAuthServerSystem : ModSystem
 
         BeginPending(player, now);
 
+        if (_settings.OAuth2.Enabled)
+        {
+            _ = SendOAuth2ChallengeAsync(player, now);
+            return;
+        }
+
         if (_settings.Discourse.Enabled)
         {
             SendDiscourseChallenge(player, now);
@@ -332,11 +345,32 @@ public sealed class VsslAuthServerSystem : ModSystem
         player.SendMessage(GlobalConstants.GeneralChatGroup, prompt, SystemChatType, null);
     }
 
+    private bool IsExternalAuthEnabled()
+    {
+        // OAuth2 takes precedence when both switches are enabled so a malformed
+        // hand-edited configuration cannot start two competing login flows.
+        return _settings.OAuth2.Enabled || _settings.Discourse.Enabled;
+    }
+
     private void OnPlayerDisconnect(IServerPlayer player)
     {
         lock (_authLock)
         {
             _pendingByUid.Remove(player.PlayerUID);
+            foreach (var nonce in _discourseByNonce
+                         .Where(pair => pair.Value.PlayerUid.Equals(player.PlayerUID, StringComparison.OrdinalIgnoreCase))
+                         .Select(pair => pair.Key)
+                         .ToList())
+            {
+                _discourseByNonce.Remove(nonce);
+            }
+            foreach (var state in _oauth2ByState
+                         .Where(pair => pair.Value.PlayerUid.Equals(player.PlayerUID, StringComparison.OrdinalIgnoreCase))
+                         .Select(pair => pair.Key)
+                         .ToList())
+            {
+                _oauth2ByState.Remove(state);
+            }
         }
     }
 
@@ -434,6 +468,13 @@ public sealed class VsslAuthServerSystem : ModSystem
                 .ToList();
             foreach (var nonce in expiredNonce)
                 _discourseByNonce.Remove(nonce);
+
+            var expiredStates = _oauth2ByState
+                .Where(pair => pair.Value.ExpiresAtUtc <= now)
+                .Select(pair => pair.Key)
+                .ToList();
+            foreach (var state in expiredStates)
+                _oauth2ByState.Remove(state);
         }
     }
 
@@ -589,25 +630,28 @@ public sealed class VsslAuthServerSystem : ModSystem
         }, player);
     }
 
-    private void StartDiscourseListener()
+    private void StartAuthListener()
     {
-        if (string.IsNullOrWhiteSpace(_settings.Discourse.ListenPrefix))
+        var listenPrefix = _settings.OAuth2.Enabled
+            ? _settings.OAuth2.ListenPrefix
+            : _settings.Discourse.ListenPrefix;
+        if (string.IsNullOrWhiteSpace(listenPrefix))
             return;
 
-        StopDiscourseListener();
+        StopAuthListener();
 
         try
         {
             _listenerCts = new CancellationTokenSource();
             _listener = new HttpListener();
-            _listener.Prefixes.Add(NormalizeListenPrefix(_settings.Discourse.ListenPrefix));
+            _listener.Prefixes.Add(NormalizeListenPrefix(listenPrefix));
             _listener.Start();
             _listenerTask = Task.Run(() => ListenLoopAsync(_listener, _listenerCts.Token), CancellationToken.None);
 
             _api?.Logger.Notification(
-                "{0} Discourse callback listener started on {1}",
+                "{0} auth callback listener started on {1}",
                 VsslAuthModSystem.LogPrefix,
-                _settings.Discourse.ListenPrefix);
+                listenPrefix);
         }
         catch (Exception ex)
         {
@@ -618,7 +662,7 @@ public sealed class VsslAuthServerSystem : ModSystem
         }
     }
 
-    private void StopDiscourseListener()
+    private void StopAuthListener()
     {
         try
         {
@@ -671,52 +715,123 @@ public sealed class VsslAuthServerSystem : ModSystem
         try
         {
             var path = context.Request.Url?.AbsolutePath ?? string.Empty;
-            if (!path.TrimEnd('/').EndsWith("/serverauth/discourse/callback", StringComparison.OrdinalIgnoreCase))
+            var normalizedPath = path.TrimEnd('/');
+            if (normalizedPath.EndsWith("/serverauth/discourse/callback", StringComparison.OrdinalIgnoreCase))
             {
-                await WriteHttpResponseAsync(context, 404, "ServerAuth callback endpoint not found.");
+                await HandleDiscourseCallbackAsync(context);
                 return;
             }
 
-            var sso = context.Request.QueryString["sso"] ?? string.Empty;
-            var sig = context.Request.QueryString["sig"] ?? string.Empty;
-            if (!DiscourseConnect.VerifySignature(sso, sig, _settings.Discourse.SharedSecret))
+            if (normalizedPath.EndsWith("/serverauth/oauth2/callback", StringComparison.OrdinalIgnoreCase))
             {
-                await WriteHttpResponseAsync(context, 403, "Invalid Discourse signature.");
+                await HandleOAuth2CallbackAsync(context);
                 return;
             }
 
-            var payload = DiscourseConnect.DecodePayload(sso);
-            if (!payload.TryGetValue("nonce", out var nonce) || string.IsNullOrWhiteSpace(nonce))
-            {
-                await WriteHttpResponseAsync(context, 400, "Missing nonce.");
-                return;
-            }
-
-            DiscourseChallengeState? challenge;
-            lock (_authLock)
-            {
-                _discourseByNonce.Remove(nonce, out challenge);
-            }
-
-            if (challenge is null || DateTimeOffset.UtcNow > challenge.ExpiresAtUtc)
-            {
-                await WriteHttpResponseAsync(context, 400, "Challenge expired. Please rejoin the server.");
-                return;
-            }
-
-            if (_api is not null)
-            {
-                _api.Event.EnqueueMainThreadTask(
-                    () => CompleteDiscourseAuth(challenge, payload),
-                    "serverauth-discourse-complete");
-            }
-
-            await WriteAuthSuccessResponseAsync(context, "认证成功，已完成认证，请返回游戏。");
+            await WriteHttpResponseAsync(context, 404, "ServerAuth callback endpoint not found.");
         }
         catch (Exception ex)
         {
             await WriteHttpResponseAsync(context, 500, "ServerAuth callback failed: " + ex.Message);
         }
+    }
+
+    private async Task HandleDiscourseCallbackAsync(HttpListenerContext context)
+    {
+        var sso = context.Request.QueryString["sso"] ?? string.Empty;
+        var sig = context.Request.QueryString["sig"] ?? string.Empty;
+        if (!DiscourseConnect.VerifySignature(sso, sig, _settings.Discourse.SharedSecret))
+        {
+            await WriteHttpResponseAsync(context, 403, "Invalid Discourse signature.");
+            return;
+        }
+
+        var payload = DiscourseConnect.DecodePayload(sso);
+        if (!payload.TryGetValue("nonce", out var nonce) || string.IsNullOrWhiteSpace(nonce))
+        {
+            await WriteHttpResponseAsync(context, 400, "Missing nonce.");
+            return;
+        }
+
+        DiscourseChallengeState? challenge;
+        lock (_authLock)
+        {
+            _discourseByNonce.Remove(nonce, out challenge);
+        }
+
+        if (challenge is null || DateTimeOffset.UtcNow > challenge.ExpiresAtUtc)
+        {
+            await WriteHttpResponseAsync(context, 400, "Challenge expired. Please rejoin the server.");
+            return;
+        }
+
+        if (_api is not null)
+        {
+            _api.Event.EnqueueMainThreadTask(
+                () => CompleteDiscourseAuth(challenge, payload),
+                "serverauth-discourse-complete");
+        }
+
+        await WriteAuthSuccessResponseAsync(context, "认证成功，已完成认证，请返回游戏。");
+    }
+
+    private async Task HandleOAuth2CallbackAsync(HttpListenerContext context)
+    {
+        var error = context.Request.QueryString["error"];
+        var stateValue = context.Request.QueryString["state"] ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(stateValue))
+        {
+            await WriteHttpResponseAsync(context, 400, "Missing OAuth2 state.");
+            return;
+        }
+
+        OAuth2ChallengeState? challenge;
+        lock (_authLock)
+        {
+            _oauth2ByState.Remove(stateValue, out challenge);
+        }
+
+        if (challenge is null || DateTimeOffset.UtcNow > challenge.ExpiresAtUtc)
+        {
+            await WriteHttpResponseAsync(context, 400, "OAuth2 challenge expired. Please rejoin the server.");
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            var description = context.Request.QueryString["error_description"] ?? error;
+            await WriteHttpResponseAsync(context, 400, "OAuth2 login was not completed: " + description);
+            return;
+        }
+
+        var code = context.Request.QueryString["code"] ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            await WriteHttpResponseAsync(context, 400, "Missing OAuth2 authorization code.");
+            return;
+        }
+
+        OAuth2Identity identity;
+        try
+        {
+            identity = await ExchangeOAuth2CodeAsync(challenge, code);
+        }
+        catch
+        {
+            QueueAuthMessage(
+                challenge.PlayerUid,
+                "OAuth2 认证失败，请重新进入服务器后再试。",
+                "serverauth-oauth2-callback-error");
+            throw;
+        }
+        if (_api is not null)
+        {
+            _api.Event.EnqueueMainThreadTask(
+                () => CompleteOAuth2Auth(challenge, identity),
+                "serverauth-oauth2-complete");
+        }
+
+        await WriteAuthSuccessResponseAsync(context, "认证成功，已完成认证，请返回游戏。");
     }
 
     private void CompleteDiscourseAuth(DiscourseChallengeState challenge, Dictionary<string, string> payload)
@@ -777,6 +892,63 @@ public sealed class VsslAuthServerSystem : ModSystem
         }
 
         Authenticate(player, "社区认证成功，已通过服务器认证。");
+    }
+
+    private void CompleteOAuth2Auth(OAuth2ChallengeState challenge, OAuth2Identity identity)
+    {
+        if (_api is null)
+            return;
+
+        var player = _api.World.PlayerByUid(challenge.PlayerUid) as IServerPlayer;
+        if (player is null)
+            return;
+
+        if (string.IsNullOrWhiteSpace(identity.Subject))
+        {
+            player.SendMessage(GlobalConstants.GeneralChatGroup, "OAuth2 认证缺少稳定用户标识，请联系管理员。", SystemChatType, null);
+            return;
+        }
+
+        lock (_storeLock)
+        {
+            var conflictBySubject = _store.Players.FirstOrDefault(record =>
+                record.OAuth2Subject.Equals(identity.Subject, StringComparison.Ordinal) &&
+                !record.PlayerUid.Equals(player.PlayerUID, StringComparison.OrdinalIgnoreCase));
+            if (conflictBySubject is not null)
+            {
+                player.Disconnect("该 OAuth2 账号已经绑定其他玩家。");
+                return;
+            }
+
+            if (IsNicknameTakenByOtherUid(player))
+            {
+                player.Disconnect("该昵称已经被其他 UUID 注册，请联系管理员。");
+                return;
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var record = FindPlayer(player.PlayerUID) ?? new ServerAuthPlayerRecord
+            {
+                PlayerUid = player.PlayerUID,
+                RegisteredAtUtc = now,
+                RegisteredIp = player.IpAddress ?? string.Empty
+            };
+            if (!_store.Players.Contains(record))
+                _store.Players.Add(record);
+
+            record.PlayerName = player.PlayerName;
+            record.NormalizedPlayerName = NormalizePlayerName(player.PlayerName);
+            record.LastIp = player.IpAddress ?? string.Empty;
+            record.LastLoginAtUtc = now;
+            record.OAuth2Subject = identity.Subject;
+            record.OAuth2Username = identity.Username;
+            record.OAuth2DisplayName = identity.DisplayName;
+            record.OAuth2Email = identity.Email;
+            RememberSession(record.PlayerUid, record.LastIp, now);
+            SaveStoreUnsafe();
+        }
+
+        Authenticate(player, "OAuth2 认证成功，已通过服务器认证。");
     }
 
     private ServerAuthSettings LoadSettings()
@@ -889,6 +1061,369 @@ public sealed class VsslAuthServerSystem : ModSystem
         });
     }
 
+    private async Task SendOAuth2ChallengeAsync(IServerPlayer player, DateTimeOffset now)
+    {
+        var config = _settings.OAuth2;
+        if (string.IsNullOrWhiteSpace(config.ClientId) ||
+            string.IsNullOrWhiteSpace(config.PublicCallbackBaseUrl))
+        {
+            QueueAuthMessage(player.PlayerUID, "OAuth2 认证配置不完整，请联系管理员。", "serverauth-oauth2-config");
+            return;
+        }
+
+        try
+        {
+            var endpoints = await ResolveOAuth2EndpointsAsync(config).ConfigureAwait(false);
+            var state = GenerateNonce();
+            var verifier = GeneratePkceVerifier();
+            var redirectUri = BuildOAuth2CallbackUrl(config.PublicCallbackBaseUrl);
+            if (!IsHttpUrl(redirectUri))
+                throw new InvalidOperationException("OAuth2 public callback URL is invalid.");
+            var authUrl = BuildOAuth2AuthorizationUrl(
+                endpoints.AuthorizationEndpoint,
+                config.ClientId,
+                redirectUri,
+                config.Scope,
+                state,
+                verifier);
+            var challenge = new OAuth2ChallengeState
+            {
+                PlayerUid = player.PlayerUID,
+                CodeVerifier = verifier,
+                RedirectUri = redirectUri,
+                Endpoints = endpoints,
+                ClientId = config.ClientId,
+                ClientSecret = config.ClientSecret,
+                UserIdClaim = config.UserIdClaim,
+                UsernameClaim = config.UsernameClaim,
+                DisplayNameClaim = config.DisplayNameClaim,
+                EmailClaim = config.EmailClaim,
+                ExpiresAtUtc = now.AddSeconds(_settings.LoginTimeoutSeconds)
+            };
+
+            lock (_authLock)
+            {
+                if (!_pendingByUid.ContainsKey(player.PlayerUID))
+                    return;
+                _oauth2ByState[state] = challenge;
+            }
+
+            QueueAuthChallenge(
+                player.PlayerUID,
+                state,
+                authUrl,
+                "oauth2",
+                "已打开 OAuth2 登录页面，请在浏览器中完成登录。",
+                "serverauth-oauth2-challenge");
+        }
+        catch (Exception ex)
+        {
+            _api?.Logger.Error(
+                "{0} Failed to build OAuth2 challenge: {1}",
+                VsslAuthModSystem.LogPrefix,
+                ex.Message);
+            QueueAuthMessage(player.PlayerUID, "OAuth2 登录暂时不可用，请联系管理员。", "serverauth-oauth2-error");
+        }
+    }
+
+    private async Task<OAuth2Endpoints> ResolveOAuth2EndpointsAsync(ServerAuthOAuth2Settings config)
+    {
+        var authorizationEndpoint = config.AuthorizationEndpoint.Trim();
+        var tokenEndpoint = config.TokenEndpoint.Trim();
+        var userInfoEndpoint = config.UserInfoEndpoint.Trim();
+
+        if (!string.IsNullOrWhiteSpace(config.DiscoveryUrl) &&
+            (string.IsNullOrWhiteSpace(authorizationEndpoint) ||
+             string.IsNullOrWhiteSpace(tokenEndpoint) ||
+             string.IsNullOrWhiteSpace(userInfoEndpoint)))
+        {
+            using var response = await OAuth2HttpClient.GetAsync(config.DiscoveryUrl).ConfigureAwait(false);
+            var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException(
+                    $"OAuth2 discovery request failed ({(int)response.StatusCode}).");
+            }
+
+            using var document = JsonDocument.Parse(body);
+            var root = document.RootElement;
+            authorizationEndpoint = authorizationEndpoint.Length == 0
+                ? ReadJsonProperty(root, "authorization_endpoint")
+                : authorizationEndpoint;
+            tokenEndpoint = tokenEndpoint.Length == 0
+                ? ReadJsonProperty(root, "token_endpoint")
+                : tokenEndpoint;
+            userInfoEndpoint = userInfoEndpoint.Length == 0
+                ? ReadJsonProperty(root, "userinfo_endpoint")
+                : userInfoEndpoint;
+        }
+
+        if (!IsHttpUrl(authorizationEndpoint) ||
+            !IsHttpUrl(tokenEndpoint) ||
+            !IsHttpUrl(userInfoEndpoint))
+        {
+            throw new InvalidOperationException(
+                "OAuth2 requires valid authorization, token, and UserInfo endpoints.");
+        }
+
+        return new OAuth2Endpoints
+        {
+            AuthorizationEndpoint = authorizationEndpoint,
+            TokenEndpoint = tokenEndpoint,
+            UserInfoEndpoint = userInfoEndpoint
+        };
+    }
+
+    private async Task<OAuth2Identity> ExchangeOAuth2CodeAsync(
+        OAuth2ChallengeState challenge,
+        string code)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, challenge.Endpoints.TokenEndpoint);
+        var form = new List<KeyValuePair<string, string>>
+        {
+            new("grant_type", "authorization_code"),
+            new("code", code),
+            new("redirect_uri", challenge.RedirectUri),
+            new("code_verifier", challenge.CodeVerifier)
+        };
+
+        if (string.IsNullOrWhiteSpace(challenge.ClientSecret))
+        {
+            form.Add(new KeyValuePair<string, string>("client_id", challenge.ClientId));
+        }
+        else
+        {
+            var credentials = Convert.ToBase64String(
+                Encoding.UTF8.GetBytes(
+                    FormUrlEncode(challenge.ClientId) + ":" + FormUrlEncode(challenge.ClientSecret)));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
+        }
+
+        request.Content = new FormUrlEncodedContent(form);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        using var tokenResponse = await OAuth2HttpClient.SendAsync(request).ConfigureAwait(false);
+        var tokenBody = await tokenResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
+        if (!tokenResponse.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                $"OAuth2 token request failed ({(int)tokenResponse.StatusCode}).");
+        }
+
+        using var tokenDocument = JsonDocument.Parse(tokenBody);
+        var accessToken = ReadJsonProperty(tokenDocument.RootElement, "access_token");
+        if (string.IsNullOrWhiteSpace(accessToken))
+            throw new InvalidOperationException("OAuth2 token response did not contain access_token.");
+
+        using var userInfoRequest = new HttpRequestMessage(HttpMethod.Get, challenge.Endpoints.UserInfoEndpoint);
+        userInfoRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        userInfoRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        using var userInfoResponse = await OAuth2HttpClient.SendAsync(userInfoRequest).ConfigureAwait(false);
+        var userInfoBody = await userInfoResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
+        if (!userInfoResponse.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                $"OAuth2 UserInfo request failed ({(int)userInfoResponse.StatusCode}).");
+        }
+
+        using var userInfoDocument = JsonDocument.Parse(userInfoBody);
+        var root = userInfoDocument.RootElement;
+        var subject = ReadJsonClaim(root, challenge.UserIdClaim, "sub");
+        if (string.IsNullOrWhiteSpace(subject))
+            throw new InvalidOperationException("OAuth2 UserInfo did not contain a stable user id claim.");
+
+        var username = ReadJsonClaim(root, challenge.UsernameClaim, "preferred_username", "username");
+        var displayName = ReadJsonClaim(root, challenge.DisplayNameClaim, "name", "preferred_username", "username");
+        var email = ReadJsonClaim(root, challenge.EmailClaim, "email");
+
+        return new OAuth2Identity
+        {
+            Subject = subject,
+            Username = string.IsNullOrWhiteSpace(username) ? subject : username,
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? username : displayName,
+            Email = email
+        };
+    }
+
+    private void QueueAuthChallenge(
+        string playerUid,
+        string challengeId,
+        string authUrl,
+        string mode,
+        string message,
+        string taskName)
+    {
+        if (_api is null)
+            return;
+
+        _api.Event.EnqueueMainThreadTask(
+            () =>
+            {
+                if (_api.World.PlayerByUid(playerUid) is not IServerPlayer player)
+                    return;
+
+                player.SendMessage(GlobalConstants.GeneralChatGroup, message, SystemChatType, null);
+                _channel?.SendPacket(new AuthChallengePacket
+                {
+                    ChallengeId = challengeId,
+                    AuthUrl = authUrl,
+                    Mode = mode,
+                    Message = message
+                }, player);
+            },
+            taskName);
+    }
+
+    private void QueueAuthMessage(string playerUid, string message, string taskName)
+    {
+        if (_api is null)
+            return;
+
+        _api.Event.EnqueueMainThreadTask(
+            () =>
+            {
+                if (_api.World.PlayerByUid(playerUid) is IServerPlayer player)
+                    player.SendMessage(GlobalConstants.GeneralChatGroup, message, SystemChatType, null);
+            },
+            taskName);
+    }
+
+    private static string BuildOAuth2AuthorizationUrl(
+        string endpoint,
+        string clientId,
+        string redirectUri,
+        string scope,
+        string state,
+        string codeVerifier)
+    {
+        var codeChallenge = Base64UrlEncode(SHA256.HashData(Encoding.ASCII.GetBytes(codeVerifier)));
+        var separator = endpoint.Contains('?', StringComparison.Ordinal) ? '&' : '?';
+        var parameters = new[]
+        {
+            ("response_type", "code"),
+            ("client_id", clientId),
+            ("redirect_uri", redirectUri),
+            ("scope", scope),
+            ("state", state),
+            ("code_challenge", codeChallenge),
+            ("code_challenge_method", "S256")
+        };
+
+        return endpoint + separator + string.Join(
+            "&",
+            parameters.Select(pair => Uri.EscapeDataString(pair.Item1) + "=" + Uri.EscapeDataString(pair.Item2)));
+    }
+
+    private static string BuildOAuth2CallbackUrl(string publicCallbackBaseUrl)
+    {
+        var baseUrl = publicCallbackBaseUrl.Trim();
+        if (baseUrl.Contains("/serverauth/oauth2/callback", StringComparison.OrdinalIgnoreCase))
+            return baseUrl;
+
+        return baseUrl.TrimEnd('/') + "/serverauth/oauth2/callback";
+    }
+
+    private static string GeneratePkceVerifier()
+    {
+        Span<byte> bytes = stackalloc byte[32];
+        RandomNumberGenerator.Fill(bytes);
+        return Base64UrlEncode(bytes);
+    }
+
+    private static string Base64UrlEncode(ReadOnlySpan<byte> bytes)
+    {
+        return Convert.ToBase64String(bytes)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+    }
+
+    private static string FormUrlEncode(string value)
+    {
+        return Uri.EscapeDataString(value).Replace("%20", "+", StringComparison.Ordinal);
+    }
+
+    private static bool IsHttpUrl(string value)
+    {
+        return Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+               (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+    }
+
+    private static string ReadJsonProperty(JsonElement root, string propertyName)
+    {
+        if (root.ValueKind != JsonValueKind.Object)
+            return string.Empty;
+
+        foreach (var property in root.EnumerateObject())
+        {
+            if (!property.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            return property.Value.ValueKind == JsonValueKind.String
+                ? property.Value.GetString()?.Trim() ?? string.Empty
+                : property.Value.ToString();
+        }
+
+        return string.Empty;
+    }
+
+    private static string ReadJsonClaim(JsonElement root, string configuredClaim, params string[] fallbacks)
+    {
+        var candidates = new List<string> { configuredClaim };
+        candidates.AddRange(fallbacks);
+        foreach (var claim in candidates
+                     .Where(static value => !string.IsNullOrWhiteSpace(value))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var exactValue = ReadJsonProperty(root, claim);
+            if (!string.IsNullOrWhiteSpace(exactValue))
+                return exactValue;
+
+            var current = root;
+            var found = true;
+            foreach (var segment in claim.Split('.', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (current.ValueKind != JsonValueKind.Object)
+                {
+                    found = false;
+                    break;
+                }
+
+                var matched = false;
+                foreach (var property in current.EnumerateObject())
+                {
+                    if (!property.Name.Equals(segment, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    current = property.Value;
+                    matched = true;
+                    break;
+                }
+
+                if (!matched)
+                {
+                    found = false;
+                    break;
+                }
+            }
+
+            if (!found)
+                continue;
+
+            var value = current.ValueKind switch
+            {
+                JsonValueKind.String => current.GetString()?.Trim() ?? string.Empty,
+                JsonValueKind.Number => current.ToString(),
+                JsonValueKind.True => "true",
+                JsonValueKind.False => "false",
+                _ => string.Empty
+            };
+            if (!string.IsNullOrWhiteSpace(value))
+                return value;
+        }
+
+        return string.Empty;
+    }
+
     private bool IsNicknameTakenByOtherUid(IServerPlayer player)
     {
         var normalized = NormalizePlayerName(player.PlayerName);
@@ -992,6 +1527,36 @@ public sealed class VsslAuthServerSystem : ModSystem
         public DateTimeOffset ExpiresAtUtc { get; init; }
     }
 
+    private sealed class OAuth2ChallengeState
+    {
+        public string PlayerUid { get; init; } = string.Empty;
+        public string CodeVerifier { get; init; } = string.Empty;
+        public string RedirectUri { get; init; } = string.Empty;
+        public OAuth2Endpoints Endpoints { get; init; } = new();
+        public string ClientId { get; init; } = string.Empty;
+        public string ClientSecret { get; init; } = string.Empty;
+        public string UserIdClaim { get; init; } = string.Empty;
+        public string UsernameClaim { get; init; } = string.Empty;
+        public string DisplayNameClaim { get; init; } = string.Empty;
+        public string EmailClaim { get; init; } = string.Empty;
+        public DateTimeOffset ExpiresAtUtc { get; init; }
+    }
+
+    private sealed class OAuth2Endpoints
+    {
+        public string AuthorizationEndpoint { get; init; } = string.Empty;
+        public string TokenEndpoint { get; init; } = string.Empty;
+        public string UserInfoEndpoint { get; init; } = string.Empty;
+    }
+
+    private sealed class OAuth2Identity
+    {
+        public string Subject { get; init; } = string.Empty;
+        public string Username { get; init; } = string.Empty;
+        public string DisplayName { get; init; } = string.Empty;
+        public string Email { get; init; } = string.Empty;
+    }
+
     private sealed class PlayerStore
     {
         public List<ServerAuthPlayerRecord> Players { get; set; } = [];
@@ -1004,6 +1569,7 @@ public sealed class VsslAuthServerSystem : ModSystem
         public int LoginTimeoutSeconds { get; set; } = 60;
         public int RememberSessionMinutes { get; set; } = 30;
         public ServerAuthDiscourseSettings Discourse { get; set; } = new();
+        public ServerAuthOAuth2Settings OAuth2 { get; set; } = new();
 
         public static ServerAuthSettings Default()
         {
@@ -1012,7 +1578,8 @@ public sealed class VsslAuthServerSystem : ModSystem
                 Enabled = false,
                 LoginTimeoutSeconds = 60,
                 RememberSessionMinutes = 30,
-                Discourse = new ServerAuthDiscourseSettings()
+                Discourse = new ServerAuthDiscourseSettings(),
+                OAuth2 = new ServerAuthOAuth2Settings()
             };
         }
 
@@ -1030,7 +1597,48 @@ public sealed class VsslAuthServerSystem : ModSystem
             normalized.Discourse.ListenPrefix = NormalizeUrl(
                 normalized.Discourse.ListenPrefix,
                 "http://127.0.0.1:18092/");
+            normalized.OAuth2 ??= new ServerAuthOAuth2Settings();
+            normalized.OAuth2.DiscoveryUrl = NormalizeEndpoint(normalized.OAuth2.DiscoveryUrl);
+            normalized.OAuth2.AuthorizationEndpoint = NormalizeEndpoint(normalized.OAuth2.AuthorizationEndpoint);
+            normalized.OAuth2.TokenEndpoint = NormalizeEndpoint(normalized.OAuth2.TokenEndpoint);
+            normalized.OAuth2.UserInfoEndpoint = NormalizeEndpoint(normalized.OAuth2.UserInfoEndpoint);
+            normalized.OAuth2.ClientId = normalized.OAuth2.ClientId?.Trim() ?? string.Empty;
+            normalized.OAuth2.ClientSecret = normalized.OAuth2.ClientSecret?.Trim() ?? string.Empty;
+            normalized.OAuth2.Scope = string.IsNullOrWhiteSpace(normalized.OAuth2.Scope)
+                ? "openid profile email"
+                : normalized.OAuth2.Scope.Trim();
+            normalized.OAuth2.PublicCallbackBaseUrl = NormalizeOAuth2CallbackUrl(
+                normalized.OAuth2.PublicCallbackBaseUrl);
+            normalized.OAuth2.ListenPrefix = NormalizeUrl(
+                normalized.OAuth2.ListenPrefix,
+                "http://127.0.0.1:18092/");
+            normalized.OAuth2.UserIdClaim = NormalizeClaim(normalized.OAuth2.UserIdClaim, "sub");
+            normalized.OAuth2.UsernameClaim = NormalizeClaim(normalized.OAuth2.UsernameClaim, "preferred_username");
+            normalized.OAuth2.DisplayNameClaim = NormalizeClaim(normalized.OAuth2.DisplayNameClaim, "name");
+            normalized.OAuth2.EmailClaim = NormalizeClaim(normalized.OAuth2.EmailClaim, "email");
             return normalized;
+        }
+
+        private static string NormalizeEndpoint(string? value)
+        {
+            return value?.Trim() ?? string.Empty;
+        }
+
+        private static string NormalizeClaim(string? value, string fallback)
+        {
+            var candidate = value?.Trim() ?? string.Empty;
+            return string.IsNullOrWhiteSpace(candidate) ? fallback : candidate;
+        }
+
+        private static string NormalizeOAuth2CallbackUrl(string? value)
+        {
+            var candidate = value?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(candidate))
+                return "http://127.0.0.1:18092/";
+            if (candidate.Contains("/serverauth/oauth2/callback", StringComparison.OrdinalIgnoreCase))
+                return candidate.TrimEnd('/');
+
+            return candidate.EndsWith('/') ? candidate : candidate + "/";
         }
 
         private static string NormalizeUrl(string? value, string fallback = "")
@@ -1052,6 +1660,24 @@ public sealed class VsslAuthServerSystem : ModSystem
         public string ListenPrefix { get; set; } = "http://127.0.0.1:18092/";
     }
 
+    private sealed class ServerAuthOAuth2Settings
+    {
+        public bool Enabled { get; set; }
+        public string DiscoveryUrl { get; set; } = string.Empty;
+        public string AuthorizationEndpoint { get; set; } = string.Empty;
+        public string TokenEndpoint { get; set; } = string.Empty;
+        public string UserInfoEndpoint { get; set; } = string.Empty;
+        public string ClientId { get; set; } = string.Empty;
+        public string ClientSecret { get; set; } = string.Empty;
+        public string Scope { get; set; } = "openid profile email";
+        public string PublicCallbackBaseUrl { get; set; } = "http://127.0.0.1:18092/";
+        public string ListenPrefix { get; set; } = "http://127.0.0.1:18092/";
+        public string UserIdClaim { get; set; } = "sub";
+        public string UsernameClaim { get; set; } = "preferred_username";
+        public string DisplayNameClaim { get; set; } = "name";
+        public string EmailClaim { get; set; } = "email";
+    }
+
     private sealed class ServerAuthPlayerRecord
     {
         public string PlayerUid { get; set; } = string.Empty;
@@ -1066,6 +1692,10 @@ public sealed class VsslAuthServerSystem : ModSystem
         public string DiscourseExternalId { get; set; } = string.Empty;
         public string DiscourseUsername { get; set; } = string.Empty;
         public string DiscourseEmail { get; set; } = string.Empty;
+        public string OAuth2Subject { get; set; } = string.Empty;
+        public string OAuth2Username { get; set; } = string.Empty;
+        public string OAuth2DisplayName { get; set; } = string.Empty;
+        public string OAuth2Email { get; set; } = string.Empty;
     }
 
     private sealed class ServerAuthSessionRecord

@@ -36,7 +36,7 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 | Automation | Scheduled start and stop, scheduled backup, backup before shutdown, scheduled broadcast, and log export |
 | Mod management | Mod scanning, enable and disable operations, dependency display, issue display, and file status display |
 | Downloads | Server version list, search, download, server package import, and download cache cleanup |
-| Connections | Regular FRP, third-party FRPC, OpenServerQuery open information, QQ bot, and ServerAuth configuration |
+| Connections | Regular FRP, third-party FRPC, OpenServerQuery open information, QQ bot, and ServerAuth password, Discourse SSO, and OAuth2/OIDC configuration |
 | Settings | Server, appearance, network, advanced, about, sponsors, and contributors pages |
 | Logging | Application log files, console logs, automation runtime logs, and server log export |
 | Internationalization | Chinese and English resources with runtime language switching |
@@ -80,6 +80,8 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 | `LauncherGo.Services/EmbeddedMods/VsslAuthMod` | Embedded ServerAuth mod source code |
 | `installer` | Inno Setup script for Windows installer packages |
 | `.github/workflows` | Windows packaging, small-package distribution, Release publishing, and embedded authentication mod build workflows |
+
+See [`docs/serverauth-oauth2.md`](docs/serverauth-oauth2.md) for ServerAuth OAuth2/OIDC configuration and a Vintage Story Connect example.
 
 ## Open Source Projects Used
 

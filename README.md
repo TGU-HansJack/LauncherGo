@@ -36,7 +36,7 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | 自动化 | 定时开关服、定时备份、关服前备份、定时广播、日志导出 |
 | 模组管理 | 模组扫描、启用与禁用、依赖与问题展示、文件状态展示 |
 | 下载版本 | 服务端版本列表、搜索、下载、导入服务端压缩包、下载缓存清理 |
-| 连接功能 | 常规内网穿透、第三方 FRPC、OpenServerQuery 开放信息、QQ 机器人、ServerAuth 认证配置 |
+| 连接功能 | 常规内网穿透、第三方 FRPC、OpenServerQuery 开放信息、QQ 机器人、ServerAuth 密码、Discourse SSO 与 OAuth2/OIDC 认证配置 |
 | 设置 | 服务器设置、外观、网络、高级、关于、赞助者、贡献者 |
 | 日志 | 软件日志文件、控制台日志、自动化运行日志、服务端日志导出 |
 | 国际化 | 中英文资源与运行时语言切换 |
@@ -80,6 +80,9 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | `LauncherGo.Services/EmbeddedMods/VsslAuthMod` | 嵌入式 ServerAuth 模组源码 |
 | `installer` | Inno Setup Windows 安装包脚本 |
 | `.github/workflows` | Windows 打包、小体积分发打包、Release 发布与嵌入认证模组构建工作流 |
+
+ServerAuth 的 OAuth2/OIDC 配置与 Vintage Story Connect 接入示例见
+[`docs/serverauth-oauth2.md`](docs/serverauth-oauth2.md)。
 
 ## 开源项目使用
 

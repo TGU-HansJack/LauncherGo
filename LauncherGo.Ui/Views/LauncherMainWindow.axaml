@@ -2556,7 +2556,7 @@
                                                     <WrapPanel Orientation="Horizontal">
                                                         <StackPanel Classes="ToggleField">
                                                             <TextBlock x:Name="AuthDiscourseEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="启用 Discourse 登录" />
-                                                            <ToggleSwitch x:Name="AuthDiscourseEnabledCheckBox" Classes="LabelledToggle" />
+                                                            <ToggleSwitch x:Name="AuthDiscourseEnabledCheckBox" Classes="LabelledToggle" Click="OnAuthDiscourseModeClick" />
                                                         </StackPanel>
                                                         <StackPanel Classes="ConfigFormFieldWide">
                                                             <TextBlock x:Name="AuthDiscourseBaseUrlLabelTextBlock" Classes="ConfigFieldLabel" Text="Discourse 地址" />
@@ -2575,6 +2575,68 @@
                                                             <TextBox x:Name="AuthDiscourseListenPrefixTextBox" Classes="CompactInput" />
                                                         </StackPanel>
                                                     </WrapPanel>
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="AuthOAuth2EnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="启用 OAuth2/OIDC 登录" />
+                                                            <ToggleSwitch x:Name="AuthOAuth2EnabledCheckBox" Classes="LabelledToggle" Click="OnAuthOAuth2ModeClick" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="AuthOAuth2DiscoveryUrlLabelTextBlock" Classes="ConfigFieldLabel" Text="Discovery 地址（可选）" />
+                                                            <TextBox x:Name="AuthOAuth2DiscoveryUrlTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="AuthOAuth2AuthorizationEndpointLabelTextBlock" Classes="ConfigFieldLabel" Text="授权端点" />
+                                                            <TextBox x:Name="AuthOAuth2AuthorizationEndpointTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="AuthOAuth2TokenEndpointLabelTextBlock" Classes="ConfigFieldLabel" Text="Token 端点" />
+                                                            <TextBox x:Name="AuthOAuth2TokenEndpointTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="AuthOAuth2UserInfoEndpointLabelTextBlock" Classes="ConfigFieldLabel" Text="UserInfo 端点" />
+                                                            <TextBox x:Name="AuthOAuth2UserInfoEndpointTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                    </WrapPanel>
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="AuthOAuth2ClientIdLabelTextBlock" Classes="ConfigFieldLabel" Text="Client ID" />
+                                                            <TextBox x:Name="AuthOAuth2ClientIdTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="AuthOAuth2ClientSecretLabelTextBlock" Classes="ConfigFieldLabel" Text="Client Secret" />
+                                                            <TextBox x:Name="AuthOAuth2ClientSecretTextBox" Classes="CompactInput" PasswordChar="*" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="AuthOAuth2ScopeLabelTextBlock" Classes="ConfigFieldLabel" Text="Scope" />
+                                                            <TextBox x:Name="AuthOAuth2ScopeTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="AuthOAuth2PublicCallbackLabelTextBlock" Classes="ConfigFieldLabel" Text="公开回调地址" />
+                                                            <TextBox x:Name="AuthOAuth2PublicCallbackTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="AuthOAuth2ListenPrefixLabelTextBlock" Classes="ConfigFieldLabel" Text="本地监听地址" />
+                                                            <TextBox x:Name="AuthOAuth2ListenPrefixTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                    </WrapPanel>
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="AuthOAuth2UserIdClaimLabelTextBlock" Classes="ConfigFieldLabel" Text="用户 ID claim" />
+                                                            <TextBox x:Name="AuthOAuth2UserIdClaimTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="AuthOAuth2UsernameClaimLabelTextBlock" Classes="ConfigFieldLabel" Text="用户名 claim" />
+                                                            <TextBox x:Name="AuthOAuth2UsernameClaimTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="AuthOAuth2DisplayNameClaimLabelTextBlock" Classes="ConfigFieldLabel" Text="显示名 claim" />
+                                                            <TextBox x:Name="AuthOAuth2DisplayNameClaimTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="AuthOAuth2EmailClaimLabelTextBlock" Classes="ConfigFieldLabel" Text="邮箱 claim" />
+                                                            <TextBox x:Name="AuthOAuth2EmailClaimTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                    </WrapPanel>
                                                 </StackPanel>
                                             </Border>
                                             <Border Classes="ConfigCard">
@@ -2590,7 +2652,7 @@
                                                                 <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="注册" />
                                                                 <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="最后登录" />
                                                                 <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="密码" />
-                                                                <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="Discourse" />
+                                                                <TextBlock x:Name="AuthExternalAccountHeaderTextBlock" Grid.Column="4" Classes="TableHeaderText" Text="外部账号" />
                                                                 <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
                                                             </Grid>
                                                         </Border>
@@ -2612,7 +2674,7 @@
                                                                                 <TextBlock Text="{Binding LastIp}" FontSize="11" Foreground="{DynamicResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
                                                                             </StackPanel>
                                                                             <TextBlock Grid.Column="3" Classes="TableCellText" Text="{Binding PasswordStateText}" />
-                                                                            <TextBlock Grid.Column="4" Classes="TableCellText" Text="{Binding DiscourseUsername}" />
+                                                                            <TextBlock Grid.Column="4" Classes="TableCellText" Text="{Binding ExternalUsername}" />
                                                                             <Button Grid.Column="5" Classes="SecondaryActionButton" Tag="{Binding}" Content="清空密码" Click="OnAuthClearPlayerPasswordClick" />
                                                                         </Grid>
                                                                     </DataTemplate>

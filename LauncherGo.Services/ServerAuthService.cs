@@ -103,7 +103,11 @@ public sealed class ServerAuthService : IServerAuthService
                 HasPassword = !string.IsNullOrWhiteSpace(player.PasswordHash),
                 DiscourseExternalId = player.DiscourseExternalId,
                 DiscourseUsername = player.DiscourseUsername,
-                DiscourseEmail = player.DiscourseEmail
+                DiscourseEmail = player.DiscourseEmail,
+                OAuth2Subject = player.OAuth2Subject,
+                OAuth2Username = player.OAuth2Username,
+                OAuth2DisplayName = player.OAuth2DisplayName,
+                OAuth2Email = player.OAuth2Email
             })
             .OrderBy(static player => player.PlayerName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(static player => player.PlayerUid, StringComparer.OrdinalIgnoreCase)
@@ -490,6 +494,7 @@ public sealed class ServerAuthService : IServerAuthService
     private static ServerAuthSettings NormalizeSettings(ServerAuthSettings settings)
     {
         var discourse = settings.Discourse ?? new ServerAuthDiscourseSettings();
+        var oauth2 = settings.OAuth2 ?? new ServerAuthOAuth2Settings();
         return new ServerAuthSettings
         {
             Enabled = settings.Enabled,
@@ -502,8 +507,41 @@ public sealed class ServerAuthService : IServerAuthService
                 SharedSecret = discourse.SharedSecret?.Trim() ?? string.Empty,
                 PublicCallbackBaseUrl = NormalizeUrl(discourse.PublicCallbackBaseUrl, "http://127.0.0.1:18092/"),
                 ListenPrefix = NormalizeUrl(discourse.ListenPrefix, "http://127.0.0.1:18092/")
+            },
+            OAuth2 = new ServerAuthOAuth2Settings
+            {
+                Enabled = oauth2.Enabled,
+                DiscoveryUrl = NormalizeEndpoint(oauth2.DiscoveryUrl),
+                AuthorizationEndpoint = NormalizeEndpoint(oauth2.AuthorizationEndpoint),
+                TokenEndpoint = NormalizeEndpoint(oauth2.TokenEndpoint),
+                UserInfoEndpoint = NormalizeEndpoint(oauth2.UserInfoEndpoint),
+                ClientId = oauth2.ClientId?.Trim() ?? string.Empty,
+                ClientSecret = oauth2.ClientSecret?.Trim() ?? string.Empty,
+                Scope = string.IsNullOrWhiteSpace(oauth2.Scope) ? "openid profile email" : oauth2.Scope.Trim(),
+                PublicCallbackBaseUrl = NormalizeOAuth2CallbackUrl(oauth2.PublicCallbackBaseUrl),
+                ListenPrefix = NormalizeUrl(oauth2.ListenPrefix, "http://127.0.0.1:18092/"),
+                UserIdClaim = string.IsNullOrWhiteSpace(oauth2.UserIdClaim) ? "sub" : oauth2.UserIdClaim.Trim(),
+                UsernameClaim = string.IsNullOrWhiteSpace(oauth2.UsernameClaim) ? "preferred_username" : oauth2.UsernameClaim.Trim(),
+                DisplayNameClaim = string.IsNullOrWhiteSpace(oauth2.DisplayNameClaim) ? "name" : oauth2.DisplayNameClaim.Trim(),
+                EmailClaim = string.IsNullOrWhiteSpace(oauth2.EmailClaim) ? "email" : oauth2.EmailClaim.Trim()
             }
         };
+    }
+
+    private static string NormalizeEndpoint(string? value)
+    {
+        return value?.Trim() ?? string.Empty;
+    }
+
+    private static string NormalizeOAuth2CallbackUrl(string? value)
+    {
+        var candidate = value?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(candidate))
+            return "http://127.0.0.1:18092/";
+        if (candidate.Contains("/serverauth/oauth2/callback", StringComparison.OrdinalIgnoreCase))
+            return candidate.TrimEnd('/');
+
+        return candidate.EndsWith('/') ? candidate : candidate + "/";
     }
 
     private static string NormalizeUrl(string? value, string fallback = "")
@@ -586,6 +624,10 @@ public sealed class ServerAuthService : IServerAuthService
         public string DiscourseExternalId { get; set; } = string.Empty;
         public string DiscourseUsername { get; set; } = string.Empty;
         public string DiscourseEmail { get; set; } = string.Empty;
+        public string OAuth2Subject { get; set; } = string.Empty;
+        public string OAuth2Username { get; set; } = string.Empty;
+        public string OAuth2DisplayName { get; set; } = string.Empty;
+        public string OAuth2Email { get; set; } = string.Empty;
     }
 
     private sealed class SessionRecord

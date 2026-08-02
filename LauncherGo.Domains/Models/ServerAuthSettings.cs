@@ -12,6 +12,8 @@ public sealed class ServerAuthSettings
     public int RememberSessionMinutes { get; init; } = 30;
 
     public ServerAuthDiscourseSettings Discourse { get; init; } = new();
+
+    public ServerAuthOAuth2Settings OAuth2 { get; init; } = new();
 }
 
 public sealed class ServerAuthDiscourseSettings
@@ -25,6 +27,40 @@ public sealed class ServerAuthDiscourseSettings
     public string PublicCallbackBaseUrl { get; init; } = "http://127.0.0.1:18092/";
 
     public string ListenPrefix { get; init; } = "http://127.0.0.1:18092/";
+}
+
+/// <summary>
+///     通用 OAuth2/OIDC 授权码客户端配置。
+/// </summary>
+public sealed class ServerAuthOAuth2Settings
+{
+    public bool Enabled { get; init; }
+
+    public string DiscoveryUrl { get; init; } = string.Empty;
+
+    public string AuthorizationEndpoint { get; init; } = string.Empty;
+
+    public string TokenEndpoint { get; init; } = string.Empty;
+
+    public string UserInfoEndpoint { get; init; } = string.Empty;
+
+    public string ClientId { get; init; } = string.Empty;
+
+    public string ClientSecret { get; init; } = string.Empty;
+
+    public string Scope { get; init; } = "openid profile email";
+
+    public string PublicCallbackBaseUrl { get; init; } = "http://127.0.0.1:18092/";
+
+    public string ListenPrefix { get; init; } = "http://127.0.0.1:18092/";
+
+    public string UserIdClaim { get; init; } = "sub";
+
+    public string UsernameClaim { get; init; } = "preferred_username";
+
+    public string DisplayNameClaim { get; init; } = "name";
+
+    public string EmailClaim { get; init; } = "email";
 }
 
 public sealed class ServerAuthPlayerSummary
@@ -52,5 +88,13 @@ public sealed class ServerAuthPlayerSummary
     public string DiscourseUsername { get; init; } = string.Empty;
 
     public string DiscourseEmail { get; init; } = string.Empty;
+
+    public string OAuth2Subject { get; init; } = string.Empty;
+
+    public string OAuth2Username { get; init; } = string.Empty;
+
+    public string OAuth2DisplayName { get; init; } = string.Empty;
+
+    public string OAuth2Email { get; init; } = string.Empty;
 }
 
