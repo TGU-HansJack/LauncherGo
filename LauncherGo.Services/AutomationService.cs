@@ -13,6 +13,7 @@ namespace LauncherGo.Services;
 public partial class AutomationService : IAutomationService, IDisposable
 {
     private readonly IAutomationSettingsService _settingsService;
+    private readonly ILauncherPreferencesService _preferencesService;
     private readonly IInstanceProfileService _profileService;
     private readonly IInstanceSaveService _instanceSaveService;
     private readonly ILogTailService _logTailService;
@@ -40,12 +41,14 @@ public partial class AutomationService : IAutomationService, IDisposable
 
     public AutomationService(
         IAutomationSettingsService settingsService,
+        ILauncherPreferencesService preferencesService,
         IInstanceProfileService profileService,
         IInstanceSaveService instanceSaveService,
         ILogTailService logTailService,
         IServerProcessService serverProcessService)
     {
         _settingsService = settingsService;
+        _preferencesService = preferencesService;
         _profileService = profileService;
         _instanceSaveService = instanceSaveService;
         _logTailService = logTailService;
@@ -349,16 +352,23 @@ public partial class AutomationService : IAutomationService, IDisposable
         await _backupGate.WaitAsync(cancellationToken);
         try
         {
+            var compressionEnabled = _preferencesService.Load().SaveCompression?.Enabled == true;
             var status = _serverProcessService.GetCurrentStatus(profile.Id);
             if (status.IsRunning)
             {
+                var requestedBackupFileName = compressionEnabled
+                    ? BuildBackupFileName(profile)
+                    : null;
                 var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 lock (_backupStateGate)
                 {
                     _backupCompletionSource = completion;
                 }
 
-                await _serverProcessService.SendCommandAsync(profile.Id, "/genbackup", cancellationToken);
+                var command = string.IsNullOrWhiteSpace(requestedBackupFileName)
+                    ? "/genbackup"
+                    : $"/genbackup {requestedBackupFileName}";
+                await _serverProcessService.SendCommandAsync(profile.Id, command, cancellationToken);
                 WriteRuntimeLog($"自动化备份：已请求服务器备份（档案：{profile.Name}）。");
 
                 var finished = await Task.WhenAny(
@@ -368,6 +378,11 @@ public partial class AutomationService : IAutomationService, IDisposable
                 if (finished == completion.Task && await completion.Task)
                 {
                     WriteRuntimeLog("自动化备份：服务器备份完成。");
+                    if (!string.IsNullOrWhiteSpace(requestedBackupFileName))
+                    {
+                        var generatedBackupPath = Path.Combine(profile.DirectoryPath, "Backups", requestedBackupFileName);
+                        await CompressBackupAsync(profile, generatedBackupPath, cancellationToken);
+                    }
                 }
                 else if (finished == completion.Task)
                 {
@@ -381,8 +396,8 @@ public partial class AutomationService : IAutomationService, IDisposable
                 return;
             }
 
-            var backupPath = await _instanceSaveService.BackupActiveSaveAsync(profile, cancellationToken);
-            WriteRuntimeLog($"自动化备份：已备份当前存档（{Path.GetFileName(backupPath)}）。");
+            var offlineBackupPath = await _instanceSaveService.BackupActiveSaveAsync(profile, cancellationToken);
+            WriteRuntimeLog($"自动化备份：已备份当前存档（{Path.GetFileName(offlineBackupPath)}）。");
         }
         catch (Exception ex)
         {
@@ -397,6 +412,56 @@ public partial class AutomationService : IAutomationService, IDisposable
 
             _backupGate.Release();
         }
+    }
+
+    private async Task CompressBackupAsync(
+        InstanceProfile profile,
+        string backupPath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _instanceSaveService.CompressBackupAsync(profile, backupPath, cancellationToken);
+            if (result is null)
+            {
+                return;
+            }
+
+            if (result.Skipped)
+            {
+                WriteRuntimeLog($"自动化备份压缩：目标文件已是最新，跳过（{Path.GetFileName(result.CompressedPath)}）。");
+                return;
+            }
+
+            var deletedText = result.SourceDeleted ? "，已删除原始 vcdbs" : string.Empty;
+            WriteRuntimeLog($"自动化备份压缩：已生成 {Path.GetFileName(result.CompressedPath)}{deletedText}。");
+        }
+        catch (Exception ex)
+        {
+            WriteRuntimeLog($"自动化备份已完成，但压缩失败：{ex.Message}");
+        }
+    }
+
+    private static string BuildBackupFileName(InstanceProfile profile)
+    {
+        var sourceName = Path.GetFileNameWithoutExtension(profile.ActiveSaveFile);
+        if (string.IsNullOrWhiteSpace(sourceName))
+        {
+            sourceName = "world";
+        }
+
+        var safeName = string.Join(
+            '_',
+            sourceName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
+        if (string.IsNullOrWhiteSpace(safeName))
+        {
+            safeName = "world";
+        }
+
+        safeName = string.Concat(safeName.Select(character => char.IsWhiteSpace(character) ? '_' : character));
+
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        return $"{safeName}-{DateTime.Now:yyyy-MM-dd_HH-mm-ss}-{suffix}.vcdbs";
     }
 
     private async Task TryBroadcastSystemMessageAsync(

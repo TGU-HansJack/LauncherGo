@@ -66,4 +66,6 @@ public class LauncherPreferences
     public RobotIntegrationSettings Robot { get; set; } = new();
 
     public FrpIntegrationSettings Frp { get; set; } = new();
+
+    public SaveCompressionSettings SaveCompression { get; set; } = new();
 }

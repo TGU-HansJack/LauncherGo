@@ -25,6 +25,8 @@ public static class LauncherPathHelper
 
     public static string DefaultQqBotDirectory => GetQqBotDirectory(DefaultWorkspaceRoot);
 
+    public static string DefaultSaveCompressionDirectory => GetSaveCompressionDirectory(DefaultWorkspaceRoot);
+
     public static string GetWorkspaceRootOrDefault(string? workspaceRoot) =>
         NormalizeDirectoryOrDefault(workspaceRoot, DefaultWorkspaceRoot);
 
@@ -40,6 +42,9 @@ public static class LauncherPathHelper
     public static string GetQqBotDirectory(string workspaceRoot) =>
         Path.Combine(GetWorkspaceRootOrDefault(workspaceRoot), "qqbot");
 
+    public static string GetSaveCompressionDirectory(string workspaceRoot) =>
+        Path.Combine(GetWorkspaceRootOrDefault(workspaceRoot), "compressed-saves");
+
     public static LauncherPreferences BuildDefaults()
     {
         return new LauncherPreferences
@@ -50,6 +55,10 @@ public static class LauncherPathHelper
             ProfileDirectory = DefaultProfileDirectory,
             SaveDirectory = DefaultSaveDirectory,
             QqBotDirectory = DefaultQqBotDirectory,
+            SaveCompression = new SaveCompressionSettings
+            {
+                CompressionPath = DefaultSaveCompressionDirectory
+            },
             ServerDownloadCatalogUrl = DefaultServerDownloadCatalogUrl,
             EnableChunkedDownloads = false,
             DownloadChunkCount = 4,
@@ -74,6 +83,10 @@ public static class LauncherPathHelper
         Directory.CreateDirectory(preferences.ProfileDirectory);
         Directory.CreateDirectory(preferences.SaveDirectory);
         Directory.CreateDirectory(preferences.QqBotDirectory);
+        if (!string.IsNullOrWhiteSpace(preferences.SaveCompression?.CompressionPath))
+        {
+            Directory.CreateDirectory(preferences.SaveCompression.CompressionPath);
+        }
     }
 
     public static string NormalizeDirectoryOrDefault(string? path, string defaultPath)

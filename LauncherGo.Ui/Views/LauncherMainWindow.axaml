@@ -2043,6 +2043,40 @@
                                             </Border>
                                             <Border Classes="ConfigCard">
                                                 <StackPanel Spacing="10">
+                                                    <TextBlock x:Name="SettingsSaveCompressionTitleTextBlock" Classes="ConfigSectionTitle" Text="存档压缩" />
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="SettingsSaveCompressionEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="启用存档压缩" />
+                                                            <ToggleSwitch x:Name="SettingsSaveCompressionEnabledCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="SettingsSaveCompressionLevelLabelTextBlock" Classes="ConfigFieldLabel" Text="压缩等级" />
+                                                            <NumericUpDown x:Name="SettingsSaveCompressionLevelNumericUpDown" Classes="CompactNumber" Minimum="1" Maximum="22" Increment="1" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="SettingsSaveCompressionPathLabelTextBlock" Classes="ConfigFieldLabel" Text="压缩路径" />
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                                                <TextBox x:Name="SettingsSaveCompressionPathTextBox" Classes="CompactInput" />
+                                                                <Button x:Name="SettingsBrowseSaveCompressionPathButton" Grid.Column="1" Classes="SecondaryActionButton" Content="浏览" Click="OnSettingsBrowseSaveCompressionPathClick" />
+                                                            </Grid>
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="SettingsSaveCompressionUpdateModeLabelTextBlock" Classes="ConfigFieldLabel" Text="更新方式" />
+                                                            <ComboBox x:Name="SettingsSaveCompressionUpdateModeComboBox" Classes="CompactCombo" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="SettingsSaveCompressionDeleteSourceLabelTextBlock" Classes="ConfigFieldLabel" Text="压缩后删除原始文件" />
+                                                            <ToggleSwitch x:Name="SettingsSaveCompressionDeleteSourceCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                    </WrapPanel>
+                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                                        <TextBlock x:Name="SettingsSaveCompressionHintTextBlock" Classes="ConfigHintText" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                        <Button x:Name="SettingsCompressExistingBackupsButton" Grid.Column="1" Classes="SecondaryActionButton" Content="立即压缩已有备份" Click="OnSettingsCompressExistingBackupsClick" />
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Classes="ConfigCard">
+                                                <StackPanel Spacing="10">
                                                     <TextBlock x:Name="SettingsQuickCommandsTitleTextBlock" Classes="ConfigSectionTitle" Text="快捷命令" />
                                                     <TextBox x:Name="SettingsQuickCommandsTextBox" Classes="MultiLineInput" Height="92" AcceptsReturn="True" TextWrapping="Wrap" />
                                                 </StackPanel>

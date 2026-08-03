@@ -178,6 +178,7 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<ConfigSaveFileItem> _configSaveItems = [];
     private readonly ObservableCollection<ConfigWorldRuleItem> _configWorldRuleItems = [];
     private readonly ObservableCollection<ConfigChoiceOption> _thirdPartyFrpcModeOptions = [];
+    private readonly ObservableCollection<ConfigChoiceOption> _saveCompressionUpdateModeOptions = [];
     private readonly ObservableCollection<SettingsContributorItem> _settingsContributorItems = [];
     private readonly ObservableCollection<SettingsSponsorItem> _settingsSponsorItems = [];
     private readonly ObservableCollection<InstanceProfile> _automationProfileItems = [];
@@ -681,6 +682,18 @@ public partial class LauncherMainWindow : Window
         SettingsServerDirectoryTitleTextBlock.Text = T("目录路径", "Directory Path");
         SettingsWorkspaceDirectoryLabelTextBlock.Text = T("工作目录", "Workspace");
         SettingsBrowseWorkspaceDirectoryButton.Content = T("浏览", "Browse");
+        SettingsSaveCompressionTitleTextBlock.Text = T("存档压缩", "Save Compression");
+        SettingsSaveCompressionEnabledLabelTextBlock.Text = T("启用存档压缩", "Enable save compression");
+        SettingsSaveCompressionLevelLabelTextBlock.Text = T("压缩等级", "Compression level");
+        SettingsSaveCompressionPathLabelTextBlock.Text = T("压缩路径", "Compression path");
+        SettingsBrowseSaveCompressionPathButton.Content = T("浏览", "Browse");
+        SettingsSaveCompressionUpdateModeLabelTextBlock.Text = T("更新方式", "Update mode");
+        SettingsSaveCompressionDeleteSourceLabelTextBlock.Text = T("压缩后删除原始文件", "Delete source after compression");
+        SettingsSaveCompressionHintTextBlock.Text = T(
+            "仅处理备份产生的 .vcdbs；活动存档仍保留原始格式。更新并添加会跳过目标中更新的文件，添加并替换会始终覆盖目标。",
+            "Only backup .vcdbs files are compressed; the active save remains in its native format. Update and add skips targets that are newer, while add and replace always overwrites the target.");
+        SettingsCompressExistingBackupsButton.Content = T("立即压缩已有备份", "Compress existing backups");
+        RebuildSaveCompressionUpdateModeOptions();
         SettingsQuickCommandsTitleTextBlock.Text = T("快捷命令", "Quick Commands");
         SettingsServerAutomationTitleTextBlock.Text = T("启动与托盘", "Startup & Tray");
         SettingsStartWithWindowsLabelTextBlock.Text = T("开机启动启动器", "Start launcher with Windows");
@@ -2838,6 +2851,8 @@ public partial class LauncherMainWindow : Window
     {
         SettingsWorkspaceDirectoryTextBox.LostFocus += OnServerSettingsAutoSaveChanged;
         SettingsQuickCommandsTextBox.LostFocus += OnServerSettingsAutoSaveChanged;
+        SettingsSaveCompressionLevelNumericUpDown.LostFocus += OnServerSettingsAutoSaveChanged;
+        SettingsSaveCompressionPathTextBox.LostFocus += OnServerSettingsAutoSaveChanged;
 
         foreach (var check in new[]
                  {
@@ -2848,11 +2863,15 @@ public partial class LauncherMainWindow : Window
                      SettingsAutoStartOsqCheckBox,
                      SettingsAutoStartRobotCheckBox,
                      SettingsAutoStartFrpCheckBox,
-                     SettingsAutoStartThirdPartyFrpcCheckBox
+                     SettingsAutoStartThirdPartyFrpcCheckBox,
+                     SettingsSaveCompressionEnabledCheckBox,
+                     SettingsSaveCompressionDeleteSourceCheckBox
                  })
         {
             check.IsCheckedChanged += OnServerSettingsAutoSaveChanged;
         }
+
+        SettingsSaveCompressionUpdateModeComboBox.SelectionChanged += OnServerSettingsAutoSaveChanged;
 
         SettingsThirdPartyServerTextBox.LostFocus += OnNetworkSettingsAutoSaveChanged;
         SettingsDownloadChunkCountTextBox.LostFocus += OnNetworkSettingsAutoSaveChanged;
@@ -2981,6 +3000,15 @@ public partial class LauncherMainWindow : Window
             var profiles = _profileService.GetProfiles();
             SettingsWorkspaceDirectoryTextBox.Text = preferences.WorkspaceRoot;
             SettingsQuickCommandsTextBox.Text = FormatQuickCommands(preferences.QuickCommands);
+            var saveCompression = preferences.SaveCompression ?? new SaveCompressionSettings();
+            SettingsSaveCompressionEnabledCheckBox.IsChecked = saveCompression.Enabled;
+            SetNumericValue(SettingsSaveCompressionLevelNumericUpDown, Math.Clamp(saveCompression.CompressionLevel, 1, 22));
+            SettingsSaveCompressionPathTextBox.Text = saveCompression.CompressionPath;
+            SelectConfigChoiceByValue(
+                SettingsSaveCompressionUpdateModeComboBox,
+                _saveCompressionUpdateModeOptions,
+                saveCompression.UpdateMode.ToString());
+            SettingsSaveCompressionDeleteSourceCheckBox.IsChecked = saveCompression.DeleteSourceFiles;
             SettingsStartWithWindowsCheckBox.IsChecked = preferences.StartWithWindows;
             SettingsCloseToTrayCheckBox.IsChecked = preferences.CloseToTrayOnExit;
             SettingsStartHiddenCheckBox.IsChecked = preferences.StartHiddenOnLaunch;
@@ -3011,6 +3039,14 @@ public partial class LauncherMainWindow : Window
         var autoStartIds = LoadAutoStartProfileIds().ToList();
         preferences.WorkspaceRoot = SettingsWorkspaceDirectoryTextBox.Text?.Trim() ?? string.Empty;
         preferences.QuickCommands = ParseQuickCommands(SettingsQuickCommandsTextBox.Text);
+        preferences.SaveCompression = new SaveCompressionSettings
+        {
+            Enabled = SettingsSaveCompressionEnabledCheckBox.IsChecked == true,
+            CompressionLevel = (int)Math.Round(SettingsSaveCompressionLevelNumericUpDown.Value ?? 3),
+            CompressionPath = SettingsSaveCompressionPathTextBox.Text?.Trim() ?? string.Empty,
+            UpdateMode = GetSelectedSaveCompressionUpdateMode(),
+            DeleteSourceFiles = SettingsSaveCompressionDeleteSourceCheckBox.IsChecked == true
+        };
         preferences.StartWithWindows = SettingsStartWithWindowsCheckBox.IsChecked == true;
         preferences.CloseToTrayOnExit = SettingsCloseToTrayCheckBox.IsChecked == true;
         preferences.StartHiddenOnLaunch = SettingsStartHiddenCheckBox.IsChecked == true;
@@ -4141,6 +4177,31 @@ public partial class LauncherMainWindow : Window
             ConnectionThirdPartyFrpcModeComboBox,
             _thirdPartyFrpcModeOptions,
             selectedValue ?? ThirdPartyFrpcLaunchMode.ConfigFile.ToString());
+    }
+
+    private void RebuildSaveCompressionUpdateModeOptions()
+    {
+        var selectedValue = (SettingsSaveCompressionUpdateModeComboBox.SelectedItem as ConfigChoiceOption)?.Value;
+        _saveCompressionUpdateModeOptions.Clear();
+        _saveCompressionUpdateModeOptions.Add(new ConfigChoiceOption(
+            SaveCompressionUpdateMode.UpdateAndAdd.ToString(),
+            T("更新并添加文件", "Update and add files")));
+        _saveCompressionUpdateModeOptions.Add(new ConfigChoiceOption(
+            SaveCompressionUpdateMode.AddAndReplace.ToString(),
+            T("添加并替换文件", "Add and replace files")));
+        SettingsSaveCompressionUpdateModeComboBox.ItemsSource = _saveCompressionUpdateModeOptions;
+        SelectConfigChoiceByValue(
+            SettingsSaveCompressionUpdateModeComboBox,
+            _saveCompressionUpdateModeOptions,
+            selectedValue ?? SaveCompressionUpdateMode.UpdateAndAdd.ToString());
+    }
+
+    private SaveCompressionUpdateMode GetSelectedSaveCompressionUpdateMode()
+    {
+        var value = (SettingsSaveCompressionUpdateModeComboBox.SelectedItem as ConfigChoiceOption)?.Value;
+        return Enum.TryParse<SaveCompressionUpdateMode>(value, ignoreCase: true, out var mode)
+            ? mode
+            : SaveCompressionUpdateMode.UpdateAndAdd;
     }
 
     private ThirdPartyFrpcLaunchMode GetSelectedThirdPartyFrpcMode()
@@ -5447,6 +5508,38 @@ public partial class LauncherMainWindow : Window
     private async void OnSettingsBrowseWorkspaceDirectoryClick(object? sender, RoutedEventArgs e)
     {
         await BrowseFolderToTextBoxAsync(SettingsWorkspaceDirectoryTextBox, T("选择工作目录", "Select workspace directory"));
+    }
+
+    private async void OnSettingsBrowseSaveCompressionPathClick(object? sender, RoutedEventArgs e)
+    {
+        await BrowseFolderToTextBoxAsync(SettingsSaveCompressionPathTextBox, T("选择存档压缩路径", "Select save compression path"));
+    }
+
+    private async void OnSettingsCompressExistingBackupsClick(object? sender, RoutedEventArgs e)
+    {
+        if (_isApplyingServerSettings)
+        {
+            return;
+        }
+
+        try
+        {
+            SettingsCompressExistingBackupsButton.IsEnabled = false;
+            var count = await _saveService.CompressExistingBackupsAsync();
+            SettingsServerStatusTextBlock.Text = T(
+                $"已压缩 {count} 个已有备份。",
+                $"Compressed {count} existing backup(s).");
+        }
+        catch (Exception ex)
+        {
+            SettingsServerStatusTextBlock.Text = T(
+                $"压缩已有备份失败：{ex.Message}",
+                $"Failed to compress existing backups: {ex.Message}");
+        }
+        finally
+        {
+            SettingsCompressExistingBackupsButton.IsEnabled = true;
+        }
     }
 
     private async void OnSettingsOpenLogClick(object? sender, RoutedEventArgs e)
@@ -8399,7 +8492,7 @@ public partial class LauncherMainWindow : Window
             [
                 new FilePickerFileType("Vintage Story Save")
                 {
-                    Patterns = ["*.vcdbs"]
+                    Patterns = ["*.vcdbs", "*.vcdbs.zst", "*.zst"]
                 }
             ]
         });

@@ -22,6 +22,14 @@ public interface IInstanceSaveService
         InstanceProfile profile,
         CancellationToken cancellationToken = default);
 
+    Task<SaveCompressionResult?> CompressBackupAsync(
+        InstanceProfile profile,
+        string backupFilePath,
+        CancellationToken cancellationToken = default);
+
+    Task<int> CompressExistingBackupsAsync(
+        CancellationToken cancellationToken = default);
+
     Task SetActiveSaveAsync(
         InstanceProfile profile,
         string saveFilePath,

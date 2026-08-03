@@ -1,11 +1,22 @@
 using LauncherGo.Abstractions.Services;
+using LauncherGo.Domains.Enums;
 using LauncherGo.Domains.Models;
 using LauncherGo.Services.Paths;
+using ZstdSharp;
 
 namespace LauncherGo.Services;
 
-public sealed class InstanceSaveService(IInstanceProfileService profileService) : IInstanceSaveService
+public sealed class InstanceSaveService(
+    IInstanceProfileService profileService,
+    ILauncherPreferencesService preferencesService) : IInstanceSaveService
 {
+    private const int CompressionBufferSize = 128 * 1024;
+
+    public InstanceSaveService(IInstanceProfileService profileService)
+        : this(profileService, new LauncherPreferencesService())
+    {
+    }
+
     public Task<IReadOnlyList<SaveFileEntry>> GetSavesAsync(
         InstanceProfile? profile = null,
         CancellationToken cancellationToken = default)
@@ -106,16 +117,62 @@ public sealed class InstanceSaveService(IInstanceProfileService profileService) 
             throw new InvalidOperationException($"存档文件不存在：{source}");
         }
 
-        if (!source.EndsWith(".vcdbs", StringComparison.OrdinalIgnoreCase))
+        var isCompressed = IsCompressedSavePath(source);
+        if (!isCompressed && !source.EndsWith(".vcdbs", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("仅支持导入 .vcdbs 存档文件。");
+            throw new InvalidOperationException("仅支持导入 .vcdbs 或 .vcdbs.zst 存档文件。");
         }
 
         Directory.CreateDirectory(profile.SaveDirectory);
-        var target = Path.Combine(profile.SaveDirectory, Path.GetFileName(source));
-        await using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read);
-        await using var output = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None);
-        await input.CopyToAsync(output, cancellationToken);
+        var targetFileName = isCompressed
+            ? GetUncompressedSaveFileName(source)
+            : Path.GetFileName(source);
+        var target = Path.Combine(profile.SaveDirectory, targetFileName);
+        var tempTarget = $"{target}.{Guid.NewGuid():N}.import.tmp";
+
+        try
+        {
+            await using (var input = new FileStream(
+                             source,
+                             FileMode.Open,
+                             FileAccess.Read,
+                             FileShare.Read,
+                             CompressionBufferSize,
+                             FileOptions.SequentialScan))
+            await using (var output = new FileStream(
+                             tempTarget,
+                             FileMode.CreateNew,
+                             FileAccess.Write,
+                             FileShare.None,
+                             CompressionBufferSize,
+                             FileOptions.SequentialScan))
+            {
+                if (isCompressed)
+                {
+                    await using var decompressor = new DecompressionStream(
+                        input,
+                        CompressionBufferSize,
+                        checkEndOfStream: true,
+                        leaveOpen: true);
+                    await decompressor.CopyToAsync(output, CompressionBufferSize, cancellationToken);
+                }
+                else
+                {
+                    await input.CopyToAsync(output, CompressionBufferSize, cancellationToken);
+                }
+            }
+
+            if (new FileInfo(tempTarget).Length == 0)
+            {
+                throw new InvalidDataException("解压后的存档文件为空。");
+            }
+
+            File.Move(tempTarget, target, overwrite: true);
+        }
+        finally
+        {
+            TryDeleteFile(tempTarget);
+        }
 
         if (!File.Exists(profile.ActiveSaveFile))
         {
@@ -144,7 +201,7 @@ public sealed class InstanceSaveService(IInstanceProfileService profileService) 
         return savePath;
     }
 
-    public Task<string> BackupActiveSaveAsync(
+    public async Task<string> BackupActiveSaveAsync(
         InstanceProfile profile,
         CancellationToken cancellationToken = default)
     {
@@ -163,7 +220,158 @@ public sealed class InstanceSaveService(IInstanceProfileService profileService) 
         var backupName = $"{LauncherWorkspacePathHelper.SanitizeFileName(sourceName)}-{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.vcdbs";
         var backupPath = Path.Combine(backupRoot, backupName);
         File.Copy(activeSave, backupPath, overwrite: false);
-        return Task.FromResult(backupPath);
+        var compression = await CompressBackupAsync(profile, backupPath, cancellationToken);
+        return compression?.CompressedPath ?? backupPath;
+    }
+
+    public async Task<SaveCompressionResult?> CompressBackupAsync(
+        InstanceProfile profile,
+        string backupFilePath,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var preferences = preferencesService.Load();
+        var settings = preferences.SaveCompression;
+        if (settings is null || !settings.Enabled)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(backupFilePath))
+        {
+            throw new InvalidOperationException("备份文件路径不能为空。");
+        }
+
+        var sourcePath = Path.GetFullPath(backupFilePath.Trim());
+        if (!sourcePath.EndsWith(".vcdbs", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("仅支持压缩 .vcdbs 存档文件。");
+        }
+
+        var backupRoot = LauncherWorkspacePathHelper.NormalizePath(
+            Path.Combine(profile.DirectoryPath, "Backups"));
+        if (!LauncherWorkspacePathHelper.IsSameOrChildPath(sourcePath, backupRoot))
+        {
+            throw new InvalidOperationException("存档压缩仅允许处理当前档案 Backups 目录中的文件。");
+        }
+
+        if (!File.Exists(sourcePath))
+        {
+            throw new FileNotFoundException("备份文件不存在。", sourcePath);
+        }
+
+        var configuredCompressionPath = settings.CompressionPath?.Trim();
+        var compressionDirectory = string.IsNullOrWhiteSpace(configuredCompressionPath)
+            ? LauncherPathHelper.GetSaveCompressionDirectory(preferences.WorkspaceRoot)
+            : Path.GetFullPath(configuredCompressionPath);
+        Directory.CreateDirectory(compressionDirectory);
+
+        var compressedPath = Path.Combine(
+            compressionDirectory,
+            Path.GetFileName(sourcePath) + ".zst");
+
+        if (settings.UpdateMode == SaveCompressionUpdateMode.UpdateAndAdd &&
+            File.Exists(compressedPath) &&
+            File.GetLastWriteTimeUtc(compressedPath) >= File.GetLastWriteTimeUtc(sourcePath))
+        {
+            return new SaveCompressionResult
+            {
+                SourcePath = sourcePath,
+                CompressedPath = compressedPath,
+                Skipped = true,
+                SourceDeleted = false
+            };
+        }
+
+        var temporaryPath = $"{compressedPath}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            await using (var input = new FileStream(
+                             sourcePath,
+                             FileMode.Open,
+                             FileAccess.Read,
+                             FileShare.Read,
+                             CompressionBufferSize,
+                             FileOptions.SequentialScan))
+            await using (var output = new FileStream(
+                             temporaryPath,
+                             FileMode.CreateNew,
+                             FileAccess.Write,
+                             FileShare.None,
+                             CompressionBufferSize,
+                             FileOptions.SequentialScan))
+            await using (var compressor = new CompressionStream(
+                             output,
+                             Math.Clamp(settings.CompressionLevel, 1, 22),
+                             CompressionBufferSize,
+                             leaveOpen: true))
+            {
+                await input.CopyToAsync(compressor, CompressionBufferSize, cancellationToken);
+            }
+
+            if (new FileInfo(temporaryPath).Length == 0)
+            {
+                throw new InvalidDataException("ZSTD 压缩结果为空。");
+            }
+
+            ReplaceFile(temporaryPath, compressedPath);
+
+            var sourceDeleted = false;
+            if (settings.DeleteSourceFiles &&
+                !sourcePath.Equals(compressedPath, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Delete(sourcePath);
+                sourceDeleted = true;
+            }
+
+            return new SaveCompressionResult
+            {
+                SourcePath = sourcePath,
+                CompressedPath = compressedPath,
+                SourceDeleted = sourceDeleted
+            };
+        }
+        finally
+        {
+            TryDeleteFile(temporaryPath);
+        }
+    }
+
+    public async Task<int> CompressExistingBackupsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var settings = preferencesService.Load().SaveCompression;
+        if (settings is null || !settings.Enabled)
+        {
+            throw new InvalidOperationException("请先启用存档压缩。");
+        }
+
+        var processed = 0;
+        foreach (var profile in profileService.GetProfiles())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var backupRoot = Path.Combine(profile.DirectoryPath, "Backups");
+            if (!Directory.Exists(backupRoot))
+            {
+                continue;
+            }
+
+            foreach (var backupPath in Directory.EnumerateFiles(
+                         backupRoot,
+                         "*.vcdbs",
+                         SearchOption.TopDirectoryOnly))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var result = await CompressBackupAsync(profile, backupPath, cancellationToken);
+                if (result is not null && !result.Skipped)
+                {
+                    processed++;
+                }
+            }
+        }
+
+        return processed;
     }
 
     public Task SetActiveSaveAsync(
@@ -352,5 +560,61 @@ public sealed class InstanceSaveService(IInstanceProfileService profileService) 
         }
 
         return Path.Combine(ResolveSaveDirectory(profile), "default.vcdbs");
+    }
+
+    private static bool IsCompressedSavePath(string path)
+    {
+        return path.EndsWith(".vcdbs.zst", StringComparison.OrdinalIgnoreCase) ||
+               path.EndsWith(".zst", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetUncompressedSaveFileName(string compressedPath)
+    {
+        var fileName = Path.GetFileName(compressedPath);
+        if (fileName.EndsWith(".zst", StringComparison.OrdinalIgnoreCase))
+        {
+            fileName = fileName[..^4];
+        }
+
+        return fileName.EndsWith(".vcdbs", StringComparison.OrdinalIgnoreCase)
+            ? fileName
+            : fileName + ".vcdbs";
+    }
+
+    private static void ReplaceFile(string temporaryPath, string destinationPath)
+    {
+        if (File.Exists(destinationPath))
+        {
+            try
+            {
+                File.Replace(temporaryPath, destinationPath, null, ignoreMetadataErrors: true);
+                return;
+            }
+            catch (PlatformNotSupportedException)
+            {
+                // Fall back to an overwrite move on platforms without File.Replace.
+            }
+            catch (IOException)
+            {
+                // File.Replace can fail when the destination is on a different filesystem.
+            }
+        }
+
+        File.Move(temporaryPath, destinationPath, overwrite: true);
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch
+        {
+            // Temporary files are best-effort cleanup only.
+        }
     }
 }

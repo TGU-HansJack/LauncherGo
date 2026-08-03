@@ -101,7 +101,31 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             AutoStartThirdPartyFrpcOnLaunch = source.AutoStartThirdPartyFrpcOnLaunch,
             OpenServerQuery = NormalizeOpenServerQuery(source.OpenServerQuery),
             Robot = NormalizeRobot(source.Robot, qqBotDirectory),
-            Frp = NormalizeFrp(source.Frp)
+            Frp = NormalizeFrp(source.Frp),
+            SaveCompression = NormalizeSaveCompression(source.SaveCompression, workspaceRoot)
+        };
+    }
+
+    private static SaveCompressionSettings NormalizeSaveCompression(
+        SaveCompressionSettings? source,
+        string workspaceRoot)
+    {
+        source ??= new SaveCompressionSettings();
+        var defaultPath = LauncherPathHelper.GetSaveCompressionDirectory(workspaceRoot);
+        var compressionPath = LauncherPathHelper.NormalizeDirectoryOrDefault(source.CompressionPath, defaultPath);
+
+        return new SaveCompressionSettings
+        {
+            Enabled = source.Enabled,
+            CompressionLevel = Math.Clamp(
+                source.CompressionLevel <= 0 ? 3 : source.CompressionLevel,
+                1,
+                22),
+            CompressionPath = compressionPath,
+            UpdateMode = Enum.IsDefined(source.UpdateMode)
+                ? source.UpdateMode
+                : SaveCompressionUpdateMode.UpdateAndAdd,
+            DeleteSourceFiles = source.DeleteSourceFiles
         };
     }
 
