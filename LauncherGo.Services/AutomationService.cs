@@ -796,17 +796,36 @@ public partial class AutomationService : IAutomationService, IDisposable
         if (completionSource is null)
             return;
 
-        if (line.Contains("Backup complete", StringComparison.OrdinalIgnoreCase))
+        if (IsBackupCompletedLine(line))
         {
             completionSource.TrySetResult(true);
             return;
         }
 
-        if (line.Contains("Can't run backup", StringComparison.OrdinalIgnoreCase) ||
-            line.Contains("backup is already in progress", StringComparison.OrdinalIgnoreCase))
+        if (IsBackupFailedLine(line))
         {
             completionSource.TrySetResult(false);
         }
+    }
+
+    internal static bool IsBackupCompletedLine(string? line)
+    {
+        return !string.IsNullOrWhiteSpace(line) &&
+               (line.Contains("Backup complete", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("Backup finished", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("备份已完成", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("备份完成", StringComparison.OrdinalIgnoreCase));
+    }
+
+    internal static bool IsBackupFailedLine(string? line)
+    {
+        return !string.IsNullOrWhiteSpace(line) &&
+               (line.Contains("Can't run backup", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("backup is already in progress", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("无法执行备份", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("备份正在进行中", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("备份已在进行中", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("备份失败", StringComparison.OrdinalIgnoreCase));
     }
 
     [GeneratedRegex(@"\[(Talk|Chat|Event|Audit)\]|<[^>]+>\s*.+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
