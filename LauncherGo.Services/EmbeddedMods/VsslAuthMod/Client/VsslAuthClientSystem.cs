@@ -32,6 +32,14 @@ public sealed class VsslAuthClientSystem : ModSystem
         api.Event.LeaveWorld += OnLeaveWorld;
     }
 
+    public override void Dispose()
+    {
+        if (_clientApi is not null)
+            _clientApi.Event.LeaveWorld -= OnLeaveWorld;
+        _clientApi = null;
+        base.Dispose();
+    }
+
     private void OnLeaveWorld()
     {
         _openedChallenges.Clear();
@@ -42,20 +50,75 @@ public sealed class VsslAuthClientSystem : ModSystem
         if (_clientApi is null || packet is null)
             return;
 
-        if (string.IsNullOrWhiteSpace(packet.AuthUrl) ||
+        var url = NormalizeAuthUrl(packet.AuthUrl);
+        if (string.IsNullOrWhiteSpace(url) ||
             string.IsNullOrWhiteSpace(packet.ChallengeId) ||
-            !_openedChallenges.Add(packet.ChallengeId))
+            !Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
         {
             return;
         }
 
+        if (!_openedChallenges.Add(packet.ChallengeId))
+            return;
+
+        _clientApi.Event.EnqueueMainThreadTask(
+            () => HandleAuthChallenge(url),
+            "serverauth-handle-auth-challenge");
+    }
+
+    private void HandleAuthChallenge(string url)
+    {
+        if (_clientApi is null)
+            return;
+
+        bool copied = CopyAuthUrl(url);
+        bool opened = OpenAuthUrl(url);
+
+        if (copied && opened)
+        {
+            _clientApi.ShowChatMessage("认证链接已自动复制到剪贴板，浏览器已尝试打开。若浏览器没有打开，请粘贴链接到浏览器。");
+        }
+        else if (copied)
+        {
+            _clientApi.ShowChatMessage("认证链接已自动复制到剪贴板，请粘贴链接到浏览器完成认证。");
+        }
+        else if (opened)
+        {
+            _clientApi.ShowChatMessage("浏览器已尝试打开认证页面，但自动复制失败，请手动复制链接：" + url);
+        }
+        else
+        {
+            _clientApi.ShowChatMessage("无法自动打开浏览器或复制链接，请手动复制链接：" + url);
+        }
+    }
+
+    private bool CopyAuthUrl(string url)
+    {
+        if (_clientApi is null || string.IsNullOrWhiteSpace(url))
+            return false;
+
         try
         {
-            OpenUrlInBrowser(packet.AuthUrl);
+            _clientApi.Forms.SetClipboardText(url);
+            return true;
         }
         catch
         {
-            _clientApi.ShowChatMessage("无法自动打开认证页面，请复制链接到浏览器：" + packet.AuthUrl);
+            return false;
+        }
+    }
+
+    private bool OpenAuthUrl(string url)
+    {
+        try
+        {
+            OpenUrlInBrowser(url);
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 
@@ -113,13 +176,25 @@ public sealed class VsslAuthClientSystem : ModSystem
 
         if (OperatingSystem.IsMacOS())
         {
-            Process.Start("open", uri.ToString());
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "/usr/bin/open",
+                UseShellExecute = false
+            };
+            startInfo.ArgumentList.Add(uri.ToString());
+            Process.Start(startInfo);
             return;
         }
 
         if (OperatingSystem.IsLinux())
         {
-            Process.Start("xdg-open", uri.ToString());
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "xdg-open",
+                UseShellExecute = false
+            };
+            startInfo.ArgumentList.Add(uri.ToString());
+            Process.Start(startInfo);
             return;
         }
 
