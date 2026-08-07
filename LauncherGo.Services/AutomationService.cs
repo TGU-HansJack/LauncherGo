@@ -35,7 +35,17 @@ public partial class AutomationService : IAutomationService, IDisposable
     private readonly Dictionary<string, bool> _lastDesiredServerRunningByProfile = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _lastDesiredServerRunningInitializedProfiles = new(StringComparer.OrdinalIgnoreCase);
     private TaskCompletionSource<bool>? _backupCompletionSource;
+    private string? _backupCompletionProfileId;
     private static readonly TimeSpan BackupWaitTimeout = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan BackupFileProbeInterval = TimeSpan.FromMilliseconds(500);
+    private const int RequiredBackupFileStableSamples = 2;
+
+    private enum GeneratedBackupWaitResult
+    {
+        Ready,
+        Failed,
+        TimedOut
+    }
 
     public event EventHandler<string>? RuntimeLogReceived;
 
@@ -55,6 +65,7 @@ public partial class AutomationService : IAutomationService, IDisposable
         _serverProcessService = serverProcessService;
 
         _serverProcessService.OutputReceived += OnServerOutputReceived;
+        _serverProcessService.ProfileOutputReceived += OnServerProfileOutputReceived;
         _logTailService.LogLineReceived += OnLogTailLineReceived;
         _serverProcessService.StatusChanged += OnServerStatusChanged;
         _loopTask = Task.Run(() => LoopAsync(_cts.Token), CancellationToken.None);
@@ -81,6 +92,7 @@ public partial class AutomationService : IAutomationService, IDisposable
     {
         _cts.Cancel();
         _serverProcessService.OutputReceived -= OnServerOutputReceived;
+        _serverProcessService.ProfileOutputReceived -= OnServerProfileOutputReceived;
         _logTailService.LogLineReceived -= OnLogTailLineReceived;
         _serverProcessService.StatusChanged -= OnServerStatusChanged;
         try
@@ -363,6 +375,7 @@ public partial class AutomationService : IAutomationService, IDisposable
                 lock (_backupStateGate)
                 {
                     _backupCompletionSource = completion;
+                    _backupCompletionProfileId = profile.Id;
                 }
 
                 var command = string.IsNullOrWhiteSpace(requestedBackupFileName)
@@ -371,18 +384,39 @@ public partial class AutomationService : IAutomationService, IDisposable
                 await _serverProcessService.SendCommandAsync(profile.Id, command, cancellationToken);
                 WriteRuntimeLog($"自动化备份：已请求服务器备份（档案：{profile.Name}）。");
 
+                if (!string.IsNullOrWhiteSpace(requestedBackupFileName))
+                {
+                    // /genbackup completion may be sent only to the command caller, not the server console.
+                    var generatedBackupPath = Path.Combine(profile.DirectoryPath, "Backups", requestedBackupFileName);
+                    var waitResult = await WaitForGeneratedBackupFileAsync(
+                        generatedBackupPath,
+                        completion.Task,
+                        cancellationToken);
+                    switch (waitResult)
+                    {
+                        case GeneratedBackupWaitResult.Ready:
+                            WriteRuntimeLog("自动化备份：已确认备份文件已生成。");
+                            await CompressBackupAsync(profile, generatedBackupPath, cancellationToken);
+                            break;
+                        case GeneratedBackupWaitResult.Failed:
+                            WriteRuntimeLog("自动化备份：服务器备份失败。");
+                            break;
+                        default:
+                            WriteRuntimeLog("自动化备份：等待备份文件生成超时。");
+                            break;
+                    }
+
+                    return;
+                }
+
                 var finished = await Task.WhenAny(
                     completion.Task,
                     Task.Delay(BackupWaitTimeout, cancellationToken));
+                cancellationToken.ThrowIfCancellationRequested();
 
                 if (finished == completion.Task && await completion.Task)
                 {
                     WriteRuntimeLog("自动化备份：服务器备份完成。");
-                    if (!string.IsNullOrWhiteSpace(requestedBackupFileName))
-                    {
-                        var generatedBackupPath = Path.Combine(profile.DirectoryPath, "Backups", requestedBackupFileName);
-                        await CompressBackupAsync(profile, generatedBackupPath, cancellationToken);
-                    }
                 }
                 else if (finished == completion.Task)
                 {
@@ -399,6 +433,10 @@ public partial class AutomationService : IAutomationService, IDisposable
             var offlineBackupPath = await _instanceSaveService.BackupActiveSaveAsync(profile, cancellationToken);
             WriteRuntimeLog($"自动化备份：已备份当前存档（{Path.GetFileName(offlineBackupPath)}）。");
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             WriteRuntimeLog($"自动化备份失败：{ex.Message}");
@@ -408,9 +446,151 @@ public partial class AutomationService : IAutomationService, IDisposable
             lock (_backupStateGate)
             {
                 _backupCompletionSource = null;
+                _backupCompletionProfileId = null;
             }
 
             _backupGate.Release();
+        }
+    }
+
+    private async Task<GeneratedBackupWaitResult> WaitForGeneratedBackupFileAsync(
+        string backupFilePath,
+        Task<bool> outputCompletionTask,
+        CancellationToken cancellationToken)
+    {
+        using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var fileReadyTask = WaitForBackupFileReadyAsync(
+            backupFilePath,
+            BackupWaitTimeout,
+            BackupFileProbeInterval,
+            waitCancellation.Token);
+        var firstCompletedTask = await Task.WhenAny(fileReadyTask, outputCompletionTask);
+        if (firstCompletedTask == outputCompletionTask && !await outputCompletionTask)
+        {
+            if (fileReadyTask.IsCompletedSuccessfully && fileReadyTask.Result)
+            {
+                return GeneratedBackupWaitResult.Ready;
+            }
+
+            waitCancellation.Cancel();
+            try
+            {
+                await fileReadyTask;
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                // The server rejected the backup request, so the file probe is no longer needed.
+            }
+
+            return GeneratedBackupWaitResult.Failed;
+        }
+
+        return await fileReadyTask
+            ? GeneratedBackupWaitResult.Ready
+            : GeneratedBackupWaitResult.TimedOut;
+    }
+
+    internal static async Task<bool> WaitForBackupFileReadyAsync(
+        string backupFilePath,
+        TimeSpan timeout,
+        TimeSpan probeInterval,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(backupFilePath) || timeout <= TimeSpan.Zero)
+        {
+            return false;
+        }
+
+        if (probeInterval <= TimeSpan.Zero)
+        {
+            probeInterval = TimeSpan.FromMilliseconds(1);
+        }
+
+        var deadline = DateTimeOffset.UtcNow + timeout;
+        long? lastLength = null;
+        var lastWriteTimeUtc = DateTime.MinValue;
+        var stableSampleCount = 0;
+
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (TryReadBackupFileMetadata(backupFilePath, out var length, out var writeTimeUtc))
+            {
+                if (lastLength == length && lastWriteTimeUtc == writeTimeUtc)
+                {
+                    stableSampleCount++;
+                }
+                else
+                {
+                    lastLength = length;
+                    lastWriteTimeUtc = writeTimeUtc;
+                    stableSampleCount = 1;
+                }
+
+                if (stableSampleCount >= RequiredBackupFileStableSamples)
+                {
+                    return true;
+                }
+            }
+            else
+            {
+                lastLength = null;
+                lastWriteTimeUtc = DateTime.MinValue;
+                stableSampleCount = 0;
+            }
+
+            var remaining = deadline - DateTimeOffset.UtcNow;
+            if (remaining <= TimeSpan.Zero)
+            {
+                break;
+            }
+
+            await Task.Delay(remaining < probeInterval ? remaining : probeInterval, cancellationToken);
+        }
+
+        return false;
+    }
+
+    private static bool TryReadBackupFileMetadata(
+        string backupFilePath,
+        out long length,
+        out DateTime writeTimeUtc)
+    {
+        length = 0;
+        writeTimeUtc = DateTime.MinValue;
+        try
+        {
+            using var stream = new FileStream(
+                backupFilePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                1,
+                FileOptions.SequentialScan);
+            if (stream.Length <= 0)
+            {
+                return false;
+            }
+
+            var fileInfo = new FileInfo(backupFilePath);
+            fileInfo.Refresh();
+            if (!fileInfo.Exists || fileInfo.Length != stream.Length)
+            {
+                return false;
+            }
+
+            length = stream.Length;
+            writeTimeUtc = fileInfo.LastWriteTimeUtc;
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 
@@ -560,8 +740,11 @@ public partial class AutomationService : IAutomationService, IDisposable
         _latestServerLines.Enqueue(line);
         while (_latestServerLines.Count > MaxServerLines)
             _latestServerLines.TryDequeue(out _);
+    }
 
-        TryCompleteBackupWatcher(line);
+    private void OnServerProfileOutputReceived(object? sender, ServerOutputLine output)
+    {
+        TryCompleteBackupWatcher(output.ProfileId, output.Line);
     }
 
     private void OnLogTailLineReceived(object? sender, string line)
@@ -785,11 +968,17 @@ public partial class AutomationService : IAutomationService, IDisposable
         return day is >= 1 and <= 7 ? day : 1;
     }
 
-    private void TryCompleteBackupWatcher(string line)
+    private void TryCompleteBackupWatcher(string profileId, string line)
     {
         TaskCompletionSource<bool>? completionSource;
         lock (_backupStateGate)
         {
+            if (string.IsNullOrWhiteSpace(_backupCompletionProfileId) ||
+                !string.Equals(_backupCompletionProfileId, profileId, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
             completionSource = _backupCompletionSource;
         }
 
@@ -822,6 +1011,7 @@ public partial class AutomationService : IAutomationService, IDisposable
         return !string.IsNullOrWhiteSpace(line) &&
                (line.Contains("Can't run backup", StringComparison.OrdinalIgnoreCase) ||
                 line.Contains("backup is already in progress", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("无法运行此备份", StringComparison.OrdinalIgnoreCase) ||
                 line.Contains("无法执行备份", StringComparison.OrdinalIgnoreCase) ||
                 line.Contains("备份正在进行中", StringComparison.OrdinalIgnoreCase) ||
                 line.Contains("备份已在进行中", StringComparison.OrdinalIgnoreCase) ||
