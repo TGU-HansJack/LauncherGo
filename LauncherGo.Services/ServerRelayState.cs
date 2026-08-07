@@ -10,6 +10,16 @@ internal sealed class ServerRelayState
 
     public int? ServerProcessId { get; set; }
 
+    public bool RestartOnCrash { get; set; }
+
+    public bool IsRestarting { get; set; }
+
+    public int RestartCount { get; set; }
+
+    public int? LastExitCode { get; set; }
+
+    public string? LastError { get; set; }
+
     public string ProfileId { get; set; } = string.Empty;
 
     public string ProfileName { get; set; } = string.Empty;

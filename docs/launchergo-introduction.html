@@ -1,0 +1,158 @@
+<main class="page-background" style="display: block!important; width: 100%; min-width: 0; min-height: 0; box-sizing: border-box; padding: 24px; background: transparent;">
+<div class="columns" style="display: block!important; width: 100%; max-width: 1540px; margin: 0 auto; box-sizing: border-box; overflow: hidden;">
+<div class="column-zh" style="float: left; width: calc(50% - 12px); margin-right: 24px; display: block!important; box-sizing: border-box; background: #fff; border: 1px solid #cbd3da; border-radius: 12px; padding: 28px; overflow: hidden; box-shadow: 0 3px 12px rgba(32,37,43,.08);">
+<article class="language" lang="zh-CN">
+<p><strong>LauncherGo</strong> 是由微尘工作室（Vintage Story CN Studio，VSCN）开发的 Vintage Story 第二代服务器启动器。它把服务端下载、档案管理、配置编辑、进程控制、存档管理、自动化任务、模组和联网工具集中到一个桌面应用中。</p>
+<div style="border-left: 4px solid #2f6f9f; padding: 8px 12px; margin: 12px 0; background-color: #f5f9fc;">
+<p style="margin: 0;"><strong>使用范围：</strong>LauncherGo 管理本机的 Vintage Story 服务端实例和配套服务。实际可用功能会根据已安装的服务端版本、模组和网络工具而变化。</p>
+</div>
+<h2>快速开始</h2>
+<ol>
+<li>首次启动时设置工作区目录，并下载或导入 Vintage Story 服务端。</li>
+<li>创建一个服务器档案，选择服务端版本，再按需要导入存档。</li>
+<li>在服务器配置中设置基础参数、世界参数和世界规则。</li>
+<li>从主页选择档案和存档，启动服务器并在控制台查看实时日志。</li>
+</ol>
+<h2>服务器管理</h2>
+<h3>档案、版本与存档</h3>
+<p>每个档案拥有独立的服务端目录、配置、模组、日志和存档路径。启动器支持服务端版本列表、搜索、下载、缓存清理、压缩包导入，以及档案和存档的创建、导入、删除和刷新。</p>
+<p>默认存档可以锁定，避免自动启动时误选其他世界。存档管理还支持使用 Zstandard 压缩节省磁盘空间，并可在压缩完成后按设置处理源文件。</p>
+<h3>进程与控制台</h3>
+<p>服务器通过独立的控制通道运行。LauncherGo 可以启动、停止、接管已有进程，并处理 Relay 状态、孤儿进程和启动超时。控制台支持实时日志跟随、命令发送、自定义快捷命令和日志导出。</p>
+<h2>配置与自动化</h2>
+<p>服务器配置页面覆盖基础服务器设置、世界创建参数、存档选择和世界规则。世界生成后会自动锁定只能在建档阶段修改的字段；配置保存后会同步写回对应档案。</p>
+<table style="border-collapse: collapse; width: 100%;" border="1">
+<thead>
+<tr>
+<th style="padding: 6px 8px; text-align: left;">能力</th>
+<th style="padding: 6px 8px; text-align: left;">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding: 6px 8px; vertical-align: top;">定时任务</td>
+<td style="padding: 6px 8px; vertical-align: top;">按时间窗口自动开服、关服、备份和广播。</td>
+</tr>
+<tr>
+<td style="padding: 6px 8px; vertical-align: top;">关服前备份</td>
+<td style="padding: 6px 8px; vertical-align: top;">在计划关服前执行备份，并等待备份输出就绪。</td>
+</tr>
+<tr>
+<td style="padding: 6px 8px; vertical-align: top;">日志导出</td>
+<td style="padding: 6px 8px; vertical-align: top;">保存控制台、服务端和自动化运行日志，便于排查问题。</td>
+</tr>
+</tbody>
+</table>
+<h2>模组与内置服务</h2>
+<p>模组管理器会扫描 ZIP 模组和目录模组，读取 <code>modinfo.json</code>，展示版本、状态、依赖和问题，并支持启用、禁用、导入和删除。删除操作仅允许作用于当前档案的模组目录。</p>
+<table style="border-collapse: collapse; width: 100%;" border="1">
+<thead>
+<tr>
+<th style="padding: 6px 8px; text-align: left;">服务</th>
+<th style="padding: 6px 8px; text-align: left;">用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding: 6px 8px; vertical-align: top;"><code>ServerAuth</code></td>
+<td style="padding: 6px 8px; vertical-align: top;">提供密码认证、会话记住、Discourse SSO 和 OAuth2/OIDC 授权码认证。</td>
+</tr>
+<tr>
+<td style="padding: 6px 8px; vertical-align: top;"><code>ServerMap</code></td>
+<td style="padding: 6px 8px; vertical-align: top;">为服务端提供地图渲染、玩家位置、出生点、商人、传送器和标记图层。</td>
+</tr>
+<tr>
+<td style="padding: 6px 8px; vertical-align: top;">开放信息</td>
+<td style="padding: 6px 8px; vertical-align: top;">接收并展示服务器状态、在线玩家、日志和地图相关数据。</td>
+</tr>
+</tbody>
+</table>
+<h2>连接与机器人</h2>
+<p>连接页面集成常规 FRP、第三方 FRPC、EasyTier、OpenServerQuery 和 QQ 机器人。网络服务可以按档案配置，机器人支持档案绑定、群号和超级管理员设置，并使用本地数据库保存运行所需数据。</p>
+<div style="border-left: 4px solid #e6a700; padding: 8px 12px; margin: 12px 0; background-color: #fffaf0;">
+<p style="margin: 0;"><strong>部署提醒：</strong>内置模组会在需要时部署到当前服务端档案。部署或升级模组前建议停止正在运行的服务器，并确认服务端版本与模组依赖匹配。</p>
+</div>
+<h2>数据与设置</h2>
+<p>外观、语言、网络目录、下载并发、自动启动、关闭行为、快速命令和压缩策略均可在设置中调整。LauncherGo 支持中文和英文运行时切换，工作区目录可以迁移到适合长期运行和备份的位置。</p>
+<p>关于页中的本介绍内容由独立 HTML 文件提供，适合直接复制到 TinyMCE 的源码编辑器中继续维护。</p>
+</article>
+</div>
+<div class="column-en" style="float: left; width: calc(50% - 12px); display: block!important; box-sizing: border-box; background: #fff; border: 1px solid #cbd3da; border-radius: 12px; padding: 28px; overflow: hidden; box-shadow: 0 3px 12px rgba(32,37,43,.08);">
+<article class="language" lang="en">
+<p><strong>LauncherGo</strong> is the second-generation Vintage Story server launcher developed by Vintage Story CN Studio (VSCN). It brings server downloads, profile management, configuration editing, process control, save management, automation, mod management, and connectivity tools into one desktop application.</p>
+<div style="border-left: 4px solid #2f6f9f; padding: 8px 12px; margin: 12px 0; background-color: #f5f9fc;">
+<p style="margin: 0;"><strong>Scope:</strong> LauncherGo manages local Vintage Story server instances and their supporting services. Available features depend on the installed server version, mods, and network tools.</p>
+</div>
+<h2>Getting started</h2>
+<ol>
+<li>Set the workspace directory on first launch, then download or import a Vintage Story server.</li>
+<li>Create a server profile, select its server version, and import a save when needed.</li>
+<li>Configure server settings, world settings, and world rules.</li>
+<li>Select a profile and save on the home page, start the server, and follow live output in the console.</li>
+</ol>
+<h2>Server management</h2>
+<h3>Profiles, versions, and saves</h3>
+<p>Each profile has isolated server, configuration, mod, log, and save paths. The launcher supports server version lists, search, downloads, cache cleanup, archive imports, and creating, importing, deleting, and refreshing profiles and saves.</p>
+<p>The default save can be locked to prevent an automatic launch from selecting another world. Save management also supports Zstandard compression to reduce disk usage and can process source files according to the selected policy after compression.</p>
+<h3>Processes and console</h3>
+<p>Servers run through an independent control channel. LauncherGo can start, stop, and attach to existing processes, while handling Relay state, orphan processes, and startup timeouts. The console provides live log following, command sending, custom quick commands, and log export.</p>
+<h2>Configuration and automation</h2>
+<p>The server configuration page covers common server settings, world creation parameters, save selection, and world rules. Fields that are only valid during world creation are locked after the world has been generated, and saved values are written back to the selected profile.</p>
+<table style="border-collapse: collapse; width: 100%;" border="1">
+<thead>
+<tr>
+<th style="padding: 6px 8px; text-align: left;">Capability</th>
+<th style="padding: 6px 8px; text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding: 6px 8px; vertical-align: top;">Scheduled tasks</td>
+<td style="padding: 6px 8px; vertical-align: top;">Automatically start, stop, back up, and broadcast according to configured time windows.</td>
+</tr>
+<tr>
+<td style="padding: 6px 8px; vertical-align: top;">Backup before shutdown</td>
+<td style="padding: 6px 8px; vertical-align: top;">Runs a backup before a scheduled shutdown and waits until its output is ready.</td>
+</tr>
+<tr>
+<td style="padding: 6px 8px; vertical-align: top;">Log export</td>
+<td style="padding: 6px 8px; vertical-align: top;">Exports console, server, and automation logs for troubleshooting.</td>
+</tr>
+</tbody>
+</table>
+<h2>Mods and embedded services</h2>
+<p>The mod manager scans ZIP and directory mods, reads <code>modinfo.json</code>, shows versions, status, dependencies, and issues, and supports enabling, disabling, importing, and deleting mods. Deletion is restricted to the current profile's mod directory.</p>
+<table style="border-collapse: collapse; width: 100%;" border="1">
+<thead>
+<tr>
+<th style="padding: 6px 8px; text-align: left;">Service</th>
+<th style="padding: 6px 8px; text-align: left;">Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding: 6px 8px; vertical-align: top;"><code>ServerAuth</code></td>
+<td style="padding: 6px 8px; vertical-align: top;">Provides password authentication, remembered sessions, Discourse SSO, and OAuth2/OIDC authorization-code authentication.</td>
+</tr>
+<tr>
+<td style="padding: 6px 8px; vertical-align: top;"><code>ServerMap</code></td>
+<td style="padding: 6px 8px; vertical-align: top;">Provides map rendering, player positions, spawn, traders, translocators, and marker layers.</td>
+</tr>
+<tr>
+<td style="padding: 6px 8px; vertical-align: top;">Open information</td>
+<td style="padding: 6px 8px; vertical-align: top;">Receives and displays server status, online players, logs, and map-related data.</td>
+</tr>
+</tbody>
+</table>
+<h2>Connectivity and bot integration</h2>
+<p>The connection page integrates regular FRP, third-party FRPC, EasyTier, OpenServerQuery, and QQ bot services. Network services can be configured per profile. The bot supports profile bindings, group IDs, and super-user settings, with local storage for its runtime data.</p>
+<div style="border-left: 4px solid #e6a700; padding: 8px 12px; margin: 12px 0; background-color: #fffaf0;">
+<p style="margin: 0;"><strong>Deployment note:</strong> embedded mods are deployed to the selected server profile when needed. Stop the running server before deploying or upgrading a mod, and verify that the server version satisfies its dependencies.</p>
+</div>
+<h2>Data and preferences</h2>
+<p>Appearance, language, network catalogs, download concurrency, automatic startup, close behavior, quick commands, and compression policies are configurable. LauncherGo supports switching between Chinese and English at runtime, and the workspace can be moved to a location suitable for long-running servers and backups.</p>
+<p>This introduction is supplied by an independent HTML file and can be copied directly into TinyMCE's source-code editor for further maintenance.</p>
+</article>
+</div>
+</div>
+</main>

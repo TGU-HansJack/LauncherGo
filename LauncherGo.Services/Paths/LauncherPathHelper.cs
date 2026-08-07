@@ -66,6 +66,7 @@ public static class LauncherPathHelper
             DefaultLaunchSaveFile = string.Empty,
             QuickCommands = [],
             AutoStartServerOnLaunch = false,
+            AutoRestartServerAfterCrash = false,
             AutoStartServerProfileId = string.Empty,
             OpenServerQuery = new OpenServerQuerySettings(),
             Robot = new RobotIntegrationSettings

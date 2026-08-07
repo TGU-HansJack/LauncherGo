@@ -49,6 +49,8 @@ public class LauncherPreferences
 
     public bool AutoStartServerOnLaunch { get; set; }
 
+    public bool AutoRestartServerAfterCrash { get; set; }
+
     public string AutoStartServerProfileId { get; set; } = string.Empty;
 
     public List<string> AutoStartServerProfileIds { get; set; } = [];

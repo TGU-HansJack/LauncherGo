@@ -7,6 +7,10 @@ namespace LauncherGo.Services;
 
 public static class ServerProcessRelay
 {
+    private const int MaxConsecutiveCrashRestarts = 3;
+    private static readonly TimeSpan CrashRestartDelay = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan StableRuntimeWindow = TimeSpan.FromSeconds(30);
+
     private static readonly JsonSerializerOptions StateJsonOptions = new(ServerRelayProtocol.JsonOptions)
     {
         WriteIndented = true
@@ -21,8 +25,208 @@ public static class ServerProcessRelay
     {
         var options = RelayOptions.Parse(args);
         Directory.CreateDirectory(Path.GetDirectoryName(options.StatePath)!);
+        var state = new ServerRelayState
+        {
+            PipeName = options.PipeName,
+            RelayProcessId = Environment.ProcessId,
+            ProfileId = options.ProfileId,
+            ProfileName = options.ProfileName,
+            Version = options.Version,
+            DataPath = options.DataPath,
+            ServerExecutablePath = options.ServerExecutablePath,
+            RestartOnCrash = options.RestartOnCrash,
+            StartedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow
+        };
+        using var relayCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var stateGate = new object();
+        var processGate = new object();
+        var processes = new List<Process>();
+        Process? currentProcess = null;
+        var stopRequested = 0;
+        var restartCount = 0;
+        var lastExitCode = 0;
+        DateTimeOffset? currentProcessStartedAt = null;
+        Task? pipeTask = null;
 
-        using var process = new Process
+        Process? GetCurrentProcess()
+        {
+            lock (processGate)
+            {
+                return currentProcess;
+            }
+        }
+
+        bool PersistState()
+        {
+            lock (stateGate)
+            {
+                state.UpdatedAtUtc = DateTimeOffset.UtcNow;
+                return TryWriteState(options.StatePath, state);
+            }
+        }
+
+        void ObserveCommand(string command)
+        {
+            if (IsStopCommand(command))
+                Interlocked.Exchange(ref stopRequested, 1);
+        }
+
+        try
+        {
+            while (!relayCts.IsCancellationRequested && Volatile.Read(ref stopRequested) == 0)
+            {
+                var process = StartServerProcess(options);
+                lock (processGate)
+                {
+                    currentProcess = process;
+                    processes.Add(process);
+                }
+
+                currentProcessStartedAt = DateTimeOffset.UtcNow;
+                state.ServerProcessId = process.Id;
+                state.IsRestarting = false;
+                state.LastError = null;
+                state.StartedAtUtc = currentProcessStartedAt.Value;
+                if (!PersistState())
+                {
+                    TryKillProcess(process);
+                    throw new IOException("Failed to write server relay state file.");
+                }
+
+                pipeTask ??= RunPipeLoopAsync(
+                    options.PipeName,
+                    state,
+                    () =>
+                    {
+                        var liveProcess = GetCurrentProcess();
+                        return liveProcess is null || IsProcessTerminated(liveProcess);
+                    },
+                    () =>
+                    {
+                        var liveProcess = GetCurrentProcess();
+                        return liveProcess is null ? null : TryGetProcessId(liveProcess);
+                    },
+                    (command, commandCancellationToken) =>
+                    {
+                        var liveProcess = GetCurrentProcess();
+                        if (liveProcess is null || IsProcessTerminated(liveProcess))
+                        {
+                            throw new InvalidOperationException(
+                                state.IsRestarting
+                                    ? "Server process is restarting."
+                                    : "Server process has exited.");
+                        }
+
+                        return WriteConsoleCommandAsync(liveProcess, command, commandCancellationToken);
+                    },
+                    ServerRelayProtocol.DefaultTimeouts,
+                    relayCts.Token,
+                    ObserveCommand,
+                    () => _ = PersistState());
+
+                try
+                {
+                    await process.WaitForExitAsync(relayCts.Token);
+                }
+                catch (OperationCanceledException) when (relayCts.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                lastExitCode = TryGetExitCode(process);
+                lock (processGate)
+                {
+                    if (ReferenceEquals(currentProcess, process))
+                        currentProcess = null;
+                }
+
+                state.ServerProcessId = null;
+                state.LastExitCode = lastExitCode;
+                state.UpdatedAtUtc = DateTimeOffset.UtcNow;
+                PersistState();
+
+                if (relayCts.IsCancellationRequested ||
+                    Volatile.Read(ref stopRequested) != 0 ||
+                    !options.RestartOnCrash)
+                {
+                    break;
+                }
+
+                if (currentProcessStartedAt.HasValue &&
+                    DateTimeOffset.UtcNow - currentProcessStartedAt.Value >= StableRuntimeWindow)
+                {
+                    restartCount = 0;
+                }
+
+                if (restartCount >= MaxConsecutiveCrashRestarts)
+                {
+                    state.IsRestarting = false;
+                    state.LastError =
+                        $"Server exited repeatedly; automatic restart stopped after {MaxConsecutiveCrashRestarts} retries.";
+                    PersistState();
+                    break;
+                }
+
+                restartCount++;
+                state.RestartCount = restartCount;
+                state.IsRestarting = true;
+                state.LastError =
+                    $"Server exited (code {lastExitCode}); restarting in {CrashRestartDelay.TotalSeconds:0} seconds.";
+                PersistState();
+
+                try
+                {
+                    await Task.Delay(CrashRestartDelay, relayCts.Token);
+                }
+                catch (OperationCanceledException) when (relayCts.IsCancellationRequested)
+                {
+                    break;
+                }
+            }
+
+            return lastExitCode;
+        }
+        finally
+        {
+            await relayCts.CancelAsync();
+            var liveProcess = GetCurrentProcess();
+            if (liveProcess is not null)
+            {
+                TryKillProcess(liveProcess);
+            }
+
+            if (pipeTask is not null)
+            {
+                try
+                {
+                    await pipeTask.WaitAsync(TimeSpan.FromSeconds(2));
+                }
+                catch
+                {
+                    // The relay is shutting down; stale pipe waits are harmless here.
+                }
+            }
+
+            foreach (var process in processes.Distinct())
+            {
+                try
+                {
+                    process.Dispose();
+                }
+                catch
+                {
+                    // Best-effort disposal only.
+                }
+            }
+
+            TryDeleteState(options.StatePath);
+        }
+    }
+
+    private static Process StartServerProcess(RelayOptions options)
+    {
+        var process = new Process
         {
             StartInfo = new ProcessStartInfo
             {
@@ -44,71 +248,20 @@ public static class ServerProcessRelay
         process.OutputDataReceived += (_, _) => { };
         process.ErrorDataReceived += (_, _) => { };
 
-        if (!process.Start())
-            throw new InvalidOperationException("Failed to start Vintage Story server process.");
-
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
-
-        var state = new ServerRelayState
-        {
-            PipeName = options.PipeName,
-            RelayProcessId = Environment.ProcessId,
-            ServerProcessId = process.Id,
-            ProfileId = options.ProfileId,
-            ProfileName = options.ProfileName,
-            Version = options.Version,
-            DataPath = options.DataPath,
-            ServerExecutablePath = options.ServerExecutablePath,
-            StartedAtUtc = DateTimeOffset.UtcNow,
-            UpdatedAtUtc = DateTimeOffset.UtcNow
-        };
-        if (!TryWriteState(options.StatePath, state))
-        {
-            TryKillProcess(process);
-            throw new IOException("Failed to write server relay state file.");
-        }
-
-        using var relayCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        process.Exited += (_, _) => relayCts.Cancel();
-
-        var pipeTask = RunPipeLoopAsync(process, state, relayCts.Token);
-
         try
         {
-            await process.WaitForExitAsync(cancellationToken);
-            return TryGetExitCode(process);
+            if (!process.Start())
+                throw new InvalidOperationException("Failed to start Vintage Story server process.");
+
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            return process;
         }
-        finally
+        catch
         {
-            await relayCts.CancelAsync();
-            try
-            {
-                await pipeTask.WaitAsync(TimeSpan.FromSeconds(2));
-            }
-            catch
-            {
-                // The relay is shutting down; stale pipe waits are harmless here.
-            }
-
-            TryDeleteState(options.StatePath);
+            process.Dispose();
+            throw;
         }
-    }
-
-    private static async Task RunPipeLoopAsync(
-        Process process,
-        ServerRelayState state,
-        CancellationToken cancellationToken)
-    {
-        await RunPipeLoopAsync(
-            state.PipeName,
-            state,
-            () => IsProcessTerminated(process),
-            () => TryGetProcessId(process),
-            (command, commandCancellationToken) =>
-                WriteConsoleCommandAsync(process, command, commandCancellationToken),
-            ServerRelayProtocol.DefaultTimeouts,
-            cancellationToken);
     }
 
     internal static async Task RunPipeLoopAsync(
@@ -118,7 +271,9 @@ public static class ServerProcessRelay
         Func<int?> getProcessId,
         Func<string, CancellationToken, Task> writeConsoleCommand,
         ServerRelayTimeouts timeouts,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<string>? commandObserved = null,
+        Action? stateChanged = null)
     {
         var commandForwarder = new ServerRelayCommandForwarder(writeConsoleCommand);
 
@@ -140,7 +295,9 @@ public static class ServerProcessRelay
                     getProcessId,
                     commandForwarder,
                     timeouts,
-                    cancellationToken);
+                    cancellationToken,
+                    commandObserved,
+                    stateChanged);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -167,7 +324,9 @@ public static class ServerProcessRelay
         Func<int?> getProcessId,
         ServerRelayCommandForwarder commandForwarder,
         ServerRelayTimeouts timeouts,
-        CancellationToken relayCancellationToken)
+        CancellationToken relayCancellationToken,
+        Action<string>? commandObserved = null,
+        Action? stateChanged = null)
     {
         string? requestJson;
         using (var requestCts = CreateTimeoutCts(relayCancellationToken, timeouts.RequestRead))
@@ -259,6 +418,7 @@ public static class ServerProcessRelay
 
         state.UpdatedAtUtc = DateTimeOffset.UtcNow;
         state.ServerProcessId = getProcessId();
+        TryInvokeStateChanged(stateChanged);
 
         if (request.Type.Equals(ServerRelayProtocol.RequestTypePing, StringComparison.OrdinalIgnoreCase) ||
             request.Type.Equals(ServerRelayProtocol.RequestTypeStatus, StringComparison.OrdinalIgnoreCase))
@@ -268,8 +428,10 @@ public static class ServerProcessRelay
                 pipe,
                 new ServerRelayResponse
                 {
-                    Success = !processTerminated,
-                    Error = processTerminated ? "Server process has exited." : null,
+                    Success = !processTerminated || state.IsRestarting,
+                    Error = processTerminated
+                        ? state.IsRestarting ? "Server process is restarting." : "Server process has exited."
+                        : null,
                     State = state
                 },
                 timeouts.ResponseWrite,
@@ -295,6 +457,8 @@ public static class ServerProcessRelay
                 return;
             }
 
+            TryInvokeCommandObserved(commandObserved, command);
+
             if (isProcessTerminated())
             {
                 await TryWriteResponseAsync(
@@ -302,7 +466,9 @@ public static class ServerProcessRelay
                     new ServerRelayResponse
                     {
                         Success = false,
-                        Error = "Server process has exited.",
+                        Error = state.IsRestarting
+                            ? "Server process is restarting."
+                            : "Server process has exited.",
                         State = state
                     },
                     timeouts.ResponseWrite,
@@ -317,6 +483,7 @@ public static class ServerProcessRelay
                     timeouts.CommandForward,
                     relayCancellationToken);
                 state.UpdatedAtUtc = DateTimeOffset.UtcNow;
+                TryInvokeStateChanged(stateChanged);
                 await TryWriteResponseAsync(
                     pipe,
                     new ServerRelayResponse
@@ -550,6 +717,8 @@ public static class ServerProcessRelay
 
         public string Version { get; private init; } = string.Empty;
 
+        public bool RestartOnCrash { get; private init; }
+
         public static RelayOptions Parse(string[] args)
         {
             var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -574,7 +743,8 @@ public static class ServerProcessRelay
                 DataPath = Require(values, "--data-path"),
                 ProfileId = Require(values, "--profile-id"),
                 ProfileName = values.GetValueOrDefault("--profile-name") ?? string.Empty,
-                Version = values.GetValueOrDefault("--version") ?? string.Empty
+                Version = values.GetValueOrDefault("--version") ?? string.Empty,
+                RestartOnCrash = ParseBoolean(values.GetValueOrDefault("--restart-on-crash"))
             };
 
             if (!File.Exists(options.ServerExecutablePath))
@@ -589,6 +759,48 @@ public static class ServerProcessRelay
                 return value;
 
             throw new ArgumentException($"Missing required relay argument '{key}'.");
+        }
+
+        private static bool ParseBoolean(string? value)
+        {
+            return bool.TryParse(value, out var parsed) && parsed;
+        }
+    }
+
+    private static bool IsStopCommand(string command)
+    {
+        if (string.IsNullOrWhiteSpace(command))
+            return false;
+
+        var normalized = command.Trim().TrimStart('/');
+        var separator = normalized.IndexOfAny([' ', '\t', '\r', '\n']);
+        if (separator >= 0)
+            normalized = normalized[..separator];
+
+        return normalized.Equals("stop", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void TryInvokeCommandObserved(Action<string>? callback, string command)
+    {
+        try
+        {
+            callback?.Invoke(command);
+        }
+        catch
+        {
+            // Diagnostics callbacks must never break the relay command path.
+        }
+    }
+
+    private static void TryInvokeStateChanged(Action? callback)
+    {
+        try
+        {
+            callback?.Invoke();
+        }
+        catch
+        {
+            // State persistence is best effort; the live pipe remains authoritative.
         }
     }
 }

@@ -93,6 +93,7 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             CloseToTrayOnExit = source.CloseToTrayOnExit,
             StartHiddenOnLaunch = source.StartHiddenOnLaunch,
             AutoStartServerOnLaunch = source.AutoStartServerOnLaunch,
+            AutoRestartServerAfterCrash = source.AutoRestartServerAfterCrash,
             AutoStartServerProfileId = string.Join(';', autoStartServerProfileIds),
             AutoStartServerProfileIds = autoStartServerProfileIds,
             AutoStartOpenServerQueryOnLaunch = source.AutoStartOpenServerQueryOnLaunch,

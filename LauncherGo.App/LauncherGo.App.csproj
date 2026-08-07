@@ -10,8 +10,7 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\**\*" />
-    <Content Include="..\README.md" Link="README.md" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\README_en.md" Link="README_en.md" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\docs\launchergo-introduction.html" Link="launchergo-introduction.html" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

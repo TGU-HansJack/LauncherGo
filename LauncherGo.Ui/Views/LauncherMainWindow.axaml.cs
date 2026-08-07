@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -237,7 +238,7 @@ public partial class LauncherMainWindow : Window
     private bool _isApplyingServerSettings;
     private bool _isApplyingNetworkSettings;
     private bool _isApplyingConnectionSettings;
-    private bool _aboutMarkdownLoaded;
+    private bool _aboutIntroductionLoaded;
     private bool _contributorsLoaded;
     private bool _sponsorsLoaded;
     private bool _consoleAutoScroll = true;
@@ -715,6 +716,9 @@ public partial class LauncherMainWindow : Window
         SettingsCloseToTrayLabelTextBlock.Text = T("关闭时隐藏到托盘，不直接退出", "Hide to tray on close instead of exiting");
         SettingsStartHiddenLabelTextBlock.Text = T("启动时隐藏到托盘", "Start hidden to tray");
         SettingsAutoStartServerLabelTextBlock.Text = T("启动时自动启动服务器", "Auto-start server on launch");
+        SettingsAutoRestartServerAfterCrashLabelTextBlock.Text = T(
+            "服务端异常退出后自动重启",
+            "Restart server after an unexpected exit");
         SettingsAutoStartServerProfileLabelTextBlock.Text = T("自启动服务器档案", "Auto-start server profile");
         SettingsAutoStartAddProfileComboBox.PlaceholderText = T("添加自启动服务器", "Add auto-start server");
         SettingsAutoStartOsqLabelTextBlock.Text = T("启动时自动启动开放信息", "Auto-start Open Info on launch");
@@ -742,7 +746,7 @@ public partial class LauncherMainWindow : Window
 
     private void InitializeAboutSettingsStaticTexts()
     {
-        SetAboutFallbackText(T("正在加载 README.md ...", "Loading README_en.md ..."));
+        SetAboutFallbackText(T("正在加载项目介绍 ...", "Loading project introduction ..."));
     }
 
     private void InitializeSponsorSettingsStaticTexts()
@@ -2817,7 +2821,7 @@ public partial class LauncherMainWindow : Window
         }
         else if (isAbout)
         {
-            LoadAboutMarkdown();
+            LoadAboutIntroduction();
         }
         else if (isSponsors)
         {
@@ -2899,6 +2903,7 @@ public partial class LauncherMainWindow : Window
                      SettingsCloseToTrayCheckBox,
                      SettingsStartHiddenCheckBox,
                      SettingsAutoStartServerCheckBox,
+                     SettingsAutoRestartServerAfterCrashCheckBox,
                      SettingsAutoStartOsqCheckBox,
                      SettingsAutoStartRobotCheckBox,
                      SettingsAutoStartFrpCheckBox,
@@ -3079,6 +3084,7 @@ public partial class LauncherMainWindow : Window
             SettingsCloseToTrayCheckBox.IsChecked = preferences.CloseToTrayOnExit;
             SettingsStartHiddenCheckBox.IsChecked = preferences.StartHiddenOnLaunch;
             SettingsAutoStartServerCheckBox.IsChecked = preferences.AutoStartServerOnLaunch;
+            SettingsAutoRestartServerAfterCrashCheckBox.IsChecked = preferences.AutoRestartServerAfterCrash;
             SettingsAutoStartOsqCheckBox.IsChecked = preferences.AutoStartOpenServerQueryOnLaunch;
             SettingsAutoStartRobotCheckBox.IsChecked = preferences.AutoStartRobotOnLaunch;
             SettingsAutoStartFrpCheckBox.IsChecked = preferences.AutoStartFrpOnLaunch;
@@ -3118,6 +3124,7 @@ public partial class LauncherMainWindow : Window
         preferences.CloseToTrayOnExit = SettingsCloseToTrayCheckBox.IsChecked == true;
         preferences.StartHiddenOnLaunch = SettingsStartHiddenCheckBox.IsChecked == true;
         preferences.AutoStartServerOnLaunch = SettingsAutoStartServerCheckBox.IsChecked == true;
+        preferences.AutoRestartServerAfterCrash = SettingsAutoRestartServerAfterCrashCheckBox.IsChecked == true;
         preferences.AutoStartServerProfileIds = autoStartIds;
         preferences.AutoStartServerProfileId = string.Join(';', autoStartIds);
         preferences.AutoStartOpenServerQueryOnLaunch = SettingsAutoStartOsqCheckBox.IsChecked == true;
@@ -3175,44 +3182,45 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private void LoadAboutMarkdown()
+    private void LoadAboutIntroduction()
     {
-        if (_aboutMarkdownLoaded)
+        if (_aboutIntroductionLoaded)
         {
             return;
         }
 
-        var fileName = _isChinese ? "README.md" : "README_en.md";
-        var path = FindBundledReadmePath(fileName);
+        const string fileName = "launchergo-introduction.html";
+        var path = FindBundledContentPath(fileName);
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
-            SetAboutFallbackText(T("未找到 README.md。", "README_en.md was not found."));
-            _aboutMarkdownLoaded = true;
+            SetAboutFallbackText(T($"未找到项目介绍文件：{fileName}。", $"Project introduction file was not found: {fileName}."));
+            _aboutIntroductionLoaded = true;
             return;
         }
 
         try
         {
-            RenderAboutMarkdown(File.ReadAllText(path));
+            RenderAboutHtml(File.ReadAllText(path));
         }
         catch (Exception ex)
         {
-            SetAboutFallbackText(T($"读取 README 失败：{ex.Message}", $"Failed to read README: {ex.Message}"));
+            SetAboutFallbackText(T($"读取项目介绍失败：{ex.Message}", $"Failed to read project introduction: {ex.Message}"));
         }
 
-        _aboutMarkdownLoaded = true;
+        _aboutIntroductionLoaded = true;
     }
 
-    private void RenderAboutMarkdown(string markdown)
+    private void RenderAboutHtml(string html)
     {
-        var sanitized = SanitizeAboutMarkdown(markdown);
         try
         {
-            SettingsAboutContentHost.Content = BuildAboutMarkdownView(sanitized);
+            SettingsAboutContentHost.Content = BuildAboutHtmlView(html);
         }
         catch
         {
-            SetAboutFallbackText(sanitized);
+            SetAboutFallbackText(_isChinese
+                ? "项目介绍内容无法显示。"
+                : "The project introduction could not be displayed.");
         }
     }
 
@@ -3231,92 +3239,31 @@ public partial class LauncherMainWindow : Window
         };
     }
 
-    private Control BuildAboutMarkdownView(string markdown)
+    private Control BuildAboutHtmlView(string html)
     {
+        var normalizedHtml = NormalizeAboutHtmlEntities(html);
+        var document = XDocument.Parse(normalizedHtml, LoadOptions.PreserveWhitespace);
+        var language = _isChinese ? "zh-CN" : "en";
+        var article = document
+            .Descendants("article")
+            .FirstOrDefault(element => string.Equals(
+                (string?)element.Attribute("lang"),
+                language,
+                StringComparison.OrdinalIgnoreCase));
+
+        if (article is null)
+        {
+            throw new InvalidOperationException($"Missing introduction article for language '{language}'.");
+        }
+
         var host = new StackPanel
         {
             Spacing = 6
         };
 
-        var lines = markdown.Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace('\r', '\n')
-            .Split('\n');
-        var inCodeBlock = false;
-        var codeBuffer = new StringBuilder();
-        for (var i = 0; i < lines.Length; i++)
+        foreach (var element in article.Elements())
         {
-            var line = lines[i];
-            var trimmed = line.Trim();
-            if (trimmed.StartsWith("```", StringComparison.Ordinal))
-            {
-                if (inCodeBlock)
-                {
-                    AddAboutCodeBlock(host, codeBuffer.ToString().TrimEnd());
-                    codeBuffer.Clear();
-                    inCodeBlock = false;
-                }
-                else
-                {
-                    inCodeBlock = true;
-                }
-
-                continue;
-            }
-
-            if (inCodeBlock)
-            {
-                codeBuffer.AppendLine(line);
-                continue;
-            }
-
-            if (string.IsNullOrWhiteSpace(trimmed))
-            {
-                continue;
-            }
-
-            if (IsMarkdownTableStart(lines, i))
-            {
-                var tableRows = new List<string> { lines[i] };
-                i += 2;
-                while (i < lines.Length && IsMarkdownTableRow(lines[i]))
-                {
-                    tableRows.Add(lines[i]);
-                    i++;
-                }
-
-                i--;
-                AddAboutTable(host, tableRows);
-                continue;
-            }
-
-            if (trimmed.StartsWith("# ", StringComparison.Ordinal))
-            {
-                host.Children.Add(CreateAboutText(CleanInlineMarkdown(trimmed[2..]), "AboutHeading1"));
-                continue;
-            }
-
-            if (trimmed.StartsWith("## ", StringComparison.Ordinal))
-            {
-                host.Children.Add(CreateAboutText(CleanInlineMarkdown(trimmed[3..]), "AboutHeading2"));
-                continue;
-            }
-
-            if (trimmed.StartsWith("- ", StringComparison.Ordinal))
-            {
-                host.Children.Add(CreateAboutText($"• {CleanInlineMarkdown(trimmed[2..])}", "AboutSubText"));
-                continue;
-            }
-
-            var text = CleanInlineMarkdown(trimmed);
-            if (!string.IsNullOrWhiteSpace(text))
-            {
-                host.Children.Add(CreateAboutText(text, "AboutParagraph"));
-            }
-        }
-
-        if (inCodeBlock && codeBuffer.Length > 0)
-        {
-            AddAboutCodeBlock(host, codeBuffer.ToString().TrimEnd());
+            AddAboutHtmlElement(host, element);
         }
 
         return new ScrollViewer
@@ -3325,6 +3272,155 @@ public partial class LauncherMainWindow : Window
             VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
             Content = host
         };
+    }
+
+    private static void AddAboutHtmlElement(StackPanel host, XElement element)
+    {
+        var tagName = element.Name.LocalName;
+        switch (tagName)
+        {
+            case "h1":
+            case "h2":
+                AddAboutHtmlText(host, ReadAboutHtmlText(element), "AboutHeading1");
+                return;
+            case "h3":
+            case "h4":
+                AddAboutHtmlText(host, ReadAboutHtmlText(element), "AboutHeading2");
+                return;
+            case "p":
+                AddAboutHtmlText(host, ReadAboutHtmlText(element), "AboutParagraph");
+                return;
+            case "pre":
+                var code = System.Net.WebUtility.HtmlDecode(element.Value).Trim('\r', '\n');
+                if (!string.IsNullOrWhiteSpace(code))
+                {
+                    AddAboutCodeBlock(host, code);
+                }
+
+                return;
+            case "table":
+                AddAboutHtmlTable(host, element);
+                return;
+            case "ul":
+            case "ol":
+                AddAboutHtmlList(host, element, tagName == "ol");
+                return;
+            case "div":
+                AddAboutHtmlDiv(host, element);
+                return;
+            default:
+                foreach (var child in element.Elements())
+                {
+                    AddAboutHtmlElement(host, child);
+                }
+
+                return;
+        }
+    }
+
+    private static void AddAboutHtmlText(StackPanel host, string text, string className)
+    {
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            host.Children.Add(CreateAboutText(text, className));
+        }
+    }
+
+    private static void AddAboutHtmlDiv(StackPanel host, XElement element)
+    {
+        var paragraphs = element
+            .Elements("p")
+            .Select(ReadAboutHtmlText)
+            .Where(static text => !string.IsNullOrWhiteSpace(text))
+            .ToList();
+        if (paragraphs.Count == 0)
+        {
+            foreach (var child in element.Elements())
+            {
+                AddAboutHtmlElement(host, child);
+            }
+
+            return;
+        }
+
+        var callout = new Border
+        {
+            Child = CreateAboutText(string.Join(Environment.NewLine, paragraphs), "AboutParagraph")
+        };
+        callout.Classes.Add("AboutCallout");
+        var style = (string?)element.Attribute("style") ?? string.Empty;
+        if (style.Contains("#e6a700", StringComparison.OrdinalIgnoreCase))
+        {
+            callout.Classes.Add("AboutCalloutWarning");
+        }
+        else if (style.Contains("#e03e2d", StringComparison.OrdinalIgnoreCase))
+        {
+            callout.Classes.Add("AboutCalloutDanger");
+        }
+
+        host.Children.Add(callout);
+    }
+
+    private static void AddAboutHtmlList(StackPanel host, XElement list, bool numbered)
+    {
+        var index = 1;
+        foreach (var item in list.Elements("li"))
+        {
+            var prefix = numbered ? $"{index++}. " : "• ";
+            var text = ReadAboutHtmlText(item);
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                host.Children.Add(CreateAboutText(prefix + text, "AboutSubText"));
+            }
+        }
+    }
+
+    private static void AddAboutHtmlTable(StackPanel host, XElement table)
+    {
+        var rows = table
+            .Descendants("tr")
+            .Select(row => row
+                .Elements()
+                .Where(cell => cell.Name.LocalName is "th" or "td")
+                .Select(ReadAboutHtmlText)
+                .ToList())
+            .Where(static row => row.Count > 0)
+            .ToList();
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        AddAboutTable(host, rows);
+    }
+
+    private static string ReadAboutHtmlText(XElement element)
+    {
+        var builder = new StringBuilder();
+        foreach (var node in element.DescendantNodes())
+        {
+            if (node is XText text)
+            {
+                builder.Append(text.Value);
+            }
+            else if (node is XElement child && child.Name.LocalName.Equals("br", StringComparison.OrdinalIgnoreCase))
+            {
+                builder.AppendLine();
+            }
+        }
+
+        var decoded = System.Net.WebUtility.HtmlDecode(builder.ToString());
+        return Regex.Replace(decoded, @"\s+", " ").Trim();
+    }
+
+    private static string NormalizeAboutHtmlEntities(string html)
+    {
+        return html
+            .Replace("&nbsp;", "&#160;", StringComparison.OrdinalIgnoreCase)
+            .Replace("&ndash;", "&#8211;", StringComparison.OrdinalIgnoreCase)
+            .Replace("&mdash;", "&#8212;", StringComparison.OrdinalIgnoreCase)
+            .Replace("&hellip;", "&#8230;", StringComparison.OrdinalIgnoreCase)
+            .Replace("&times;", "&#215;", StringComparison.OrdinalIgnoreCase);
     }
 
     private static TextBlock CreateAboutText(string text, string className)
@@ -3349,12 +3445,8 @@ public partial class LauncherMainWindow : Window
         host.Children.Add(border);
     }
 
-    private static void AddAboutTable(StackPanel host, IReadOnlyList<string> rawRows)
+    private static void AddAboutTable(StackPanel host, IReadOnlyList<IReadOnlyList<string>> rows)
     {
-        var rows = rawRows
-            .Select(SplitMarkdownTableRow)
-            .Where(row => row.Count > 0)
-            .ToList();
         if (rows.Count == 0)
         {
             return;
@@ -3379,7 +3471,7 @@ public partial class LauncherMainWindow : Window
             grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             for (var column = 0; column < columnCount; column++)
             {
-                var cellText = column < rows[row].Count ? CleanInlineMarkdown(rows[row][column]) : string.Empty;
+                var cellText = column < rows[row].Count ? rows[row][column] : string.Empty;
                 var cell = new Border
                 {
                     Child = CreateAboutText(
@@ -3394,68 +3486,6 @@ public partial class LauncherMainWindow : Window
         }
 
         host.Children.Add(grid);
-    }
-
-    private static bool IsMarkdownTableStart(IReadOnlyList<string> lines, int index)
-    {
-        return index + 1 < lines.Count &&
-               IsMarkdownTableRow(lines[index]) &&
-               IsMarkdownTableSeparator(lines[index + 1]);
-    }
-
-    private static bool IsMarkdownTableRow(string line)
-    {
-        var trimmed = line.Trim();
-        return trimmed.Length >= 3 &&
-               trimmed.StartsWith('|') &&
-               trimmed.EndsWith('|') &&
-               trimmed.Count(character => character == '|') >= 2;
-    }
-
-    private static bool IsMarkdownTableSeparator(string line)
-    {
-        var cells = SplitMarkdownTableRow(line);
-        return cells.Count > 0 &&
-               cells.All(cell => Regex.IsMatch(cell.Trim(), "^:?-{3,}:?$"));
-    }
-
-    private static List<string> SplitMarkdownTableRow(string line)
-    {
-        var trimmed = line.Trim();
-        if (trimmed.StartsWith('|'))
-        {
-            trimmed = trimmed[1..];
-        }
-
-        if (trimmed.EndsWith('|'))
-        {
-            trimmed = trimmed[..^1];
-        }
-
-        return trimmed
-            .Split('|')
-            .Select(cell => cell.Trim())
-            .ToList();
-    }
-
-    private static string CleanInlineMarkdown(string value)
-    {
-        var result = Regex.Replace(value, @"`([^`]+)`", "$1");
-        result = Regex.Replace(result, @"\[([^\]]+)\]\(([^\)]+)\)", "$1 ($2)");
-        result = Regex.Replace(result, @"<br\s*/?>", " ", RegexOptions.IgnoreCase);
-        result = Regex.Replace(result, @"</?(p|span|strong)[^>]*>", string.Empty, RegexOptions.IgnoreCase);
-        result = Regex.Replace(result, @"<[^>]+>", string.Empty);
-        return System.Net.WebUtility.HtmlDecode(result).Trim();
-    }
-
-    private static string SanitizeAboutMarkdown(string markdown)
-    {
-        if (string.IsNullOrWhiteSpace(markdown))
-        {
-            return string.Empty;
-        }
-
-        return Regex.Replace(markdown, @"(?m)^\s*!\[[^\r\n\]]*\]\([^\r\n)]*\)\s*$", string.Empty).Trim();
     }
 
     private async Task RefreshContributorsAsync(bool forceReload = false)
@@ -4786,12 +4816,12 @@ public partial class LauncherMainWindow : Window
 
         _isChinese = languageCode.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
 
-        _aboutMarkdownLoaded = false;
+        _aboutIntroductionLoaded = false;
         InitializeStaticTexts();
         RefreshAppearanceSettingsEditor();
         if (_selectedSettingsTab == SettingsTab.About)
         {
-            LoadAboutMarkdown();
+            LoadAboutIntroduction();
         }
     }
 
@@ -9150,13 +9180,15 @@ public partial class LauncherMainWindow : Window
         return client;
     }
 
-    private static string? FindBundledReadmePath(string fileName)
+    private static string? FindBundledContentPath(string fileName)
     {
         var candidates = new[]
         {
             Path.Combine(AppContext.BaseDirectory, fileName),
             Path.Combine(Environment.CurrentDirectory, fileName),
             Path.Combine(Environment.CurrentDirectory, "LauncherGo", fileName),
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "docs", fileName)),
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "docs", fileName)),
             Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", fileName)),
             Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", fileName))
         };

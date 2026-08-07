@@ -651,6 +651,19 @@
             <Setter Property="Padding" Value="10" />
             <Setter Property="Margin" Value="0,3,0,5" />
         </Style>
+        <Style Selector="Border.AboutCallout">
+            <Setter Property="Background" Value="{DynamicResource CardHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource DownloadActionTextBrush}" />
+            <Setter Property="BorderThickness" Value="4,0,0,0" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="Margin" Value="0,6,0,8" />
+        </Style>
+        <Style Selector="Border.AboutCalloutWarning">
+            <Setter Property="BorderBrush" Value="#E6A700" />
+        </Style>
+        <Style Selector="Border.AboutCalloutDanger">
+            <Setter Property="BorderBrush" Value="#E03E2D" />
+        </Style>
         <Style Selector="Grid.AboutTable">
             <Setter Property="Margin" Value="0,4,0,8" />
         </Style>
@@ -2101,6 +2114,10 @@
                                                         <StackPanel Classes="ToggleField">
                                                             <TextBlock x:Name="SettingsAutoStartServerLabelTextBlock" Classes="ConfigFieldLabel" Text="启动时自动启动服务器" />
                                                             <ToggleSwitch x:Name="SettingsAutoStartServerCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="SettingsAutoRestartServerAfterCrashLabelTextBlock" Classes="ConfigFieldLabel" Text="服务端异常退出后自动重启" />
+                                                            <ToggleSwitch x:Name="SettingsAutoRestartServerAfterCrashCheckBox" Classes="LabelledToggle" />
                                                         </StackPanel>
                                                         <StackPanel Classes="ToggleField">
                                                             <TextBlock x:Name="SettingsAutoStartOsqLabelTextBlock" Classes="ConfigFieldLabel" Text="启动时自动启动开放信息" />
