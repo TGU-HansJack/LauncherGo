@@ -99,9 +99,11 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             AutoStartRobotOnLaunch = source.AutoStartRobotOnLaunch,
             AutoStartFrpOnLaunch = source.AutoStartFrpOnLaunch,
             AutoStartThirdPartyFrpcOnLaunch = source.AutoStartThirdPartyFrpcOnLaunch,
+            AutoStartEasyTierOnLaunch = source.AutoStartEasyTierOnLaunch,
             OpenServerQuery = NormalizeOpenServerQuery(source.OpenServerQuery),
             Robot = NormalizeRobot(source.Robot, qqBotDirectory),
             Frp = NormalizeFrp(source.Frp),
+            EasyTier = NormalizeEasyTier(source.EasyTier),
             SaveCompression = NormalizeSaveCompression(source.SaveCompression, workspaceRoot)
         };
     }
@@ -380,6 +382,61 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
                 ? thirdPartyDefault
                 : source.ThirdPartyFrpcCommand.Trim()
         };
+    }
+
+    private static EasyTierIntegrationSettings NormalizeEasyTier(EasyTierIntegrationSettings? source)
+    {
+        source ??= new EasyTierIntegrationSettings();
+        var roomPrefix = source.RoomPrefix?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(roomPrefix) || roomPrefix.Contains('-'))
+        {
+            roomPrefix = EasyTierIntegrationSettings.DefaultRoomPrefix;
+        }
+
+        var networkName = source.NetworkName?.Trim() ?? string.Empty;
+        var networkSecret = source.NetworkSecret?.Trim() ?? string.Empty;
+
+        var hostName = source.Hostname?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(hostName))
+        {
+            hostName = "LauncherGo-vs-server";
+        }
+
+        var ipv4Address = source.Ipv4Address?.Trim() ?? string.Empty;
+        if (!System.Net.IPAddress.TryParse(ipv4Address, out var parsedAddress) ||
+            parsedAddress.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+        {
+            ipv4Address = EasyTierIntegrationSettings.DefaultIpv4Address;
+        }
+
+        return new EasyTierIntegrationSettings
+        {
+            RoomPrefix = roomPrefix,
+            PeerNodesText = NormalizeEasyTierPeerNodes(source.PeerNodesText),
+            NetworkName = networkName,
+            NetworkSecret = networkSecret,
+            GamePort = Math.Clamp(
+                source.GamePort <= 0 ? EasyTierIntegrationSettings.DefaultGamePort : source.GamePort,
+                1,
+                ushort.MaxValue),
+            EnableUdp = source.EnableUdp,
+            LatencyFirst = source.LatencyFirst,
+            Compression = source.Compression,
+            EnableKcpProxy = source.EnableKcpProxy,
+            Hostname = hostName,
+            Ipv4Address = ipv4Address
+        };
+    }
+
+    private static string NormalizeEasyTierPeerNodes(string? value)
+    {
+        var entries = (value ?? string.Empty)
+            .Split(['\r', '\n', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(static item => !string.IsNullOrWhiteSpace(item))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return entries.Count == 0 ? string.Empty : string.Join(Environment.NewLine, entries);
     }
 
     private static string NormalizeListenPrefix(string? value)

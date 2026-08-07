@@ -61,11 +61,15 @@ public class LauncherPreferences
 
     public bool AutoStartThirdPartyFrpcOnLaunch { get; set; }
 
+    public bool AutoStartEasyTierOnLaunch { get; set; }
+
     public OpenServerQuerySettings OpenServerQuery { get; set; } = new();
 
     public RobotIntegrationSettings Robot { get; set; } = new();
 
     public FrpIntegrationSettings Frp { get; set; } = new();
+
+    public EasyTierIntegrationSettings EasyTier { get; set; } = new();
 
     public SaveCompressionSettings SaveCompression { get; set; } = new();
 }

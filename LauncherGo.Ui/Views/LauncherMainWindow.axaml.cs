@@ -12,6 +12,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -149,6 +150,7 @@ public partial class LauncherMainWindow : Window
     private readonly IAutomationSettingsService _automationSettingsService;
     private readonly IFrpService _frpService;
     private readonly IThirdPartyFrpcService _thirdPartyFrpcService;
+    private readonly IEasyTierService _easyTierService;
     private readonly IInstanceModService _instanceModService;
     private readonly IServerAuthService _serverAuthService;
     private readonly IServerMapService _serverMapService;
@@ -242,8 +244,10 @@ public partial class LauncherMainWindow : Window
     private bool _consoleRefreshQueued;
     private bool _isFrpRunning;
     private bool _isThirdPartyFrpcRunning;
+    private bool _isEasyTierRunning;
     private bool _isTogglingFrp;
     private bool _isTogglingThirdPartyFrpc;
+    private bool _isTogglingEasyTier;
     private bool _isTogglingOsq;
     private bool _isTogglingRobot;
     private bool _isExitRequested;
@@ -280,6 +284,7 @@ public partial class LauncherMainWindow : Window
             ServiceLocator.GetRequiredService<IAutomationSettingsService>(),
             ServiceLocator.GetRequiredService<IFrpService>(),
             ServiceLocator.GetRequiredService<IThirdPartyFrpcService>(),
+            ServiceLocator.GetRequiredService<IEasyTierService>(),
             ServiceLocator.GetRequiredService<IInstanceModService>(),
             ServiceLocator.GetRequiredService<IServerAuthService>(),
             ServiceLocator.GetRequiredService<IServerMapService>(),
@@ -301,6 +306,7 @@ public partial class LauncherMainWindow : Window
         IAutomationSettingsService automationSettingsService,
         IFrpService frpService,
         IThirdPartyFrpcService thirdPartyFrpcService,
+        IEasyTierService easyTierService,
         IInstanceModService instanceModService,
         IServerAuthService serverAuthService,
         IServerMapService serverMapService,
@@ -319,6 +325,7 @@ public partial class LauncherMainWindow : Window
         _automationSettingsService = automationSettingsService;
         _frpService = frpService;
         _thirdPartyFrpcService = thirdPartyFrpcService;
+        _easyTierService = easyTierService;
         _instanceModService = instanceModService;
         _serverAuthService = serverAuthService;
         _serverMapService = serverMapService;
@@ -349,6 +356,7 @@ public partial class LauncherMainWindow : Window
         _automationService.RuntimeLogReceived += OnAutomationRuntimeLogReceived;
         _frpService.StatusChanged += OnFrpStatusChanged;
         _thirdPartyFrpcService.StatusChanged += OnThirdPartyFrpcStatusChanged;
+        _easyTierService.StatusChanged += OnEasyTierStatusChanged;
         _openServerQueryService.OutputReceived += OnOpenServerQueryOutputReceived;
 
         InitializeStaticTexts();
@@ -387,12 +395,14 @@ public partial class LauncherMainWindow : Window
             _automationService.RuntimeLogReceived -= OnAutomationRuntimeLogReceived;
             _frpService.StatusChanged -= OnFrpStatusChanged;
             _thirdPartyFrpcService.StatusChanged -= OnThirdPartyFrpcStatusChanged;
+            _easyTierService.StatusChanged -= OnEasyTierStatusChanged;
             _openServerQueryService.OutputReceived -= OnOpenServerQueryOutputReceived;
             _ = _logTailService.StopAsync();
             _ = _openServerQueryService.StopAsync(TimeSpan.FromSeconds(2));
             _ = _robotService.StopAsync(TimeSpan.FromSeconds(2));
             _ = _frpService.StopAsync(TimeSpan.FromSeconds(2));
             _ = _thirdPartyFrpcService.StopAsync(TimeSpan.FromSeconds(2));
+            _ = _easyTierService.StopAsync(TimeSpan.FromSeconds(2));
         };
     }
 
@@ -469,6 +479,11 @@ public partial class LauncherMainWindow : Window
         if (preferences.AutoStartThirdPartyFrpcOnLaunch)
         {
             await StartConnectionProcessAsync(ConnectionProcessKind.ThirdPartyFrpc);
+        }
+
+        if (preferences.AutoStartEasyTierOnLaunch)
+        {
+            await StartEasyTierAsync();
         }
 
         RefreshConnectionRuntimeStatus();
@@ -706,6 +721,7 @@ public partial class LauncherMainWindow : Window
         SettingsAutoStartRobotLabelTextBlock.Text = T("启动时自动启动QQ机器人", "Auto-start QQ robot on launch");
         SettingsAutoStartFrpLabelTextBlock.Text = T("启动时自动开启内网穿透（常规）", "Auto-start FRP (regular) on launch");
         SettingsAutoStartThirdPartyFrpcLabelTextBlock.Text = T("启动时自动开启第三方内网穿透", "Auto-start third-party FRPC on launch");
+        SettingsAutoStartEasyTierLabelTextBlock.Text = T("启动时自动开启 EasyTier", "Auto-start EasyTier on launch");
     }
 
     private void InitializeNetworkSettingsStaticTexts()
@@ -740,6 +756,7 @@ public partial class LauncherMainWindow : Window
     private void InitializeConnectionStaticTexts()
     {
         ConnectionFrpTabButton.Content = T("FRP", "FRP");
+        ConnectionEasyTierTabButton.Content = T("EasyTier", "EasyTier");
         ConnectionOpenInfoTabButton.Content = T("开放API", "Open API");
         ConnectionRobotTabButton.Content = T("机器人", "Robot");
         ConnectionAuthTabButton.Content = T("安全", "Security");
@@ -753,6 +770,25 @@ public partial class LauncherMainWindow : Window
         ConnectionFrpCommandLabelTextBlock.Text = T("常规启动命令", "Regular Launch Command");
         ConnectionThirdPartyFrpcModeLabelTextBlock.Text = T("第三方模式", "Third-party Mode");
         ConnectionThirdPartyFrpcCommandLabelTextBlock.Text = T("第三方启动命令", "Third-party Launch Command");
+
+        EasyTierSaveButton.Content = T("保存", "Save");
+        EasyTierRefreshButton.Content = T("刷新", "Refresh");
+        EasyTierImportCoreButton.Content = T("导入 Core", "Import Core");
+        EasyTierImportCliButton.Content = T("导入 CLI", "Import CLI");
+        EasyTierCopyRoomCodeButton.Content = T("复制", "Copy");
+        EasyTierCopyGameAddressButton.Content = T("复制", "Copy");
+        EasyTierRoomPrefixLabelTextBlock.Text = T("房间前缀", "Room Prefix");
+        EasyTierGamePortLabelTextBlock.Text = T("游戏端口", "Game Port");
+        EasyTierPeerNodesLabelTextBlock.Text = T("引导/中继节点", "Bootstrap / Relay Nodes");
+        EasyTierNetworkNameLabelTextBlock.Text = T("自定义网络名称", "Custom Network Name");
+        EasyTierNetworkSecretLabelTextBlock.Text = T("自定义网络密钥", "Custom Network Secret");
+        EasyTierUdpLabelTextBlock.Text = T("UDP 游戏端口", "UDP game port");
+        EasyTierLatencyFirstLabelTextBlock.Text = T("低延迟优先", "Latency First");
+        EasyTierCompressionLabelTextBlock.Text = T("Zstd 压缩", "Zstd Compression");
+        EasyTierKcpLabelTextBlock.Text = T("KCP 代理", "KCP Proxy");
+        EasyTierRoomCodeLabelTextBlock.Text = T("MVL 分享码", "MVL Room Code");
+        EasyTierGameAddressLabelTextBlock.Text = T("ET 游戏地址", "ET Game Address");
+        UpdateEasyTierActionButtons();
 
         UpdateOsqToggleButtonText();
         OsqTitleTextBlock.Text = T("开放信息（OpenServerQuery）", "Open Info (OpenServerQuery)");
@@ -910,7 +946,8 @@ public partial class LauncherMainWindow : Window
         {
             var networkActive = _openServerQueryService.GetRuntimeStatus().IsListening ||
                                 _frpService.GetCurrentStatus().IsRunning ||
-                                _thirdPartyFrpcService.GetCurrentStatus().IsRunning;
+                                _thirdPartyFrpcService.GetCurrentStatus().IsRunning ||
+                                _easyTierService.GetCurrentStatus().IsRunning;
             PushNextSample(_networkLatencySamples, networkActive ? 1 : 0, NetworkRangeCount);
         }
 
@@ -2799,6 +2836,7 @@ public partial class LauncherMainWindow : Window
     {
         _selectedConnectionTab = tab;
         ConnectionFrpPanel.IsVisible = tab == ConnectionTab.Frp;
+        ConnectionEasyTierPanel.IsVisible = tab == ConnectionTab.EasyTier;
         ConnectionOpenInfoPanel.IsVisible = tab == ConnectionTab.OpenInfo;
         ConnectionRobotPanel.IsVisible = tab == ConnectionTab.Robot;
         ConnectionAuthPanel.IsVisible = tab == ConnectionTab.Auth;
@@ -2836,6 +2874,7 @@ public partial class LauncherMainWindow : Window
         SetSelectedClass(ConnectionAuthTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Auth);
         SetSelectedClass(LogsNavButton, _logsNavSelected);
         SetSelectedClass(ConnectionFrpTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Frp);
+        SetSelectedClass(ConnectionEasyTierTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.EasyTier);
         SetSelectedClass(ConnectionOpenInfoTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.OpenInfo);
         SetSelectedClass(ConnectionRobotTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Robot);
         SetSelectedClass(ServerSettingsTabButton, !_logsNavSelected && _selectedTab == MainTab.Settings && _selectedSettingsTab == SettingsTab.Server);
@@ -2864,6 +2903,7 @@ public partial class LauncherMainWindow : Window
                      SettingsAutoStartRobotCheckBox,
                      SettingsAutoStartFrpCheckBox,
                      SettingsAutoStartThirdPartyFrpcCheckBox,
+                     SettingsAutoStartEasyTierCheckBox,
                      SettingsSaveCompressionEnabledCheckBox,
                      SettingsSaveCompressionDeleteSourceCheckBox
                  })
@@ -2879,6 +2919,22 @@ public partial class LauncherMainWindow : Window
 
         ConnectionFrpCommandTextBox.LostFocus += OnFrpAutoSaveChanged;
         ConnectionThirdPartyFrpcCommandTextBox.LostFocus += OnFrpAutoSaveChanged;
+
+        EasyTierRoomPrefixTextBox.LostFocus += OnEasyTierAutoSaveChanged;
+        EasyTierGamePortNumericUpDown.LostFocus += OnEasyTierAutoSaveChanged;
+        EasyTierPeerNodesTextBox.LostFocus += OnEasyTierAutoSaveChanged;
+        EasyTierNetworkNameTextBox.LostFocus += OnEasyTierAutoSaveChanged;
+        EasyTierNetworkSecretTextBox.LostFocus += OnEasyTierAutoSaveChanged;
+        foreach (var check in new[]
+                 {
+                     EasyTierUdpCheckBox,
+                     EasyTierLatencyFirstCheckBox,
+                     EasyTierCompressionCheckBox,
+                     EasyTierKcpCheckBox
+                 })
+        {
+            check.IsCheckedChanged += OnEasyTierAutoSaveChanged;
+        }
 
         OsqListenPrefixTextBox.LostFocus += OnOpenInfoAutoSaveChanged;
         OsqRequestTimeoutNumericUpDown.LostFocus += OnOpenInfoAutoSaveChanged;
@@ -2931,6 +2987,16 @@ public partial class LauncherMainWindow : Window
         }
 
         SaveFrpSettings(updateStatus: false, refreshEditor: false);
+    }
+
+    private void OnEasyTierAutoSaveChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_isApplyingConnectionSettings)
+        {
+            return;
+        }
+
+        SaveEasyTierSettings(updateStatus: false, refreshEditor: false);
     }
 
     private void OnOpenInfoAutoSaveChanged(object? sender, RoutedEventArgs e)
@@ -3017,6 +3083,7 @@ public partial class LauncherMainWindow : Window
             SettingsAutoStartRobotCheckBox.IsChecked = preferences.AutoStartRobotOnLaunch;
             SettingsAutoStartFrpCheckBox.IsChecked = preferences.AutoStartFrpOnLaunch;
             SettingsAutoStartThirdPartyFrpcCheckBox.IsChecked = preferences.AutoStartThirdPartyFrpcOnLaunch;
+            SettingsAutoStartEasyTierCheckBox.IsChecked = preferences.AutoStartEasyTierOnLaunch;
             SettingsAutoStartServerProfileComboBox.ItemsSource = profiles;
             var autoStartIds = SplitProfileIds(preferences.AutoStartServerProfileIds, preferences.AutoStartServerProfileId);
             SettingsAutoStartServerProfileComboBox.SelectedItem = profiles.FirstOrDefault(profile =>
@@ -3057,6 +3124,7 @@ public partial class LauncherMainWindow : Window
         preferences.AutoStartRobotOnLaunch = SettingsAutoStartRobotCheckBox.IsChecked == true;
         preferences.AutoStartFrpOnLaunch = SettingsAutoStartFrpCheckBox.IsChecked == true;
         preferences.AutoStartThirdPartyFrpcOnLaunch = SettingsAutoStartThirdPartyFrpcCheckBox.IsChecked == true;
+        preferences.AutoStartEasyTierOnLaunch = SettingsAutoStartEasyTierCheckBox.IsChecked == true;
         _preferencesService.Save(preferences);
         RefreshQuickCommandItems(preferences.QuickCommands);
         try
@@ -3584,6 +3652,7 @@ public partial class LauncherMainWindow : Window
 
             var preferences = _preferencesService.Load();
             ApplyFrpSettings(preferences.Frp);
+            ApplyEasyTierSettings(preferences.EasyTier);
             ApplyOpenServerQuerySettings(preferences.OpenServerQuery);
             ApplyRobotSettings(preferences.Robot);
             RefreshRobotProfileItems();
@@ -3639,6 +3708,20 @@ public partial class LauncherMainWindow : Window
             _thirdPartyFrpcModeOptions,
             settings.ThirdPartyFrpcLaunchMode.ToString());
         ConnectionThirdPartyFrpcCommandTextBox.Text = settings.ThirdPartyFrpcCommand;
+    }
+
+    private void ApplyEasyTierSettings(EasyTierIntegrationSettings settings)
+    {
+        EasyTierRoomPrefixTextBox.Text = settings.RoomPrefix;
+        SetNumericValue(EasyTierGamePortNumericUpDown, settings.GamePort);
+        EasyTierPeerNodesTextBox.Text = settings.PeerNodesText;
+        EasyTierNetworkNameTextBox.Text = settings.NetworkName;
+        EasyTierNetworkSecretTextBox.Text = settings.NetworkSecret;
+        EasyTierUdpCheckBox.IsChecked = settings.EnableUdp;
+        EasyTierLatencyFirstCheckBox.IsChecked = settings.LatencyFirst;
+        EasyTierCompressionCheckBox.IsChecked = settings.Compression;
+        EasyTierKcpCheckBox.IsChecked = settings.EnableKcpProxy;
+        ApplyEasyTierRuntimeStatus(_easyTierService.GetCurrentStatus());
     }
 
     private void ApplyOpenServerQuerySettings(OpenServerQuerySettings settings)
@@ -3726,6 +3809,22 @@ public partial class LauncherMainWindow : Window
         }
     }
 
+    private void SaveEasyTierSettings(bool updateStatus = true, bool refreshEditor = true)
+    {
+        var preferences = _preferencesService.Load();
+        preferences.EasyTier = CollectEasyTierSettings();
+        _preferencesService.Save(preferences);
+        if (refreshEditor)
+        {
+            RefreshConnectionSettingsEditor();
+        }
+
+        if (updateStatus)
+        {
+            SetConnectionStatus(T("EasyTier 配置已保存。", "EasyTier configuration saved."));
+        }
+    }
+
     private void SaveOpenServerQuerySettings(bool updateStatus = true, bool refreshEditor = true)
     {
         var preferences = _preferencesService.Load();
@@ -3803,6 +3902,29 @@ public partial class LauncherMainWindow : Window
             ThirdPartyFrpcCommand = string.IsNullOrWhiteSpace(ConnectionThirdPartyFrpcCommandTextBox.Text)
                 ? fallbackThirdPartyCommand
                 : ConnectionThirdPartyFrpcCommandTextBox.Text.Trim()
+        };
+    }
+
+    private EasyTierIntegrationSettings CollectEasyTierSettings()
+    {
+        return new EasyTierIntegrationSettings
+        {
+            RoomPrefix = string.IsNullOrWhiteSpace(EasyTierRoomPrefixTextBox.Text)
+                ? EasyTierIntegrationSettings.DefaultRoomPrefix
+                : EasyTierRoomPrefixTextBox.Text.Trim(),
+            GamePort = Math.Clamp(
+                (int)Math.Round(EasyTierGamePortNumericUpDown.Value ?? EasyTierIntegrationSettings.DefaultGamePort),
+                1,
+                ushort.MaxValue),
+            PeerNodesText = EasyTierPeerNodesTextBox.Text?.Trim() ?? string.Empty,
+            NetworkName = EasyTierNetworkNameTextBox.Text?.Trim() ?? string.Empty,
+            NetworkSecret = EasyTierNetworkSecretTextBox.Text?.Trim() ?? string.Empty,
+            EnableUdp = EasyTierUdpCheckBox.IsChecked == true,
+            LatencyFirst = EasyTierLatencyFirstCheckBox.IsChecked == true,
+            Compression = EasyTierCompressionCheckBox.IsChecked == true,
+            EnableKcpProxy = EasyTierKcpCheckBox.IsChecked == true,
+            Hostname = "LauncherGo-vs-server",
+            Ipv4Address = EasyTierIntegrationSettings.DefaultIpv4Address
         };
     }
 
@@ -4234,6 +4356,38 @@ public partial class LauncherMainWindow : Window
         }
     }
 
+    private void UpdateEasyTierActionButtons()
+    {
+        var status = _easyTierService.GetCurrentStatus();
+        _isEasyTierRunning = status.IsRunning;
+        if (!_isTogglingEasyTier)
+        {
+            EasyTierToggleButton.Content = status.IsRunning
+                ? T("停止", "Stop")
+                : T("启动", "Start");
+        }
+
+        ApplyEasyTierRuntimeStatus(status);
+    }
+
+    private void ApplyEasyTierRuntimeStatus(EasyTierRuntimeStatus status)
+    {
+        EasyTierRoomCodeTextBox.Text = status.RoomCode;
+        EasyTierGameAddressTextBox.Text = status.GameAddress;
+        EasyTierCopyRoomCodeButton.IsEnabled = !string.IsNullOrWhiteSpace(status.RoomCode);
+        EasyTierCopyGameAddressButton.IsEnabled = !string.IsNullOrWhiteSpace(status.GameAddress);
+
+        EasyTierRuntimeInfoTextBlock.Text = status.IsReady
+            ? T(
+                $"ET IP {status.LocalIpV4}  节点 {status.ConnectedPeerCount}  玩家 {status.ConnectedPlayerCount}  控制端口 {status.ControlPort}",
+                $"ET IP {status.LocalIpV4}  peers {status.ConnectedPeerCount}  players {status.ConnectedPlayerCount}  control port {status.ControlPort}")
+            : !string.IsNullOrWhiteSpace(status.LastError)
+                ? T($"状态：{status.LastError}", $"Status: {status.LastError}")
+                : status.IsRunning
+                    ? T("EasyTier 正在连接。", "EasyTier is connecting.")
+                    : T("EasyTier 未启动。", "EasyTier is stopped.");
+    }
+
     private bool IsConnectionProcessToggling(ConnectionProcessKind kind)
     {
         return kind == ConnectionProcessKind.Frp ? _isTogglingFrp : _isTogglingThirdPartyFrpc;
@@ -4282,11 +4436,13 @@ public partial class LauncherMainWindow : Window
     private void RefreshConnectionRuntimeStatus()
     {
         UpdateConnectionFrpActionButtons();
+        UpdateEasyTierActionButtons();
         UpdateOsqToggleButtonText();
         UpdateRobotToggleButtonText();
         var currentStatus = _selectedConnectionTab switch
         {
             ConnectionTab.Frp => BuildFrpRuntimeStatusText(),
+            ConnectionTab.EasyTier => BuildEasyTierRuntimeStatusText(),
             ConnectionTab.OpenInfo => BuildOpenInfoRuntimeStatusText(),
             ConnectionTab.Robot => BuildRobotRuntimeStatusText(),
             ConnectionTab.Auth => AuthStatusTextBlock.Text ?? string.Empty,
@@ -4315,6 +4471,30 @@ public partial class LauncherMainWindow : Window
                 $"Third-party FRPC: running PID={thirdPartyStatus.ProcessId?.ToString(CultureInfo.InvariantCulture) ?? "--"}  {FormatConnectionUptime(thirdPartyStatus.StartedAtUtc)}")
             : T("第三方内网穿透：未启动", "Third-party FRPC: stopped");
         return $"{regular}；{thirdParty}";
+    }
+
+    private string BuildEasyTierRuntimeStatusText()
+    {
+        var status = _easyTierService.GetCurrentStatus();
+        _isEasyTierRunning = status.IsRunning;
+        if (!status.IsRunning)
+        {
+            return string.IsNullOrWhiteSpace(status.LastError)
+                ? T("EasyTier：未启动", "EasyTier: stopped")
+                : T($"EasyTier：{status.LastError}", $"EasyTier: {status.LastError}");
+        }
+
+        if (!status.IsReady)
+        {
+            return T(
+                $"EasyTier：正在连接 PID={status.ProcessId?.ToString(CultureInfo.InvariantCulture) ?? "--"}",
+                $"EasyTier: connecting PID={status.ProcessId?.ToString(CultureInfo.InvariantCulture) ?? "--"}");
+        }
+
+        var gameAddress = string.IsNullOrWhiteSpace(status.GameAddress) ? status.LocalIpV4 : status.GameAddress;
+        return T(
+            $"EasyTier：运行中 PID={status.ProcessId?.ToString(CultureInfo.InvariantCulture) ?? "--"}  {gameAddress}  {FormatConnectionUptime(status.StartedAtUtc)}",
+            $"EasyTier: running PID={status.ProcessId?.ToString(CultureInfo.InvariantCulture) ?? "--"}  {gameAddress}  {FormatConnectionUptime(status.StartedAtUtc)}");
     }
 
     private string BuildOpenInfoRuntimeStatusText()
@@ -4879,6 +5059,19 @@ public partial class LauncherMainWindow : Window
             _isThirdPartyFrpcRunning = status.IsRunning;
             UpdateConnectionFrpActionButtons();
             if (_selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Frp)
+            {
+                RefreshConnectionRuntimeStatus();
+            }
+        });
+    }
+
+    private void OnEasyTierStatusChanged(object? sender, EasyTierRuntimeStatus status)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            _isEasyTierRunning = status.IsRunning;
+            UpdateEasyTierActionButtons();
+            if (_selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.EasyTier)
             {
                 RefreshConnectionRuntimeStatus();
             }
@@ -5571,6 +5764,12 @@ public partial class LauncherMainWindow : Window
         SelectConnectionTab(ConnectionTab.Frp);
     }
 
+    private void OnConnectionEasyTierTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.Connection);
+        SelectConnectionTab(ConnectionTab.EasyTier);
+    }
+
     private void OnConnectionOpenInfoTabClick(object? sender, RoutedEventArgs e)
     {
         SelectTab(MainTab.Connection);
@@ -5604,6 +5803,170 @@ public partial class LauncherMainWindow : Window
     private async void OnConnectionThirdPartyFrpcImportClick(object? sender, RoutedEventArgs e)
     {
         await ImportConnectionExecutableAsync(ConnectionProcessKind.ThirdPartyFrpc);
+    }
+
+    private void OnEasyTierSaveClick(object? sender, RoutedEventArgs e) => SaveEasyTierSettings();
+
+    private void OnEasyTierRefreshClick(object? sender, RoutedEventArgs e)
+    {
+        RefreshConnectionSettingsEditor();
+        RefreshConnectionRuntimeStatus();
+    }
+
+    private async void OnEasyTierImportCoreClick(object? sender, RoutedEventArgs e)
+    {
+        await ImportEasyTierExecutableAsync(core: true);
+    }
+
+    private async void OnEasyTierImportCliClick(object? sender, RoutedEventArgs e)
+    {
+        await ImportEasyTierExecutableAsync(core: false);
+    }
+
+    private async void OnEasyTierToggleClick(object? sender, RoutedEventArgs e)
+    {
+        await ToggleEasyTierAsync();
+    }
+
+    private async void OnEasyTierCopyRoomCodeClick(object? sender, RoutedEventArgs e)
+    {
+        await CopyEasyTierValueAsync(EasyTierRoomCodeTextBox.Text, T("MVL 分享码", "MVL room code"));
+    }
+
+    private async void OnEasyTierCopyGameAddressClick(object? sender, RoutedEventArgs e)
+    {
+        await CopyEasyTierValueAsync(EasyTierGameAddressTextBox.Text, T("ET 游戏地址", "ET game address"));
+    }
+
+    private async Task ImportEasyTierExecutableAsync(bool core)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = core
+                ? T("导入 EasyTier Core", "Import EasyTier Core")
+                : T("导入 EasyTier CLI", "Import EasyTier CLI"),
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Executable")
+                {
+                    Patterns = ["*.exe"]
+                }
+            ]
+        });
+
+        var sourcePath = TryGetLocalPath(files.FirstOrDefault());
+        if (string.IsNullOrWhiteSpace(sourcePath))
+        {
+            return;
+        }
+
+        try
+        {
+            if (core)
+            {
+                await _easyTierService.ImportCoreExecutableAsync(sourcePath);
+            }
+            else
+            {
+                await _easyTierService.ImportCliExecutableAsync(sourcePath);
+            }
+
+            SetConnectionStatus(T($"已导入：{Path.GetFileName(sourcePath)}", $"Imported: {Path.GetFileName(sourcePath)}"));
+        }
+        catch (Exception ex)
+        {
+            SetConnectionStatus(T($"导入失败：{ex.Message}", $"Import failed: {ex.Message}"));
+        }
+    }
+
+    private async Task ToggleEasyTierAsync()
+    {
+        if (_isTogglingEasyTier)
+        {
+            return;
+        }
+
+        _isTogglingEasyTier = true;
+        EasyTierToggleButton.IsEnabled = false;
+        try
+        {
+            if (_easyTierService.GetCurrentStatus().IsRunning)
+            {
+                await StopEasyTierAsync();
+            }
+            else
+            {
+                SaveEasyTierSettings(updateStatus: false, refreshEditor: false);
+                await StartEasyTierAsync();
+            }
+        }
+        finally
+        {
+            _isTogglingEasyTier = false;
+            EasyTierToggleButton.IsEnabled = true;
+            UpdateEasyTierActionButtons();
+            UpdateCardValues(_serverProcessService.GetCachedStatus());
+        }
+    }
+
+    private async Task StartEasyTierAsync()
+    {
+        if (_easyTierService.GetCurrentStatus().IsRunning)
+        {
+            SetConnectionStatus(T("EasyTier 已在运行。", "EasyTier is already running."));
+            return;
+        }
+
+        try
+        {
+            await _easyTierService.StartAsync();
+            var status = _easyTierService.GetCurrentStatus();
+            SetConnectionStatus(
+                T($"EasyTier 已启动，PID={status.ProcessId}。", $"EasyTier started, PID={status.ProcessId}."));
+        }
+        catch (Exception ex)
+        {
+            SetConnectionStatus(T($"EasyTier 启动失败：{ex.Message}", $"EasyTier start failed: {ex.Message}"));
+        }
+    }
+
+    private async Task StopEasyTierAsync()
+    {
+        try
+        {
+            await _easyTierService.StopAsync(TimeSpan.FromSeconds(15));
+            SetConnectionStatus(T("EasyTier 已停止。", "EasyTier stopped."));
+        }
+        catch (Exception ex)
+        {
+            SetConnectionStatus(T($"EasyTier 停止失败：{ex.Message}", $"EasyTier stop failed: {ex.Message}"));
+        }
+    }
+
+    private async Task CopyEasyTierValueAsync(string? value, string label)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            SetConnectionStatus(T($"没有可复制的 {label}。", $"No {label} is available to copy."));
+            return;
+        }
+
+        try
+        {
+            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+            if (clipboard is null)
+            {
+                throw new InvalidOperationException("当前窗口没有可用的剪贴板。");
+            }
+
+            await clipboard.SetTextAsync(value.Trim());
+            SetConnectionStatus(T($"已复制 {label}。", $"Copied {label}."));
+        }
+        catch (Exception ex)
+        {
+            SetConnectionStatus(T($"复制失败：{ex.Message}", $"Copy failed: {ex.Message}"));
+        }
     }
 
     private void OnConnectionRefreshClick(object? sender, RoutedEventArgs e)
@@ -9072,6 +9435,7 @@ public partial class LauncherMainWindow : Window
     private enum ConnectionTab
     {
         Frp,
+        EasyTier,
         OpenInfo,
         Robot,
         Auth

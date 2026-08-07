@@ -19,6 +19,7 @@ public static class ServiceCollectionExtension
         services.AddSingleton<IAutomationService, AutomationService>();
         services.AddSingleton<IFrpService, FrpService>();
         services.AddSingleton<IThirdPartyFrpcService, ThirdPartyFrpcService>();
+        services.AddSingleton<IEasyTierService, EasyTierService>();
         services.AddSingleton<IInstanceModService, InstanceModService>();
         services.AddSingleton<IServerAuthService, ServerAuthService>();
         services.AddSingleton<IServerMapService, ServerMapService>();

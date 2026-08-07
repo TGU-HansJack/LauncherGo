@@ -41,6 +41,12 @@ internal static partial class WorkspacePathHelper
 
     public static string ThirdPartyFrpcConfigPath => Path.Combine(ThirdPartyFrpcRoot, "frpc.ini");
 
+    public static string EasyTierRoot => Path.Combine(RuntimeRoot, "easytier");
+
+    public static string EasyTierCoreExecutablePath => Path.Combine(EasyTierRoot, "easytier-core.exe");
+
+    public static string EasyTierCliExecutablePath => Path.Combine(EasyTierRoot, "easytier-cli.exe");
+
     public static string RobotRoot => Path.Combine(WorkspaceRoot, "qqbot");
 
     public static string RobotSettingsPath => Path.Combine(RobotRoot, "vs2qq-settings.json");
@@ -72,6 +78,7 @@ internal static partial class WorkspacePathHelper
         Directory.CreateDirectory(ServerRelayRoot);
         Directory.CreateDirectory(FrpRoot);
         Directory.CreateDirectory(ThirdPartyFrpcRoot);
+        Directory.CreateDirectory(EasyTierRoot);
         Directory.CreateDirectory(RobotRoot);
     }
 

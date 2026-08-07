@@ -1043,6 +1043,7 @@
                                     <Button x:Name="ConnectionOpenInfoTabButton" Classes="SidebarNavButton" Content="开放API" Click="OnConnectionOpenInfoTabClick" />
                                     <Button x:Name="ConnectionRobotTabButton" Classes="SidebarNavButton" Content="机器人" Click="OnConnectionRobotTabClick" />
                                     <Button x:Name="ConnectionFrpTabButton" Classes="SidebarNavButton" Content="FRP" Click="OnConnectionFrpTabClick" />
+                                    <Button x:Name="ConnectionEasyTierTabButton" Classes="SidebarNavButton" Content="EasyTier" Click="OnConnectionEasyTierTabClick" />
 
                                     <TextBlock Classes="SidebarSectionTitle" Text="设置" />
                                     <Button x:Name="ServerSettingsTabButton" Classes="SidebarNavButton" Content="服务器设置" Click="OnServerSettingsTabClick" />
@@ -2117,6 +2118,10 @@
                                                             <TextBlock x:Name="SettingsAutoStartThirdPartyFrpcLabelTextBlock" Classes="ConfigFieldLabel" Text="启动时自动开启第三方内网穿透" />
                                                             <ToggleSwitch x:Name="SettingsAutoStartThirdPartyFrpcCheckBox" Classes="LabelledToggle" />
                                                         </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="SettingsAutoStartEasyTierLabelTextBlock" Classes="ConfigFieldLabel" Text="启动时自动开启 EasyTier" />
+                                                            <ToggleSwitch x:Name="SettingsAutoStartEasyTierCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
                                                         <StackPanel Classes="ConfigFormFieldWide">
                                                             <TextBlock x:Name="SettingsAutoStartServerProfileLabelTextBlock" Classes="ConfigFieldLabel" Text="自启动服务器档案" />
                                                             <ComboBox x:Name="SettingsAutoStartServerProfileComboBox" Classes="CompactCombo" SelectionChanged="OnSettingsAutoStartServerProfileSelectionChanged" IsVisible="False">
@@ -2314,6 +2319,83 @@
                                                             <TextBox x:Name="ConnectionThirdPartyFrpcCommandTextBox" Classes="CompactInput" />
                                                         </StackPanel>
                                                     </WrapPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </ScrollViewer>
+
+                                    <ScrollViewer x:Name="ConnectionEasyTierPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
+                                        <StackPanel Spacing="10">
+                                            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                                <Button x:Name="EasyTierSaveButton" Classes="ActionButton" Content="保存" Click="OnEasyTierSaveClick" />
+                                                <Button x:Name="EasyTierRefreshButton" Grid.Column="1" Classes="SecondaryActionButton" Content="刷新" Click="OnEasyTierRefreshClick" />
+                                                <Button x:Name="EasyTierImportCoreButton" Grid.Column="2" Classes="SecondaryActionButton" Content="导入 Core" Click="OnEasyTierImportCoreClick" />
+                                                <Button x:Name="EasyTierImportCliButton" Grid.Column="3" Classes="SecondaryActionButton" Content="导入 CLI" Click="OnEasyTierImportCliClick" />
+                                                <Button x:Name="EasyTierToggleButton" Grid.Column="4" Classes="SecondaryActionButton" Content="启动" Click="OnEasyTierToggleClick" />
+                                            </Grid>
+                                            <Border Classes="ConfigCard">
+                                                <StackPanel Spacing="10">
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="EasyTierRoomPrefixLabelTextBlock" Classes="ConfigFieldLabel" Text="房间前缀" />
+                                                            <TextBox x:Name="EasyTierRoomPrefixTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="EasyTierGamePortLabelTextBlock" Classes="ConfigFieldLabel" Text="游戏端口" />
+                                                            <NumericUpDown x:Name="EasyTierGamePortNumericUpDown" Classes="CompactNumber" Minimum="1" Maximum="65535" Increment="1" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="EasyTierPeerNodesLabelTextBlock" Classes="ConfigFieldLabel" Text="引导/中继节点" />
+                                                            <TextBox x:Name="EasyTierPeerNodesTextBox" Classes="CompactInput" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="68" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="EasyTierNetworkNameLabelTextBlock" Classes="ConfigFieldLabel" Text="自定义网络名称" />
+                                                            <TextBox x:Name="EasyTierNetworkNameTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="EasyTierNetworkSecretLabelTextBlock" Classes="ConfigFieldLabel" Text="自定义网络密钥" />
+                                                            <TextBox x:Name="EasyTierNetworkSecretTextBox" Classes="CompactInput" PasswordChar="*" />
+                                                        </StackPanel>
+                                                    </WrapPanel>
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="EasyTierUdpLabelTextBlock" Classes="ConfigFieldLabel" Text="UDP 游戏端口" />
+                                                            <ToggleSwitch x:Name="EasyTierUdpCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="EasyTierLatencyFirstLabelTextBlock" Classes="ConfigFieldLabel" Text="低延迟优先" />
+                                                            <ToggleSwitch x:Name="EasyTierLatencyFirstCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="EasyTierCompressionLabelTextBlock" Classes="ConfigFieldLabel" Text="Zstd 压缩" />
+                                                            <ToggleSwitch x:Name="EasyTierCompressionCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="EasyTierKcpLabelTextBlock" Classes="ConfigFieldLabel" Text="KCP 代理" />
+                                                            <ToggleSwitch x:Name="EasyTierKcpCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
+                                                    </WrapPanel>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Classes="ConfigCard">
+                                                <StackPanel Spacing="10">
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="EasyTierRoomCodeLabelTextBlock" Classes="ConfigFieldLabel" Text="MVL 分享码" />
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                <TextBox x:Name="EasyTierRoomCodeTextBox" Classes="CompactInput" IsReadOnly="True" />
+                                                                <Button x:Name="EasyTierCopyRoomCodeButton" Grid.Column="1" Classes="SecondaryActionButton" Content="复制" Click="OnEasyTierCopyRoomCodeClick" />
+                                                            </Grid>
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="EasyTierGameAddressLabelTextBlock" Classes="ConfigFieldLabel" Text="ET 游戏地址" />
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                <TextBox x:Name="EasyTierGameAddressTextBox" Classes="CompactInput" IsReadOnly="True" />
+                                                                <Button x:Name="EasyTierCopyGameAddressButton" Grid.Column="1" Classes="SecondaryActionButton" Content="复制" Click="OnEasyTierCopyGameAddressClick" />
+                                                            </Grid>
+                                                        </StackPanel>
+                                                    </WrapPanel>
+                                                    <TextBlock x:Name="EasyTierRuntimeInfoTextBlock" Classes="ConfigHintText" />
                                                 </StackPanel>
                                             </Border>
                                         </StackPanel>

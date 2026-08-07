@@ -164,11 +164,16 @@ public sealed class VsslAuthClientSystem : ModSystem
             throw new InvalidOperationException("Invalid auth url");
         }
 
+        // Use the exact validated string that was copied to the clipboard.
+        // Re-serializing through Uri can change percent-encoded query content,
+        // which makes macOS `open` launch a URL different from the copied one.
+        var browserUrl = url;
+
         if (OperatingSystem.IsWindows())
         {
             Process.Start(new ProcessStartInfo
             {
-                FileName = uri.ToString(),
+                FileName = browserUrl,
                 UseShellExecute = true
             });
             return;
@@ -181,7 +186,7 @@ public sealed class VsslAuthClientSystem : ModSystem
                 FileName = "/usr/bin/open",
                 UseShellExecute = false
             };
-            startInfo.ArgumentList.Add(uri.ToString());
+            startInfo.ArgumentList.Add(browserUrl);
             Process.Start(startInfo);
             return;
         }
@@ -193,14 +198,14 @@ public sealed class VsslAuthClientSystem : ModSystem
                 FileName = "xdg-open",
                 UseShellExecute = false
             };
-            startInfo.ArgumentList.Add(uri.ToString());
+            startInfo.ArgumentList.Add(browserUrl);
             Process.Start(startInfo);
             return;
         }
 
         Process.Start(new ProcessStartInfo
         {
-            FileName = uri.ToString(),
+            FileName = browserUrl,
             UseShellExecute = true
         });
     }
