@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json.Serialization;
 using AsyncIO;
 using Nerdbank.MessagePack;
@@ -9,23 +10,65 @@ namespace LauncherGo.Services;
 
 internal sealed class MvlRoomHost : IDisposable
 {
+    private static readonly TimeSpan DefaultClientCheckInterval = TimeSpan.FromSeconds(6);
+    private static readonly TimeSpan DefaultClientTimeout = TimeSpan.FromSeconds(18);
+    private static readonly TimeSpan DefaultHeartbeatSendInterval = TimeSpan.FromSeconds(5);
     private static readonly MessagePackSerializer PackSerializer = new();
     private readonly object _sync = new();
     private readonly ushort _controlPort;
     private readonly List<MvlRoomPlayerInfo> _players = [];
     private readonly Action<string, Exception?> _logError;
+    private readonly TimeSpan _clientCheckInterval;
+    private readonly TimeSpan _clientTimeout;
+    private readonly TimeSpan _heartbeatSendInterval;
     private RouterSocket? _routerSocket;
     private NetMQPoller? _poller;
-    private NetMQTimer? _heartbeatTimer;
+    private NetMQTimer? _clientCheckTimer;
+    private NetMQTimer? _heartbeatSendTimer;
     private bool _disposed;
 
     public MvlRoomHost(
         ushort controlPort,
         MvlRoomPlayerInfo hostPlayer,
         Action<string, Exception?> logError)
+        : this(
+            controlPort,
+            hostPlayer,
+            logError,
+            DefaultClientCheckInterval,
+            DefaultClientTimeout,
+            DefaultHeartbeatSendInterval)
     {
+    }
+
+    internal MvlRoomHost(
+        ushort controlPort,
+        MvlRoomPlayerInfo hostPlayer,
+        Action<string, Exception?> logError,
+        TimeSpan clientCheckInterval,
+        TimeSpan clientTimeout,
+        TimeSpan heartbeatSendInterval)
+    {
+        if (clientCheckInterval <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(clientCheckInterval));
+        }
+
+        if (clientTimeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(clientTimeout));
+        }
+
+        if (heartbeatSendInterval <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(heartbeatSendInterval));
+        }
+
         _controlPort = controlPort;
         _logError = logError;
+        _clientCheckInterval = clientCheckInterval;
+        _clientTimeout = clientTimeout;
+        _heartbeatSendInterval = heartbeatSendInterval;
         _players.Add(hostPlayer);
     }
 
@@ -39,11 +82,15 @@ internal sealed class MvlRoomHost : IDisposable
         _routerSocket = new RouterSocket($"tcp://*:{_controlPort}");
         _routerSocket.ReceiveReady += OnReceiveReady;
 
-        _heartbeatTimer = new NetMQTimer(TimeSpan.FromSeconds(6));
-        _heartbeatTimer.Elapsed += OnHeartbeatTimerElapsed;
-        _heartbeatTimer.Enable = true;
+        _clientCheckTimer = new NetMQTimer(_clientCheckInterval);
+        _clientCheckTimer.Elapsed += OnClientCheckTimerElapsed;
+        _clientCheckTimer.Enable = true;
 
-        _poller = new NetMQPoller { _routerSocket, _heartbeatTimer };
+        _heartbeatSendTimer = new NetMQTimer(_heartbeatSendInterval);
+        _heartbeatSendTimer.Elapsed += OnHeartbeatSendTimerElapsed;
+        _heartbeatSendTimer.Enable = true;
+
+        _poller = new NetMQPoller { _routerSocket, _clientCheckTimer, _heartbeatSendTimer };
         _poller.RunAsync("LauncherGo-EasyTier-Room", true);
     }
 
@@ -65,8 +112,10 @@ internal sealed class MvlRoomHost : IDisposable
 
         try
         {
-            _heartbeatTimer?.Enable = false;
-            _heartbeatTimer = null;
+            _clientCheckTimer?.Enable = false;
+            _clientCheckTimer = null;
+            _heartbeatSendTimer?.Enable = false;
+            _heartbeatSendTimer = null;
             _poller?.Stop();
             _poller?.Dispose();
             _poller = null;
@@ -106,7 +155,18 @@ internal sealed class MvlRoomHost : IDisposable
             }
 
             var clientIdentity = BitConverter.ToUInt32(identity, 0);
+            if (message[1].Buffer.Length < sizeof(int))
+            {
+                return;
+            }
+
             var eventCode = (MvlRoomEvent)BitConverter.ToInt32(message[1].Buffer, 0);
+            if (!Enum.IsDefined(eventCode))
+            {
+                return;
+            }
+
+            TouchGuest(clientIdentity);
             switch (eventCode)
             {
                 case MvlRoomEvent.GuestJoined:
@@ -119,9 +179,16 @@ internal sealed class MvlRoomHost : IDisposable
                 case MvlRoomEvent.GuestLeft:
                     HandleGuestLeft(clientIdentity);
                     break;
-                case MvlRoomEvent.Ping:
-                    Send(identity, MvlRoomEvent.Pong);
-                    TouchGuest(clientIdentity);
+                case MvlRoomEvent.Heartbeat:
+                    // Event 5 was sent as Ping by older MVL clients.
+                    Send(identity, MvlRoomEvent.HeartbeatAck);
+                    break;
+                case MvlRoomEvent.HeartbeatAck:
+                    if (message.FrameCount >= 3)
+                    {
+                        HandleHeartbeatAck(clientIdentity, message[2].Buffer);
+                    }
+
                     break;
             }
         }
@@ -201,10 +268,43 @@ internal sealed class MvlRoomHost : IDisposable
         }
     }
 
-    private void OnHeartbeatTimerElapsed(object? sender, NetMQTimerEventArgs eventArgs)
+    private void HandleHeartbeatAck(uint clientIdentity, byte[] payload)
+    {
+        if (payload.Length < sizeof(long))
+        {
+            return;
+        }
+
+        var sentTimestamp = BitConverter.ToInt64(payload, 0);
+        var elapsedTicks = Stopwatch.GetTimestamp() - sentTimestamp;
+        if (elapsedTicks < 0)
+        {
+            return;
+        }
+
+        byte[]? serializedPlayer = null;
+        lock (_sync)
+        {
+            var player = _players.FirstOrDefault(candidate =>
+                candidate.RoomType == MvlRoomType.Guest && candidate.Identity == clientIdentity);
+            if (player is not null)
+            {
+                player.Latency = TimeSpan.FromSeconds(
+                    (double)elapsedTicks / Stopwatch.Frequency / 2);
+                serializedPlayer = PackSerializer.Serialize(player);
+            }
+        }
+
+        if (serializedPlayer is not null)
+        {
+            Broadcast(MvlRoomEvent.PlayerUpdate, serializedPlayer);
+        }
+    }
+
+    private void OnClientCheckTimerElapsed(object? sender, NetMQTimerEventArgs eventArgs)
     {
         List<MvlRoomPlayerInfo>? removed = null;
-        var threshold = DateTimeOffset.UtcNow.AddSeconds(-18);
+        var threshold = DateTimeOffset.UtcNow.Subtract(_clientTimeout);
         lock (_sync)
         {
             for (var index = _players.Count - 1; index >= 0; index--)
@@ -232,6 +332,13 @@ internal sealed class MvlRoomHost : IDisposable
         }
 
         RaiseGuestCountChanged();
+    }
+
+    private void OnHeartbeatSendTimerElapsed(object? sender, NetMQTimerEventArgs eventArgs)
+    {
+        Broadcast(
+            MvlRoomEvent.Heartbeat,
+            BitConverter.GetBytes(Stopwatch.GetTimestamp()));
     }
 
     private void NotifyHostShutdown()
@@ -313,8 +420,9 @@ internal enum MvlRoomEvent
     AddGuest,
     GuestLeft,
     HostShutdown,
-    Ping,
-    Pong,
+    Heartbeat,
+    HeartbeatAck,
+    PlayerUpdate,
     None = -1
 }
 
@@ -327,6 +435,10 @@ internal sealed partial record MvlRoomPlayerInfo(
     string Version)
 {
     public uint Identity { get; set; }
+
+    public bool Offline { get; set; }
+
+    public TimeSpan Latency { get; set; }
 
     [JsonIgnore]
     [PropertyShape(Ignore = true)]
