@@ -29,6 +29,8 @@ public class LauncherPreferences
 
     public string ServerDownloadCatalogUrl { get; set; } = string.Empty;
 
+    public string StratumServerDownloadCatalogUrl { get; set; } = string.Empty;
+
     public bool EnableChunkedDownloads { get; set; }
 
     public int DownloadChunkCount { get; set; } = 4;

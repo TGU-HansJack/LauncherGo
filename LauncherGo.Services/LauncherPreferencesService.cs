@@ -83,6 +83,9 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             SaveDirectory = saveDirectory,
             QqBotDirectory = qqBotDirectory,
             ServerDownloadCatalogUrl = NormalizeHttpUrlOrDefault(source.ServerDownloadCatalogUrl, defaults.ServerDownloadCatalogUrl),
+            StratumServerDownloadCatalogUrl = NormalizeHttpUrlOrDefault(
+                source.StratumServerDownloadCatalogUrl,
+                defaults.StratumServerDownloadCatalogUrl),
             EnableChunkedDownloads = source.EnableChunkedDownloads,
             DownloadChunkCount = Math.Clamp(source.DownloadChunkCount <= 0 ? defaults.DownloadChunkCount : source.DownloadChunkCount, 1, 32),
             DefaultLaunchProfileId = string.Join(';', defaultLaunchProfileIds),

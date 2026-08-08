@@ -51,7 +51,8 @@ public partial class LauncherMainWindow : Window
     private const double OsqEndpointHostColumnWidth = 420;
     private const double OsqEndpointTokenColumnWidth = 365;
     private const double OsqEndpointColumnSpacing = 10;
-    private const string DefaultServerDownloadCatalogUrl = "https://api.vintagestory.at/stable-unstable.json";
+    private const string DefaultServerDownloadCatalogUrl = "https://cdn.vintagestory.top/stable-unstable.json";
+    private const string DefaultStratumServerDownloadCatalogUrl = "https://cdn.vintagestory.top/stratum.json";
     private const string GitHubContributorsApiUrl = "https://api.github.com/repos/vscn-studio/LauncherGo/contributors?per_page=100";
     private const string SponsorApiUrl = "https://vscn.studio/api/afdian/sponsors";
     private const string LaunchStartIconData =
@@ -361,6 +362,7 @@ public partial class LauncherMainWindow : Window
         _openServerQueryService.OutputReceived += OnOpenServerQueryOutputReceived;
 
         InitializeStaticTexts();
+        DownloadSourceComboBox.SelectedIndex = 0;
         RefreshAppearanceSettingsEditor();
         InitializeCollections();
         InitializeSeries();
@@ -577,6 +579,8 @@ public partial class LauncherMainWindow : Window
         RefreshSavesButton.Content = T("刷新", "Refresh");
         InitializeAutomationStaticTexts();
         InitializeModStaticTexts();
+        DownloadVanillaSourceItem.Content = T("游戏服务端", "Game Server");
+        DownloadStratumSourceItem.Content = T("Stratum 服务端", "Stratum Server");
         DownloadVersionSearchTextBox.PlaceholderText = T("搜索版本号", "Search version");
         ImportServerPackageButton.Content = T("导入", "Import");
         RefreshDownloadVersionsButton.Content = T("刷新", "Refresh");
@@ -731,7 +735,8 @@ public partial class LauncherMainWindow : Window
     private void InitializeNetworkSettingsStaticTexts()
     {
         SettingsNetworkDownloadTitleTextBlock.Text = T("下载网络", "Download Network");
-        SettingsThirdPartyServerLabelTextBlock.Text = T("第三方服务端", "Third-party Server");
+        SettingsThirdPartyServerLabelTextBlock.Text = T("游戏服务端", "Game Server");
+        SettingsStratumServerLabelTextBlock.Text = T("Stratum 服务端", "Stratum Server");
         SettingsDownloadChunkCountLabelTextBlock.Text = T("分片数量", "Chunk Count");
         SettingsChunkedDownloadLabelTextBlock.Text = T("大文件分片下载", "Chunked large-file downloads");
     }
@@ -2647,17 +2652,22 @@ public partial class LauncherMainWindow : Window
         var installedVersions = _profileService.GetInstalledVersions().ToHashSet(StringComparer.OrdinalIgnoreCase);
         _downloadVersionItems.Clear();
         var searchKeyword = DownloadVersionSearchTextBox.Text?.Trim() ?? string.Empty;
+        var sourceKind = GetSelectedDownloadSourceKind();
 
         foreach (var entry in _catalogEntries)
         {
+            if (entry.SourceKind != sourceKind)
+            {
+                continue;
+            }
+
             if (!string.IsNullOrWhiteSpace(searchKeyword)
                 && !entry.Version.Contains(searchKeyword, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            var isDownloaded = installedVersions.Contains(entry.Version) ||
-                               File.Exists(Path.Combine(preferences.ServerDirectory, entry.FileName));
+            var isDownloaded = IsCatalogEntryDownloaded(entry, preferences.ServerDirectory, installedVersions);
             _downloadVersionItems.Add(new DownloadVersionListItem(
                 entry,
                 entry.Version,
@@ -2667,10 +2677,20 @@ public partial class LauncherMainWindow : Window
         }
     }
 
+    private void OnDownloadSourceSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        RebuildDownloadVersionItems();
+    }
+
     private void OnDownloadVersionSearchTextChanged(object? sender, TextChangedEventArgs e)
     {
         RebuildDownloadVersionItems();
     }
+
+    private ServerSourceKind GetSelectedDownloadSourceKind() =>
+        DownloadSourceComboBox.SelectedIndex == 1
+            ? ServerSourceKind.Stratum
+            : ServerSourceKind.Vanilla;
 
     private void SetDownloadStatus(string message, bool notify = true)
     {
@@ -2919,6 +2939,7 @@ public partial class LauncherMainWindow : Window
         SettingsSaveCompressionUpdateModeComboBox.SelectionChanged += OnServerSettingsAutoSaveChanged;
 
         SettingsThirdPartyServerTextBox.LostFocus += OnNetworkSettingsAutoSaveChanged;
+        SettingsStratumServerTextBox.LostFocus += OnNetworkSettingsAutoSaveChanged;
         SettingsDownloadChunkCountTextBox.LostFocus += OnNetworkSettingsAutoSaveChanged;
         SettingsChunkedDownloadToggleSwitch.IsCheckedChanged += OnNetworkSettingsAutoSaveChanged;
 
@@ -3158,6 +3179,9 @@ public partial class LauncherMainWindow : Window
             SettingsThirdPartyServerTextBox.Text = string.IsNullOrWhiteSpace(preferences.ServerDownloadCatalogUrl)
                 ? DefaultServerDownloadCatalogUrl
                 : preferences.ServerDownloadCatalogUrl;
+            SettingsStratumServerTextBox.Text = string.IsNullOrWhiteSpace(preferences.StratumServerDownloadCatalogUrl)
+                ? DefaultStratumServerDownloadCatalogUrl
+                : preferences.StratumServerDownloadCatalogUrl;
             SettingsChunkedDownloadToggleSwitch.IsChecked = preferences.EnableChunkedDownloads;
             SettingsDownloadChunkCountTextBox.Text = Math.Clamp(preferences.DownloadChunkCount, 1, 32).ToString(CultureInfo.InvariantCulture);
         }
@@ -3171,6 +3195,7 @@ public partial class LauncherMainWindow : Window
     {
         var preferences = _preferencesService.Load();
         preferences.ServerDownloadCatalogUrl = SettingsThirdPartyServerTextBox.Text?.Trim() ?? string.Empty;
+        preferences.StratumServerDownloadCatalogUrl = SettingsStratumServerTextBox.Text?.Trim() ?? string.Empty;
         preferences.EnableChunkedDownloads = SettingsChunkedDownloadToggleSwitch.IsChecked == true;
         preferences.DownloadChunkCount = ParseClampedInt(SettingsDownloadChunkCountTextBox.Text, 4, 1, 32);
         _preferencesService.Save(preferences);
@@ -3222,6 +3247,37 @@ public partial class LauncherMainWindow : Window
                 ? "项目介绍内容无法显示。"
                 : "The project introduction could not be displayed.");
         }
+    }
+
+    private bool IsCatalogEntryDownloaded(
+        ServerDownloadEntry entry,
+        string serverDirectory,
+        IReadOnlySet<string> installedVersions)
+    {
+        if (installedVersions.Contains(entry.Version))
+        {
+            return true;
+        }
+
+        if (!File.Exists(Path.Combine(serverDirectory, entry.FileName)))
+        {
+            return false;
+        }
+
+        if (entry.SourceKind != ServerSourceKind.Stratum)
+        {
+            return true;
+        }
+
+        var baseEntry = FindBaseServerEntry(entry);
+        return baseEntry is not null && File.Exists(Path.Combine(serverDirectory, baseEntry.FileName));
+    }
+
+    private ServerDownloadEntry? FindBaseServerEntry(ServerDownloadEntry stratumEntry)
+    {
+        return _catalogEntries.FirstOrDefault(entry =>
+            entry.SourceKind == ServerSourceKind.Vanilla &&
+            entry.Version.Equals(stratumEntry.BaseVersion, StringComparison.OrdinalIgnoreCase));
     }
 
     private void SetAboutFallbackText(string text)
@@ -9110,17 +9166,11 @@ public partial class LauncherMainWindow : Window
         }
 
         var preferences = _preferencesService.Load();
-        var targetPath = Path.Combine(preferences.ServerDirectory, item.Entry.FileName);
         try
         {
             DownloadVersionsListBox.IsEnabled = false;
-            var progress = new Progress<double>(value =>
-            {
-                SetDownloadStatus(
-                    T($"正在下载 {item.Entry.Version} {value:P0}", $"Downloading {item.Entry.Version} {value:P0}"),
-                    notify: false);
-            });
-            await _serverPackageService.DownloadByCdnAsync(item.Entry.CdnUrl, targetPath, progress);
+            DownloadSourceComboBox.IsEnabled = false;
+            await DownloadCatalogEntryAsync(item.Entry, preferences.ServerDirectory);
             SetDownloadStatus(T($"下载完成：{item.Entry.Version}", $"Download completed: {item.Entry.Version}"));
             RefreshProfiles();
             await RefreshDownloadVersionsAsync(forceReload: false);
@@ -9132,6 +9182,36 @@ public partial class LauncherMainWindow : Window
         finally
         {
             DownloadVersionsListBox.IsEnabled = true;
+            DownloadSourceComboBox.IsEnabled = true;
+        }
+    }
+
+    private async Task DownloadCatalogEntryAsync(ServerDownloadEntry entry, string serverDirectory)
+    {
+        var entries = new List<ServerDownloadEntry>();
+        if (entry.SourceKind == ServerSourceKind.Stratum)
+        {
+            var baseEntry = FindBaseServerEntry(entry)
+                            ?? throw new InvalidOperationException($"未找到 Stratum 基础版本 {entry.BaseVersion} 的游戏服务端下载项。");
+            entries.Add(baseEntry);
+        }
+
+        entries.Add(entry);
+        foreach (var current in entries)
+        {
+            var targetPath = Path.Combine(serverDirectory, current.FileName);
+            if (File.Exists(targetPath))
+            {
+                continue;
+            }
+
+            var progress = new Progress<double>(value =>
+            {
+                SetDownloadStatus(
+                    T($"正在下载 {current.Version} {value:P0}", $"Downloading {current.Version} {value:P0}"),
+                    notify: false);
+            });
+            await _serverPackageService.DownloadByCdnAsync(current.CdnUrl, targetPath, progress);
         }
     }
 

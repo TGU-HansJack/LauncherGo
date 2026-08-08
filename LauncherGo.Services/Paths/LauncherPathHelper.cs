@@ -5,7 +5,9 @@ namespace LauncherGo.Services.Paths;
 
 public static class LauncherPathHelper
 {
-    public const string DefaultServerDownloadCatalogUrl = "https://api.vintagestory.at/stable-unstable.json";
+    public const string DefaultServerDownloadCatalogUrl = "https://cdn.vintagestory.top/stable-unstable.json";
+
+    public const string DefaultStratumServerDownloadCatalogUrl = "https://cdn.vintagestory.top/stratum.json";
 
     public static string AppRoot => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -60,6 +62,7 @@ public static class LauncherPathHelper
                 CompressionPath = DefaultSaveCompressionDirectory
             },
             ServerDownloadCatalogUrl = DefaultServerDownloadCatalogUrl,
+            StratumServerDownloadCatalogUrl = DefaultStratumServerDownloadCatalogUrl,
             EnableChunkedDownloads = false,
             DownloadChunkCount = 4,
             DefaultLaunchProfileId = string.Empty,

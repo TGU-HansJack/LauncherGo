@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using LauncherGo.Abstractions.Services;
 using LauncherGo.Domains.Models;
+using LauncherGo.Services.Paths;
 
 namespace LauncherGo.Services;
 
@@ -542,7 +543,7 @@ internal sealed partial class SingleServerProcessController
 
             var installPath = _profileService?.EnsureVersionInstalled(profile.Version)
                               ?? WorkspacePathHelper.GetServerInstallPath(profile.Version);
-            var serverExe = Path.Combine(installPath, "VintagestoryServer.exe");
+            var serverExe = LauncherWorkspacePathHelper.ResolveServerExecutablePath(installPath);
             if (!File.Exists(serverExe))
                 throw new InvalidOperationException($"未找到服务端程序：{serverExe}");
 
@@ -2096,11 +2097,11 @@ internal sealed partial class SingleServerProcessController
         Process[] candidates;
         try
         {
-            candidates = Process.GetProcessesByName("VintagestoryServer");
+            candidates = GetServerProcessCandidates();
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Failed to enumerate VintagestoryServer processes.");
+            _logger.LogDebug(ex, "Failed to enumerate server processes.");
             return false;
         }
 
@@ -2471,7 +2472,7 @@ internal sealed partial class SingleServerProcessController
         Process[] candidates;
         try
         {
-            candidates = Process.GetProcessesByName("VintagestoryServer");
+            candidates = GetServerProcessCandidates();
         }
         catch
         {
@@ -2514,7 +2515,7 @@ internal sealed partial class SingleServerProcessController
         Process[] candidates;
         try
         {
-            candidates = Process.GetProcessesByName("VintagestoryServer");
+            candidates = GetServerProcessCandidates();
         }
         catch
         {
@@ -2568,6 +2569,13 @@ internal sealed partial class SingleServerProcessController
             return false;
 
         return processDataPath.Equals(normalizedTargetDataPath, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static Process[] GetServerProcessCandidates()
+    {
+        return Process.GetProcessesByName("VintagestoryServer")
+            .Concat(Process.GetProcessesByName("StratumServer"))
+            .ToArray();
     }
 
     private static bool IsWorkspaceServerProcess(Process process, string serversRoot)

@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using LauncherGo.Domains.Models;
+using LauncherGo.Services.Paths;
 
 namespace LauncherGo.Services;
 
@@ -37,7 +38,7 @@ internal static class ServerConfigBootstrapper
             return;
         }
 
-        var serverExe = Path.Combine(installPath, "VintagestoryServer.exe");
+        var serverExe = LauncherWorkspacePathHelper.ResolveServerExecutablePath(installPath);
         if (!File.Exists(serverExe))
         {
             throw new InvalidOperationException($"未找到服务端程序：{serverExe}");
@@ -74,7 +75,12 @@ internal static class ServerConfigBootstrapper
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
-        if (!process.WaitForExit(30000))
+        var timeoutMilliseconds = Path.GetFileName(serverExe).Equals(
+            "StratumServer.exe",
+            StringComparison.OrdinalIgnoreCase)
+            ? 60_000
+            : 30_000;
+        if (!process.WaitForExit(timeoutMilliseconds))
         {
             TryKill(process);
             throw new InvalidOperationException("生成 serverconfig 超时。");

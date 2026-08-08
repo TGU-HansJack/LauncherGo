@@ -24,16 +24,20 @@ public sealed class InstanceProfileService(ILauncherPreferencesService preferenc
         {
             foreach (var directory in Directory.EnumerateDirectories(LauncherWorkspacePathHelper.InstalledServerRoot(preferences)))
             {
-                if (File.Exists(Path.Combine(directory, "VintagestoryServer.exe")))
+                var installedVersion = Path.GetFileName(directory);
+                var isInstalled = LauncherWorkspacePathHelper.TryExtractStratumBaseVersion(installedVersion) is not null
+                    ? StratumPackageInstaller.IsPrepared(directory)
+                    : File.Exists(Path.Combine(directory, "VintagestoryServer.exe"));
+                if (isInstalled)
                 {
-                    versions.Add(Path.GetFileName(directory));
+                    versions.Add(installedVersion);
                 }
             }
         }
 
         if (Directory.Exists(preferences.ServerDirectory))
         {
-            foreach (var packagePath in Directory.EnumerateFiles(preferences.ServerDirectory, "vs_server_win-x64_*.zip", SearchOption.TopDirectoryOnly))
+            foreach (var packagePath in Directory.EnumerateFiles(preferences.ServerDirectory, "*.zip", SearchOption.TopDirectoryOnly))
             {
                 var version = LauncherWorkspacePathHelper.TryExtractVersionFromPackageName(Path.GetFileName(packagePath));
                 if (!string.IsNullOrWhiteSpace(version))
@@ -281,22 +285,35 @@ public sealed class InstanceProfileService(ILauncherPreferencesService preferenc
         }
 
         var preferences = LoadPreferences();
-        var installPath = LauncherWorkspacePathHelper.ServerInstallPath(preferences, version.Trim());
-        var serverExe = Path.Combine(installPath, "VintagestoryServer.exe");
-        if (File.Exists(serverExe))
+        var selectedVersion = version.Trim();
+        var installPath = LauncherWorkspacePathHelper.ServerInstallPath(preferences, selectedVersion);
+        var stratumBaseVersion = LauncherWorkspacePathHelper.TryExtractStratumBaseVersion(selectedVersion);
+        var isInstalled = stratumBaseVersion is not null
+            ? StratumPackageInstaller.IsPrepared(installPath)
+            : File.Exists(Path.Combine(installPath, "VintagestoryServer.exe"));
+        if (isInstalled)
         {
             return installPath;
         }
 
-        var packagePath = FindPackagePath(preferences, version.Trim());
+        var packageVersion = stratumBaseVersion ?? selectedVersion;
+        var packagePath = FindPackagePath(preferences, packageVersion, stratum: false);
         if (string.IsNullOrWhiteSpace(packagePath))
         {
-            throw new InvalidOperationException($"未找到版本 {version} 的服务端压缩包，请先下载或导入。");
+            throw new InvalidOperationException($"未找到版本 {packageVersion} 的官方服务端压缩包，请先下载或导入。");
+        }
+
+        var stratumPackagePath = stratumBaseVersion is null
+            ? null
+            : FindPackagePath(preferences, selectedVersion, stratum: true);
+        if (stratumBaseVersion is not null && string.IsNullOrWhiteSpace(stratumPackagePath))
+        {
+            throw new InvalidOperationException($"未找到版本 {selectedVersion} 的 Stratum 压缩包，请先下载或导入。");
         }
 
         var tempRoot = Path.Combine(
             LauncherWorkspacePathHelper.TempRoot(preferences),
-            $"install-{LauncherWorkspacePathHelper.SanitizeFileName(version)}-{Guid.NewGuid():N}");
+            $"install-{LauncherWorkspacePathHelper.SanitizeFileName(selectedVersion)}-{Guid.NewGuid():N}");
         var extractRoot = Path.Combine(tempRoot, "extract");
         Directory.CreateDirectory(extractRoot);
 
@@ -321,6 +338,15 @@ public sealed class InstanceProfileService(ILauncherPreferencesService preferenc
             }
 
             Directory.Move(extractedServerDirectory, installPath);
+            if (stratumBaseVersion is not null)
+            {
+                StratumPackageInstaller.OverlayAndPrepare(
+                    stratumPackagePath!,
+                    installPath,
+                    stratumBaseVersion,
+                    tempRoot);
+            }
+
             return installPath;
         }
         finally
@@ -339,15 +365,16 @@ public sealed class InstanceProfileService(ILauncherPreferencesService preferenc
         return preferences;
     }
 
-    private static string? FindPackagePath(LauncherPreferences preferences, string version)
+    private static string? FindPackagePath(LauncherPreferences preferences, string version, bool stratum)
     {
         if (!Directory.Exists(preferences.ServerDirectory))
         {
             return null;
         }
 
+        var searchPattern = stratum ? "stratum-*-win-x64.zip" : "vs_server_win-x64_*.zip";
         return Directory
-            .EnumerateFiles(preferences.ServerDirectory, "vs_server_win-x64_*.zip", SearchOption.TopDirectoryOnly)
+            .EnumerateFiles(preferences.ServerDirectory, searchPattern, SearchOption.TopDirectoryOnly)
             .Select(path => new
             {
                 Path = path,

@@ -820,8 +820,8 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource ConsoleTextBrush}" />
             <Setter Property="Padding" Value="3,6,3,2" />
-            <Setter Property="TextWrapping" Value="NoWrap" />
-            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="VerticalAlignment" Value="Top" />
             <Setter Property="SelectionBrush" Value="{DynamicResource ConsoleSelectionBrush}" />
             <Setter Property="SelectionForegroundBrush" Value="{DynamicResource ConsoleSelectionTextBrush}" />
@@ -1275,14 +1275,14 @@
                                         x:Name="ConsoleOutputScrollViewer"
                                         Margin="12,0,12,0"
                                         ClipToBounds="True"
-                                        HorizontalScrollBarVisibility="Hidden"
+                                        HorizontalScrollBarVisibility="Disabled"
                                         VerticalScrollBarVisibility="Auto"
                                         ScrollChanged="OnConsoleOutputScrollChanged">
                                         <SelectableTextBlock
                                             x:Name="ConsoleOutputTextBlock"
                                             FontFamily="Consolas"
                                             FontSize="12"
-                                            TextWrapping="NoWrap" />
+                                            TextWrapping="Wrap" />
                                     </ScrollViewer>
                                 </Border>
                                 <Grid Grid.Row="2" Margin="24,0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
@@ -2001,10 +2001,14 @@
                                     </Grid>
 
                                     <Grid x:Name="DownloadVersionsPanel" RowDefinitions="Auto,*,Auto" RowSpacing="10" IsVisible="False">
-                                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                                            <TextBox x:Name="DownloadVersionSearchTextBox" Grid.Column="0" Classes="CompactInput" PlaceholderText="搜索版本号" TextChanged="OnDownloadVersionSearchTextChanged" />
-                                            <Button x:Name="ImportServerPackageButton" Grid.Column="1" Classes="SecondaryActionButton" Content="导入" Click="OnImportServerPackageClick" />
-                                            <Button x:Name="RefreshDownloadVersionsButton" Grid.Column="2" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshDownloadVersionsClick" />
+                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                                            <ComboBox x:Name="DownloadSourceComboBox" Grid.Column="0" Classes="CompactCombo" MinWidth="142" SelectionChanged="OnDownloadSourceSelectionChanged">
+                                                <ComboBoxItem x:Name="DownloadVanillaSourceItem" Content="游戏服务端" />
+                                                <ComboBoxItem x:Name="DownloadStratumSourceItem" Content="Stratum 服务端" />
+                                            </ComboBox>
+                                            <TextBox x:Name="DownloadVersionSearchTextBox" Grid.Column="1" Classes="CompactInput" PlaceholderText="搜索版本号" TextChanged="OnDownloadVersionSearchTextChanged" />
+                                            <Button x:Name="ImportServerPackageButton" Grid.Column="2" Classes="SecondaryActionButton" Content="导入" Click="OnImportServerPackageClick" />
+                                            <Button x:Name="RefreshDownloadVersionsButton" Grid.Column="3" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshDownloadVersionsClick" />
                                         </Grid>
                                         <Grid Grid.Row="1" RowDefinitions="Auto,*">
                                             <Border Grid.Row="0" Classes="TableHeader">
@@ -2021,7 +2025,7 @@
                                                     <ListBox.ItemTemplate>
                                                         <DataTemplate>
                                                             <Grid ColumnDefinitions="1.1*,1*,.8*,2.4*,Auto" ColumnSpacing="8" MinHeight="36">
-                                                                <TextBlock Classes="TableCellText" Text="{Binding Entry.Version}" FontWeight="SemiBold" />
+                                                                <TextBlock Classes="TableCellText" Text="{Binding DisplayText}" FontWeight="SemiBold" />
                                                                 <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding Entry.Platform}" />
                                                                 <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding Entry.FileSize}" />
                                                                 <TextBlock Grid.Column="3" Classes="TableCellText" Text="{Binding Entry.FileName}" />
@@ -2203,6 +2207,10 @@
                                                         <StackPanel Classes="ConfigFormFieldWide">
                                                             <TextBlock x:Name="SettingsThirdPartyServerLabelTextBlock" Classes="ConfigFieldLabel" Text="第三方服务端" />
                                                             <TextBox x:Name="SettingsThirdPartyServerTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="SettingsStratumServerLabelTextBlock" Classes="ConfigFieldLabel" Text="Stratum 服务端" />
+                                                            <TextBox x:Name="SettingsStratumServerTextBox" Classes="CompactInput" />
                                                         </StackPanel>
                                                         <StackPanel Classes="ConfigFormField">
                                                             <TextBlock x:Name="SettingsDownloadChunkCountLabelTextBlock" Classes="ConfigFieldLabel" Text="分片数量" />

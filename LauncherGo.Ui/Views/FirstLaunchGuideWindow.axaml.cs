@@ -123,19 +123,11 @@ public partial class FirstLaunchGuideWindow : Window
         Directory.CreateDirectory(serverDirectory);
         WorkspaceDirectoryTextBox.Text = workspaceDirectory;
 
-        var targetPath = Path.Combine(serverDirectory, entry.FileName);
         ToggleDownloadActions(enabled: false);
 
         try
         {
-            var progress = new Progress<double>(value =>
-            {
-                SetDownloadStatus(T(
-                    $"正在下载 {entry.Version} {value:P0}",
-                    $"Downloading {entry.Version} {value:P0}"));
-            });
-
-            await _serverPackageService.DownloadByCdnAsync(entry.CdnUrl, targetPath, progress);
+            await DownloadCatalogEntryAsync(entry, serverDirectory);
             SetDownloadStatus(T($"下载完成：{entry.Version}", $"Download completed: {entry.Version}"));
             await EnsureCatalogLoadedAsync(forceReload: true);
             RebuildCatalogDisplay();
@@ -303,6 +295,43 @@ public partial class FirstLaunchGuideWindow : Window
         }
     }
 
+    private async Task DownloadCatalogEntryAsync(ServerDownloadEntry entry, string serverDirectory)
+    {
+        var entries = new List<ServerDownloadEntry>();
+        if (entry.SourceKind == ServerSourceKind.Stratum)
+        {
+            var baseEntry = FindBaseServerEntry(entry)
+                            ?? throw new InvalidOperationException($"未找到 Stratum 基础版本 {entry.BaseVersion} 的游戏服务端下载项。");
+            entries.Add(baseEntry);
+        }
+
+        entries.Add(entry);
+        foreach (var current in entries)
+        {
+            var targetPath = Path.Combine(serverDirectory, current.FileName);
+            if (File.Exists(targetPath))
+            {
+                continue;
+            }
+
+            var progress = new Progress<double>(value =>
+            {
+                SetDownloadStatus(T(
+                    $"正在下载 {current.Version} {value:P0}",
+                    $"Downloading {current.Version} {value:P0}"));
+            });
+
+            await _serverPackageService.DownloadByCdnAsync(current.CdnUrl, targetPath, progress);
+        }
+    }
+
+    private ServerDownloadEntry? FindBaseServerEntry(ServerDownloadEntry stratumEntry)
+    {
+        return _catalogEntries.FirstOrDefault(entry =>
+            entry.SourceKind == ServerSourceKind.Vanilla &&
+            entry.Version.Equals(stratumEntry.BaseVersion, StringComparison.OrdinalIgnoreCase));
+    }
+
     private bool CloseOpenComboBoxDropDowns()
     {
         var closedAny = false;
@@ -429,6 +458,12 @@ public partial class FirstLaunchGuideWindow : Window
         DownloadTitleTextBlock.Text = T("下载", "Download");
         DownloadHintTextBlock.Text = T("从版本列表中下载服务端，也可以导入已有服务端压缩包。", "Download from the version list, or import an existing server package.");
         ImportPackageButton.Content = T("导入服务端文件", "Import Server Package");
+        ServerVanillaSourceItem.Content = T("游戏服务端", "Game Server");
+        ServerStratumSourceItem.Content = T("Stratum 服务端", "Stratum Server");
+        if (ServerSourceComboBox.SelectedIndex < 0)
+        {
+            ServerSourceComboBox.SelectedIndex = 0;
+        }
 
         CompleteTitleTextBlock.Text = T("完成", "Done");
         CompleteHintTextBlock.Text = T("恭喜你完成了全部初始启动设置，快使用LauncherGo创建服务器吧！", "Congratulations! Initial setup is complete. Start creating your server with LauncherGo.");
@@ -553,16 +588,32 @@ public partial class FirstLaunchGuideWindow : Window
     private void RebuildCatalogDisplay()
     {
         _serverVersionItems.Clear();
+        var sourceKind = GetSelectedServerSourceKind();
         foreach (var entry in _catalogEntries)
         {
+            if (entry.SourceKind != sourceKind)
+            {
+                continue;
+            }
+
             _serverVersionItems.Add(new ServerVersionListItem(
                 entry,
                 entry.Version,
-                IsDownloadedInServerDirectory(entry.FileName),
+                IsDownloadedInServerDirectory(entry),
                 T("已下载", "Downloaded"),
                 T("下载", "Download")));
         }
     }
+
+    private void OnServerSourceSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        RebuildCatalogDisplay();
+    }
+
+    private ServerSourceKind GetSelectedServerSourceKind() =>
+        ServerSourceComboBox.SelectedIndex == 1
+            ? ServerSourceKind.Stratum
+            : ServerSourceKind.Vanilla;
 
     private void SetDownloadStatus(string message)
     {
@@ -589,15 +640,26 @@ public partial class FirstLaunchGuideWindow : Window
     private void ToggleDownloadActions(bool enabled)
     {
         ServerVersionsListBox.IsEnabled = enabled;
+        ServerSourceComboBox.IsEnabled = enabled;
         ImportPackageButton.IsEnabled = enabled;
     }
 
-    private bool IsDownloadedInServerDirectory(string fileName)
+    private bool IsDownloadedInServerDirectory(ServerDownloadEntry entry)
     {
         var workspaceDirectory = NormalizeDirectoryInput(WorkspaceDirectoryTextBox.Text, DefaultWorkspaceDirectory);
         var serverDirectory = GetServerDirectory(workspaceDirectory);
-        var target = Path.Combine(serverDirectory, fileName);
-        return File.Exists(target);
+        if (!File.Exists(Path.Combine(serverDirectory, entry.FileName)))
+        {
+            return false;
+        }
+
+        if (entry.SourceKind != ServerSourceKind.Stratum)
+        {
+            return true;
+        }
+
+        var baseEntry = FindBaseServerEntry(entry);
+        return baseEntry is not null && File.Exists(Path.Combine(serverDirectory, baseEntry.FileName));
     }
 
     private void SaveAndClose()

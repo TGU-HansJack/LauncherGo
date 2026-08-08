@@ -1,7 +1,9 @@
+using System.Globalization;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using LauncherGo.Abstractions.Services;
+using LauncherGo.Domains.Enums;
 using LauncherGo.Domains.Models;
+using LauncherGo.Services.Paths;
 
 namespace LauncherGo.Services;
 
@@ -19,7 +21,51 @@ public sealed partial class ServerPackageService : IServerPackageService
     public async Task<IReadOnlyList<ServerDownloadEntry>> GetServerDownloadEntriesAsync(
         CancellationToken cancellationToken = default)
     {
-        var catalogUrl = _preferencesService.Load().ServerDownloadCatalogUrl;
+        var preferences = _preferencesService.Load();
+        var result = new List<ServerDownloadEntry>();
+        var errors = new List<string>();
+
+        foreach (var source in new[]
+                 {
+                     (SourceKind: ServerSourceKind.Vanilla, Url: preferences.ServerDownloadCatalogUrl),
+                     (SourceKind: ServerSourceKind.Stratum, Url: preferences.StratumServerDownloadCatalogUrl)
+                 })
+        {
+            if (string.IsNullOrWhiteSpace(source.Url))
+            {
+                continue;
+            }
+
+            try
+            {
+                result.AddRange(await LoadCatalogEntriesAsync(source.Url, source.SourceKind, cancellationToken));
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"{source.SourceKind}: {ex.Message}");
+            }
+        }
+
+        if (result.Count > 0 || errors.Count == 0)
+        {
+            return result
+                .OrderByDescending(entry => entry.Version, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(entry => entry.SourceKind)
+                .ToList();
+        }
+
+        throw new InvalidOperationException($"服务端版本列表加载失败：{string.Join("; ", errors)}");
+    }
+
+    private static async Task<IReadOnlyList<ServerDownloadEntry>> LoadCatalogEntriesAsync(
+        string catalogUrl,
+        ServerSourceKind sourceKind,
+        CancellationToken cancellationToken)
+    {
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(CatalogRequestTimeout);
 
@@ -53,8 +99,9 @@ public sealed partial class ServerPackageService : IServerPackageService
                 }
 
                 var fileName = artifactObject["filename"]?.GetValue<string>();
-                var fileSize = artifactObject["filesize"]?.GetValue<string>() ?? string.Empty;
+                var fileSize = FormatCatalogFileSize(artifactObject["filesize"]?.GetValue<string>());
                 var cdnUrl = artifactObject["urls"]?["cdn"]?.GetValue<string>();
+                var baseVersion = artifactObject["baseVersion"]?.GetValue<string>() ?? string.Empty;
 
                 if (string.IsNullOrWhiteSpace(fileName) || string.IsNullOrWhiteSpace(cdnUrl))
                 {
@@ -67,12 +114,49 @@ public sealed partial class ServerPackageService : IServerPackageService
                     Platform = platformKey,
                     FileSize = fileSize,
                     FileName = fileName,
-                    CdnUrl = cdnUrl
+                    CdnUrl = cdnUrl,
+                    SourceKind = sourceKind,
+                    BaseVersion = string.IsNullOrWhiteSpace(baseVersion)
+                        ? sourceKind == ServerSourceKind.Stratum
+                            ? LauncherWorkspacePathHelper.TryExtractStratumBaseVersion(versionNode.Key) ?? string.Empty
+                            : versionNode.Key
+                        : baseVersion
                 });
             }
         }
 
         return result;
+    }
+
+    internal static string FormatCatalogFileSize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = value.Trim();
+        if (!long.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var bytes) || bytes < 0)
+        {
+            return trimmed;
+        }
+
+        if (bytes >= 1024L * 1024 * 1024)
+        {
+            return $"{bytes / 1024d / 1024d / 1024d:F2} GB";
+        }
+
+        if (bytes >= 1024L * 1024)
+        {
+            return $"{bytes / 1024d / 1024d:F1} MB";
+        }
+
+        if (bytes >= 1024)
+        {
+            return $"{bytes / 1024d:F1} KB";
+        }
+
+        return $"{bytes} B";
     }
 
     public async Task DownloadByCdnAsync(
@@ -307,7 +391,8 @@ public sealed partial class ServerPackageService : IServerPackageService
         var fileName = Path.GetFileName(sourceFullPath);
         if (!IsServerZipFileName(fileName))
         {
-            throw new InvalidOperationException("仅支持导入服务端压缩包（vs_server_win-x64_*.zip）。");
+            throw new InvalidOperationException(
+                "仅支持导入官方或 Stratum Windows 服务端压缩包（vs_server_win-x64_*.zip / stratum-*-win-x64.zip）。");
         }
 
         var targetRoot = Path.GetFullPath(targetDirectory.Trim());
@@ -329,9 +414,6 @@ public sealed partial class ServerPackageService : IServerPackageService
             return false;
         }
 
-        return ServerPackageFileNameRegex().IsMatch(fileName.Trim());
+        return LauncherWorkspacePathHelper.TryExtractVersionFromPackageName(fileName) is not null;
     }
-
-    [GeneratedRegex(@"^vs_server_win-x64_.+\.zip$", RegexOptions.IgnoreCase)]
-    private static partial Regex ServerPackageFileNameRegex();
 }
