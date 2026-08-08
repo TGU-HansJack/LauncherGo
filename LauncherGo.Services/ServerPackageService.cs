@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json.Nodes;
 using LauncherGo.Abstractions.Services;
 using LauncherGo.Domains.Enums;
+using LauncherGo.Domains.Features;
 using LauncherGo.Domains.Models;
 using LauncherGo.Services.Paths;
 
@@ -25,11 +26,16 @@ public sealed partial class ServerPackageService : IServerPackageService
         var result = new List<ServerDownloadEntry>();
         var errors = new List<string>();
 
-        foreach (var source in new[]
-                 {
-                     (SourceKind: ServerSourceKind.Vanilla, Url: preferences.ServerDownloadCatalogUrl),
-                     (SourceKind: ServerSourceKind.Stratum, Url: preferences.StratumServerDownloadCatalogUrl)
-                 })
+        var sources = new List<(ServerSourceKind SourceKind, string Url)>
+        {
+            (ServerSourceKind.Vanilla, preferences.ServerDownloadCatalogUrl)
+        };
+        if (ServerFeatureFlags.StratumServerSupportEnabled)
+        {
+            sources.Add((ServerSourceKind.Stratum, preferences.StratumServerDownloadCatalogUrl));
+        }
+
+        foreach (var source in sources)
         {
             if (string.IsNullOrWhiteSpace(source.Url))
             {
@@ -391,8 +397,9 @@ public sealed partial class ServerPackageService : IServerPackageService
         var fileName = Path.GetFileName(sourceFullPath);
         if (!IsServerZipFileName(fileName))
         {
-            throw new InvalidOperationException(
-                "仅支持导入官方或 Stratum Windows 服务端压缩包（vs_server_win-x64_*.zip / stratum-*-win-x64.zip）。");
+            throw new InvalidOperationException(ServerFeatureFlags.StratumServerSupportEnabled
+                ? "仅支持导入官方或 Stratum Windows 服务端压缩包（vs_server_win-x64_*.zip / stratum-*-win-x64.zip）。"
+                : "仅支持导入官方 Windows 服务端压缩包（vs_server_win-x64_*.zip）。");
         }
 
         var targetRoot = Path.GetFullPath(targetDirectory.Trim());
@@ -414,6 +421,8 @@ public sealed partial class ServerPackageService : IServerPackageService
             return false;
         }
 
-        return LauncherWorkspacePathHelper.TryExtractVersionFromPackageName(fileName) is not null;
+        var version = LauncherWorkspacePathHelper.TryExtractVersionFromPackageName(fileName);
+        return !string.IsNullOrWhiteSpace(version) &&
+               (ServerFeatureFlags.StratumServerSupportEnabled || LauncherWorkspacePathHelper.TryExtractStratumBaseVersion(version) is null);
     }
 }

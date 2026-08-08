@@ -13,6 +13,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using LauncherGo.Abstractions.Services;
 using LauncherGo.Domains.Enums;
+using LauncherGo.Domains.Features;
 using LauncherGo.Domains.Models;
 using LauncherGo.Ui;
 using LauncherGo.Ui.Platform;
@@ -301,7 +302,9 @@ public partial class FirstLaunchGuideWindow : Window
         if (entry.SourceKind == ServerSourceKind.Stratum)
         {
             var baseEntry = FindBaseServerEntry(entry)
-                            ?? throw new InvalidOperationException($"未找到 Stratum 基础版本 {entry.BaseVersion} 的游戏服务端下载项。");
+                            ?? throw new InvalidOperationException(T(
+                                $"未找到 Stratum 基础版本 {entry.BaseVersion} 的游戏服务端下载项。",
+                                $"Game server download entry for Stratum base version {entry.BaseVersion} was not found."));
             entries.Add(baseEntry);
         }
 
@@ -460,7 +463,13 @@ public partial class FirstLaunchGuideWindow : Window
         ImportPackageButton.Content = T("导入服务端文件", "Import Server Package");
         ServerVanillaSourceItem.Content = T("游戏服务端", "Game Server");
         ServerStratumSourceItem.Content = T("Stratum 服务端", "Stratum Server");
-        if (ServerSourceComboBox.SelectedIndex < 0)
+        ServerStratumSourceItem.IsVisible = ServerFeatureFlags.StratumServerSupportEnabled;
+        if (!ServerFeatureFlags.StratumServerSupportEnabled)
+        {
+            ServerSourceComboBox.Items.Remove(ServerStratumSourceItem);
+            ServerSourceComboBox.SelectedIndex = 0;
+        }
+        else if (ServerSourceComboBox.SelectedIndex < 0)
         {
             ServerSourceComboBox.SelectedIndex = 0;
         }
@@ -611,7 +620,7 @@ public partial class FirstLaunchGuideWindow : Window
     }
 
     private ServerSourceKind GetSelectedServerSourceKind() =>
-        ServerSourceComboBox.SelectedIndex == 1
+        ServerFeatureFlags.StratumServerSupportEnabled && ServerSourceComboBox.SelectedIndex == 1
             ? ServerSourceKind.Stratum
             : ServerSourceKind.Vanilla;
 

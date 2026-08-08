@@ -25,6 +25,7 @@ using Avalonia.VisualTree;
 using LauncherGo.Abstractions.Services;
 using LauncherGo.Abstractions.Services.I18n;
 using LauncherGo.Domains.Enums;
+using LauncherGo.Domains.Features;
 using LauncherGo.Domains.Models;
 using LauncherGo.Ui;
 using LauncherGo.Ui.Platform;
@@ -67,6 +68,86 @@ public partial class LauncherMainWindow : Window
         ("极速启动服务，高自定义功能", "Fast startup, highly customizable"),
         ("24*7小时测试环境，追求0漏洞", "24*7 tested, aiming for zero defects"),
         ("极致开服体验，从Launcher Go开始", "Start the best server experience with Launcher Go")
+    ];
+
+    private static readonly (string Zh, string En)[] StaticUiTranslations =
+    [
+        ("服务器", "Server"),
+        ("管理", "Manage"),
+        ("连接", "Connections"),
+        ("设置", "Settings"),
+        ("加入时间", "Joined"),
+        ("选择", "Select"),
+        ("档案", "Profile"),
+        ("版本", "Version"),
+        ("档案目录", "Profile Directory"),
+        ("当前存档", "Active Save"),
+        ("操作", "Actions"),
+        ("修改", "Edit"),
+        ("存档", "Save file"),
+        ("大小", "Size"),
+        ("修改时间", "Modified"),
+        ("路径", "Path"),
+        ("服务器名称", "Server Name"),
+        ("配置路径", "Config Path"),
+        ("启用", "Enabled"),
+        ("模式", "Mode"),
+        ("开始周", "Start Day"),
+        ("结束周", "End Day"),
+        ("开始日期", "Start Date"),
+        ("结束日期", "End Date"),
+        ("开始", "Start time"),
+        ("结束", "End"),
+        ("动作", "Action"),
+        ("时间", "Time"),
+        ("消息", "Message"),
+        ("命令", "Command"),
+        ("定时备份", "Scheduled Backup"),
+        ("日志导出", "Log Export"),
+        ("定时广播", "Scheduled Broadcast"),
+        ("定时命令", "Scheduled Commands"),
+        ("定时开关服", "Scheduled Start/Stop"),
+        ("运行日志", "Runtime Log"),
+        ("依赖", "Dependencies"),
+        ("问题", "Issues"),
+        ("文件", "File"),
+        ("平台", "Platform"),
+        ("打开", "Open"),
+        ("服务器档案", "Server Profile"),
+        ("绑定群号", "Bound Group IDs"),
+        ("超级管理员 QQ", "Super Admin QQ IDs"),
+        ("玩家", "Player"),
+        ("注册", "Registered"),
+        ("最后登录", "Last Login"),
+        ("密码", "Password"),
+        ("清空密码", "Clear Password"),
+        ("创建", "Create"),
+        ("创建存档", "Create Save"),
+        ("导入", "Import"),
+        ("删除", "Delete"),
+        ("刷新", "Refresh"),
+        ("保存", "Save"),
+        ("返回", "Back"),
+        ("清空", "Clear"),
+        ("添加", "Add"),
+        ("浏览", "Browse"),
+        ("复制", "Copy"),
+        ("发送", "Send"),
+        ("启动", "Start"),
+        ("停止", "Stop"),
+        ("配置", "Config"),
+        ("下载版本", "Downloads"),
+        ("日志", "Logs"),
+        ("实例", "Instance"),
+        ("模组", "Mods"),
+        ("自动化", "Automation"),
+        ("安全", "Security"),
+        ("开放API", "Open API"),
+        ("机器人", "Robot"),
+        ("高级", "Advanced"),
+        ("关于", "About"),
+        ("贡献者", "Contributors"),
+        ("赞助者", "Sponsors")
     ];
 
     private static readonly (string Code, string Zh, string En)[] AppearanceLanguageOptions =
@@ -581,6 +662,12 @@ public partial class LauncherMainWindow : Window
         InitializeModStaticTexts();
         DownloadVanillaSourceItem.Content = T("游戏服务端", "Game Server");
         DownloadStratumSourceItem.Content = T("Stratum 服务端", "Stratum Server");
+        DownloadStratumSourceItem.IsVisible = ServerFeatureFlags.StratumServerSupportEnabled;
+        if (!ServerFeatureFlags.StratumServerSupportEnabled)
+        {
+            DownloadSourceComboBox.Items.Remove(DownloadStratumSourceItem);
+            DownloadSourceComboBox.SelectedIndex = 0;
+        }
         DownloadVersionSearchTextBox.PlaceholderText = T("搜索版本号", "Search version");
         ImportServerPackageButton.Content = T("导入", "Import");
         RefreshDownloadVersionsButton.Content = T("刷新", "Refresh");
@@ -607,6 +694,78 @@ public partial class LauncherMainWindow : Window
         ToolTip.SetTip(RepositoryButton, T("仓库", "Repository"));
         ToolTip.SetTip(FeedbackButton, T("反馈", "Feedback"));
         ToolTip.SetTip(SponsorButton, T("赞助", "Sponsor"));
+        ToolTip.SetTip(CloseButton, T("关闭", "Close"));
+        LaunchAddProfileComboBox.PlaceholderText = T("添加服务器", "Add server");
+        SettingsServerSaveButton.Content = T("保存", "Save");
+        SettingsServerRefreshButton.Content = T("刷新", "Refresh");
+        ConnectionFrpSaveButton.Content = T("保存", "Save");
+        ConnectionFrpRefreshButton.Content = T("刷新", "Refresh");
+        OsqSaveButton.Content = T("保存", "Save");
+        OsqRefreshButton.Content = T("刷新", "Refresh");
+        RobotSaveButton.Content = T("保存", "Save");
+        OsqEndpointHostLabelTextBlock.Text = T("地图网站地址", "Map Website URL");
+        OsqEndpointTokenLabelTextBlock.Text = T("地图网站密钥", "Map Website Token");
+        ApplyStaticUiTranslations();
+    }
+
+    private void ApplyStaticUiTranslations()
+    {
+        foreach (var visual in this.GetVisualDescendants())
+        {
+            switch (visual)
+            {
+                case TextBlock textBlock when IsStaticTextBlock(textBlock):
+                    textBlock.Text = TranslateStaticUiText(textBlock.Text);
+                    break;
+                case Button button when button.Content is string content:
+                    button.Content = TranslateStaticUiText(content);
+                    break;
+                case TextBox textBox:
+                    textBox.PlaceholderText = TranslateStaticUiText(textBox.PlaceholderText);
+                    break;
+                case ComboBox comboBox:
+                    comboBox.PlaceholderText = TranslateStaticUiText(comboBox.PlaceholderText);
+                    break;
+                case ComboBoxItem item when item.Content is string content:
+                    item.Content = TranslateStaticUiText(content);
+                    break;
+            }
+        }
+    }
+
+    private static bool IsStaticTextBlock(TextBlock textBlock)
+    {
+        return textBlock.Classes.Contains("SidebarSectionTitle") ||
+               textBlock.Classes.Contains("DashboardLabel") ||
+               textBlock.Classes.Contains("TableHeaderText") ||
+               textBlock.Classes.Contains("ConfigSectionTitle") ||
+               textBlock.Classes.Contains("ConfigFieldLabel") ||
+               textBlock.Classes.Contains("ConfigHintText");
+    }
+
+    private string TranslateStaticUiText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return value ?? string.Empty;
+        }
+
+        foreach (var (zh, en) in StaticUiTranslations)
+        {
+            if (_isChinese)
+            {
+                if (value.Equals(en, StringComparison.Ordinal))
+                {
+                    return zh;
+                }
+            }
+            else if (value.Equals(zh, StringComparison.Ordinal))
+            {
+                return en;
+            }
+        }
+
+        return value;
     }
 
     private void InitializeAutomationStaticTexts()
@@ -631,6 +790,10 @@ public partial class LauncherMainWindow : Window
         AutomationAddExportTimeButton.Content = T("添加", "Add");
         AutomationAddBroadcastButton.Content = T("添加", "Add");
         AutomationAddCommandButton.Content = T("添加", "Add");
+        foreach (var item in _automationActionWindowItems)
+        {
+            item.SetLanguage(_isChinese);
+        }
     }
 
     private void InitializeModStaticTexts()
@@ -737,6 +900,8 @@ public partial class LauncherMainWindow : Window
         SettingsNetworkDownloadTitleTextBlock.Text = T("下载网络", "Download Network");
         SettingsThirdPartyServerLabelTextBlock.Text = T("游戏服务端", "Game Server");
         SettingsStratumServerLabelTextBlock.Text = T("Stratum 服务端", "Stratum Server");
+        SettingsStratumServerLabelTextBlock.IsVisible = ServerFeatureFlags.StratumServerSupportEnabled;
+        SettingsStratumServerTextBox.IsVisible = ServerFeatureFlags.StratumServerSupportEnabled;
         SettingsDownloadChunkCountLabelTextBlock.Text = T("分片数量", "Chunk Count");
         SettingsChunkedDownloadLabelTextBlock.Text = T("大文件分片下载", "Chunked large-file downloads");
     }
@@ -963,6 +1128,7 @@ public partial class LauncherMainWindow : Window
         UpdateCardValues(status);
         UpdateMultiServerDashboard(statuses);
         RefreshConsoleServerItems(statuses);
+        ApplyStaticUiTranslations();
 
         if (_selectedTab == MainTab.Monitor)
         {
@@ -1991,11 +2157,11 @@ public partial class LauncherMainWindow : Window
         _automationActionWindowItems.Clear();
         foreach (var window in settings.ActionWindows ?? [])
         {
-            _automationActionWindowItems.Add(AutomationActionWindowItem.FromModel(window));
+            _automationActionWindowItems.Add(AutomationActionWindowItem.FromModel(window, _isChinese));
         }
         if (_automationActionWindowItems.Count == 0)
         {
-            _automationActionWindowItems.Add(new AutomationActionWindowItem());
+            _automationActionWindowItems.Add(new AutomationActionWindowItem(_isChinese));
         }
 
         _automationBackupTimeItems.Clear();
@@ -2341,7 +2507,7 @@ public partial class LauncherMainWindow : Window
         _modItems.Clear();
         foreach (var mod in mods)
         {
-            _modItems.Add(ModListItem.FromModel(mod));
+            _modItems.Add(ModListItem.FromModel(mod, _isChinese));
         }
 
         var enabledCount = mods.Count(static mod => !mod.IsDisabled);
@@ -2480,7 +2646,7 @@ public partial class LauncherMainWindow : Window
         _authPlayerItems.Clear();
         foreach (var player in players)
         {
-            _authPlayerItems.Add(AuthPlayerListItem.FromModel(player));
+            _authPlayerItems.Add(AuthPlayerListItem.FromModel(player, _isChinese));
         }
     }
 
@@ -2688,7 +2854,7 @@ public partial class LauncherMainWindow : Window
     }
 
     private ServerSourceKind GetSelectedDownloadSourceKind() =>
-        DownloadSourceComboBox.SelectedIndex == 1
+        ServerFeatureFlags.StratumServerSupportEnabled && DownloadSourceComboBox.SelectedIndex == 1
             ? ServerSourceKind.Stratum
             : ServerSourceKind.Vanilla;
 
@@ -4874,6 +5040,18 @@ public partial class LauncherMainWindow : Window
 
         _aboutIntroductionLoaded = false;
         InitializeStaticTexts();
+        _ = RefreshSavesAsync();
+        _ = RefreshDownloadVersionsAsync(forceReload: false);
+        if (_selectedInstanceManageTab == InstanceManageTab.Mods)
+        {
+            _ = LoadModsForSelectedProfileAsync();
+        }
+
+        if (_selectedConnectionTab == ConnectionTab.Auth)
+        {
+            _ = RefreshAuthProfilesAsync();
+        }
+
         RefreshAppearanceSettingsEditor();
         if (_selectedSettingsTab == SettingsTab.About)
         {
@@ -6043,7 +6221,7 @@ public partial class LauncherMainWindow : Window
             var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
             if (clipboard is null)
             {
-                throw new InvalidOperationException("当前窗口没有可用的剪贴板。");
+                throw new InvalidOperationException(T("当前窗口没有可用的剪贴板。", "No clipboard is available for the current window."));
             }
 
             await clipboard.SetTextAsync(value.Trim());
@@ -6178,7 +6356,7 @@ public partial class LauncherMainWindow : Window
 
     private void OnAutomationAddActionClick(object? sender, RoutedEventArgs e)
     {
-        _automationActionWindowItems.Add(new AutomationActionWindowItem());
+        _automationActionWindowItems.Add(new AutomationActionWindowItem(_isChinese));
     }
 
     private void OnAutomationRemoveActionClick(object? sender, RoutedEventArgs e)
@@ -7028,7 +7206,7 @@ public partial class LauncherMainWindow : Window
         }
         catch (Exception ex)
         {
-            AppendConsoleLine($"[system] 启动/停止失败：{ex.Message}");
+            AppendConsoleLine(T($"[system] 启动/停止失败：{ex.Message}", $"[system] Start/stop failed: {ex.Message}"));
         }
         finally
         {
@@ -7049,7 +7227,7 @@ public partial class LauncherMainWindow : Window
         }
         catch (Exception ex)
         {
-            AppendConsoleLine($"[system] 启动/停止失败：{ex.Message}");
+            AppendConsoleLine(T($"[system] 启动/停止失败：{ex.Message}", $"[system] Start/stop failed: {ex.Message}"));
         }
         finally
         {
@@ -7078,12 +7256,12 @@ public partial class LauncherMainWindow : Window
         SetLaunchOperationBusy(T("停止中...", "Stopping..."));
         try
         {
-            AppendConsoleLine("[system] 正在停止服务器...");
+            AppendConsoleLine(T("[system] 正在停止服务器...", "[system] Stopping server..."));
             await _serverProcessService.StopAsync(TimeSpan.FromSeconds(20));
         }
         catch (Exception ex)
         {
-            AppendConsoleLine($"[system] 启动/停止失败：{ex.Message}");
+            AppendConsoleLine(T($"[system] 启动/停止失败：{ex.Message}", $"[system] Start/stop failed: {ex.Message}"));
         }
         finally
         {
@@ -7150,7 +7328,7 @@ public partial class LauncherMainWindow : Window
         }
         catch (Exception ex)
         {
-            AppendConsoleLine($"[system] 启动/停止失败：{ex.Message}");
+            AppendConsoleLine(T($"[system] 启动/停止失败：{ex.Message}", $"[system] Start/stop failed: {ex.Message}"));
         }
         finally
         {
@@ -7356,7 +7534,7 @@ public partial class LauncherMainWindow : Window
         }
         catch (Exception ex)
         {
-            AppendConsoleLine($"[system] 命令发送失败：{ex.Message}");
+            AppendConsoleLine(T($"[system] 命令发送失败：{ex.Message}", $"[system] Failed to send command: {ex.Message}"));
         }
     }
 
@@ -7607,16 +7785,20 @@ public partial class LauncherMainWindow : Window
         SetNumericValue(ConfigWorldHeightNumericUpDown, settings.WorldHeight ?? 256);
     }
 
-    private static JsonObject ParseConfigRootForUi(string rawJson, string configPath)
+    private JsonObject ParseConfigRootForUi(string rawJson, string configPath)
     {
         try
         {
             return JsonNode.Parse(rawJson) as JsonObject
-                   ?? throw new InvalidDataException($"配置根节点必须是 JSON 对象：{configPath}");
+                   ?? throw new InvalidDataException(T(
+                       $"配置根节点必须是 JSON 对象：{configPath}",
+                       $"The configuration root must be a JSON object: {configPath}"));
         }
         catch (JsonException ex)
         {
-            throw new InvalidDataException($"配置文件无法解析：{configPath}", ex);
+            throw new InvalidDataException(T(
+                $"配置文件无法解析：{configPath}",
+                $"The configuration file could not be parsed: {configPath}"), ex);
         }
     }
 
@@ -8853,11 +9035,11 @@ public partial class LauncherMainWindow : Window
             await Task.Run(() => _profileService.CreateProfile(name, version));
             ProfileNameTextBox.Text = string.Empty;
             RefreshProfiles();
-            AppendConsoleLine($"[system] 已创建档案：{name}");
+            AppendConsoleLine(T($"[system] 已创建档案：{name}", $"[system] Profile created: {name}"));
         }
         catch (Exception ex)
         {
-            AppendConsoleLine($"[system] 创建档案失败：{ex.Message}");
+            AppendConsoleLine(T($"[system] 创建档案失败：{ex.Message}", $"[system] Failed to create profile: {ex.Message}"));
         }
     }
 
@@ -8879,11 +9061,11 @@ public partial class LauncherMainWindow : Window
         {
             var profile = _profileService.ImportProfile(path);
             RefreshProfiles();
-            AppendConsoleLine($"[system] 已导入档案：{profile.Name}");
+            AppendConsoleLine(T($"[system] 已导入档案：{profile.Name}", $"[system] Profile imported: {profile.Name}"));
         }
         catch (Exception ex)
         {
-            AppendConsoleLine($"[system] 导入档案失败：{ex.Message}");
+            AppendConsoleLine(T($"[system] 导入档案失败：{ex.Message}", $"[system] Failed to import profile: {ex.Message}"));
         }
     }
 
@@ -8902,11 +9084,11 @@ public partial class LauncherMainWindow : Window
         {
             var count = _profileService.DeleteProfiles(selectedIds, deleteData: true);
             RefreshProfiles();
-            AppendConsoleLine($"[system] 已删除 {count} 个档案。");
+            AppendConsoleLine(T($"[system] 已删除 {count} 个档案。", $"[system] Deleted {count} profiles."));
         }
         catch (Exception ex)
         {
-            AppendConsoleLine($"[system] 删除档案失败：{ex.Message}");
+            AppendConsoleLine(T($"[system] 删除档案失败：{ex.Message}", $"[system] Failed to delete profiles: {ex.Message}"));
         }
     }
 
@@ -8929,7 +9111,7 @@ public partial class LauncherMainWindow : Window
     {
         if (SaveProfileComboBox.SelectedItem is not InstanceProfile profile)
         {
-            AppendConsoleLine("[system] 导入存档前请先选择一个档案，不能选择全部。");
+            AppendConsoleLine(T("[system] 导入存档前请先选择一个档案，不能选择全部。", "[system] Select one profile before importing a save; all profiles cannot be selected."));
             return;
         }
 
@@ -8956,11 +9138,11 @@ public partial class LauncherMainWindow : Window
         {
             var target = await _saveService.ImportSaveAsync(profile, path);
             await RefreshSavesAsync();
-            AppendConsoleLine($"[system] 已导入存档：{Path.GetFileName(target)}");
+            AppendConsoleLine(T($"[system] 已导入存档：{Path.GetFileName(target)}", $"[system] Save imported: {Path.GetFileName(target)}"));
         }
         catch (Exception ex)
         {
-            AppendConsoleLine($"[system] 导入存档失败：{ex.Message}");
+            AppendConsoleLine(T($"[system] 导入存档失败：{ex.Message}", $"[system] Failed to import save: {ex.Message}"));
         }
     }
 
@@ -8981,11 +9163,11 @@ public partial class LauncherMainWindow : Window
                 ? await _saveService.DeleteSavesAsync(profile, selectedPaths)
                 : await _saveService.DeleteSavesAsync(selectedPaths);
             await RefreshSavesAsync();
-            AppendConsoleLine($"[system] 已删除 {count} 个存档。");
+            AppendConsoleLine(T($"[system] 已删除 {count} 个存档。", $"[system] Deleted {count} saves."));
         }
         catch (Exception ex)
         {
-            AppendConsoleLine($"[system] 删除存档失败：{ex.Message}");
+            AppendConsoleLine(T($"[system] 删除存档失败：{ex.Message}", $"[system] Failed to delete saves: {ex.Message}"));
         }
     }
 
@@ -8998,14 +9180,14 @@ public partial class LauncherMainWindow : Window
     {
         if (SaveProfileComboBox.SelectedItem is not InstanceProfile profile)
         {
-            AppendConsoleLine("[system] 创建存档前请先选择一个档案，不能选择全部。");
+            AppendConsoleLine(T("[system] 创建存档前请先选择一个档案，不能选择全部。", "[system] Select one profile before creating a save; all profiles cannot be selected."));
             return;
         }
 
         var name = NewSaveNameTextBox.Text?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(name))
         {
-            AppendConsoleLine("[system] 请输入新存档名称。");
+            AppendConsoleLine(T("[system] 请输入新存档名称。", "[system] Enter a name for the new save."));
             return;
         }
 
@@ -9013,11 +9195,11 @@ public partial class LauncherMainWindow : Window
         {
             await _saveService.CreateSaveAsync(profile, name);
             await RefreshSavesAsync();
-            AppendConsoleLine($"[system] 已创建存档：{name}");
+            AppendConsoleLine(T($"[system] 已创建存档：{name}", $"[system] Save created: {name}"));
         }
         catch (Exception ex)
         {
-            AppendConsoleLine($"[system] 创建存档失败：{ex.Message}");
+            AppendConsoleLine(T($"[system] 创建存档失败：{ex.Message}", $"[system] Failed to create save: {ex.Message}"));
         }
     }
 
@@ -9192,7 +9374,9 @@ public partial class LauncherMainWindow : Window
         if (entry.SourceKind == ServerSourceKind.Stratum)
         {
             var baseEntry = FindBaseServerEntry(entry)
-                            ?? throw new InvalidOperationException($"未找到 Stratum 基础版本 {entry.BaseVersion} 的游戏服务端下载项。");
+                            ?? throw new InvalidOperationException(T(
+                                $"未找到 Stratum 基础版本 {entry.BaseVersion} 的游戏服务端下载项。",
+                                $"Game server download entry for Stratum base version {entry.BaseVersion} was not found."));
             entries.Add(baseEntry);
         }
 
@@ -9971,17 +10155,17 @@ public partial class LauncherMainWindow : Window
         private string _endTime = "23:00";
         private bool _enabled = true;
 
-        public AutomationActionWindowItem()
+        public AutomationActionWindowItem(bool isChinese = true)
         {
             ScheduleModeOptions = new ObservableCollection<ConfigChoiceOption>
             {
-                new(AutomationScheduleMode.Weekly.ToString(), "每周"),
-                new(AutomationScheduleMode.DateRange.ToString(), "日期范围")
+                new(AutomationScheduleMode.Weekly.ToString(), isChinese ? "每周" : "Weekly"),
+                new(AutomationScheduleMode.DateRange.ToString(), isChinese ? "日期范围" : "Date range")
             };
             ActionOptions = new ObservableCollection<ConfigChoiceOption>
             {
-                new(AutomationActionType.Start.ToString(), "启动"),
-                new(AutomationActionType.Stop.ToString(), "停止")
+                new(AutomationActionType.Start.ToString(), isChinese ? "启动" : "Start"),
+                new(AutomationActionType.Stop.ToString(), isChinese ? "停止" : "Stop")
             };
         }
 
@@ -9990,6 +10174,32 @@ public partial class LauncherMainWindow : Window
         public ObservableCollection<ConfigChoiceOption> ScheduleModeOptions { get; }
 
         public ObservableCollection<ConfigChoiceOption> ActionOptions { get; }
+
+        public void SetLanguage(bool isChinese)
+        {
+            var selectedScheduleMode = _scheduleMode;
+            var selectedAction = _action;
+            ScheduleModeOptions.Clear();
+            ScheduleModeOptions.Add(new ConfigChoiceOption(
+                AutomationScheduleMode.Weekly.ToString(),
+                isChinese ? "每周" : "Weekly"));
+            ScheduleModeOptions.Add(new ConfigChoiceOption(
+                AutomationScheduleMode.DateRange.ToString(),
+                isChinese ? "日期范围" : "Date range"));
+            ActionOptions.Clear();
+            ActionOptions.Add(new ConfigChoiceOption(
+                AutomationActionType.Start.ToString(),
+                isChinese ? "启动" : "Start"));
+            ActionOptions.Add(new ConfigChoiceOption(
+                AutomationActionType.Stop.ToString(),
+                isChinese ? "停止" : "Stop"));
+            _scheduleMode = selectedScheduleMode;
+            _action = selectedAction;
+            OnPropertyChanged(nameof(ScheduleModeOptions));
+            OnPropertyChanged(nameof(ActionOptions));
+            OnPropertyChanged(nameof(SelectedScheduleMode));
+            OnPropertyChanged(nameof(SelectedAction));
+        }
 
         public bool Enabled
         {
@@ -10101,9 +10311,9 @@ public partial class LauncherMainWindow : Window
             };
         }
 
-        public static AutomationActionWindowItem FromModel(AutomationActionWindow model)
+        public static AutomationActionWindowItem FromModel(AutomationActionWindow model, bool isChinese)
         {
-            return new AutomationActionWindowItem
+            return new AutomationActionWindowItem(isChinese)
             {
                 Enabled = model.Enabled,
                 StartDayOfWeek = model.StartDayOfWeek.ToString(CultureInfo.InvariantCulture),
@@ -10358,7 +10568,7 @@ public partial class LauncherMainWindow : Window
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        public static ModListItem FromModel(ModEntry model)
+        public static ModListItem FromModel(ModEntry model, bool isChinese)
         {
             return new ModListItem
             {
@@ -10368,7 +10578,7 @@ public partial class LauncherMainWindow : Window
                 ConfigPath = model.ConfigPath,
                 IsDisabled = model.IsDisabled,
                 DependenciesText = model.DependenciesText,
-                IssuesText = BuildModIssuesText(model)
+                IssuesText = BuildModIssuesText(model, isChinese)
             };
         }
 
@@ -10387,14 +10597,14 @@ public partial class LauncherMainWindow : Window
             };
         }
 
-        private static string BuildModIssuesText(ModEntry model)
+        private static string BuildModIssuesText(ModEntry model, bool isChinese)
         {
             var issues = model.DependencyIssues.ToList();
             if (!model.Status.Equals("OK", StringComparison.OrdinalIgnoreCase) &&
                 !model.Status.Equals("MissingDependency", StringComparison.OrdinalIgnoreCase))
             {
                 issues.Add(model.Status.Equals("InvalidMetadata", StringComparison.OrdinalIgnoreCase)
-                    ? "元数据无效"
+                    ? (isChinese ? "元数据无效" : "Invalid metadata")
                     : model.Status);
             }
 
@@ -10437,7 +10647,7 @@ public partial class LauncherMainWindow : Window
 
         public required string ExternalUsername { get; init; }
 
-        public static AuthPlayerListItem FromModel(ServerAuthPlayerSummary model)
+        public static AuthPlayerListItem FromModel(ServerAuthPlayerSummary model, bool isChinese)
         {
             return new AuthPlayerListItem
             {
@@ -10448,8 +10658,10 @@ public partial class LauncherMainWindow : Window
                 LastLoginAtText = model.LastLoginAtUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "-",
                 LastIp = model.LastIp,
                 PasswordStateText = model.PasswordResetRequired
-                    ? "重置待处理"
-                    : model.HasPassword ? "已设置" : "未设置",
+                    ? (isChinese ? "重置待处理" : "Reset required")
+                    : model.HasPassword
+                        ? (isChinese ? "已设置" : "Set")
+                        : (isChinese ? "未设置" : "Not set"),
                 ExternalUsername = !string.IsNullOrWhiteSpace(model.OAuth2Username) ||
                                    !string.IsNullOrWhiteSpace(model.OAuth2DisplayName)
                     ? "OAuth2: " + (string.IsNullOrWhiteSpace(model.OAuth2Username)
