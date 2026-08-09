@@ -703,8 +703,8 @@ public partial class LauncherMainWindow : Window
         OsqSaveButton.Content = T("保存", "Save");
         OsqRefreshButton.Content = T("刷新", "Refresh");
         RobotSaveButton.Content = T("保存", "Save");
-        OsqEndpointHostLabelTextBlock.Text = T("地图网站地址", "Map Website URL");
-        OsqEndpointTokenLabelTextBlock.Text = T("地图网站密钥", "Map Website Token");
+        OsqEndpointHostLabelTextBlock.Text = T("OSQ网址接收地址", "OSQ Receiver URL");
+        OsqEndpointTokenLabelTextBlock.Text = T("OSQ网址认证密钥", "OSQ Authentication Token");
         ApplyStaticUiTranslations();
     }
 

@@ -2491,11 +2491,11 @@
                                                             <StackPanel Spacing="10">
                                                                 <WrapPanel Orientation="Horizontal">
                                                                     <StackPanel Classes="ConfigFormFieldWide">
-                                                                        <TextBlock x:Name="OsqEndpointHostLabelTextBlock" Classes="ConfigFieldLabel" Text="地图网站地址" />
+                                                                        <TextBlock x:Name="OsqEndpointHostLabelTextBlock" Classes="ConfigFieldLabel" Text="OSQ网址接收地址" />
                                                                         <TextBox x:Name="OsqEndpointHostTextBox" Classes="CompactInput" />
                                                                     </StackPanel>
                                                                     <StackPanel Classes="ConfigFormFieldWide">
-                                                                        <TextBlock x:Name="OsqEndpointTokenLabelTextBlock" Classes="ConfigFieldLabel" Text="地图网站密钥" />
+                                                                        <TextBlock x:Name="OsqEndpointTokenLabelTextBlock" Classes="ConfigFieldLabel" Text="OSQ网址认证密钥" />
                                                                         <TextBox x:Name="OsqEndpointTokenTextBox" Classes="CompactInput" />
                                                                     </StackPanel>
                                                                 </WrapPanel>
