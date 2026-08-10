@@ -13,6 +13,8 @@ public class RobotSettings
 
     public IReadOnlyList<RobotProfileBinding> ProfileBindings { get; init; } = [];
 
+    public IReadOnlyList<RobotCustomCommand> CustomCommands { get; init; } = [];
+
     public int ReconnectIntervalSec { get; init; } = 5;
 
     public string DatabasePath { get; init; } = string.Empty;

@@ -22,6 +22,8 @@ public sealed class RobotIntegrationSettings
 
     public List<RobotProfileBinding> ProfileBindings { get; set; } = [];
 
+    public List<RobotCustomCommand> CustomCommands { get; set; } = [];
+
     public int OsqPollIntervalSec { get; set; } = 20;
 
     public int OsqRequestTimeoutSec { get; set; } = 8;

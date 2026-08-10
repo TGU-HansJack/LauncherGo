@@ -346,7 +346,7 @@ public sealed class Vs2QQProcessService
         switch (command)
         {
             case "/help":
-                await ReplyAsync(runtime, eventPayload, BuildHelpText(), cancellationToken);
+                await ReplyAsync(runtime, eventPayload, BuildHelpText(runtime), cancellationToken);
                 return;
             case "/send":
                 await HandleSendCommandAsync(runtime, eventPayload, args, cancellationToken);
@@ -355,6 +355,16 @@ public sealed class Vs2QQProcessService
                 await HandleServerCommandAsync(runtime, eventPayload, args, cancellationToken);
                 return;
             default:
+                if (runtime.CustomCommands.TryGetValue(command, out var customCommand))
+                {
+                    await ReplyAsync(
+                        runtime,
+                        eventPayload,
+                        RobotOneBotMessageBuilder.BuildCustomMessage(customCommand),
+                        cancellationToken);
+                    return;
+                }
+
                 await ReplyAsync(runtime, eventPayload, "Unknown command. Use /help.", cancellationToken);
                 return;
         }
@@ -488,7 +498,7 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        await ReplyAsync(runtime, eventPayload, BuildOsqSummaryMessage(snapshot), cancellationToken);
+        await ReplyAsync(runtime, eventPayload, BuildOsqSummaryCardMessage(snapshot), cancellationToken);
     }
 
     private async Task HandleServerPasswordCommandAsync(
@@ -1156,6 +1166,25 @@ public sealed class Vs2QQProcessService
         }
     }
 
+    private async Task ReplyAsync(Vs2QQRuntimeContext runtime, JsonObject eventPayload, JsonNode message, CancellationToken cancellationToken)
+    {
+        if (IsGroupMessage(eventPayload))
+        {
+            var groupId = GetInt64(eventPayload, "group_id");
+            if (groupId > 0)
+            {
+                await runtime.OneBot.SendGroupMsgAsync(groupId, message, cancellationToken);
+                return;
+            }
+        }
+
+        var userId = GetInt64(eventPayload, "user_id");
+        if (userId > 0)
+        {
+            await runtime.OneBot.SendPrivateMsgAsync(userId, message, cancellationToken);
+        }
+    }
+
     private static bool IsGroupMessage(JsonObject eventPayload)
     {
         return string.Equals(GetString(eventPayload, "message_type"), "group", StringComparison.OrdinalIgnoreCase);
@@ -1166,9 +1195,9 @@ public sealed class Vs2QQProcessService
         return runtime.CommandScope.IsAdmin(GetInt64(eventPayload, "user_id"));
     }
 
-    private static string BuildHelpText()
+    private static string BuildHelpText(Vs2QQRuntimeContext runtime)
     {
-        return """
+        var builtInCommands = """
             VS2QQ Commands
             /help - 帮助
             /send <server_command> - 发送服务端指令（仅超级管理员）
@@ -1179,6 +1208,27 @@ public sealed class Vs2QQProcessService
             /server password get - 获取服务器密码
             /server password set <new_password> - 修改服务器密码（- 表示清空，仅超级管理员）
             """;
+
+        if (runtime.CustomCommands.Count == 0)
+        {
+            return builtInCommands;
+        }
+
+        var customCommands = runtime.CustomCommands.Values
+            .OrderBy(static item => item.Command, StringComparer.OrdinalIgnoreCase)
+            .Select(static item => $"{item.Command} - 自定义{FormatCustomMessageType(item.MessageType)}消息");
+        return builtInCommands + Environment.NewLine + "自定义指令" + Environment.NewLine + string.Join(Environment.NewLine, customCommands);
+    }
+
+    private static string FormatCustomMessageType(RobotCustomMessageType messageType)
+    {
+        return messageType switch
+        {
+            RobotCustomMessageType.Text => "文本",
+            RobotCustomMessageType.Image => "图片",
+            RobotCustomMessageType.JsonCard => " JSON 卡片",
+            _ => string.Empty
+        };
     }
 
     private async Task<InstanceProfile> EnsureLaunchableProfileAsync(
@@ -1425,7 +1475,7 @@ public sealed class Vs2QQProcessService
         return result;
     }
 
-    private static string BuildOsqSummaryMessage(OsqSnapshotEnvelope payload)
+    private static JsonArray BuildOsqSummaryCardMessage(OsqSnapshotEnvelope payload)
     {
         var server = payload.Server ?? new OsqServerInfo();
         var players = payload.Players ?? [];
@@ -1445,18 +1495,17 @@ public sealed class Vs2QQProcessService
 
         var lines = new List<string>
         {
-            $"[服务器状态 {timeLabel}]",
-            $"服务器：{Safe(server.Name)}",
             $"状态：{FormatOsqServerStatus(server.Status)}",
             $"版本：{Safe(server.Version)}",
-            $"人数：{onlinePlayerCount}/{server.MaxPlayers}",
+            $"在线：{onlinePlayerCount}/{server.MaxPlayers}",
             $"世界：{Safe(server.WorldName)}",
             $"地址：{Safe(server.ServerIp)}:{server.ServerPort}"
         };
 
         if (onlinePlayers.Count > 0)
         {
-            lines.Add("玩家：" + string.Join("、", onlinePlayers));
+            lines.Add("玩家：" + string.Join("、", onlinePlayers.Take(12)) +
+                      (onlinePlayers.Count > 12 ? $" 等 {onlinePlayers.Count} 人" : string.Empty));
         }
 
         if (events.Count > 0)
@@ -1479,7 +1528,35 @@ public sealed class Vs2QQProcessService
             }
         }
 
-        return string.Join('\n', lines.Where(line => !string.IsNullOrWhiteSpace(line)));
+        var serverName = Safe(server.Name);
+        var status = FormatOsqServerStatus(server.Status);
+        var description = LimitText(
+            string.Join('\n', lines.Where(line => !string.IsNullOrWhiteSpace(line))),
+            MaxOneBotMessageLength);
+        var timestamp = DateTimeOffset.TryParse(
+            payload.TimestampUtc,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal,
+            out var parsedTimestamp)
+            ? parsedTimestamp.ToUnixTimeSeconds()
+            : DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        return RobotOneBotMessageBuilder.BuildNewsCardMessage(
+            $"{serverName} - {status}",
+            description,
+            $"[服务器状态] {serverName} {onlinePlayerCount}/{server.MaxPlayers}",
+            $"LauncherGo | {timeLabel}",
+            timestamp);
+    }
+
+    private static string LimitText(string value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
+        {
+            return value;
+        }
+
+        return value[..Math.Max(0, maxLength - 3)] + "...";
     }
 
     private static string BuildOsqPlayersMessage(OsqSnapshotEnvelope payload)
@@ -2104,6 +2181,7 @@ public sealed class Vs2QQProcessService
             .Distinct()
             .ToList();
         var normalizedProfileBindings = NormalizeProfileBindings(settings.ProfileBindings);
+        var normalizedCustomCommands = RobotCustomCommandRules.NormalizeMany(settings.CustomCommands);
         foreach (var groupId in normalizedProfileBindings
                      .Select(static binding => ParsePositiveInt64(binding.GroupId))
                      .Where(static id => id > 0))
@@ -2130,6 +2208,7 @@ public sealed class Vs2QQProcessService
             AccessToken = string.IsNullOrWhiteSpace(settings.AccessToken) ? null : settings.AccessToken.Trim(),
             BoundGroupIds = normalizedBoundGroupIds,
             ProfileBindings = normalizedProfileBindings,
+            CustomCommands = normalizedCustomCommands,
             ReconnectIntervalSec = reconnectInterval,
             DatabasePath = dbPath,
             PollIntervalSec = pollInterval,
@@ -2268,6 +2347,8 @@ public sealed class Vs2QQProcessService
             Storage = storage;
             BoundGroupIds = settings.BoundGroupIds?.Where(id => id > 0).ToHashSet() ?? [];
             CommandScope = new RobotCommandScope(settings.SuperUsers, BoundGroupIds, settings.ProfileBindings);
+            CustomCommands = RobotCustomCommandRules.NormalizeMany(settings.CustomCommands)
+                .ToDictionary(static command => command.Command, StringComparer.OrdinalIgnoreCase);
             ProfileBindings = BuildRuntimeProfileBindings(settings.ProfileBindings);
             GroupsByProfileId = BuildGroupsByProfileId(ProfileBindings);
         }
@@ -2277,6 +2358,8 @@ public sealed class Vs2QQProcessService
         public HashSet<long> BoundGroupIds { get; }
 
         public RobotCommandScope CommandScope { get; }
+
+        public IReadOnlyDictionary<string, RobotCustomCommand> CustomCommands { get; }
 
         public IReadOnlyList<Vs2QQProfileBinding> ProfileBindings { get; }
 
@@ -2473,10 +2556,15 @@ public sealed class Vs2QQProcessService
 
         public async Task SendGroupMsgAsync(long groupId, string message, CancellationToken cancellationToken)
         {
+            await SendGroupMsgAsync(groupId, JsonValue.Create(message), cancellationToken);
+        }
+
+        public async Task SendGroupMsgAsync(long groupId, JsonNode message, CancellationToken cancellationToken)
+        {
             var parameters = new JsonObject
             {
                 ["group_id"] = groupId,
-                ["message"] = message
+                ["message"] = message.DeepClone()
             };
 
             await CallActionAsync("send_group_msg", parameters, TimeSpan.FromSeconds(20), cancellationToken);
@@ -2484,10 +2572,15 @@ public sealed class Vs2QQProcessService
 
         public async Task SendPrivateMsgAsync(long userId, string message, CancellationToken cancellationToken)
         {
+            await SendPrivateMsgAsync(userId, JsonValue.Create(message), cancellationToken);
+        }
+
+        public async Task SendPrivateMsgAsync(long userId, JsonNode message, CancellationToken cancellationToken)
+        {
             var parameters = new JsonObject
             {
                 ["user_id"] = userId,
-                ["message"] = message
+                ["message"] = message.DeepClone()
             };
 
             await CallActionAsync("send_private_msg", parameters, TimeSpan.FromSeconds(20), cancellationToken);

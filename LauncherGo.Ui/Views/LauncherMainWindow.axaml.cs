@@ -280,6 +280,7 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<ProfileConfigListItem> _authConfigItems = [];
     private readonly ObservableCollection<AuthPlayerListItem> _authPlayerItems = [];
     private readonly ObservableCollection<RobotProfileBindingItem> _robotBindingItems = [];
+    private readonly ObservableCollection<RobotCustomCommandItem> _robotCustomCommandItems = [];
     private readonly ObservableCollection<InstanceProfile> _robotProfileItems = [];
     private readonly ObservableCollection<OpenServerQueryProfileConfigItem> _openInfoConfigItems = [];
     private readonly ObservableCollection<DashboardServerItem> _dashboardServerItems = [];
@@ -993,6 +994,19 @@ public partial class LauncherMainWindow : Window
         RobotOsqPollLabelTextBlock.Text = T("OSQ轮询秒数", "OSQ Poll Seconds");
         RobotOsqTimeoutLabelTextBlock.Text = T("OSQ超时秒数", "OSQ Timeout Seconds");
         RobotSuperUsersLabelTextBlock.Text = T("超级管理员 QQ", "Super Admin QQ IDs");
+        RobotCustomCommandsTitleTextBlock.Text = T("自定义指令", "Custom Commands");
+        RobotCustomCommandNameHeaderTextBlock.Text = T("指令", "Command");
+        RobotCustomCommandTypeHeaderTextBlock.Text = T("类型", "Type");
+        RobotCustomCommandContentHeaderTextBlock.Text = T("内容", "Content");
+        RobotCustomCommandActionHeaderTextBlock.Text = T("操作", "Action");
+        RobotCustomCommandHintTextBlock.Text = T(
+            "指令以 / 开头；不能使用或包含 /help、/send、/server 等内置指令前缀。JSON 卡片必须是 JSON 对象。",
+            "Commands start with /. Built-in prefixes such as /help, /send, and /server are reserved. JSON cards must be objects.");
+        RobotCustomCommandAddButton.Content = T("添加", "Add");
+        foreach (var item in _robotCustomCommandItems)
+        {
+            item.SetLanguage(_isChinese);
+        }
         RobotOsqSourceHintTextBlock.Text = T(
             "OSQ 来源由“开放信息”页面统一接收，机器人不再单独监听端口。",
             "OSQ source is received by Open Info; the robot does not listen on its own port.");
@@ -1075,6 +1089,7 @@ public partial class LauncherMainWindow : Window
         ModProfileComboBox.ItemsSource = _modProfileItems;
         ModsListBox.ItemsSource = _modItems;
         RobotBindingsItemsControl.ItemsSource = _robotBindingItems;
+        RobotCustomCommandsItemsControl.ItemsSource = _robotCustomCommandItems;
         OpenInfoConfigItemsControl.ItemsSource = _openInfoConfigItems;
         AuthConfigItemsControl.ItemsSource = _authConfigItems;
         AuthProfileComboBox.ItemsSource = _authProfileItems;
@@ -2402,6 +2417,7 @@ public partial class LauncherMainWindow : Window
             DefaultEncoding = "utf-8",
             FallbackEncoding = "gbk",
             SuperUsersText = string.Empty,
+            CustomCommands = [],
             OsqPollIntervalSec = 20,
             OsqRequestTimeoutSec = 8
         };
@@ -4004,6 +4020,7 @@ public partial class LauncherMainWindow : Window
         SetNumericValue(RobotOsqTimeoutNumericUpDown, settings.OsqRequestTimeoutSec);
         RobotSuperUsersTextBox.Text = settings.SuperUsersText;
         RebuildRobotBindingItems(settings);
+        RebuildRobotCustomCommandItems(settings);
     }
 
     private void RebuildRobotBindingItems(RobotIntegrationSettings settings)
@@ -4042,6 +4059,28 @@ public partial class LauncherMainWindow : Window
                 _robotProfileItems.FirstOrDefault()?.Id ?? string.Empty,
                 string.Empty,
                 string.Empty));
+        }
+    }
+
+    private void RebuildRobotCustomCommandItems(RobotIntegrationSettings settings)
+    {
+        _robotCustomCommandItems.Clear();
+        foreach (var command in settings.CustomCommands ?? [])
+        {
+            _robotCustomCommandItems.Add(new RobotCustomCommandItem(
+                command.Command,
+                command.MessageType,
+                command.Content,
+                _isChinese));
+        }
+
+        if (_robotCustomCommandItems.Count == 0)
+        {
+            _robotCustomCommandItems.Add(new RobotCustomCommandItem(
+                string.Empty,
+                RobotCustomMessageType.Text,
+                string.Empty,
+                _isChinese));
         }
     }
 
@@ -4094,8 +4133,14 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private void SaveRobotSettings(bool updateStatus = true, bool refreshEditor = true)
+    private bool SaveRobotSettings(bool updateStatus = true, bool refreshEditor = true)
     {
+        if (!TryValidateRobotCustomCommands(out var validationMessage))
+        {
+            SetConnectionStatus(validationMessage);
+            return false;
+        }
+
         var preferences = _preferencesService.Load();
         preferences.Robot = CollectRobotSettings();
         _preferencesService.Save(preferences);
@@ -4108,11 +4153,16 @@ public partial class LauncherMainWindow : Window
         {
             SetConnectionStatus(T("QQ机器人配置已保存。", "QQ robot configuration saved."));
         }
+
+        return true;
     }
 
     private async Task SaveRobotSettingsAndReloadIfRunningAsync(bool updateStatus = true, bool refreshEditor = true)
     {
-        SaveRobotSettings(updateStatus, refreshEditor);
+        if (!SaveRobotSettings(updateStatus, refreshEditor))
+        {
+            return;
+        }
         var preferences = _preferencesService.Load();
         await _robotService.SaveSettingsAsync(ToRobotSettings(preferences.Robot, preferences.OpenServerQuery));
 
@@ -4273,6 +4323,7 @@ public partial class LauncherMainWindow : Window
                 : RobotFallbackEncodingTextBox.Text.Trim(),
             SuperUsersText = FormatQqIdText(bindings.Select(static binding => binding.SuperUserId)),
             ProfileBindings = bindings,
+            CustomCommands = CollectRobotCustomCommands(),
             OsqPollIntervalSec = GetNumericValue(RobotOsqPollNumericUpDown, 20),
             OsqRequestTimeoutSec = GetNumericValue(RobotOsqTimeoutNumericUpDown, 8)
         };
@@ -4309,6 +4360,70 @@ public partial class LauncherMainWindow : Window
         }
 
         return bindings;
+    }
+
+    private List<RobotCustomCommand> CollectRobotCustomCommands()
+    {
+        var commands = new List<RobotCustomCommand>();
+        foreach (var item in _robotCustomCommandItems)
+        {
+            var candidate = new RobotCustomCommand
+            {
+                Command = item.Command,
+                MessageType = item.MessageType,
+                Content = item.Content
+            };
+            if (RobotCustomCommandRules.TryNormalize(candidate, out var normalized))
+            {
+                commands.Add(normalized);
+            }
+        }
+
+        return RobotCustomCommandRules.NormalizeMany(commands);
+    }
+
+    private bool TryValidateRobotCustomCommands(out string message)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in _robotCustomCommandItems)
+        {
+            var command = item.Command?.Trim() ?? string.Empty;
+            var content = item.Content?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(command) && string.IsNullOrWhiteSpace(content))
+            {
+                continue;
+            }
+
+            var candidateCommand = command.StartsWith('/') ? command : "/" + command;
+            if (!RobotCustomCommandRules.TryNormalizeCommand(command, out var normalizedCommand))
+            {
+                message = RobotCustomCommandRules.HasReservedPrefixConflict(candidateCommand)
+                    ? T($"自定义指令 {candidateCommand} 与内置指令前缀冲突。", $"Custom command {candidateCommand} conflicts with a built-in command prefix.")
+                    : T($"自定义指令无效：{command}。只能使用 /字母、数字、下划线或连字符。", $"Invalid custom command: {command}. Use / plus letters, numbers, underscores, or hyphens.");
+                return false;
+            }
+
+            if (!seen.Add(normalizedCommand))
+            {
+                message = T($"自定义指令重复：{normalizedCommand}。", $"Duplicate custom command: {normalizedCommand}.");
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                message = T($"自定义指令 {normalizedCommand} 缺少内容。", $"Custom command {normalizedCommand} has no content.");
+                return false;
+            }
+
+            if (item.MessageType == RobotCustomMessageType.JsonCard && !RobotCustomCommandRules.IsValidJsonCard(content))
+            {
+                message = T($"自定义指令 {normalizedCommand} 的 JSON 卡片无效。", $"The JSON card for {normalizedCommand} is invalid.");
+                return false;
+            }
+        }
+
+        message = string.Empty;
+        return true;
     }
 
     private static string FormatQqIdText(IEnumerable<string?> values)
@@ -4514,6 +4629,7 @@ public partial class LauncherMainWindow : Window
             DefaultEncoding = settings.DefaultEncoding,
             FallbackEncoding = settings.FallbackEncoding,
             SuperUsers = ParseQqIds(settings.SuperUsersText),
+            CustomCommands = settings.CustomCommands ?? [],
             OsqPollIntervalSec = settings.OsqPollIntervalSec,
             OsqRequestTimeoutSec = settings.OsqRequestTimeoutSec,
             OsqAllowInsecureHttp = osqSettings.AllowInsecureHttp,
@@ -7071,6 +7187,28 @@ public partial class LauncherMainWindow : Window
         }
     }
 
+    private void OnRobotCustomCommandAddClick(object? sender, RoutedEventArgs e)
+    {
+        _robotCustomCommandItems.Add(new RobotCustomCommandItem(
+            string.Empty,
+            RobotCustomMessageType.Text,
+            string.Empty,
+            _isChinese));
+    }
+
+    private void OnRobotCustomCommandRemoveClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: RobotCustomCommandItem item })
+        {
+            _robotCustomCommandItems.Remove(item);
+        }
+
+        if (_robotCustomCommandItems.Count == 0)
+        {
+            OnRobotCustomCommandAddClick(sender, e);
+        }
+    }
+
     private async void OnRobotToggleClick(object? sender, RoutedEventArgs e)
     {
         if (_isTogglingRobot)
@@ -7100,7 +7238,11 @@ public partial class LauncherMainWindow : Window
 
     private async Task StartRobotAsync()
     {
-        SaveRobotSettings(updateStatus: false);
+        if (!SaveRobotSettings(updateStatus: false))
+        {
+            return;
+        }
+
         try
         {
             var preferences = _preferencesService.Load();
@@ -9922,6 +10064,107 @@ public partial class LauncherMainWindow : Window
                 ConfigPath = path,
                 ModifiedText = modifiedText
             };
+        }
+    }
+
+    public sealed class RobotCustomCommandItem : INotifyPropertyChanged
+    {
+        private string _command;
+        private string _content;
+        private RobotCustomMessageType _messageType;
+        private ConfigChoiceOption? _selectedType;
+
+        public RobotCustomCommandItem(
+            string command,
+            RobotCustomMessageType messageType,
+            string content,
+            bool isChinese)
+        {
+            _command = command;
+            _messageType = messageType;
+            _content = content;
+            SetLanguage(isChinese);
+        }
+
+        public ObservableCollection<ConfigChoiceOption> TypeOptions { get; } = [];
+
+        public string Command
+        {
+            get => _command;
+            set
+            {
+                if (_command == value)
+                {
+                    return;
+                }
+
+                _command = value ?? string.Empty;
+                OnPropertyChanged();
+            }
+        }
+
+        public string Content
+        {
+            get => _content;
+            set
+            {
+                if (_content == value)
+                {
+                    return;
+                }
+
+                _content = value ?? string.Empty;
+                OnPropertyChanged();
+            }
+        }
+
+        public ConfigChoiceOption? SelectedType
+        {
+            get => _selectedType;
+            set
+            {
+                if (ReferenceEquals(_selectedType, value))
+                {
+                    return;
+                }
+
+                _selectedType = value;
+                if (value is not null && Enum.TryParse<RobotCustomMessageType>(value.Value, out var parsed))
+                {
+                    _messageType = parsed;
+                }
+
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(MessageType));
+            }
+        }
+
+        public RobotCustomMessageType MessageType => _messageType;
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public void SetLanguage(bool isChinese)
+        {
+            var selectedValue = _selectedType?.Value ?? _messageType.ToString();
+            TypeOptions.Clear();
+            TypeOptions.Add(new ConfigChoiceOption(RobotCustomMessageType.Text.ToString(), isChinese ? "文本" : "Text"));
+            TypeOptions.Add(new ConfigChoiceOption(RobotCustomMessageType.Image.ToString(), isChinese ? "图片" : "Image"));
+            TypeOptions.Add(new ConfigChoiceOption(RobotCustomMessageType.JsonCard.ToString(), isChinese ? "JSON 卡片" : "JSON Card"));
+            _selectedType = TypeOptions.FirstOrDefault(option =>
+                option.Value.Equals(selectedValue, StringComparison.OrdinalIgnoreCase)) ?? TypeOptions[0];
+            if (Enum.TryParse<RobotCustomMessageType>(_selectedType.Value, out var parsed))
+            {
+                _messageType = parsed;
+            }
+
+            OnPropertyChanged(nameof(TypeOptions));
+            OnPropertyChanged(nameof(SelectedType));
+            OnPropertyChanged(nameof(MessageType));
+        }
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 

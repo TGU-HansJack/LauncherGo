@@ -123,6 +123,7 @@ public class RobotService : IRobotService
             AccessToken = string.Empty,
             BoundGroupIds = [],
             ProfileBindings = [],
+            CustomCommands = [],
             ReconnectIntervalSec = 5,
             DatabasePath = Path.Combine(WorkspacePathHelper.RobotRoot, "vs2qq.db"),
             PollIntervalSec = 1.0,
@@ -174,6 +175,7 @@ public class RobotService : IRobotService
             .Distinct()
             .ToList();
         var profileBindings = NormalizeProfileBindings(settings.ProfileBindings);
+        var customCommands = RobotCustomCommandRules.NormalizeMany(settings.CustomCommands);
         foreach (var groupId in profileBindings
                      .Select(static binding => ParsePositiveInt64(binding.GroupId))
                      .Where(static id => id > 0))
@@ -204,6 +206,7 @@ public class RobotService : IRobotService
             AccessToken = settings.AccessToken?.Trim() ?? string.Empty,
             BoundGroupIds = boundGroupIds,
             ProfileBindings = profileBindings,
+            CustomCommands = customCommands,
             ReconnectIntervalSec = reconnect,
             DatabasePath = dbPath,
             PollIntervalSec = poll,

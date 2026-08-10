@@ -272,6 +272,7 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             FallbackEncoding = string.IsNullOrWhiteSpace(source.FallbackEncoding) ? "gbk" : source.FallbackEncoding.Trim(),
             SuperUsersText = superUsersText,
             ProfileBindings = bindings,
+            CustomCommands = RobotCustomCommandRules.NormalizeMany(source.CustomCommands),
             OsqPollIntervalSec = Math.Clamp(source.OsqPollIntervalSec, 3, 300),
             OsqRequestTimeoutSec = Math.Clamp(source.OsqRequestTimeoutSec, 3, 60)
         };
