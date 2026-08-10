@@ -62,7 +62,7 @@ Name: "{autodesktop}\LauncherGo"; Filename: "{app}\LauncherGo.App.exe"; Tasks: d
 [Code]
 function IsDotNetDesktopRuntime10Installed: Boolean;
 var
-  FindData: TFindData;
+  FindData: TFindRec;
   SearchPath: string;
 begin
   SearchPath := ExpandConstant('{autopf}\dotnet\shared\Microsoft.WindowsDesktop.App\10.*');
