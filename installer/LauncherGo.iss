@@ -41,8 +41,10 @@ Name: "chinesesimp"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 [CustomMessages]
 english.DotNetRuntimeTask=Open the .NET 10 Desktop Runtime (x64) download page
 english.DotNetRuntimeRun=Open the .NET 10 Desktop Runtime (x64) download page
+#ifexist "C:\Program Files (x86)\Inno Setup 6\Languages\ChineseSimplified.isl"
 chinesesimp.DotNetRuntimeTask=打开 .NET 10 Desktop Runtime (x64) 下载页面
 chinesesimp.DotNetRuntimeRun=打开 .NET 10 Desktop Runtime (x64) 下载页面
+#endif
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
