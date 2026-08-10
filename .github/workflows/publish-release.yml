@@ -347,6 +347,7 @@ jobs:
             "/DBuildDir=$buildDir" `
             "/DOutputDir=$outputDir" `
             "/DOutputBaseFilename=$outputBaseName" `
+            "/DSmallPackage=1" `
             "installer/LauncherGo.iss"
 
           if (!(Test-Path (Join-Path $outputDir "$outputBaseName.exe"))) {
