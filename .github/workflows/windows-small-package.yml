@@ -25,7 +25,7 @@ jobs:
       PROJECT_PATH: LauncherGo.App/LauncherGo.App.csproj
       EMBEDDED_AUTH_PROJECT: LauncherGo.Services/EmbeddedMods/VsslAuthMod/VsslAuthMod.csproj
       CONFIGURATION: Release
-      PUBLISH_PROFILE: SmallPackage-win-x64
+      RUNTIME: win-x64
       VINTAGE_STORY_VERSION: 1.22.2
 
     steps:
@@ -148,8 +148,8 @@ jobs:
           New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
           Copy-Item -LiteralPath $dllPath -Destination $targetPath -Force
 
-      - name: Publish framework-dependent small package
-        run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -p:PublishProfile=$env:PUBLISH_PROFILE -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -o artifacts/publish/small-package
+      - name: Publish self-contained small package
+        run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -p:DebugType=None -p:DebugSymbols=false -p:StripPublishSymbols=true -o artifacts/publish/small-package
 
       - name: Copy embedded ServerAuth payload to publish output
         shell: pwsh
@@ -177,6 +177,9 @@ jobs:
             "artifacts/publish/small-package/LauncherGo.App.exe",
             "artifacts/publish/small-package/LauncherGo.App.deps.json",
             "artifacts/publish/small-package/LauncherGo.App.runtimeconfig.json",
+            "artifacts/publish/small-package/coreclr.dll",
+            "artifacts/publish/small-package/hostfxr.dll",
+            "artifacts/publish/small-package/hostpolicy.dll",
             "artifacts/publish/small-package/EmbeddedMods/launchergoauth/serverauth.dll",
             "artifacts/publish/small-package/EmbeddedMods/launchergoauth/modinfo.json",
             "artifacts/publish/small-package/EmbeddedMods/launchergoauth/README.txt"
@@ -201,7 +204,6 @@ jobs:
           $publishRoot = "artifacts/publish/small-package"
           $staging = "artifacts/small-package/LauncherGo-small-package-$version-win-x64"
           $zipPath = "artifacts/small-package/LauncherGo-small-package-$version-win-x64.zip"
-          $runtimeNote = Join-Path $staging "README-runtime.txt"
 
           if (Test-Path $staging) {
             Remove-Item -LiteralPath $staging -Recurse -Force
@@ -209,17 +211,6 @@ jobs:
 
           New-Item -ItemType Directory -Force -Path $staging | Out-Null
           Copy-Item -Path (Join-Path $publishRoot "*") -Destination $staging -Recurse -Force
-
-          $runtimeMessage = @(
-            "LauncherGo Small Package",
-            "",
-            "This build is framework-dependent.",
-            "Install .NET 10 Runtime (x64) before running LauncherGo.App.exe.",
-            "",
-            "Download:",
-            "https://dotnet.microsoft.com/en-us/download/dotnet/10.0"
-          )
-          $runtimeMessage | Set-Content -Path $runtimeNote -Encoding ascii
 
           if (Test-Path $zipPath) {
             Remove-Item -LiteralPath $zipPath -Force
@@ -243,7 +234,6 @@ jobs:
             "/DBuildDir=$buildDir" `
             "/DOutputDir=$outputDir" `
             "/DOutputBaseFilename=$outputBaseName" `
-            "/DSmallPackage=1" `
             "installer/LauncherGo.iss"
 
           if (!(Test-Path (Join-Path $outputDir "$outputBaseName.exe"))) {

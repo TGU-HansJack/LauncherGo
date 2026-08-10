@@ -36,7 +36,6 @@ jobs:
       EMBEDDED_AUTH_PROJECT: LauncherGo.Services/EmbeddedMods/VsslAuthMod/VsslAuthMod.csproj
       CONFIGURATION: Release
       RUNTIME: win-x64
-      SMALL_PACKAGE_PUBLISH_PROFILE: SmallPackage-win-x64
       VINTAGE_STORY_VERSION: 1.22.2
 
     steps:
@@ -174,13 +173,13 @@ jobs:
           Copy-Item -LiteralPath $dllPath -Destination $targetPath -Force
 
       - name: Publish installer payload
-        run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.meta.outputs.version }} -p:InformationalVersion=${{ steps.meta.outputs.version }} -p:DebugType=None -p:DebugSymbols=false -p:StripPublishSymbols=true -o artifacts/publish/win-x64
+        run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.meta.outputs.version }} -p:InformationalVersion=${{ steps.meta.outputs.version }} -o artifacts/publish/win-x64
 
       - name: Publish portable single-file
         run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.meta.outputs.version }} -p:InformationalVersion=${{ steps.meta.outputs.version }} -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o artifacts/publish/portable
 
-      - name: Publish framework-dependent small package
-        run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -p:PublishProfile=$env:SMALL_PACKAGE_PUBLISH_PROFILE -p:Version=${{ steps.meta.outputs.version }} -p:InformationalVersion=${{ steps.meta.outputs.version }} -o artifacts/publish/small-package
+      - name: Publish self-contained small package
+        run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.meta.outputs.version }} -p:InformationalVersion=${{ steps.meta.outputs.version }} -p:DebugType=None -p:DebugSymbols=false -p:StripPublishSymbols=true -o artifacts/publish/small-package
 
       - name: Copy embedded ServerAuth payload to publish outputs
         shell: pwsh
@@ -216,7 +215,10 @@ jobs:
             "artifacts/publish/portable/EmbeddedMods/launchergoauth/README.txt",
             "artifacts/publish/small-package/EmbeddedMods/launchergoauth/serverauth.dll",
             "artifacts/publish/small-package/EmbeddedMods/launchergoauth/modinfo.json",
-            "artifacts/publish/small-package/EmbeddedMods/launchergoauth/README.txt"
+            "artifacts/publish/small-package/EmbeddedMods/launchergoauth/README.txt",
+            "artifacts/publish/small-package/coreclr.dll",
+            "artifacts/publish/small-package/hostfxr.dll",
+            "artifacts/publish/small-package/hostpolicy.dll"
           )
 
           foreach ($path in $requiredPaths) {
@@ -229,12 +231,6 @@ jobs:
           if ($unexpectedSymbols) {
             $unexpectedList = $unexpectedSymbols | ForEach-Object { $_.FullName }
             throw "Unexpected .pdb files found in small package publish output:`n$($unexpectedList -join "`n")"
-          }
-
-          $unexpectedInstallerSymbols = Get-ChildItem "artifacts/publish/win-x64" -Recurse -Filter *.pdb -ErrorAction SilentlyContinue
-          if ($unexpectedInstallerSymbols) {
-            $unexpectedList = $unexpectedInstallerSymbols | ForEach-Object { $_.FullName }
-            throw "Unexpected .pdb files found in installer publish output:`n$($unexpectedList -join "`n")"
           }
 
       - name: Prepare embedded ServerAuth artifact
@@ -291,7 +287,6 @@ jobs:
           $staging = "artifacts/small-package/LauncherGo-small-package-$version-win-x64"
           $zipPath = "artifacts/small-package/LauncherGo-small-package-$version-win-x64.zip"
           $publishRoot = "artifacts/publish/small-package"
-          $runtimeNote = Join-Path $staging "README-runtime.txt"
 
           if (Test-Path $staging) {
             Remove-Item -LiteralPath $staging -Recurse -Force
@@ -303,17 +298,6 @@ jobs:
           if (!(Test-Path (Join-Path $staging "LauncherGo.App.exe"))) {
             throw "Missing small package executable."
           }
-
-          $runtimeMessage = @(
-            "LauncherGo Small Package",
-            "",
-            "This build is framework-dependent.",
-            "Install .NET 10 Runtime (x64) before running LauncherGo.App.exe.",
-            "",
-            "Download:",
-            "https://dotnet.microsoft.com/en-us/download/dotnet/10.0"
-          )
-          $runtimeMessage | Set-Content -Path $runtimeNote -Encoding ascii
 
           if (Test-Path $zipPath) {
             Remove-Item -LiteralPath $zipPath -Force
@@ -353,7 +337,6 @@ jobs:
             "/DBuildDir=$buildDir" `
             "/DOutputDir=$outputDir" `
             "/DOutputBaseFilename=$outputBaseName" `
-            "/DSmallPackage=1" `
             "installer/LauncherGo.iss"
 
           if (!(Test-Path (Join-Path $outputDir "$outputBaseName.exe"))) {

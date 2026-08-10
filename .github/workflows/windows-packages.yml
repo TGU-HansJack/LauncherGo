@@ -149,7 +149,7 @@ jobs:
           Copy-Item -LiteralPath $dllPath -Destination $targetPath -Force
 
       - name: Publish installer payload
-        run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -p:DebugType=None -p:DebugSymbols=false -p:StripPublishSymbols=true -o artifacts/publish/win-x64
+        run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -o artifacts/publish/win-x64
 
       - name: Publish portable single-file
         run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o artifacts/publish/portable
@@ -192,12 +192,6 @@ jobs:
             if (!(Test-Path $path)) {
               throw "Missing embedded ServerAuth payload: $path"
             }
-          }
-
-          $unexpectedSymbols = Get-ChildItem "artifacts/publish/win-x64" -Recurse -Filter *.pdb -ErrorAction SilentlyContinue
-          if ($unexpectedSymbols) {
-            $unexpectedList = $unexpectedSymbols | ForEach-Object { $_.FullName }
-            throw "Unexpected .pdb files found in installer publish output:`n$($unexpectedList -join "`n")"
           }
 
       - name: Prepare embedded ServerAuth artifact

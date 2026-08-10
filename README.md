@@ -142,11 +142,11 @@ dotnet watch run --project .\LauncherGo.App\LauncherGo.App.csproj
 dotnet publish .\LauncherGo.App\LauncherGo.App.csproj -c Release -p:PublishProfile=SmallPackage-win-x64 -p:Version=0.0.0 -p:InformationalVersion=0.0.0 -o .\artifacts\publish\small-package
 ```
 
-`SmallPackage-win-x64` 发布配置会生成 `framework-dependent` 的 Windows x64 分发目录，并在发布结束后自动移除 `.pdb` 调试符号。
+`SmallPackage-win-x64` 发布配置会生成 `framework-dependent` 的 Windows x64 分发目录，并在发布结束后自动移除 `.pdb` 调试符号；手动使用该配置时需要预装 `.NET 10 Runtime (x64)`。
 
-`.github/workflows/windows-small-package.yml` 会把该目录打成 zip，适合发布小于自包含安装包的分发文件。使用这个包时，需要在下载页或说明文件中提示用户先安装 `.NET 10 Runtime (x64)`。
+`.github/workflows/windows-small-package.yml` 会生成自包含的 Windows x64 小体积分发包：保留 .NET Runtime，但移除全部 `.pdb` 调试符号。
 
-同一工作流还会生成 `LauncherGo-Small-Setup-<version>-win-x64.exe`。这是不包含 .NET Runtime 的小体积安装器。安装器会检测 `.NET 10 Runtime (x64)`；如果未检测到，会在安装任务中提供勾选项，安装完成后打开微软官方下载页。完整自包含安装器仍由 `installer/LauncherGo.iss` 生成。
+同一工作流还会生成 `LauncherGo-Small-Setup-<version>-win-x64.exe`，无需预装 .NET。完整安装器保留调试符号，仍由 `installer/LauncherGo.iss` 生成。
 
 ## 构建嵌入式 ServerAuth 模组
 
