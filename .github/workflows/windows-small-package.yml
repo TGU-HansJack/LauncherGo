@@ -227,6 +227,28 @@ jobs:
 
           Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $zipPath -CompressionLevel Optimal
 
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build small installer package
+        shell: pwsh
+        run: |
+          $version = "${{ steps.resolve_version.outputs.value }}"
+          $buildDir = (Resolve-Path "artifacts/publish/small-package").Path
+          $outputDir = (Resolve-Path "artifacts/small-package").Path
+          $outputBaseName = "LauncherGo-Small-Setup-$version-win-x64"
+
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=$version" `
+            "/DBuildDir=$buildDir" `
+            "/DOutputDir=$outputDir" `
+            "/DOutputBaseFilename=$outputBaseName" `
+            "installer/LauncherGo.iss"
+
+          if (!(Test-Path (Join-Path $outputDir "$outputBaseName.exe"))) {
+            throw "Missing small installer output."
+          }
+
       - name: Report package size
         shell: pwsh
         run: |
@@ -245,4 +267,11 @@ jobs:
         with:
           name: LauncherGo-small-package-${{ steps.resolve_version.outputs.value }}-win-x64
           path: artifacts/small-package/LauncherGo-small-package-${{ steps.resolve_version.outputs.value }}-win-x64.zip
+          if-no-files-found: error
+
+      - name: Upload small installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LauncherGo-small-installer-${{ steps.resolve_version.outputs.value }}-win-x64
+          path: artifacts/small-package/LauncherGo-Small-Setup-${{ steps.resolve_version.outputs.value }}-win-x64.exe
           if-no-files-found: error

@@ -10,6 +10,10 @@
   #define OutputDir "..\artifacts\installer"
 #endif
 
+#ifndef OutputBaseFilename
+  #define OutputBaseFilename "LauncherGo-Setup-{#MyAppVersion}-win-x64"
+#endif
+
 [Setup]
 AppId={{26FFCC71-304F-4FF1-AC1A-3E244C276414}
 AppName=LauncherGo
@@ -18,7 +22,7 @@ AppPublisher=LauncherGo
 DefaultDirName={autopf}\LauncherGo
 DefaultGroupName=LauncherGo
 OutputDir={#OutputDir}
-OutputBaseFilename=LauncherGo-Setup-{#MyAppVersion}-win-x64
+OutputBaseFilename={#OutputBaseFilename}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern

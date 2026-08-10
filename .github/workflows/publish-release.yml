@@ -334,6 +334,25 @@ jobs:
             "/DOutputDir=$outputDir" `
             "installer/LauncherGo.iss"
 
+      - name: Build small installer package
+        shell: pwsh
+        run: |
+          $version = "${{ steps.meta.outputs.version }}"
+          $buildDir = (Resolve-Path "artifacts/publish/small-package").Path
+          $outputDir = (Resolve-Path "artifacts/installer").Path
+          $outputBaseName = "LauncherGo-Small-Setup-$version-win-x64"
+
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=$version" `
+            "/DBuildDir=$buildDir" `
+            "/DOutputDir=$outputDir" `
+            "/DOutputBaseFilename=$outputBaseName" `
+            "installer/LauncherGo.iss"
+
+          if (!(Test-Path (Join-Path $outputDir "$outputBaseName.exe"))) {
+            throw "Missing small installer output."
+          }
+
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
