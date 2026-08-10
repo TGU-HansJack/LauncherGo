@@ -5782,6 +5782,12 @@ public partial class LauncherMainWindow : Window
             return;
         }
 
+        if (TryGetCopyableTableCellText(e.Source, out var tableCellText))
+        {
+            _ = CopyTableCellTextAsync(tableCellText);
+            return;
+        }
+
         DeactivateInputControlsOnBackgroundClick(e.Source);
 
         if (ShouldSkipWindowDrag(e.Source))
@@ -5790,6 +5796,62 @@ public partial class LauncherMainWindow : Window
         }
 
         BeginMoveDrag(e);
+    }
+
+    private async Task CopyTableCellTextAsync(string text)
+    {
+        try
+        {
+            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+            if (clipboard is null)
+            {
+                throw new InvalidOperationException(T(
+                    "当前窗口没有可用的剪贴板。",
+                    "No clipboard is available for the current window."));
+            }
+
+            await clipboard.SetTextAsync(text);
+            ShowToast(T("已复制单元格文本。", "Cell text copied."), ToastKind.Success);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to copy table cell text.");
+            ShowToast(T($"复制失败：{ex.Message}", $"Copy failed: {ex.Message}"), ToastKind.Error);
+        }
+    }
+
+    private static bool TryGetCopyableTableCellText(object? source, out string text)
+    {
+        text = string.Empty;
+        TextBlock? textBlock = null;
+        var current = source as StyledElement;
+
+        while (current is not null)
+        {
+            if (current is Button
+                or ToggleSwitch
+                or CheckBox
+                or ComboBox
+                or ComboBoxItem
+                or TextBox
+                or CalendarDatePicker
+                or NumericUpDown
+                or SelectableTextBlock)
+            {
+                return false;
+            }
+
+            textBlock ??= current as TextBlock;
+            if (current is Border border && border.Classes.Contains("TableBody"))
+            {
+                text = textBlock?.Text?.Trim() ?? string.Empty;
+                return text.Length > 0;
+            }
+
+            current = current.Parent;
+        }
+
+        return false;
     }
 
     private void DeactivateInputControlsOnBackgroundClick(object? source)
@@ -10842,7 +10904,9 @@ public partial class LauncherMainWindow : Window
 
         private static string BuildModIssuesText(ModEntry model, bool isChinese)
         {
-            var issues = model.DependencyIssues.ToList();
+            var issues = model.DependencyIssues
+                .Select(issue => LocalizeModIssue(issue, isChinese))
+                .ToList();
             if (!model.Status.Equals("OK", StringComparison.OrdinalIgnoreCase) &&
                 !model.Status.Equals("MissingDependency", StringComparison.OrdinalIgnoreCase))
             {
@@ -10852,6 +10916,24 @@ public partial class LauncherMainWindow : Window
             }
 
             return issues.Count == 0 ? "-" : string.Join("; ", issues);
+        }
+
+        private static string LocalizeModIssue(string issue, bool isChinese)
+        {
+            const string chinesePrefix = "缺少依赖:";
+            const string englishPrefix = "Missing dependency:";
+            var value = issue.Trim();
+
+            if (value.StartsWith(chinesePrefix, StringComparison.OrdinalIgnoreCase) ||
+                value.StartsWith(englishPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var dependency = value[(value.IndexOf(':') + 1)..].Trim();
+                return isChinese
+                    ? $"缺少依赖: {dependency}"
+                    : $"Missing dependency: {dependency}";
+            }
+
+            return issue;
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

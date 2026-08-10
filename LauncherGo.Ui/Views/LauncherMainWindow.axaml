@@ -109,6 +109,10 @@
     </Window.Resources>
 
     <Window.Styles>
+        <Style Selector="Control">
+            <Setter Property="ToolTip.Placement" Value="Top" />
+            <Setter Property="ToolTip.VerticalOffset" Value="-8" />
+        </Style>
         <Style Selector="Path.IconPath">
             <Setter Property="Fill" Value="{DynamicResource HeaderIconBrush}" />
             <Setter Property="Stretch" Value="Uniform" />
@@ -206,6 +210,12 @@
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="8,4" />
+            <Setter Property="MaxWidth" Value="720" />
+        </Style>
+        <Style Selector="ToolTip TextBlock">
+            <Setter Property="MaxWidth" Value="700" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="TextTrimming" Value="None" />
         </Style>
 
         <Style Selector="TextBlock.SidebarSectionTitle">
@@ -807,6 +817,45 @@
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
+        <Style Selector="Border.TableHeader TextBlock">
+            <Setter Property="ToolTip.Tip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" />
+            <Setter Property="ToolTip.Placement" Value="Top" />
+            <Setter Property="ToolTip.VerticalOffset" Value="-8" />
+        </Style>
+        <Style Selector="Border.TableBody TextBlock">
+            <Setter Property="ToolTip.Tip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" />
+            <Setter Property="ToolTip.Placement" Value="Top" />
+            <Setter Property="ToolTip.VerticalOffset" Value="-8" />
+        </Style>
+        <Style Selector="Border.TableBody TextBlock.TableCellText">
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Border.TableBody TextBlock.TableSubCellText">
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Border.TableBody TextBlock.TablePathText">
+            <Setter Property="ToolTip.Tip" Value="{x:Null}" />
+        </Style>
+        <Style Selector="Border.TableBody TextBox">
+            <Setter Property="ToolTip.Tip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" />
+            <Setter Property="ToolTip.Placement" Value="Top" />
+            <Setter Property="ToolTip.VerticalOffset" Value="-8" />
+        </Style>
+        <Style Selector="Border.TableBody ComboBox">
+            <Setter Property="ToolTip.Tip" Value="{Binding SelectedItem, RelativeSource={RelativeSource Self}}" />
+            <Setter Property="ToolTip.Placement" Value="Top" />
+            <Setter Property="ToolTip.VerticalOffset" Value="-8" />
+        </Style>
+        <Style Selector="Border.TableBody CalendarDatePicker">
+            <Setter Property="ToolTip.Tip" Value="{Binding SelectedDate, RelativeSource={RelativeSource Self}}" />
+            <Setter Property="ToolTip.Placement" Value="Top" />
+            <Setter Property="ToolTip.VerticalOffset" Value="-8" />
+        </Style>
+        <Style Selector="Border.TableBody Button.TablePathButton">
+            <Setter Property="ToolTip.Tip" Value="{Binding Tag, RelativeSource={RelativeSource Self}}" />
+            <Setter Property="ToolTip.Placement" Value="Top" />
+            <Setter Property="ToolTip.VerticalOffset" Value="-8" />
+        </Style>
         <Style Selector="CheckBox.TableSelectCheck">
             <Setter Property="HorizontalAlignment" Value="Center" />
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -1332,8 +1381,8 @@
                                                                 <CheckBox Classes="TableSelectCheck" IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}, Mode=TwoWay}" />
                                                                 <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding Name}" FontWeight="SemiBold" />
                                                                 <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding Version}" />
-                                                                <Button Grid.Column="3" Classes="DownloadTextButton" Tag="{Binding DirectoryPath}" HorizontalAlignment="Stretch" Click="OnOpenProfileDirectoryClick">
-                                                                    <TextBlock Classes="TableCellText ProfileSubText" Text="{Binding DirectoryPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
+                                                                <Button Grid.Column="3" Classes="DownloadTextButton TablePathButton" Tag="{Binding DirectoryPath}" HorizontalAlignment="Stretch" Click="OnOpenProfileDirectoryClick">
+                                                                    <TextBlock Classes="TableCellText ProfileSubText TablePathText" Text="{Binding DirectoryPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
                                                                 </Button>
                                                                 <TextBlock Grid.Column="4" Classes="TableCellText ProfileSubText" Text="{Binding ActiveSaveFile}" />
                                                                 <Button Grid.Column="5" Classes="SecondaryActionButton" Tag="{Binding}" Content="修改" Click="OnEditProfileConfigClick" />
@@ -1635,8 +1684,8 @@
                                                                 <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding ProfileName}" />
                                                                 <TextBlock Grid.Column="3" Classes="TableCellText" Text="{Binding SizeText}" />
                                                                 <TextBlock Grid.Column="4" Classes="TableCellText" Text="{Binding LastWriteText}" />
-                                                                <Button Grid.Column="5" Classes="DownloadTextButton" Tag="{Binding DirectoryPath}" HorizontalAlignment="Stretch" Click="OnOpenSaveDirectoryClick">
-                                                                    <TextBlock Classes="TableCellText" Text="{Binding DirectoryPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
+                                                                <Button Grid.Column="5" Classes="DownloadTextButton TablePathButton" Tag="{Binding DirectoryPath}" HorizontalAlignment="Stretch" Click="OnOpenSaveDirectoryClick">
+                                                                    <TextBlock Classes="TableCellText TablePathText" Text="{Binding DirectoryPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
                                                                 </Button>
                                                                 <Button Grid.Column="6" Classes="SaveLockButton" Tag="{Binding}" Click="OnToggleDefaultSaveClick">
                                                                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
@@ -1679,8 +1728,8 @@
                                                                             <Grid ColumnDefinitions="44,1.2*,2.4*,1*,Auto" ColumnSpacing="8">
                                                                                 <CheckBox Classes="TableSelectCheck" IsChecked="{Binding IsSelected, Mode=TwoWay}" />
                                                                                 <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding ProfileName}" FontWeight="SemiBold" />
-                                                                                <Button Grid.Column="2" Classes="DownloadTextButton" Tag="{Binding ConfigPath}" HorizontalAlignment="Stretch" Click="OnOpenConfigFileClick">
-                                                                                    <TextBlock Classes="TableCellText" Text="{Binding ConfigPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
+                                                                                <Button Grid.Column="2" Classes="DownloadTextButton TablePathButton" Tag="{Binding ConfigPath}" HorizontalAlignment="Stretch" Click="OnOpenConfigFileClick">
+                                                                                    <TextBlock Classes="TableCellText TablePathText" Text="{Binding ConfigPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
                                                                                 </Button>
                                                                                 <TextBlock Grid.Column="3" Classes="TableCellText" Text="{Binding ModifiedText}" />
                                                                                 <Button Grid.Column="4" Classes="SecondaryActionButton" Tag="{Binding}" Content="修改" Click="OnAutomationEditConfigClick" />
@@ -1987,8 +2036,8 @@
                                                                 <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding Version}" />
                                                                 <TextBlock Grid.Column="3" Classes="TableCellText" Text="{Binding DependenciesText}" />
                                                                 <TextBlock Grid.Column="4" Classes="TableCellText" Text="{Binding IssuesText}" />
-                                                                <Button Grid.Column="5" Classes="DownloadTextButton" Tag="{Binding ConfigPath}" HorizontalAlignment="Stretch" Click="OnOpenModConfigPathClick">
-                                                                    <TextBlock Classes="TableCellText" Text="{Binding ConfigPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
+                                                                <Button Grid.Column="5" Classes="DownloadTextButton TablePathButton" Tag="{Binding ConfigPath}" HorizontalAlignment="Stretch" Click="OnOpenModConfigPathClick">
+                                                                    <TextBlock Classes="TableCellText TablePathText" Text="{Binding ConfigPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
                                                                 </Button>
                                                                 <TextBlock Grid.Column="6" Classes="TableCellText" Text="{Binding FilePath}" />
                                                                 <ToggleSwitch Grid.Column="7" Classes="TableSwitch" IsChecked="{Binding ModEnabled, Mode=OneWay}" Tag="{Binding}" Click="OnModEnabledSwitchClick" />
@@ -2472,8 +2521,8 @@
                                                                                     <CheckBox Classes="TableSelectCheck" IsChecked="{Binding IsSelected, Mode=TwoWay}" />
                                                                                     <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding ProfileName}" FontWeight="SemiBold" />
                                                                                     <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding Version}" />
-                                                                                    <Button Grid.Column="3" Classes="DownloadTextButton" Tag="{Binding ConfigPath}" HorizontalAlignment="Stretch" Click="OnOpenConfigFileClick">
-                                                                                        <TextBlock Classes="TableCellText" Text="{Binding ConfigPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
+                                                                                    <Button Grid.Column="3" Classes="DownloadTextButton TablePathButton" Tag="{Binding ConfigPath}" HorizontalAlignment="Stretch" Click="OnOpenConfigFileClick">
+                                                                                        <TextBlock Classes="TableCellText TablePathText" Text="{Binding ConfigPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
                                                                                     </Button>
                                                                                     <TextBlock Grid.Column="4" Classes="TableCellText" Text="{Binding ModifiedText}" />
                                                                                     <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
@@ -2702,8 +2751,8 @@
                                                                         <Grid ColumnDefinitions="44,1.2*,2.4*,1*,Auto" ColumnSpacing="8">
                                                                             <CheckBox Classes="TableSelectCheck" IsChecked="{Binding IsSelected, Mode=TwoWay}" />
                                                                             <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding ProfileName}" FontWeight="SemiBold" />
-                                                                            <Button Grid.Column="2" Classes="DownloadTextButton" Tag="{Binding ConfigPath}" HorizontalAlignment="Stretch" Click="OnOpenConfigFileClick">
-                                                                                <TextBlock Classes="TableCellText" Text="{Binding ConfigPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
+                                                                            <Button Grid.Column="2" Classes="DownloadTextButton TablePathButton" Tag="{Binding ConfigPath}" HorizontalAlignment="Stretch" Click="OnOpenConfigFileClick">
+                                                                                <TextBlock Classes="TableCellText TablePathText" Text="{Binding ConfigPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
                                                                             </Button>
                                                                             <TextBlock Grid.Column="3" Classes="TableCellText" Text="{Binding ModifiedText}" />
                                                                             <Button Grid.Column="4" Classes="SecondaryActionButton" Tag="{Binding}" Content="修改" Click="OnAuthEditConfigClick" />
@@ -2840,16 +2889,16 @@
                                                                     <DataTemplate>
                                                                         <Grid ColumnDefinitions="1.5*,1.4*,1.4*,1*,1.2*,Auto" ColumnSpacing="8" MinHeight="38">
                                                                             <StackPanel Spacing="2">
-                                                                                <TextBlock Text="{Binding PlayerName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                                                                <TextBlock Text="{Binding PlayerUid}" FontSize="11" Foreground="{DynamicResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
+                                                                                <TextBlock Classes="TableCellText" Text="{Binding PlayerName}" FontWeight="SemiBold" />
+                                                                                <TextBlock Classes="TableSubCellText" Text="{Binding PlayerUid}" />
                                                                             </StackPanel>
                                                                             <StackPanel Grid.Column="1" Spacing="2">
-                                                                                <TextBlock Text="{Binding RegisteredAtText}" TextTrimming="CharacterEllipsis" />
-                                                                                <TextBlock Text="{Binding RegisteredIp}" FontSize="11" Foreground="{DynamicResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
+                                                                                <TextBlock Classes="TableCellText" Text="{Binding RegisteredAtText}" />
+                                                                                <TextBlock Classes="TableSubCellText" Text="{Binding RegisteredIp}" />
                                                                             </StackPanel>
                                                                             <StackPanel Grid.Column="2" Spacing="2">
-                                                                                <TextBlock Text="{Binding LastLoginAtText}" TextTrimming="CharacterEllipsis" />
-                                                                                <TextBlock Text="{Binding LastIp}" FontSize="11" Foreground="{DynamicResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
+                                                                                <TextBlock Classes="TableCellText" Text="{Binding LastLoginAtText}" />
+                                                                                <TextBlock Classes="TableSubCellText" Text="{Binding LastIp}" />
                                                                             </StackPanel>
                                                                             <TextBlock Grid.Column="3" Classes="TableCellText" Text="{Binding PasswordStateText}" />
                                                                             <TextBlock Grid.Column="4" Classes="TableCellText" Text="{Binding ExternalUsername}" />
