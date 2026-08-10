@@ -39,17 +39,17 @@ Name: "chinesesimp"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 #endif
 
 [CustomMessages]
-english.DotNetRuntimeTask=Open the .NET 10 Desktop Runtime (x64) download page
-english.DotNetRuntimeRun=Open the .NET 10 Desktop Runtime (x64) download page
+english.DotNetRuntimeTask=Open the .NET 10 Runtime (x64) download page
+english.DotNetRuntimeRun=Open the .NET 10 Runtime (x64) download page
 #ifexist "C:\Program Files (x86)\Inno Setup 6\Languages\ChineseSimplified.isl"
-chinesesimp.DotNetRuntimeTask=打开 .NET 10 Desktop Runtime (x64) 下载页面
-chinesesimp.DotNetRuntimeRun=打开 .NET 10 Desktop Runtime (x64) 下载页面
+chinesesimp.DotNetRuntimeTask=打开 .NET 10 Runtime (x64) 下载页面
+chinesesimp.DotNetRuntimeRun=打开 .NET 10 Runtime (x64) 下载页面
 #endif
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 #ifdef SmallPackage
-Name: "dotnetruntime"; Description: "{cm:DotNetRuntimeTask}"; GroupDescription: "Prerequisites:"; Check: not IsDotNetDesktopRuntime10Installed
+Name: "dotnetruntime"; Description: "{cm:DotNetRuntimeTask}"; GroupDescription: "Prerequisites:"; Check: not IsDotNetRuntime10Installed
 #endif
 
 [Files]
@@ -60,12 +60,12 @@ Name: "{autoprograms}\LauncherGo"; Filename: "{app}\LauncherGo.App.exe"
 Name: "{autodesktop}\LauncherGo"; Filename: "{app}\LauncherGo.App.exe"; Tasks: desktopicon
 
 [Code]
-function IsDotNetDesktopRuntime10Installed: Boolean;
+function IsDotNetRuntime10Installed: Boolean;
 var
   FindData: TFindRec;
   SearchPath: string;
 begin
-  SearchPath := ExpandConstant('{autopf}\dotnet\shared\Microsoft.WindowsDesktop.App\10.*');
+  SearchPath := ExpandConstant('{autopf}\dotnet\shared\Microsoft.NETCore.App\10.*');
   Result := FindFirst(SearchPath, FindData);
   if Result then
     FindClose(FindData);
