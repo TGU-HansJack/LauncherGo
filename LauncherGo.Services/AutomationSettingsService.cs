@@ -162,7 +162,15 @@ public class AutomationSettingsService : IAutomationSettingsService
                     Enabled = true
                 }
             ],
-            BackupTimes = ["03:00"],
+            BackupSchedules =
+            [
+                new BackupSchedule
+                {
+                    Type = BackupScheduleType.Daily,
+                    Time = "03:00",
+                    AnchorDate = DateTime.Now.ToString("yyyy-MM-dd")
+                }
+            ],
             BroadcastMessages =
             [
                 new ScheduledBroadcastMessage
@@ -185,7 +193,7 @@ public class AutomationSettingsService : IAutomationSettingsService
         };
     }
 
-    private static AutomationSettings Normalize(AutomationSettings settings)
+    internal static AutomationSettings Normalize(AutomationSettings settings)
     {
         var normalizedWindows = (settings.TimeWindows ?? [])
             .Where(window => window is not null)
@@ -234,11 +242,27 @@ public class AutomationSettingsService : IAutomationSettingsService
             .Where(item => !string.IsNullOrWhiteSpace(item.Command))
             .ToList();
 
-        var normalizedBackupTimes = (settings.BackupTimes ?? [])
-            .Select(time => NormalizeTime(time, string.Empty))
-            .Where(time => !string.IsNullOrWhiteSpace(time))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Order(StringComparer.OrdinalIgnoreCase)
+        var backupSources = settings.BackupSchedules ?? [];
+        if (backupSources.Count == 0 && settings.BackupTimes is { Count: > 0 })
+        {
+            backupSources = settings.BackupTimes
+                .Select(time => new BackupSchedule
+                {
+                    Type = BackupScheduleType.Daily,
+                    Time = time,
+                    AnchorDate = DateTime.Now.ToString("yyyy-MM-dd")
+                })
+                .ToList();
+        }
+
+        var normalizedBackupSchedules = backupSources
+            .Where(schedule => schedule is not null)
+            .Select(schedule => BackupScheduleCalculator.Normalize(schedule, DateTime.Now))
+            .GroupBy(GetBackupScheduleKey, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .OrderBy(schedule => schedule.Type)
+            .ThenBy(schedule => schedule.Time, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(schedule => schedule.Interval)
             .ToList();
 
         var normalizedExportTimes = (settings.ExportTimes ?? [])
@@ -255,7 +279,9 @@ public class AutomationSettingsService : IAutomationSettingsService
             BackupEnabled = settings.BackupEnabled,
             TimeWindows = normalizedWindows,
             ActionWindows = normalizedActionWindows,
-            BackupTimes = normalizedBackupTimes,
+            BackupSchedules = normalizedBackupSchedules,
+            BackupRetentionCount = Math.Clamp(settings.BackupRetentionCount, 0, 100_000),
+            BackupTimes = [],
             BackupBeforeShutdown = settings.BackupBeforeShutdown,
             BroadcastEnabled = settings.BroadcastEnabled,
             BroadcastMessages = normalizedMessages,
@@ -267,6 +293,20 @@ public class AutomationSettingsService : IAutomationSettingsService
             ExportIncludeChat = settings.ExportIncludeChat,
             ExportIncludeServerInfo = settings.ExportIncludeServerInfo
         };
+    }
+
+    private static string GetBackupScheduleKey(BackupSchedule schedule)
+    {
+        return string.Join(
+            '|',
+            schedule.Enabled,
+            schedule.Type,
+            schedule.DayOfMonth,
+            schedule.DayOfWeek,
+            schedule.Time,
+            schedule.MinuteOfHour,
+            schedule.Interval,
+            schedule.AnchorDate);
     }
 
     private static string NormalizeTime(string? value, string fallback)

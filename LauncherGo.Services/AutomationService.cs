@@ -8,12 +8,11 @@ using LauncherGo.Domains.Models;
 namespace LauncherGo.Services;
 
 /// <summary>
-///     自动化调度服务（定时开关服/播报/日志导出）
+///     自动化调度服务（定时开关服/备份/播报/日志导出）
 /// </summary>
 public partial class AutomationService : IAutomationService, IDisposable
 {
     private readonly IAutomationSettingsService _settingsService;
-    private readonly ILauncherPreferencesService _preferencesService;
     private readonly IInstanceProfileService _profileService;
     private readonly IInstanceSaveService _instanceSaveService;
     private readonly ILogTailService _logTailService;
@@ -51,14 +50,12 @@ public partial class AutomationService : IAutomationService, IDisposable
 
     public AutomationService(
         IAutomationSettingsService settingsService,
-        ILauncherPreferencesService preferencesService,
         IInstanceProfileService profileService,
         IInstanceSaveService instanceSaveService,
         ILogTailService logTailService,
         IServerProcessService serverProcessService)
     {
         _settingsService = settingsService;
-        _preferencesService = preferencesService;
         _profileService = profileService;
         _instanceSaveService = instanceSaveService;
         _logTailService = logTailService;
@@ -259,20 +256,16 @@ public partial class AutomationService : IAutomationService, IDisposable
         DateTime minute,
         CancellationToken cancellationToken)
     {
-        foreach (var time in settings.BackupTimes)
+        foreach (var schedule in settings.BackupSchedules.Where(item => item.Enabled))
         {
-            if (!TryParseHm(time, out var at))
+            if (!BackupScheduleCalculator.IsDue(schedule, minute))
                 continue;
 
-            var point = minute.Date.Add(at);
-            if (point != minute)
-                continue;
-
-            var key = $"{profile.Id}|backup|{minute:yyyyMMddHHmm}|{time}";
+            var key = $"{profile.Id}|backup|{schedule.Id}|{minute:yyyyMMddHHmm}";
             if (!MarkExecuted(key))
                 continue;
 
-            await TryBackupActiveSaveAsync(profile, cancellationToken);
+            await TryBackupActiveSaveAsync(profile, settings.BackupRetentionCount, cancellationToken);
         }
     }
 
@@ -342,7 +335,7 @@ public partial class AutomationService : IAutomationService, IDisposable
     {
         if (settings.BackupBeforeShutdown)
         {
-            await TryBackupActiveSaveAsync(profile, cancellationToken);
+            await TryBackupActiveSaveAsync(profile, settings.BackupRetentionCount, cancellationToken);
         }
 
         if (settings.ExportBeforeShutdown)
@@ -359,18 +352,18 @@ public partial class AutomationService : IAutomationService, IDisposable
         WriteRuntimeLog($"自动化：已按计划关闭服务端（档案：{profile.Name}）。");
     }
 
-    private async Task TryBackupActiveSaveAsync(InstanceProfile profile, CancellationToken cancellationToken)
+    private async Task TryBackupActiveSaveAsync(
+        InstanceProfile profile,
+        int retentionCount,
+        CancellationToken cancellationToken)
     {
         await _backupGate.WaitAsync(cancellationToken);
         try
         {
-            var compressionEnabled = _preferencesService.Load().SaveCompression?.Enabled == true;
             var status = _serverProcessService.GetCurrentStatus(profile.Id);
+            var requestedBackupFileName = BuildBackupFileName(profile);
             if (status.IsRunning)
             {
-                var requestedBackupFileName = compressionEnabled
-                    ? BuildBackupFileName(profile)
-                    : null;
                 var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 lock (_backupStateGate)
                 {
@@ -378,60 +371,45 @@ public partial class AutomationService : IAutomationService, IDisposable
                     _backupCompletionProfileId = profile.Id;
                 }
 
-                var command = string.IsNullOrWhiteSpace(requestedBackupFileName)
-                    ? "/genbackup"
-                    : $"/genbackup {requestedBackupFileName}";
+                var command = $"/genbackup {requestedBackupFileName}";
                 await _serverProcessService.SendCommandAsync(profile.Id, command, cancellationToken);
                 WriteRuntimeLog($"自动化备份：已请求服务器备份（档案：{profile.Name}）。");
 
-                if (!string.IsNullOrWhiteSpace(requestedBackupFileName))
-                {
-                    // /genbackup completion may be sent only to the command caller, not the server console.
-                    var generatedBackupPath = Path.Combine(profile.DirectoryPath, "Backups", requestedBackupFileName);
-                    var waitResult = await WaitForGeneratedBackupFileAsync(
-                        generatedBackupPath,
-                        completion.Task,
-                        cancellationToken);
-                    switch (waitResult)
-                    {
-                        case GeneratedBackupWaitResult.Ready:
-                            WriteRuntimeLog("自动化备份：已确认备份文件已生成。");
-                            await CompressBackupAsync(profile, generatedBackupPath, cancellationToken);
-                            break;
-                        case GeneratedBackupWaitResult.Failed:
-                            WriteRuntimeLog("自动化备份：服务器备份失败。");
-                            break;
-                        default:
-                            WriteRuntimeLog("自动化备份：等待备份文件生成超时。");
-                            break;
-                    }
-
-                    return;
-                }
-
-                var finished = await Task.WhenAny(
+                // /genbackup completion may be sent only to the command caller, not the server console.
+                var generatedBackupPath = Path.Combine(profile.DirectoryPath, "Backups", requestedBackupFileName);
+                var waitResult = await WaitForGeneratedBackupFileAsync(
+                    generatedBackupPath,
                     completion.Task,
-                    Task.Delay(BackupWaitTimeout, cancellationToken));
-                cancellationToken.ThrowIfCancellationRequested();
-
-                if (finished == completion.Task && await completion.Task)
+                    cancellationToken);
+                switch (waitResult)
                 {
-                    WriteRuntimeLog("自动化备份：服务器备份完成。");
-                }
-                else if (finished == completion.Task)
-                {
-                    WriteRuntimeLog("自动化备份：服务器备份失败。");
-                }
-                else
-                {
-                    WriteRuntimeLog("自动化备份：等待服务器备份完成超时。");
+                    case GeneratedBackupWaitResult.Ready:
+                        WriteRuntimeLog("自动化备份：已确认备份文件已生成。");
+                        var result = await _instanceSaveService.FinalizeManagedBackupAsync(
+                            profile,
+                            generatedBackupPath,
+                            retentionCount,
+                            cancellationToken);
+                        WriteManagedBackupResult(result);
+                        break;
+                    case GeneratedBackupWaitResult.Failed:
+                        WriteRuntimeLog("自动化备份：服务器备份失败。");
+                        break;
+                    default:
+                        WriteRuntimeLog("自动化备份：等待备份文件生成超时。");
+                        break;
                 }
 
                 return;
             }
 
-            var offlineBackupPath = await _instanceSaveService.BackupActiveSaveAsync(profile, cancellationToken);
-            WriteRuntimeLog($"自动化备份：已备份当前存档（{Path.GetFileName(offlineBackupPath)}）。");
+            var offlineResult = await _instanceSaveService.BackupManagedActiveSaveAsync(
+                profile,
+                requestedBackupFileName,
+                retentionCount,
+                cancellationToken);
+            WriteRuntimeLog($"自动化备份：已备份当前存档（{Path.GetFileName(offlineResult.SourcePath)}）。");
+            WriteManagedBackupResult(offlineResult);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -594,32 +572,21 @@ public partial class AutomationService : IAutomationService, IDisposable
         }
     }
 
-    private async Task CompressBackupAsync(
-        InstanceProfile profile,
-        string backupPath,
-        CancellationToken cancellationToken)
+    private void WriteManagedBackupResult(ManagedBackupResult result)
     {
-        try
+        if (!string.IsNullOrWhiteSpace(result.CompressionError))
         {
-            var result = await _instanceSaveService.CompressBackupAsync(profile, backupPath, cancellationToken);
-            if (result is null)
-            {
-                return;
-            }
-
-            if (result.Skipped)
-            {
-                WriteRuntimeLog($"自动化备份压缩：目标文件已是最新，跳过（{Path.GetFileName(result.CompressedPath)}）。");
-                return;
-            }
-
+            WriteRuntimeLog($"自动化备份已完成，但压缩失败：{result.CompressionError}");
+        }
+        else if (result.CompressionEnabled && result.CompressedPath is not null)
+        {
+            var action = result.CompressionSkipped ? "已是最新，跳过" : "已生成";
             var deletedText = result.SourceDeleted ? "，已删除原始 vcdbs" : string.Empty;
-            WriteRuntimeLog($"自动化备份压缩：已生成 {Path.GetFileName(result.CompressedPath)}{deletedText}。");
+            WriteRuntimeLog($"自动化备份压缩：{action} {Path.GetFileName(result.CompressedPath)}{deletedText}。");
         }
-        catch (Exception ex)
-        {
-            WriteRuntimeLog($"自动化备份已完成，但压缩失败：{ex.Message}");
-        }
+
+        if (result.RemovedCount > 0)
+            WriteRuntimeLog($"自动化备份轮换：已移除最早的 {result.RemovedCount} 份备份。");
     }
 
     private static string BuildBackupFileName(InstanceProfile profile)
@@ -641,7 +608,7 @@ public partial class AutomationService : IAutomationService, IDisposable
         safeName = string.Concat(safeName.Select(character => char.IsWhiteSpace(character) ? '_' : character));
 
         var suffix = Guid.NewGuid().ToString("N")[..8];
-        return $"{safeName}-{DateTime.Now:yyyy-MM-dd_HH-mm-ss}-{suffix}.vcdbs";
+        return $"launchergo-backup-{safeName}-{DateTime.Now:yyyy-MM-dd_HH-mm-ss}-{suffix}.vcdbs";
     }
 
     private async Task TryBroadcastSystemMessageAsync(

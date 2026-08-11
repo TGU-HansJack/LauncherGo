@@ -499,6 +499,8 @@
             <Setter Property="Height" Value="30" />
             <Setter Property="MinHeight" Value="30" />
             <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="CornerRadius" Value="4" />
             <Setter Property="FontSize" Value="13" />
         </Style>
@@ -1808,17 +1810,15 @@
                                                         </Grid>
                                                         <Grid RowDefinitions="Auto,*">
                                                             <Border Grid.Row="0" Classes="TableHeader">
-                                                                <Grid ColumnDefinitions="50,110,70,70,112,112,70,70,92,Auto" ColumnSpacing="8">
+                                                                <Grid ColumnDefinitions="50,110,112,112,70,70,92,Auto" ColumnSpacing="8">
                                                                     <TextBlock Classes="TableHeaderText" Text="启用" HorizontalAlignment="Center" />
                                                                     <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="模式" />
-                                                                    <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="开始周" />
-                                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="结束周" />
-                                                                    <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="开始日期" />
-                                                                    <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="结束日期" />
-                                                                    <TextBlock Grid.Column="6" Classes="TableHeaderText" Text="开始" />
-                                                                    <TextBlock Grid.Column="7" Classes="TableHeaderText" Text="结束" />
-                                                                    <TextBlock Grid.Column="8" Classes="TableHeaderText" Text="动作" />
-                                                                    <TextBlock Grid.Column="9" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                                    <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="开始条件" />
+                                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="结束条件" />
+                                                                    <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="开始" />
+                                                                    <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="结束" />
+                                                                    <TextBlock Grid.Column="6" Classes="TableHeaderText" Text="动作" />
+                                                                    <TextBlock Grid.Column="7" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
                                                                 </Grid>
                                                             </Border>
                                                             <Border Grid.Row="1" Classes="TableBody">
@@ -1826,17 +1826,21 @@
                                                                     <ItemsControl.ItemTemplate>
                                                                         <DataTemplate>
                                                                             <Border Classes="TableRow">
-                                                                                <Grid ColumnDefinitions="50,110,70,70,112,112,70,70,92,Auto" ColumnSpacing="8">
+                                                                                <Grid ColumnDefinitions="50,110,112,112,70,70,92,Auto" ColumnSpacing="8">
                                                                                     <ToggleSwitch Classes="TableSwitch" IsChecked="{Binding Enabled, Mode=TwoWay}" />
                                                                                     <ComboBox Grid.Column="1" Classes="CompactCombo" ItemsSource="{Binding ScheduleModeOptions}" SelectedItem="{Binding SelectedScheduleMode, Mode=TwoWay}" />
-                                                                                    <TextBox Grid.Column="2" Classes="CompactInput" Text="{Binding StartDayOfWeek, Mode=TwoWay}" />
-                                                                                    <TextBox Grid.Column="3" Classes="CompactInput" Text="{Binding EndDayOfWeek, Mode=TwoWay}" />
-                                                                                    <CalendarDatePicker Grid.Column="4" Classes="CompactDatePicker" PlaceholderText="yyyy-MM-dd" SelectedDateFormat="Custom" CustomDateFormatString="yyyy-MM-dd" SelectedDate="{Binding StartDateValue, Mode=TwoWay}" />
-                                                                                    <CalendarDatePicker Grid.Column="5" Classes="CompactDatePicker" PlaceholderText="yyyy-MM-dd" SelectedDateFormat="Custom" CustomDateFormatString="yyyy-MM-dd" SelectedDate="{Binding EndDateValue, Mode=TwoWay}" />
-                                                                                    <TextBox Grid.Column="6" Classes="CompactInput" PlaceholderText="08:00" Text="{Binding StartTime, Mode=TwoWay}" />
-                                                                                    <TextBox Grid.Column="7" Classes="CompactInput" PlaceholderText="23:00" Text="{Binding EndTime, Mode=TwoWay}" />
-                                                                                    <ComboBox Grid.Column="8" Classes="CompactCombo" ItemsSource="{Binding ActionOptions}" SelectedItem="{Binding SelectedAction, Mode=TwoWay}" />
-                                                                                    <Button Grid.Column="9" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveActionClick" />
+                                                                                    <Grid Grid.Column="2">
+                                                                                        <ComboBox Classes="CompactCombo" ItemsSource="{Binding DayOfWeekOptions}" SelectedItem="{Binding SelectedStartDayOfWeek, Mode=TwoWay}" IsVisible="{Binding IsWeekly}" />
+                                                                                        <CalendarDatePicker Classes="CompactDatePicker" PlaceholderText="yyyy-MM-dd" SelectedDateFormat="Custom" CustomDateFormatString="yyyy-MM-dd" SelectedDate="{Binding StartDateValue, Mode=TwoWay}" IsVisible="{Binding IsDateRange}" />
+                                                                                    </Grid>
+                                                                                    <Grid Grid.Column="3">
+                                                                                        <ComboBox Classes="CompactCombo" ItemsSource="{Binding DayOfWeekOptions}" SelectedItem="{Binding SelectedEndDayOfWeek, Mode=TwoWay}" IsVisible="{Binding IsWeekly}" />
+                                                                                        <CalendarDatePicker Classes="CompactDatePicker" PlaceholderText="yyyy-MM-dd" SelectedDateFormat="Custom" CustomDateFormatString="yyyy-MM-dd" SelectedDate="{Binding EndDateValue, Mode=TwoWay}" IsVisible="{Binding IsDateRange}" />
+                                                                                    </Grid>
+                                                                                    <TextBox Grid.Column="4" Classes="CompactInput" PlaceholderText="08:00" Text="{Binding StartTime, Mode=TwoWay}" />
+                                                                                    <TextBox Grid.Column="5" Classes="CompactInput" PlaceholderText="23:00" Text="{Binding EndTime, Mode=TwoWay}" />
+                                                                                    <ComboBox Grid.Column="6" Classes="CompactCombo" ItemsSource="{Binding ActionOptions}" SelectedItem="{Binding SelectedAction, Mode=TwoWay}" />
+                                                                                    <Button Grid.Column="7" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveActionClick" />
                                                                                 </Grid>
                                                                             </Border>
                                                                         </DataTemplate>
@@ -1847,28 +1851,71 @@
                                                     </StackPanel>
                                                 </Border>
 
-                                                <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                                <Grid RowDefinitions="Auto,Auto" RowSpacing="10">
                                                     <Border Classes="ConfigCard">
                                                         <StackPanel Spacing="8">
                                                             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                                                                 <TextBlock Classes="ConfigSectionTitle" Text="定时备份" />
-                                                                <Button x:Name="AutomationAddBackupTimeButton" Grid.Column="1" Classes="SecondaryActionButton" HorizontalAlignment="Right" Content="添加" Click="OnAutomationAddBackupTimeClick" />
+                                                                <Button x:Name="AutomationAddBackupScheduleButton" Grid.Column="1" Classes="SecondaryActionButton" HorizontalAlignment="Right" Content="添加" Click="OnAutomationAddBackupScheduleClick" />
                                                             </Grid>
                                                             <Grid RowDefinitions="Auto,*">
                                                                 <Border Grid.Row="0" Classes="TableHeader">
-                                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                                        <TextBlock Classes="TableHeaderText" Text="时间" />
-                                                                        <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                                    <Grid ColumnDefinitions="46,165,*,165,Auto" ColumnSpacing="8">
+                                                                        <TextBlock Classes="TableHeaderText" Text="启用" HorizontalAlignment="Center" />
+                                                                        <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="周期" />
+                                                                        <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="执行设置" />
+                                                                        <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="预览" />
+                                                                        <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
                                                                     </Grid>
                                                                 </Border>
                                                                 <Border Grid.Row="1" Classes="TableBody">
-                                                                    <ItemsControl x:Name="AutomationBackupTimesItemsControl">
+                                                                    <ItemsControl x:Name="AutomationBackupSchedulesItemsControl">
                                                                         <ItemsControl.ItemTemplate>
                                                                             <DataTemplate>
                                                                                 <Border Classes="TableRow">
-                                                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                                                        <TextBox Classes="CompactInput" PlaceholderText="03:00" Text="{Binding Time, Mode=TwoWay}" />
-                                                                                        <Button Grid.Column="1" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveBackupTimeClick" />
+                                                                                    <Grid ColumnDefinitions="46,165,*,165,Auto" ColumnSpacing="8" MinHeight="38">
+                                                                                        <ToggleSwitch Classes="TableSwitch" IsChecked="{Binding Enabled, Mode=TwoWay}" />
+                                                                                        <ComboBox Grid.Column="1" Classes="CompactCombo" ItemsSource="{Binding ScheduleTypeOptions}" SelectedItem="{Binding SelectedScheduleType, Mode=TwoWay}" />
+                                                                                        <WrapPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                                                            <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,8,0" VerticalAlignment="Center" IsVisible="{Binding IsMonthly}">
+                                                                                                <TextBlock Classes="ConfigHintText" Text="{Binding DayLabel}" VerticalAlignment="Center" />
+                                                                                                <TextBox Width="54" Classes="CompactInput" PlaceholderText="1" Text="{Binding DayOfMonth, Mode=TwoWay}" />
+                                                                                            </StackPanel>
+                                                                                            <ComboBox Width="116" Margin="0,0,8,0" Classes="CompactCombo" ItemsSource="{Binding DayOfWeekOptions}" SelectedItem="{Binding SelectedDayOfWeek, Mode=TwoWay}" IsVisible="{Binding IsWeekly}" />
+                                                                                            <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,8,0" VerticalAlignment="Center" IsVisible="{Binding IsInterval}">
+                                                                                                <TextBlock Classes="ConfigHintText" Text="{Binding EveryLabel}" VerticalAlignment="Center" />
+                                                                                                <TextBox Width="58" Classes="CompactInput" PlaceholderText="1" Text="{Binding Interval, Mode=TwoWay}" />
+                                                                                                <TextBlock Classes="ConfigHintText" Text="{Binding IntervalUnitLabel}" VerticalAlignment="Center" />
+                                                                                            </StackPanel>
+                                                                                            <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,8,0" VerticalAlignment="Center" IsVisible="{Binding ShowsTime}">
+                                                                                                <TextBlock Classes="ConfigHintText" Text="{Binding AtLabel}" VerticalAlignment="Center" />
+                                                                                                <TextBox Width="76" Classes="CompactInput" PlaceholderText="03:00" Text="{Binding Time, Mode=TwoWay}" />
+                                                                                            </StackPanel>
+                                                                                            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" IsVisible="{Binding IsHourly}">
+                                                                                                <TextBlock Classes="ConfigHintText" Text="{Binding MinuteLabel}" VerticalAlignment="Center" />
+                                                                                                <TextBox Width="58" Classes="CompactInput" PlaceholderText="0" Text="{Binding MinuteOfHour, Mode=TwoWay}" />
+                                                                                                <TextBlock Classes="ConfigHintText" Text="{Binding MinuteUnitLabel}" VerticalAlignment="Center" />
+                                                                                            </StackPanel>
+                                                                                        </WrapPanel>
+                                                                                        <Button Grid.Column="3" Classes="SecondaryActionButton" Content="{Binding PreviewButtonText}" Tag="{Binding}" Click="OnAutomationPreviewBackupScheduleClick">
+                                                                                            <Button.Flyout>
+                                                                                                <Flyout Placement="Bottom">
+                                                                                                    <Border Classes="ConfigCard" Padding="12" MinWidth="260">
+                                                                                                        <StackPanel Spacing="8">
+                                                                                                            <TextBlock Classes="ConfigSectionTitle" Text="{Binding PreviewTitle}" />
+                                                                                                            <ItemsControl ItemsSource="{Binding PreviewExecutionItems}">
+                                                                                                                <ItemsControl.ItemTemplate>
+                                                                                                                    <DataTemplate>
+                                                                                                                        <TextBlock Classes="ConfigHintText" Text="{Binding}" />
+                                                                                                                    </DataTemplate>
+                                                                                                                </ItemsControl.ItemTemplate>
+                                                                                                            </ItemsControl>
+                                                                                                        </StackPanel>
+                                                                                                    </Border>
+                                                                                                </Flyout>
+                                                                                            </Button.Flyout>
+                                                                                        </Button>
+                                                                                        <Button Grid.Column="4" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveBackupScheduleClick" />
                                                                                     </Grid>
                                                                                 </Border>
                                                                             </DataTemplate>
@@ -1876,9 +1923,14 @@
                                                                     </ItemsControl>
                                                                 </Border>
                                                             </Grid>
+                                                            <Grid ColumnDefinitions="Auto,100,Auto,*" ColumnSpacing="8">
+                                                                <TextBlock x:Name="AutomationBackupRetentionLabelTextBlock" Classes="ConfigFieldLabel" Text="保留备份数" VerticalAlignment="Center" />
+                                                                <NumericUpDown x:Name="AutomationBackupRetentionNumericUpDown" Grid.Column="1" Classes="CompactNumber" Minimum="0" Maximum="100000" Increment="1" />
+                                                                <TextBlock x:Name="AutomationBackupRetentionHintTextBlock" Grid.Column="2" Classes="ConfigHintText" Text="0 表示不限制" VerticalAlignment="Center" />
+                                                            </Grid>
                                                         </StackPanel>
                                                     </Border>
-                                                    <Border Grid.Column="1" Classes="ConfigCard">
+                                                    <Border Grid.Row="1" Classes="ConfigCard">
                                                         <StackPanel Spacing="8">
                                                             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                                                                 <TextBlock Classes="ConfigSectionTitle" Text="日志导出" />
@@ -1980,20 +2032,41 @@
                                                     </StackPanel>
                                                 </Border>
 
-                                                <Border Classes="ConfigCard">
-                                                    <StackPanel Spacing="8">
-                                                        <TextBlock Classes="ConfigSectionTitle" Text="运行日志" />
-                                                        <ListBox
-                                                            x:Name="AutomationRuntimeLogsListBox"
-                                                            Classes="FlatList"
-                                                            Height="160"
-                                                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                                            ScrollViewer.VerticalScrollBarVisibility="Auto" />
-                                                    </StackPanel>
-                                                </Border>
                                             </StackPanel>
                                         </ScrollViewer>
                                     </Grid>
+                                        </Grid>
+                                    </Grid>
+
+                                    <Grid x:Name="LogsPanel" RowDefinitions="Auto,*" RowSpacing="8" IsVisible="False">
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                            <Button x:Name="LogsRefreshButton" Classes="SecondaryActionButton" Content="刷新" Click="OnLogsRefreshClick" />
+                                        </Grid>
+                                        <Grid Grid.Row="1" RowDefinitions="Auto,*">
+                                            <Border Grid.Row="0" Classes="TableHeader">
+                                                <Grid ColumnDefinitions="1.1*,2.4*,Auto" ColumnSpacing="8">
+                                                    <TextBlock Classes="TableHeaderText" Text="档案" />
+                                                    <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="日志路径" />
+                                                    <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                </Grid>
+                                            </Border>
+                                            <Border Grid.Row="1" Classes="TableBody">
+                                                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                                                    <ItemsControl x:Name="LogsItemsControl">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border Classes="TableRow">
+                                                                    <Grid ColumnDefinitions="1.1*,2.4*,Auto" ColumnSpacing="8" MinHeight="36">
+                                                                        <TextBlock Classes="TableCellText" Text="{Binding ProfileName}" FontWeight="SemiBold" />
+                                                                        <TextBlock Grid.Column="1" Classes="TableCellText TablePathText" Text="{Binding LogPath}" Foreground="{DynamicResource DownloadActionTextBrush}" TextTrimming="CharacterEllipsis" />
+                                                                        <Button Grid.Column="2" Classes="SecondaryActionButton" Tag="{Binding}" Content="查看日志" Click="OnViewProfileLogClick" />
+                                                                    </Grid>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </ScrollViewer>
+                                            </Border>
                                         </Grid>
                                     </Grid>
 

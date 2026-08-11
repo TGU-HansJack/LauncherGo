@@ -15,6 +15,19 @@ public class AutomationSettings
 
     public bool BackupEnabled { get; set; }
 
+    /// <summary>
+    ///     新版周期备份配置。
+    /// </summary>
+    public List<BackupSchedule> BackupSchedules { get; set; } = [];
+
+    /// <summary>
+    ///     受管自动备份保留份数，0 表示不限制。
+    /// </summary>
+    public int BackupRetentionCount { get; set; }
+
+    /// <summary>
+    ///     旧版每日时间列表，仅用于兼容旧配置。
+    /// </summary>
     public List<string> BackupTimes { get; set; } = [];
 
     public bool BackupBeforeShutdown { get; set; } = true;

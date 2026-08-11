@@ -22,6 +22,18 @@ public interface IInstanceSaveService
         InstanceProfile profile,
         CancellationToken cancellationToken = default);
 
+    Task<ManagedBackupResult> BackupManagedActiveSaveAsync(
+        InstanceProfile profile,
+        string backupFileName,
+        int retentionCount,
+        CancellationToken cancellationToken = default);
+
+    Task<ManagedBackupResult> FinalizeManagedBackupAsync(
+        InstanceProfile profile,
+        string backupFilePath,
+        int retentionCount,
+        CancellationToken cancellationToken = default);
+
     Task<SaveCompressionResult?> CompressBackupAsync(
         InstanceProfile profile,
         string backupFilePath,

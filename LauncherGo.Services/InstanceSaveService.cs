@@ -2,6 +2,7 @@ using LauncherGo.Abstractions.Services;
 using LauncherGo.Domains.Enums;
 using LauncherGo.Domains.Models;
 using LauncherGo.Services.Paths;
+using System.Text.Json;
 using ZstdSharp;
 
 namespace LauncherGo.Services;
@@ -11,6 +12,14 @@ public sealed class InstanceSaveService(
     ILauncherPreferencesService preferencesService) : IInstanceSaveService
 {
     private const int CompressionBufferSize = 128 * 1024;
+    private const string ManagedBackupPrefix = "launchergo-backup-";
+    private const string ManagedManifestFileName = ".launchergo-managed-backups.json";
+    private const string ManagedCompressionMarkerFileName = ".launchergo-managed-backups";
+    private static readonly JsonSerializerOptions ManagedBackupJsonOptions = new()
+    {
+        WriteIndented = true
+    };
+    private readonly SemaphoreSlim managedBackupGate = new(1, 1);
 
     public InstanceSaveService(IInstanceProfileService profileService)
         : this(profileService, new LauncherPreferencesService())
@@ -224,10 +233,120 @@ public sealed class InstanceSaveService(
         return compression?.CompressedPath ?? backupPath;
     }
 
+    public async Task<ManagedBackupResult> BackupManagedActiveSaveAsync(
+        InstanceProfile profile,
+        string backupFileName,
+        int retentionCount,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var activeSave = ResolveActiveSavePath(profile);
+        if (!File.Exists(activeSave))
+        {
+            throw new InvalidOperationException("当前存档文件不存在，无法备份。");
+        }
+
+        var backupRoot = Path.GetFullPath(Path.Combine(profile.DirectoryPath, "Backups"));
+        Directory.CreateDirectory(backupRoot);
+        var normalizedFileName = NormalizeManagedBackupFileName(backupFileName);
+        var backupPath = Path.Combine(backupRoot, normalizedFileName);
+        File.Copy(activeSave, backupPath, overwrite: false);
+        return await FinalizeManagedBackupAsync(profile, backupPath, retentionCount, cancellationToken);
+    }
+
+    public async Task<ManagedBackupResult> FinalizeManagedBackupAsync(
+        InstanceProfile profile,
+        string backupFilePath,
+        int retentionCount,
+        CancellationToken cancellationToken = default)
+    {
+        await managedBackupGate.WaitAsync(cancellationToken);
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var sourcePath = Path.GetFullPath(backupFilePath.Trim());
+            var backupRoot = Path.GetFullPath(Path.Combine(profile.DirectoryPath, "Backups"));
+            if (!LauncherWorkspacePathHelper.IsSameOrChildPath(sourcePath, backupRoot) ||
+                !Path.GetFileName(sourcePath).StartsWith(ManagedBackupPrefix, StringComparison.OrdinalIgnoreCase) ||
+                !sourcePath.EndsWith(".vcdbs", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("受管备份文件路径无效。");
+            }
+
+            if (!File.Exists(sourcePath))
+            {
+                throw new FileNotFoundException("备份文件不存在。", sourcePath);
+            }
+
+            var createdAtUtc = DateTimeOffset.UtcNow;
+            var settings = preferencesService.Load().SaveCompression;
+            SaveCompressionResult? compression = null;
+            string? compressionError = null;
+            if (settings?.Enabled == true)
+            {
+                try
+                {
+                    var managedCompressionDirectory = ResolveManagedCompressionDirectory(profile);
+                    compression = await CompressBackupCoreAsync(
+                        profile,
+                        sourcePath,
+                        managedCompressionDirectory,
+                        cancellationToken);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    compressionError = ex.Message;
+                }
+            }
+
+            var backupId = Path.GetFileNameWithoutExtension(sourcePath);
+            var manifest = LoadManagedBackupManifest(backupRoot);
+            ReconcileManagedBackupManifest(profile, manifest);
+            var entry = new ManagedBackupEntry
+            {
+                BackupId = backupId,
+                SourceFileName = Path.GetFileName(sourcePath),
+                CreatedAtUtc = createdAtUtc,
+                CompressedPath = compression?.CompressedPath
+            };
+            manifest.Backups.RemoveAll(item => item.BackupId.Equals(backupId, StringComparison.OrdinalIgnoreCase));
+            manifest.Backups.Add(entry);
+
+            var removedCount = PruneManagedBackups(profile, manifest, retentionCount);
+            SaveManagedBackupManifest(backupRoot, manifest);
+
+            return new ManagedBackupResult
+            {
+                BackupId = backupId,
+                SourcePath = sourcePath,
+                CompressedPath = compression?.CompressedPath,
+                CompressionEnabled = settings?.Enabled == true,
+                CompressionSkipped = compression?.Skipped == true,
+                SourceDeleted = compression?.SourceDeleted == true,
+                CompressionError = compressionError,
+                RemovedCount = removedCount
+            };
+        }
+        finally
+        {
+            managedBackupGate.Release();
+        }
+    }
+
     public async Task<SaveCompressionResult?> CompressBackupAsync(
         InstanceProfile profile,
         string backupFilePath,
         CancellationToken cancellationToken = default)
+    {
+        return await CompressBackupCoreAsync(profile, backupFilePath, null, cancellationToken);
+    }
+
+    private async Task<SaveCompressionResult?> CompressBackupCoreAsync(
+        InstanceProfile profile,
+        string backupFilePath,
+        string? destinationDirectory,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -262,9 +381,10 @@ public sealed class InstanceSaveService(
         }
 
         var configuredCompressionPath = settings.CompressionPath?.Trim();
-        var compressionDirectory = string.IsNullOrWhiteSpace(configuredCompressionPath)
-            ? LauncherPathHelper.GetSaveCompressionDirectory(preferences.WorkspaceRoot)
-            : Path.GetFullPath(configuredCompressionPath);
+        var compressionDirectory = destinationDirectory ??
+            (string.IsNullOrWhiteSpace(configuredCompressionPath)
+                ? LauncherPathHelper.GetSaveCompressionDirectory(preferences.WorkspaceRoot)
+                : Path.GetFullPath(configuredCompressionPath));
         Directory.CreateDirectory(compressionDirectory);
 
         var compressedPath = Path.Combine(
@@ -338,6 +458,228 @@ public sealed class InstanceSaveService(
         }
     }
 
+    private string ResolveManagedCompressionDirectory(InstanceProfile profile)
+    {
+        var preferences = preferencesService.Load();
+        var settings = preferences.SaveCompression ?? new SaveCompressionSettings();
+        var configuredCompressionPath = settings.CompressionPath?.Trim();
+        var root = string.IsNullOrWhiteSpace(configuredCompressionPath)
+            ? LauncherPathHelper.GetSaveCompressionDirectory(preferences.WorkspaceRoot)
+            : Path.GetFullPath(configuredCompressionPath);
+        var profileId = LauncherWorkspacePathHelper.SanitizeFileName(profile.Id);
+        if (string.IsNullOrWhiteSpace(profileId))
+            profileId = "default";
+
+        var directory = Path.Combine(root, "LauncherGoManagedBackups", profileId);
+        Directory.CreateDirectory(directory);
+        var marker = Path.Combine(directory, ManagedCompressionMarkerFileName);
+        if (!File.Exists(marker))
+        {
+            File.WriteAllText(marker, "LauncherGo managed backup artifacts\n");
+        }
+
+        return directory;
+    }
+
+    private static string NormalizeManagedBackupFileName(string value)
+    {
+        var fileName = Path.GetFileName(value?.Trim());
+        if (string.IsNullOrWhiteSpace(fileName) ||
+            !fileName.StartsWith(ManagedBackupPrefix, StringComparison.OrdinalIgnoreCase) ||
+            !fileName.EndsWith(".vcdbs", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("受管备份文件名无效。");
+        }
+
+        return fileName;
+    }
+
+    private static ManagedBackupManifest LoadManagedBackupManifest(string backupRoot)
+    {
+        var manifestPath = Path.Combine(backupRoot, ManagedManifestFileName);
+        try
+        {
+            if (File.Exists(manifestPath))
+            {
+                var parsed = JsonSerializer.Deserialize<ManagedBackupManifest>(
+                    File.ReadAllText(manifestPath),
+                    ManagedBackupJsonOptions);
+                if (parsed is not null)
+                    return parsed;
+            }
+        }
+        catch
+        {
+            // A damaged manifest is rebuilt from managed files below.
+        }
+
+        return new ManagedBackupManifest();
+    }
+
+    private static void SaveManagedBackupManifest(string backupRoot, ManagedBackupManifest manifest)
+    {
+        var manifestPath = Path.Combine(backupRoot, ManagedManifestFileName);
+        var temporaryPath = $"{manifestPath}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            var json = JsonSerializer.Serialize(manifest, ManagedBackupJsonOptions);
+            File.WriteAllText(temporaryPath, json);
+            File.Move(temporaryPath, manifestPath, overwrite: true);
+        }
+        finally
+        {
+            TryDeleteFile(temporaryPath);
+        }
+    }
+
+    private static void ReconcileManagedBackupManifest(
+        InstanceProfile profile,
+        ManagedBackupManifest manifest)
+    {
+        var backupRoot = Path.GetFullPath(Path.Combine(profile.DirectoryPath, "Backups"));
+        var existing = new HashSet<string>(
+            manifest.Backups.Select(item => item.BackupId),
+            StringComparer.OrdinalIgnoreCase);
+
+        if (!Directory.Exists(backupRoot))
+            return;
+
+        foreach (var path in Directory.EnumerateFiles(backupRoot, $"{ManagedBackupPrefix}*.vcdbs", SearchOption.TopDirectoryOnly))
+        {
+            var id = Path.GetFileNameWithoutExtension(path);
+            if (!existing.Add(id))
+                continue;
+
+            manifest.Backups.Add(new ManagedBackupEntry
+            {
+                BackupId = id,
+                SourceFileName = Path.GetFileName(path),
+                CreatedAtUtc = new DateTimeOffset(File.GetLastWriteTimeUtc(path), TimeSpan.Zero)
+            });
+        }
+
+        manifest.Backups.RemoveAll(item =>
+        {
+            var sourcePath = Path.Combine(backupRoot, item.SourceFileName ?? string.Empty);
+            var sourceExists = IsManagedSourcePath(sourcePath, backupRoot) && File.Exists(sourcePath);
+            var compressedExists = IsManagedCompressedPath(item.CompressedPath) && File.Exists(item.CompressedPath!);
+            return !sourceExists && !compressedExists;
+        });
+    }
+
+    private static int PruneManagedBackups(
+        InstanceProfile profile,
+        ManagedBackupManifest manifest,
+        int retentionCount)
+    {
+        if (retentionCount <= 0)
+            return 0;
+
+        var removed = 0;
+        foreach (var entry in manifest.Backups
+                     .OrderByDescending(item => item.CreatedAtUtc)
+                     .ThenByDescending(item => item.BackupId, StringComparer.OrdinalIgnoreCase)
+                     .Skip(retentionCount)
+                     .ToList())
+        {
+            if (!TryDeleteManagedBackup(profile, entry))
+                continue;
+
+            manifest.Backups.Remove(entry);
+            removed++;
+        }
+
+        return removed;
+    }
+
+    private static bool TryDeleteManagedBackup(InstanceProfile profile, ManagedBackupEntry entry)
+    {
+        var backupRoot = Path.GetFullPath(Path.Combine(profile.DirectoryPath, "Backups"));
+        try
+        {
+            var sourcePath = Path.Combine(backupRoot, entry.SourceFileName ?? string.Empty);
+            if (!IsManagedSourcePath(sourcePath, backupRoot))
+                return false;
+
+            if (!string.IsNullOrWhiteSpace(entry.CompressedPath) &&
+                !IsManagedCompressedPath(entry.CompressedPath))
+            {
+                return false;
+            }
+
+            if (File.Exists(sourcePath))
+            {
+                File.Delete(sourcePath);
+            }
+
+            if (IsManagedCompressedPath(entry.CompressedPath) && File.Exists(entry.CompressedPath!))
+            {
+                File.Delete(entry.CompressedPath!);
+            }
+
+            return !File.Exists(sourcePath) &&
+                   (string.IsNullOrWhiteSpace(entry.CompressedPath) || !File.Exists(entry.CompressedPath));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsManagedSourcePath(string path, string backupRoot)
+    {
+        try
+        {
+            var fullPath = Path.GetFullPath(path);
+            return LauncherWorkspacePathHelper.IsSameOrChildPath(fullPath, backupRoot) &&
+                   Path.GetDirectoryName(fullPath)!.Equals(backupRoot, StringComparison.OrdinalIgnoreCase) &&
+                   Path.GetFileName(fullPath).StartsWith(ManagedBackupPrefix, StringComparison.OrdinalIgnoreCase) &&
+                   fullPath.EndsWith(".vcdbs", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsManagedCompressedPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return false;
+
+        try
+        {
+            var fullPath = Path.GetFullPath(path);
+            var directory = Path.GetDirectoryName(fullPath);
+            return directory is not null &&
+                   File.Exists(Path.Combine(directory, ManagedCompressionMarkerFileName)) &&
+                   Path.GetFileName(fullPath).StartsWith(ManagedBackupPrefix, StringComparison.OrdinalIgnoreCase) &&
+                   fullPath.EndsWith(".vcdbs.zst", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private sealed class ManagedBackupManifest
+    {
+        public int Version { get; set; } = 1;
+
+        public List<ManagedBackupEntry> Backups { get; set; } = [];
+    }
+
+    private sealed class ManagedBackupEntry
+    {
+        public string BackupId { get; set; } = string.Empty;
+
+        public string SourceFileName { get; set; } = string.Empty;
+
+        public DateTimeOffset CreatedAtUtc { get; set; }
+
+        public string? CompressedPath { get; set; }
+    }
+
     public async Task<int> CompressExistingBackupsAsync(
         CancellationToken cancellationToken = default)
     {
@@ -363,6 +705,23 @@ public sealed class InstanceSaveService(
                          SearchOption.TopDirectoryOnly))
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (Path.GetFileName(backupPath).StartsWith(ManagedBackupPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    var managedResult = await FinalizeManagedBackupAsync(
+                        profile,
+                        backupPath,
+                        retentionCount: 0,
+                        cancellationToken);
+                    if (managedResult.CompressedPath is not null &&
+                        !managedResult.CompressionSkipped &&
+                        string.IsNullOrWhiteSpace(managedResult.CompressionError))
+                    {
+                        processed++;
+                    }
+
+                    continue;
+                }
+
                 var result = await CompressBackupAsync(profile, backupPath, cancellationToken);
                 if (result is not null && !result.Skipped)
                 {

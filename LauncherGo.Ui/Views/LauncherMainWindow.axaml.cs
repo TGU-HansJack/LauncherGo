@@ -92,22 +92,24 @@ public partial class LauncherMainWindow : Window
         ("配置路径", "Config Path"),
         ("启用", "Enabled"),
         ("模式", "Mode"),
-        ("开始周", "Start Day"),
-        ("结束周", "End Day"),
-        ("开始日期", "Start Date"),
-        ("结束日期", "End Date"),
+        ("开始条件", "Start condition"),
+        ("结束条件", "End condition"),
         ("开始", "Start time"),
         ("结束", "End"),
         ("动作", "Action"),
         ("时间", "Time"),
+        ("周期", "Schedule"),
+        ("执行设置", "Execution settings"),
+        ("下次执行", "Next Run"),
         ("消息", "Message"),
         ("命令", "Command"),
+        ("日志路径", "Log path"),
+        ("查看日志", "View logs"),
         ("定时备份", "Scheduled Backup"),
         ("日志导出", "Log Export"),
         ("定时广播", "Scheduled Broadcast"),
         ("定时命令", "Scheduled Commands"),
         ("定时开关服", "Scheduled Start/Stop"),
-        ("运行日志", "Runtime Log"),
         ("依赖", "Dependencies"),
         ("问题", "Issues"),
         ("文件", "File"),
@@ -269,11 +271,11 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<InstanceProfile> _automationProfileItems = [];
     private readonly ObservableCollection<ProfileConfigListItem> _automationConfigItems = [];
     private readonly ObservableCollection<AutomationActionWindowItem> _automationActionWindowItems = [];
-    private readonly ObservableCollection<AutomationTimeItem> _automationBackupTimeItems = [];
+    private readonly ObservableCollection<AutomationBackupScheduleItem> _automationBackupScheduleItems = [];
     private readonly ObservableCollection<ScheduledBroadcastItem> _automationBroadcastItems = [];
     private readonly ObservableCollection<ScheduledCommandItem> _automationCommandItems = [];
     private readonly ObservableCollection<AutomationTimeItem> _automationExportTimeItems = [];
-    private readonly ObservableCollection<string> _automationRuntimeLogItems = [];
+    private readonly ObservableCollection<ProfileLogListItem> _logItems = [];
     private readonly ObservableCollection<InstanceProfile> _modProfileItems = [];
     private readonly ObservableCollection<ModListItem> _modItems = [];
     private readonly ObservableCollection<InstanceProfile> _authProfileItems = [];
@@ -437,7 +439,6 @@ public partial class LauncherMainWindow : Window
         _serverProcessService.StatusChanged += OnServerStatusChanged;
         _logTailService.LogLineReceived += OnLogTailLineReceived;
         _logTailService.ProfileLogLineReceived += OnProfileLogTailLineReceived;
-        _automationService.RuntimeLogReceived += OnAutomationRuntimeLogReceived;
         _frpService.StatusChanged += OnFrpStatusChanged;
         _thirdPartyFrpcService.StatusChanged += OnThirdPartyFrpcStatusChanged;
         _easyTierService.StatusChanged += OnEasyTierStatusChanged;
@@ -477,7 +478,6 @@ public partial class LauncherMainWindow : Window
             _serverProcessService.StatusChanged -= OnServerStatusChanged;
             _logTailService.LogLineReceived -= OnLogTailLineReceived;
             _logTailService.ProfileLogLineReceived -= OnProfileLogTailLineReceived;
-            _automationService.RuntimeLogReceived -= OnAutomationRuntimeLogReceived;
             _frpService.StatusChanged -= OnFrpStatusChanged;
             _thirdPartyFrpcService.StatusChanged -= OnThirdPartyFrpcStatusChanged;
             _easyTierService.StatusChanged -= OnEasyTierStatusChanged;
@@ -787,11 +787,19 @@ public partial class LauncherMainWindow : Window
         AutomationExportIncludeServerLabelTextBlock.Text = T("导出服务端信息", "Export server info");
         AutomationActionTitleTextBlock.Text = T("定时开关服", "Scheduled Start/Stop");
         AutomationAddActionButton.Content = T("添加", "Add");
-        AutomationAddBackupTimeButton.Content = T("添加", "Add");
+        AutomationAddBackupScheduleButton.Content = T("添加", "Add");
+        AutomationBackupRetentionLabelTextBlock.Text = T("保留备份数", "Backup retention");
+        AutomationBackupRetentionHintTextBlock.Text = T(
+            "0 表示不限制；原始文件和 ZSTD 压缩文件按一份计算",
+            "0 means unlimited; source and ZSTD files count as one backup");
         AutomationAddExportTimeButton.Content = T("添加", "Add");
         AutomationAddBroadcastButton.Content = T("添加", "Add");
         AutomationAddCommandButton.Content = T("添加", "Add");
         foreach (var item in _automationActionWindowItems)
+        {
+            item.SetLanguage(_isChinese);
+        }
+        foreach (var item in _automationBackupScheduleItems)
         {
             item.SetLanguage(_isChinese);
         }
@@ -1081,11 +1089,11 @@ public partial class LauncherMainWindow : Window
         AutomationConfigItemsControl.ItemsSource = _automationConfigItems;
         AutomationProfileComboBox.ItemsSource = _automationProfileItems;
         AutomationActionsItemsControl.ItemsSource = _automationActionWindowItems;
-        AutomationBackupTimesItemsControl.ItemsSource = _automationBackupTimeItems;
+        AutomationBackupSchedulesItemsControl.ItemsSource = _automationBackupScheduleItems;
         AutomationBroadcastsItemsControl.ItemsSource = _automationBroadcastItems;
         AutomationCommandsItemsControl.ItemsSource = _automationCommandItems;
         AutomationExportTimesItemsControl.ItemsSource = _automationExportTimeItems;
-        AutomationRuntimeLogsListBox.ItemsSource = _automationRuntimeLogItems;
+        LogsItemsControl.ItemsSource = _logItems;
         ModProfileComboBox.ItemsSource = _modProfileItems;
         ModsListBox.ItemsSource = _modItems;
         RobotBindingsItemsControl.ItemsSource = _robotBindingItems;
@@ -1144,6 +1152,13 @@ public partial class LauncherMainWindow : Window
         UpdateMultiServerDashboard(statuses);
         RefreshConsoleServerItems(statuses);
         ApplyStaticUiTranslations();
+        if (AutomationEditorPanel.IsVisible)
+        {
+            foreach (var item in _automationBackupScheduleItems)
+            {
+                item.RefreshPreview();
+            }
+        }
 
         if (_selectedTab == MainTab.Monitor)
         {
@@ -1985,11 +2000,21 @@ public partial class LauncherMainWindow : Window
         }
 
         RefreshLaunchOptions(profiles);
+        RefreshLogItems(profiles);
         _ = RefreshSavesAsync();
         _ = RefreshConfigProfilesAsync();
         _ = RefreshAutomationAsync();
         _ = RefreshModsAsync();
         _ = RefreshAuthProfilesAsync();
+    }
+
+    private void RefreshLogItems(IReadOnlyList<InstanceProfile>? profiles = null)
+    {
+        _logItems.Clear();
+        foreach (var profile in (profiles ?? _profileService.GetProfiles()).OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase))
+        {
+            _logItems.Add(ProfileLogListItem.FromProfile(profile));
+        }
     }
 
     private void RefreshLaunchOptions(IReadOnlyList<InstanceProfile>? profiles = null)
@@ -2145,7 +2170,6 @@ public partial class LauncherMainWindow : Window
                 ApplyAutomationSettings(settings);
             }
             SetAutomationStatus(T("自动化配置已加载。", "Automation settings loaded."), notify: false);
-            await SyncAutomationRuntimeLogsAsync();
         }
         catch (Exception ex)
         {
@@ -2162,6 +2186,7 @@ public partial class LauncherMainWindow : Window
         AutomationRestartEnabledCheckBox.IsChecked = settings.RestartSchedulerEnabled;
         AutomationBackupEnabledCheckBox.IsChecked = settings.BackupEnabled;
         AutomationBackupBeforeShutdownCheckBox.IsChecked = settings.BackupBeforeShutdown;
+        SetNumericValue(AutomationBackupRetentionNumericUpDown, settings.BackupRetentionCount);
         AutomationBroadcastEnabledCheckBox.IsChecked = settings.BroadcastEnabled;
         AutomationCommandEnabledCheckBox.IsChecked = settings.CommandEnabled;
         AutomationExportEnabledCheckBox.IsChecked = settings.ExportLogEnabled;
@@ -2179,14 +2204,14 @@ public partial class LauncherMainWindow : Window
             _automationActionWindowItems.Add(new AutomationActionWindowItem(_isChinese));
         }
 
-        _automationBackupTimeItems.Clear();
-        foreach (var time in settings.BackupTimes ?? [])
+        _automationBackupScheduleItems.Clear();
+        foreach (var schedule in settings.BackupSchedules ?? [])
         {
-            _automationBackupTimeItems.Add(new AutomationTimeItem(time));
+            _automationBackupScheduleItems.Add(AutomationBackupScheduleItem.FromModel(schedule, _isChinese));
         }
-        if (_automationBackupTimeItems.Count == 0)
+        if (_automationBackupScheduleItems.Count == 0)
         {
-            _automationBackupTimeItems.Add(new AutomationTimeItem("03:00"));
+            _automationBackupScheduleItems.Add(new AutomationBackupScheduleItem(_isChinese));
         }
 
         _automationBroadcastItems.Clear();
@@ -2236,11 +2261,9 @@ public partial class LauncherMainWindow : Window
             ExportIncludeChat = AutomationExportIncludeChatCheckBox.IsChecked == true,
             ExportIncludeServerInfo = AutomationExportIncludeServerCheckBox.IsChecked == true,
             ActionWindows = _automationActionWindowItems.Select(item => item.ToModel()).ToList(),
-            BackupTimes = _automationBackupTimeItems
-                .Select(item => item.Time?.Trim() ?? string.Empty)
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList(),
+            BackupSchedules = _automationBackupScheduleItems.Select(item => item.ToModel()).ToList(),
+            BackupRetentionCount = Math.Clamp(GetNumericValue(AutomationBackupRetentionNumericUpDown, 0), 0, 100_000),
+            BackupTimes = [],
             BroadcastMessages = _automationBroadcastItems
                 .Select(item => item.ToModel())
                 .Where(item => !string.IsNullOrWhiteSpace(item.Message) || !string.IsNullOrWhiteSpace(item.Time))
@@ -2397,6 +2420,8 @@ public partial class LauncherMainWindow : Window
             ExportIncludeChat = false,
             ExportIncludeServerInfo = false,
             ActionWindows = [],
+            BackupSchedules = [],
+            BackupRetentionCount = 0,
             BackupTimes = [],
             BroadcastMessages = [],
             ScheduledCommands = [],
@@ -2456,17 +2481,6 @@ public partial class LauncherMainWindow : Window
                 EmailClaim = "email"
             }
         };
-    }
-
-    private async Task SyncAutomationRuntimeLogsAsync()
-    {
-        _automationRuntimeLogItems.Clear();
-        foreach (var line in _automationService.GetRuntimeLogs())
-        {
-            _automationRuntimeLogItems.Add(line);
-        }
-
-        await Task.CompletedTask;
     }
 
     private async Task RefreshModsAsync()
@@ -2959,6 +2973,7 @@ public partial class LauncherMainWindow : Window
         AutomationPanel.IsVisible = tab == InstanceManageTab.Automation;
         ModsPanel.IsVisible = tab == InstanceManageTab.Mods;
         DownloadVersionsPanel.IsVisible = tab == InstanceManageTab.DownloadVersions;
+        LogsPanel.IsVisible = tab == InstanceManageTab.Logs;
         RefreshSidebarSelection();
 
         if (tab == InstanceManageTab.Config)
@@ -2980,6 +2995,10 @@ public partial class LauncherMainWindow : Window
         else if (tab == InstanceManageTab.DownloadVersions)
         {
             _ = RefreshDownloadVersionsAsync(forceReload: false);
+        }
+        else if (tab == InstanceManageTab.Logs)
+        {
+            RefreshLogItems();
         }
     }
 
@@ -5384,35 +5403,6 @@ public partial class LauncherMainWindow : Window
         _consoleAutoScroll = IsConsoleScrolledToBottom();
     }
 
-    private void OnAutomationRuntimeLogReceived(object? sender, string line)
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            _automationRuntimeLogItems.Add(line);
-            while (_automationRuntimeLogItems.Count > 1500)
-            {
-                _automationRuntimeLogItems.RemoveAt(0);
-            }
-
-            if (_selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.Automation)
-            {
-                ScrollAutomationRuntimeLogsToEnd();
-            }
-        });
-    }
-
-    private void ScrollAutomationRuntimeLogsToEnd()
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            var scrollViewer = AutomationRuntimeLogsListBox
-                .GetVisualDescendants()
-                .OfType<ScrollViewer>()
-                .FirstOrDefault();
-            scrollViewer?.ScrollToEnd();
-        }, DispatcherPriority.Background);
-    }
-
     private void OnFrpStatusChanged(object? sender, FrpRuntimeStatus status)
     {
         Dispatcher.UIThread.Post(() =>
@@ -5776,12 +5766,6 @@ public partial class LauncherMainWindow : Window
             return;
         }
 
-        if (TryGetCopyableTableCellText(e.Source, out var tableCellText))
-        {
-            _ = CopyTableCellTextAsync(tableCellText);
-            return;
-        }
-
         DeactivateInputControlsOnBackgroundClick(e.Source);
 
         if (ShouldSkipWindowDrag(e.Source))
@@ -5790,62 +5774,6 @@ public partial class LauncherMainWindow : Window
         }
 
         BeginMoveDrag(e);
-    }
-
-    private async Task CopyTableCellTextAsync(string text)
-    {
-        try
-        {
-            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
-            if (clipboard is null)
-            {
-                throw new InvalidOperationException(T(
-                    "当前窗口没有可用的剪贴板。",
-                    "No clipboard is available for the current window."));
-            }
-
-            await clipboard.SetTextAsync(text);
-            ShowToast(T("已复制单元格文本。", "Cell text copied."), ToastKind.Success);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to copy table cell text.");
-            ShowToast(T($"复制失败：{ex.Message}", $"Copy failed: {ex.Message}"), ToastKind.Error);
-        }
-    }
-
-    private static bool TryGetCopyableTableCellText(object? source, out string text)
-    {
-        text = string.Empty;
-        TextBlock? textBlock = null;
-        var current = source as StyledElement;
-
-        while (current is not null)
-        {
-            if (current is Button
-                or ToggleSwitch
-                or CheckBox
-                or ComboBox
-                or ComboBoxItem
-                or TextBox
-                or CalendarDatePicker
-                or NumericUpDown
-                or SelectableTextBlock)
-            {
-                return false;
-            }
-
-            textBlock ??= current as TextBlock;
-            if (current is Border border && border.Classes.Contains("TableBody"))
-            {
-                text = textBlock?.Text?.Trim() ?? string.Empty;
-                return text.Length > 0;
-            }
-
-            current = current.Parent;
-        }
-
-        return false;
     }
 
     private void DeactivateInputControlsOnBackgroundClick(object? source)
@@ -5910,6 +5838,7 @@ public partial class LauncherMainWindow : Window
                 or ComboBox
                 or ComboBoxItem
                 or TextBox
+                or TextBlock
                 or SelectableTextBlock
                 or ListBox
                 or ListBoxItem
@@ -6224,11 +6153,48 @@ public partial class LauncherMainWindow : Window
         SelectConnectionTab(ConnectionTab.Auth);
     }
 
-    private async void OnLogsNavClick(object? sender, RoutedEventArgs e)
+    private void OnLogsNavClick(object? sender, RoutedEventArgs e)
     {
+        SelectTab(MainTab.InstanceManage);
+        SelectInstanceManageTab(InstanceManageTab.Logs);
         _logsNavSelected = true;
         RefreshSidebarSelection();
-        await OpenAppLogsAsync();
+    }
+
+    private void OnLogsRefreshClick(object? sender, RoutedEventArgs e)
+    {
+        RefreshLogItems();
+    }
+
+    private void OnViewProfileLogClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ProfileLogListItem item })
+        {
+            return;
+        }
+
+        if (!Directory.Exists(item.LogPath))
+        {
+            ShowToast(T(
+                $"日志目录不存在：{item.LogPath}",
+                $"Log directory not found: {item.LogPath}"), ToastKind.Error);
+            return;
+        }
+
+        try
+        {
+            var target = Directory
+                .EnumerateFiles(item.LogPath, "*.log", SearchOption.TopDirectoryOnly)
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .FirstOrDefault() ?? item.LogPath;
+            OpenLocalFile(target);
+        }
+        catch (Exception ex)
+        {
+            ShowToast(T(
+                $"读取日志目录失败：{ex.Message}",
+                $"Failed to read log directory: {ex.Message}"), ToastKind.Error);
+        }
     }
 
     private async void OnConnectionFrpImportClick(object? sender, RoutedEventArgs e)
@@ -6539,16 +6505,28 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private void OnAutomationAddBackupTimeClick(object? sender, RoutedEventArgs e)
+    private void OnAutomationAddBackupScheduleClick(object? sender, RoutedEventArgs e)
     {
-        _automationBackupTimeItems.Add(new AutomationTimeItem("03:00"));
+        _automationBackupScheduleItems.Add(new AutomationBackupScheduleItem(_isChinese));
     }
 
-    private void OnAutomationRemoveBackupTimeClick(object? sender, RoutedEventArgs e)
+    private void OnAutomationRemoveBackupScheduleClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: AutomationTimeItem item })
+        if (sender is Button { Tag: AutomationBackupScheduleItem item })
         {
-            _automationBackupTimeItems.Remove(item);
+            _automationBackupScheduleItems.Remove(item);
+        }
+    }
+
+    private void OnAutomationPreviewBackupScheduleClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button button && button.Tag is AutomationBackupScheduleItem item)
+        {
+            item.RefreshPreview();
+            if (button.Flyout is Flyout flyout && flyout.Content is Control content)
+            {
+                content.DataContext = item;
+            }
         }
     }
 
@@ -9938,6 +9916,7 @@ public partial class LauncherMainWindow : Window
         Config,
         Saves,
         Automation,
+        Logs,
         Mods,
         DownloadVersions
     }
@@ -9996,6 +9975,25 @@ public partial class LauncherMainWindow : Window
                 Version = profile.Version,
                 DirectoryPath = profile.DirectoryPath,
                 ActiveSaveFile = profile.ActiveSaveFile
+            };
+        }
+    }
+
+    public sealed class ProfileLogListItem
+    {
+        public required string ProfileId { get; init; }
+
+        public required string ProfileName { get; init; }
+
+        public required string LogPath { get; init; }
+
+        public static ProfileLogListItem FromProfile(InstanceProfile profile)
+        {
+            return new ProfileLogListItem
+            {
+                ProfileId = profile.Id,
+                ProfileName = string.IsNullOrWhiteSpace(profile.Name) ? profile.Id : profile.Name,
+                LogPath = Path.Combine(profile.DirectoryPath, "Logs")
             };
         }
     }
@@ -10504,6 +10502,7 @@ public partial class LauncherMainWindow : Window
                 new(AutomationScheduleMode.Weekly.ToString(), isChinese ? "每周" : "Weekly"),
                 new(AutomationScheduleMode.DateRange.ToString(), isChinese ? "日期范围" : "Date range")
             };
+            RebuildDayOfWeekOptions(isChinese);
             ActionOptions = new ObservableCollection<ConfigChoiceOption>
             {
                 new(AutomationActionType.Start.ToString(), isChinese ? "启动" : "Start"),
@@ -10514,6 +10513,8 @@ public partial class LauncherMainWindow : Window
         public event PropertyChangedEventHandler? PropertyChanged;
 
         public ObservableCollection<ConfigChoiceOption> ScheduleModeOptions { get; }
+
+        public ObservableCollection<ConfigChoiceOption> DayOfWeekOptions { get; } = [];
 
         public ObservableCollection<ConfigChoiceOption> ActionOptions { get; }
 
@@ -10528,6 +10529,7 @@ public partial class LauncherMainWindow : Window
             ScheduleModeOptions.Add(new ConfigChoiceOption(
                 AutomationScheduleMode.DateRange.ToString(),
                 isChinese ? "日期范围" : "Date range"));
+            RebuildDayOfWeekOptions(isChinese);
             ActionOptions.Clear();
             ActionOptions.Add(new ConfigChoiceOption(
                 AutomationActionType.Start.ToString(),
@@ -10538,8 +10540,11 @@ public partial class LauncherMainWindow : Window
             _scheduleMode = selectedScheduleMode;
             _action = selectedAction;
             OnPropertyChanged(nameof(ScheduleModeOptions));
+            OnPropertyChanged(nameof(DayOfWeekOptions));
             OnPropertyChanged(nameof(ActionOptions));
             OnPropertyChanged(nameof(SelectedScheduleMode));
+            OnPropertyChanged(nameof(SelectedStartDayOfWeek));
+            OnPropertyChanged(nameof(SelectedEndDayOfWeek));
             OnPropertyChanged(nameof(SelectedAction));
         }
 
@@ -10597,6 +10602,10 @@ public partial class LauncherMainWindow : Window
             set => SetDateValue(ref _endDate, value, nameof(EndDateValue), nameof(EndDate));
         }
 
+        public bool IsWeekly => _scheduleMode == AutomationScheduleMode.Weekly;
+
+        public bool IsDateRange => _scheduleMode == AutomationScheduleMode.DateRange;
+
         public string StartTime
         {
             get => _startTime;
@@ -10617,10 +10626,29 @@ public partial class LauncherMainWindow : Window
                 if (value is null) return;
                 if (Enum.TryParse(value.Value, true, out AutomationScheduleMode mode))
                 {
+                    if (_scheduleMode == mode)
+                    {
+                        return;
+                    }
+
                     _scheduleMode = mode;
                     OnPropertyChanged(nameof(SelectedScheduleMode));
+                    OnPropertyChanged(nameof(IsWeekly));
+                    OnPropertyChanged(nameof(IsDateRange));
                 }
             }
+        }
+
+        public ConfigChoiceOption SelectedStartDayOfWeek
+        {
+            get => DayOfWeekOptions.First(option => option.Value == NormalizeWeekDayValue(_startDayOfWeek, 1));
+            set => SetDayOfWeek(ref _startDayOfWeek, value, nameof(SelectedStartDayOfWeek), 1);
+        }
+
+        public ConfigChoiceOption SelectedEndDayOfWeek
+        {
+            get => DayOfWeekOptions.First(option => option.Value == NormalizeWeekDayValue(_endDayOfWeek, 7));
+            set => SetDayOfWeek(ref _endDayOfWeek, value, nameof(SelectedEndDayOfWeek), 7);
         }
 
         public ConfigChoiceOption SelectedAction
@@ -10669,6 +10697,45 @@ public partial class LauncherMainWindow : Window
             };
         }
 
+        private void RebuildDayOfWeekOptions(bool isChinese)
+        {
+            DayOfWeekOptions.Clear();
+            var labels = isChinese
+                ? new[] { "周一", "周二", "周三", "周四", "周五", "周六", "周日" }
+                : new[] { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
+            for (var day = 1; day <= 7; day++)
+            {
+                DayOfWeekOptions.Add(new ConfigChoiceOption(day.ToString(CultureInfo.InvariantCulture), labels[day - 1]));
+            }
+        }
+
+        private void SetDayOfWeek(
+            ref string field,
+            ConfigChoiceOption? option,
+            string propertyName,
+            int fallback)
+        {
+            if (option is null)
+            {
+                return;
+            }
+
+            var next = NormalizeWeekDayValue(option.Value, fallback);
+            if (field == next)
+            {
+                return;
+            }
+
+            field = next;
+            OnPropertyChanged(propertyName);
+        }
+
+        private static string NormalizeWeekDayValue(string? value, int fallback)
+        {
+            var parsed = TryParseInt(value, fallback);
+            return Math.Clamp(parsed, 1, 7).ToString(CultureInfo.InvariantCulture);
+        }
+
         private static DateTime? TryParseDateValue(string? value)
         {
             var text = value?.Trim();
@@ -10715,6 +10782,250 @@ public partial class LauncherMainWindow : Window
 
             field = value;
             OnPropertyChanged(propertyName);
+            return true;
+        }
+    }
+
+    public sealed class AutomationBackupScheduleItem : INotifyPropertyChanged
+    {
+        private string _id = Guid.NewGuid().ToString("N");
+        private bool _isChinese;
+        private bool _enabled = true;
+        private BackupScheduleType _type = BackupScheduleType.Daily;
+        private string _dayOfMonth = "1";
+        private int _dayOfWeek = 1;
+        private string _time = "03:00";
+        private string _minuteOfHour = "0";
+        private string _interval = "1";
+        private string _anchorDate = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+        public AutomationBackupScheduleItem(bool isChinese = true)
+        {
+            _isChinese = isChinese;
+            RebuildOptions();
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public ObservableCollection<ConfigChoiceOption> ScheduleTypeOptions { get; } = [];
+
+        public ObservableCollection<ConfigChoiceOption> DayOfWeekOptions { get; } = [];
+
+        public ObservableCollection<string> PreviewExecutionItems { get; } = [];
+
+        public bool Enabled
+        {
+            get => _enabled;
+            set => SetField(ref _enabled, value);
+        }
+
+        public string DayOfMonth
+        {
+            get => _dayOfMonth;
+            set => SetField(ref _dayOfMonth, value ?? string.Empty);
+        }
+
+        public string Time
+        {
+            get => _time;
+            set => SetField(ref _time, value ?? string.Empty);
+        }
+
+        public string MinuteOfHour
+        {
+            get => _minuteOfHour;
+            set => SetField(ref _minuteOfHour, value ?? string.Empty);
+        }
+
+        public string Interval
+        {
+            get => _interval;
+            set => SetField(ref _interval, value ?? string.Empty);
+        }
+
+        public ConfigChoiceOption SelectedScheduleType
+        {
+            get => ScheduleTypeOptions.First(option =>
+                option.Value.Equals(_type.ToString(), StringComparison.OrdinalIgnoreCase));
+            set
+            {
+                if (value is null || !Enum.TryParse(value.Value, true, out BackupScheduleType type) || _type == type)
+                    return;
+
+                _type = type;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsMonthly));
+                OnPropertyChanged(nameof(IsWeekly));
+                OnPropertyChanged(nameof(IsHourly));
+                OnPropertyChanged(nameof(IsInterval));
+                OnPropertyChanged(nameof(ShowsTime));
+                OnPropertyChanged(nameof(AtLabel));
+                OnPropertyChanged(nameof(IntervalUnitLabel));
+                RefreshPreview();
+            }
+        }
+
+        public ConfigChoiceOption SelectedDayOfWeek
+        {
+            get => DayOfWeekOptions.First(option => option.Value == _dayOfWeek.ToString(CultureInfo.InvariantCulture));
+            set
+            {
+                if (value is null)
+                    return;
+
+                var next = Math.Clamp(TryParseInt(value.Value, 1), 1, 7);
+                if (_dayOfWeek == next)
+                    return;
+
+                _dayOfWeek = next;
+                OnPropertyChanged();
+                RefreshPreview();
+            }
+        }
+
+        public bool IsMonthly => _type == BackupScheduleType.Monthly;
+
+        public bool IsWeekly => _type == BackupScheduleType.Weekly;
+
+        public bool IsHourly => _type == BackupScheduleType.Hourly;
+
+        public bool IsInterval => _type is
+            BackupScheduleType.EveryNDays or
+            BackupScheduleType.EveryNHours or
+            BackupScheduleType.EveryNMinutes;
+
+        public bool ShowsTime => !IsHourly;
+
+        public string DayLabel => _isChinese ? "日期" : "Day";
+
+        public string EveryLabel => _isChinese ? "每隔" : "Every";
+
+        public string AtLabel => IsInterval
+            ? (_isChinese ? "开始时间" : "Start time")
+            : (_isChinese ? "执行时间" : "Run at");
+
+        public string MinuteLabel => _isChinese ? "第" : "At minute";
+
+        public string MinuteUnitLabel => _isChinese ? "分钟执行" : "of each hour";
+
+        public string IntervalUnitLabel => _type switch
+        {
+            BackupScheduleType.EveryNDays => _isChinese ? "天" : "day(s)",
+            BackupScheduleType.EveryNHours => _isChinese ? "小时" : "hour(s)",
+            BackupScheduleType.EveryNMinutes => _isChinese ? "分钟" : "minute(s)",
+            _ => string.Empty
+        };
+
+        public string PreviewButtonText => _isChinese ? "预览" : "Preview";
+
+        public string PreviewTitle => _isChinese ? "未来 5 次执行时间" : "Next 5 execution times";
+
+        public void SetLanguage(bool isChinese)
+        {
+            _isChinese = isChinese;
+            RebuildOptions();
+            OnPropertyChanged(nameof(ScheduleTypeOptions));
+            OnPropertyChanged(nameof(DayOfWeekOptions));
+            OnPropertyChanged(nameof(SelectedScheduleType));
+            OnPropertyChanged(nameof(SelectedDayOfWeek));
+            OnPropertyChanged(nameof(DayLabel));
+            OnPropertyChanged(nameof(EveryLabel));
+            OnPropertyChanged(nameof(AtLabel));
+            OnPropertyChanged(nameof(MinuteLabel));
+            OnPropertyChanged(nameof(MinuteUnitLabel));
+            OnPropertyChanged(nameof(IntervalUnitLabel));
+            OnPropertyChanged(nameof(PreviewButtonText));
+            OnPropertyChanged(nameof(PreviewTitle));
+            RefreshPreview();
+        }
+
+        public void RefreshPreview()
+        {
+            PreviewExecutionItems.Clear();
+            var occurrences = BackupScheduleCalculator.GetNextOccurrences(ToModel(), DateTime.Now, 5);
+            if (occurrences.Count == 0)
+            {
+                PreviewExecutionItems.Add(_isChinese ? "未启用或周期无效" : "Disabled or invalid schedule");
+                return;
+            }
+
+            foreach (var occurrence in occurrences)
+            {
+                PreviewExecutionItems.Add(occurrence.ToString("yyyy-MM-dd HH:mm", CultureInfo.CurrentCulture));
+            }
+        }
+
+        public BackupSchedule ToModel()
+        {
+            return BackupScheduleCalculator.Normalize(
+                new BackupSchedule
+                {
+                    Id = _id,
+                    Enabled = _enabled,
+                    Type = _type,
+                    DayOfMonth = TryParseInt(_dayOfMonth, 1),
+                    DayOfWeek = _dayOfWeek,
+                    Time = _time?.Trim() ?? string.Empty,
+                    MinuteOfHour = TryParseInt(_minuteOfHour, 0),
+                    Interval = TryParseInt(_interval, 1),
+                    AnchorDate = _anchorDate
+                },
+                DateTime.Now);
+        }
+
+        public static AutomationBackupScheduleItem FromModel(BackupSchedule model, bool isChinese)
+        {
+            var normalized = BackupScheduleCalculator.Normalize(model, DateTime.Now);
+            var item = new AutomationBackupScheduleItem(isChinese)
+            {
+                _id = normalized.Id,
+                _enabled = normalized.Enabled,
+                _type = normalized.Type,
+                _dayOfMonth = normalized.DayOfMonth.ToString(CultureInfo.InvariantCulture),
+                _dayOfWeek = normalized.DayOfWeek,
+                _time = normalized.Time,
+                _minuteOfHour = normalized.MinuteOfHour.ToString(CultureInfo.InvariantCulture),
+                _interval = normalized.Interval.ToString(CultureInfo.InvariantCulture),
+                _anchorDate = normalized.AnchorDate
+            };
+            item.RefreshPreview();
+            return item;
+        }
+
+        private void RebuildOptions()
+        {
+            ScheduleTypeOptions.Clear();
+            ScheduleTypeOptions.Add(new ConfigChoiceOption(BackupScheduleType.Monthly.ToString(), _isChinese ? "每月" : "Monthly"));
+            ScheduleTypeOptions.Add(new ConfigChoiceOption(BackupScheduleType.Weekly.ToString(), _isChinese ? "每周" : "Weekly"));
+            ScheduleTypeOptions.Add(new ConfigChoiceOption(BackupScheduleType.Daily.ToString(), _isChinese ? "每日" : "Daily"));
+            ScheduleTypeOptions.Add(new ConfigChoiceOption(BackupScheduleType.Hourly.ToString(), _isChinese ? "每小时" : "Hourly"));
+            ScheduleTypeOptions.Add(new ConfigChoiceOption(BackupScheduleType.EveryNDays.ToString(), _isChinese ? "每隔 N 天" : "Every N days"));
+            ScheduleTypeOptions.Add(new ConfigChoiceOption(BackupScheduleType.EveryNHours.ToString(), _isChinese ? "每隔 N 小时" : "Every N hours"));
+            ScheduleTypeOptions.Add(new ConfigChoiceOption(BackupScheduleType.EveryNMinutes.ToString(), _isChinese ? "每隔 N 分钟" : "Every N minutes"));
+
+            DayOfWeekOptions.Clear();
+            var labels = _isChinese
+                ? new[] { "周一", "周二", "周三", "周四", "周五", "周六", "周日" }
+                : new[] { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
+            for (var day = 1; day <= 7; day++)
+            {
+                DayOfWeekOptions.Add(new ConfigChoiceOption(day.ToString(CultureInfo.InvariantCulture), labels[day - 1]));
+            }
+        }
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+                return false;
+
+            field = value;
+            OnPropertyChanged(propertyName);
+            RefreshPreview();
             return true;
         }
     }
