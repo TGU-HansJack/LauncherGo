@@ -35,20 +35,11 @@ public sealed class RobotCustomCommandTests
             Command("/rules", RobotCustomMessageType.Text, "First"),
             Command("RULES", RobotCustomMessageType.Text, "Duplicate"),
             Command("/help", RobotCustomMessageType.Text, "Reserved"),
-            Command("/card", RobotCustomMessageType.JsonCard, "[]")
         ]);
 
         var command = Assert.Single(commands);
         Assert.Equal("/rules", command.Command);
         Assert.Equal("First", command.Content);
-    }
-
-    [Fact]
-    public void JsonCard_RequiresObjectRoot()
-    {
-        Assert.True(RobotCustomCommandRules.IsValidJsonCard("{\"app\":\"com.tencent.structmsg\"}"));
-        Assert.False(RobotCustomCommandRules.IsValidJsonCard("[1,2,3]"));
-        Assert.False(RobotCustomCommandRules.IsValidJsonCard("not-json"));
     }
 
     [Fact]
@@ -74,35 +65,11 @@ public sealed class RobotCustomCommandTests
     }
 
     [Fact]
-    public void JsonCommand_BuildsOneBotJsonSegmentWithCompactPayload()
+    public void LegacyJsonCardCommand_IsIgnored()
     {
-        var message = RobotOneBotMessageBuilder.BuildCustomMessage(
-            Command("/card", RobotCustomMessageType.JsonCard, "{ \"app\": \"demo\", \"meta\": { \"title\": \"Server\" } }"));
-
-        var segment = Assert.IsType<JsonObject>(Assert.Single(message));
-        Assert.Equal("json", segment["type"]?.GetValue<string>());
-        var cardJson = segment["data"]?["data"]?.GetValue<string>();
-        var card = Assert.IsType<JsonObject>(JsonNode.Parse(Assert.IsType<string>(cardJson)));
-        Assert.Equal("demo", card["app"]?.GetValue<string>());
-        Assert.Equal("Server", card["meta"]?["title"]?.GetValue<string>());
-    }
-
-    [Fact]
-    public void NewsCard_UsesTencentStructuredMessageShape()
-    {
-        var message = RobotOneBotMessageBuilder.BuildNewsCardMessage(
-            "Test Server - Online",
-            "Online: 2/8",
-            "[Server Status] Test Server 2/8",
-            "LauncherGo | 12:00:00",
-            1_700_000_000);
-
-        var segment = Assert.IsType<JsonObject>(Assert.Single(message));
-        var cardJson = Assert.IsType<string>(segment["data"]?["data"]?.GetValue<string>());
-        var card = Assert.IsType<JsonObject>(JsonNode.Parse(cardJson));
-        Assert.Equal("com.tencent.structmsg", card["app"]?.GetValue<string>());
-        Assert.Equal("news", card["view"]?.GetValue<string>());
-        Assert.Equal("Test Server - Online", card["meta"]?["news"]?["title"]?.GetValue<string>());
+        var legacyMessageType = Enum.Parse<RobotCustomMessageType>("JsonCard");
+        Assert.False(RobotCustomCommandRules.TryNormalize(
+            Command("/card", legacyMessageType, "{\"app\":\"demo\"}"), out _));
     }
 
     private static RobotCustomCommand Command(

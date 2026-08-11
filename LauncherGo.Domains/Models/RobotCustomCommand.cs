@@ -1,5 +1,3 @@
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
@@ -10,6 +8,8 @@ public enum RobotCustomMessageType
 {
     Text,
     Image,
+    // Retained for deserializing older settings; legacy card commands are ignored.
+    [Obsolete("JSON card messages are no longer supported.")]
     JsonCard
 }
 
@@ -64,18 +64,14 @@ public static class RobotCustomCommandRules
         normalized = new RobotCustomCommand();
         if (source is null ||
             !TryNormalizeCommand(source.Command, out var command) ||
-            !Enum.IsDefined(source.MessageType))
+            !Enum.IsDefined(source.MessageType) ||
+            source.MessageType is not (RobotCustomMessageType.Text or RobotCustomMessageType.Image))
         {
             return false;
         }
 
         var content = source.Content?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(content))
-        {
-            return false;
-        }
-
-        if (source.MessageType == RobotCustomMessageType.JsonCard && !IsValidJsonCard(content))
         {
             return false;
         }
@@ -87,23 +83,6 @@ public static class RobotCustomCommandRules
             Content = content
         };
         return true;
-    }
-
-    public static bool IsValidJsonCard(string? content)
-    {
-        if (string.IsNullOrWhiteSpace(content))
-        {
-            return false;
-        }
-
-        try
-        {
-            return JsonNode.Parse(content) is JsonObject;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
     }
 
     public static List<RobotCustomCommand> NormalizeMany(IEnumerable<RobotCustomCommand>? commands)

@@ -498,7 +498,7 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        await ReplyAsync(runtime, eventPayload, BuildOsqSummaryCardMessage(snapshot), cancellationToken);
+        await ReplyAsync(runtime, eventPayload, BuildOsqSummaryMessage(snapshot), cancellationToken);
     }
 
     private async Task HandleServerPasswordCommandAsync(
@@ -1226,7 +1226,6 @@ public sealed class Vs2QQProcessService
         {
             RobotCustomMessageType.Text => "文本",
             RobotCustomMessageType.Image => "图片",
-            RobotCustomMessageType.JsonCard => " JSON 卡片",
             _ => string.Empty
         };
     }
@@ -1475,7 +1474,7 @@ public sealed class Vs2QQProcessService
         return result;
     }
 
-    private static JsonArray BuildOsqSummaryCardMessage(OsqSnapshotEnvelope payload)
+    private static string BuildOsqSummaryMessage(OsqSnapshotEnvelope payload)
     {
         var server = payload.Server ?? new OsqServerInfo();
         var players = payload.Players ?? [];
@@ -1533,20 +1532,8 @@ public sealed class Vs2QQProcessService
         var description = LimitText(
             string.Join('\n', lines.Where(line => !string.IsNullOrWhiteSpace(line))),
             MaxOneBotMessageLength);
-        var timestamp = DateTimeOffset.TryParse(
-            payload.TimestampUtc,
-            CultureInfo.InvariantCulture,
-            DateTimeStyles.AssumeUniversal,
-            out var parsedTimestamp)
-            ? parsedTimestamp.ToUnixTimeSeconds()
-            : DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-
-        return RobotOneBotMessageBuilder.BuildNewsCardMessage(
-            $"{serverName} - {status}",
-            description,
-            $"[服务器状态] {serverName} {onlinePlayerCount}/{server.MaxPlayers}",
-            $"LauncherGo | {timeLabel}",
-            timestamp);
+        var header = $"[服务器状态 {timeLabel}] {serverName} - {status} {onlinePlayerCount}/{server.MaxPlayers}";
+        return LimitText($"{header}\n{description}", MaxOneBotMessageLength);
     }
 
     private static string LimitText(string value, int maxLength)

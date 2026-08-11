@@ -1000,8 +1000,8 @@ public partial class LauncherMainWindow : Window
         RobotCustomCommandContentHeaderTextBlock.Text = T("内容", "Content");
         RobotCustomCommandActionHeaderTextBlock.Text = T("操作", "Action");
         RobotCustomCommandHintTextBlock.Text = T(
-            "指令以 / 开头；不能使用或包含 /help、/send、/server 等内置指令前缀。JSON 卡片必须是 JSON 对象。",
-            "Commands start with /. Built-in prefixes such as /help, /send, and /server are reserved. JSON cards must be objects.");
+            "指令以 / 开头；不能使用或包含 /help、/send、/server 等内置指令前缀。文本支持换行，图片请使用按钮选择文件路径。",
+            "Commands start with /. Built-in prefixes such as /help, /send, and /server are reserved. Text supports new lines; choose an image file path with the button.");
         RobotCustomCommandAddButton.Content = T("添加", "Add");
         foreach (var item in _robotCustomCommandItems)
         {
@@ -4414,12 +4414,6 @@ public partial class LauncherMainWindow : Window
                 message = T($"自定义指令 {normalizedCommand} 缺少内容。", $"Custom command {normalizedCommand} has no content.");
                 return false;
             }
-
-            if (item.MessageType == RobotCustomMessageType.JsonCard && !RobotCustomCommandRules.IsValidJsonCard(content))
-            {
-                message = T($"自定义指令 {normalizedCommand} 的 JSON 卡片无效。", $"The JSON card for {normalizedCommand} is invalid.");
-                return false;
-            }
         }
 
         message = string.Empty;
@@ -7268,6 +7262,33 @@ public partial class LauncherMainWindow : Window
         if (_robotCustomCommandItems.Count == 0)
         {
             OnRobotCustomCommandAddClick(sender, e);
+        }
+    }
+
+    private async void OnRobotCustomCommandImagePathClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: RobotCustomCommandItem item })
+        {
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = T("选择机器人图片", "Select robot image"),
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Image")
+                {
+                    Patterns = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp", "*.webp"]
+                }
+            ]
+        });
+
+        var path = TryGetLocalPath(files.FirstOrDefault());
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            item.Content = path;
         }
     }
 
@@ -10135,6 +10156,7 @@ public partial class LauncherMainWindow : Window
         private string _content;
         private RobotCustomMessageType _messageType;
         private ConfigChoiceOption? _selectedType;
+        private bool _isChinese;
 
         public RobotCustomCommandItem(
             string command,
@@ -10177,8 +10199,17 @@ public partial class LauncherMainWindow : Window
 
                 _content = value ?? string.Empty;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(ImagePathButtonText));
             }
         }
+
+        public bool IsText => _messageType == RobotCustomMessageType.Text;
+
+        public bool IsImage => _messageType == RobotCustomMessageType.Image;
+
+        public string ImagePathButtonText => string.IsNullOrWhiteSpace(_content)
+            ? (_isChinese ? "选择图片路径" : "Select image path")
+            : _content;
 
         public ConfigChoiceOption? SelectedType
         {
@@ -10198,6 +10229,9 @@ public partial class LauncherMainWindow : Window
 
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(MessageType));
+                OnPropertyChanged(nameof(IsText));
+                OnPropertyChanged(nameof(IsImage));
+                OnPropertyChanged(nameof(ImagePathButtonText));
             }
         }
 
@@ -10207,11 +10241,11 @@ public partial class LauncherMainWindow : Window
 
         public void SetLanguage(bool isChinese)
         {
+            _isChinese = isChinese;
             var selectedValue = _selectedType?.Value ?? _messageType.ToString();
             TypeOptions.Clear();
             TypeOptions.Add(new ConfigChoiceOption(RobotCustomMessageType.Text.ToString(), isChinese ? "文本" : "Text"));
             TypeOptions.Add(new ConfigChoiceOption(RobotCustomMessageType.Image.ToString(), isChinese ? "图片" : "Image"));
-            TypeOptions.Add(new ConfigChoiceOption(RobotCustomMessageType.JsonCard.ToString(), isChinese ? "JSON 卡片" : "JSON Card"));
             _selectedType = TypeOptions.FirstOrDefault(option =>
                 option.Value.Equals(selectedValue, StringComparison.OrdinalIgnoreCase)) ?? TypeOptions[0];
             if (Enum.TryParse<RobotCustomMessageType>(_selectedType.Value, out var parsed))
@@ -10222,6 +10256,9 @@ public partial class LauncherMainWindow : Window
             OnPropertyChanged(nameof(TypeOptions));
             OnPropertyChanged(nameof(SelectedType));
             OnPropertyChanged(nameof(MessageType));
+            OnPropertyChanged(nameof(IsText));
+            OnPropertyChanged(nameof(IsImage));
+            OnPropertyChanged(nameof(ImagePathButtonText));
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

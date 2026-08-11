@@ -2699,7 +2699,10 @@
                                                                                             </DataTemplate>
                                                                                         </ComboBox.ItemTemplate>
                                                                                     </ComboBox>
-                                                                                    <TextBox Grid.Column="2" Classes="CompactInput MultiLineInput" Text="{Binding Content, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" Height="72" MinHeight="72" HorizontalAlignment="Stretch" VerticalAlignment="Top" />
+                                                                                    <TextBox Grid.Column="2" Classes="CompactInput MultiLineInput" Text="{Binding Content, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" Height="72" MinHeight="72" HorizontalAlignment="Stretch" VerticalAlignment="Top" IsVisible="{Binding IsText}" />
+                                                                                    <Button Grid.Column="2" Classes="SecondaryActionButton" Tag="{Binding}" Click="OnRobotCustomCommandImagePathClick" Height="72" HorizontalAlignment="Stretch" VerticalAlignment="Top" IsVisible="{Binding IsImage}">
+                                                                                        <TextBlock Text="{Binding ImagePathButtonText}" TextTrimming="CharacterEllipsis" />
+                                                                                    </Button>
                                                                                     <Button Grid.Column="3" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnRobotCustomCommandRemoveClick" Width="68" HorizontalAlignment="Stretch" VerticalAlignment="Top" />
                                                                                 </Grid>
                                                                             </Border>
