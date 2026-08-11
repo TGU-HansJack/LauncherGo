@@ -1494,9 +1494,10 @@ public sealed class Vs2QQProcessService
 
         var lines = new List<string>
         {
+            $"服务器：{Safe(server.Name)}",
             $"状态：{FormatOsqServerStatus(server.Status)}",
             $"版本：{Safe(server.Version)}",
-            $"在线：{onlinePlayerCount}/{server.MaxPlayers}",
+            $"人数：{onlinePlayerCount}/{server.MaxPlayers}",
             $"世界：{Safe(server.WorldName)}",
             $"地址：{Safe(server.ServerIp)}:{server.ServerPort}"
         };
@@ -1527,12 +1528,10 @@ public sealed class Vs2QQProcessService
             }
         }
 
-        var serverName = Safe(server.Name);
-        var status = FormatOsqServerStatus(server.Status);
         var description = LimitText(
             string.Join('\n', lines.Where(line => !string.IsNullOrWhiteSpace(line))),
             MaxOneBotMessageLength);
-        var header = $"[服务器状态 {timeLabel}] {serverName} - {status} {onlinePlayerCount}/{server.MaxPlayers}";
+        var header = $"[服务器状态 {timeLabel}]";
         return LimitText($"{header}\n{description}", MaxOneBotMessageLength);
     }
 
