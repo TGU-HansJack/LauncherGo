@@ -73,6 +73,7 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | 路径 | 说明 |
 | --- | --- |
 | `LauncherGo.App` | Avalonia 应用入口、宿主、主题与全局资源 |
+| `LauncherGo.ServerHost` | 独立服务端进程宿主、可恢复控制通道与异常退出清理 |
 | `LauncherGo.Ui` | 主窗口、指导窗口、UI 资源、平台窗口效果与界面逻辑 |
 | `LauncherGo.Services` | 服务端下载、档案、存档、进程、日志、自动化、FRP、OpenServerQuery、QQ 机器人与认证服务实现 |
 | `LauncherGo.Abstractions` | 服务接口与跨层抽象 |

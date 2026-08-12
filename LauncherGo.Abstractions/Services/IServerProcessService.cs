@@ -16,6 +16,13 @@ public interface IServerProcessService
 
     IReadOnlyList<ServerRuntimeStatus> GetCurrentStatuses();
 
+    Task<ServerRuntimeStatus> RefreshStatusAsync(
+        string profileId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ServerRuntimeStatus>> RefreshStatusesAsync(
+        CancellationToken cancellationToken = default);
+
     ServerRuntimeStatus GetCachedStatus();
 
     IReadOnlyList<ServerRuntimeStatus> GetCachedStatuses();

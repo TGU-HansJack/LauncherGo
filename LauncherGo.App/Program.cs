@@ -4,7 +4,6 @@ using System.IO;
 using System.Threading.Tasks;
 using LauncherGo.Services.Extensions;
 using LauncherGo.Services.Paths;
-using LauncherGo.Services;
 using LauncherGo.Ui;
 using LauncherGo.Ui.Extensions;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,12 +27,6 @@ internal static class Program
 
         try
         {
-            if (ServerProcessRelay.IsRelayInvocation(args))
-            {
-                Environment.ExitCode = ServerProcessRelay.RunAsync(args).GetAwaiter().GetResult();
-                return;
-            }
-
             using var host = Host.CreateDefaultBuilder(args)
                 .ConfigureLogging(builder =>
                 {

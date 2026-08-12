@@ -6,7 +6,10 @@ namespace LauncherGo.Services;
 
 internal static class ServerRelayProtocol
 {
+    public const int CurrentSchemaVersion = 2;
     public const string LauncherArgument = "--LauncherGo-server-relay";
+    public const string ServerHostExecutableName = "LauncherGo.ServerHost.exe";
+    public const string RequestTypeDiscover = "discover";
     public const string RequestTypePing = "ping";
     public const string RequestTypeStatus = "status";
     public const string RequestTypeCommand = "command";
@@ -44,6 +47,10 @@ internal sealed class ServerRelayRequest
     public string Type { get; set; } = string.Empty;
 
     public string? Command { get; set; }
+
+    public string InstanceId { get; set; } = string.Empty;
+
+    public string ControlToken { get; set; } = string.Empty;
 }
 
 internal sealed class ServerRelayResponse

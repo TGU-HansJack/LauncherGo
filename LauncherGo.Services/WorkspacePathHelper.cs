@@ -29,6 +29,8 @@ internal static partial class WorkspacePathHelper
 
     public static string ServerRelayRoot => Path.Combine(RuntimeRoot, "server-relays");
 
+    public static string ServerHostRuntimeRoot => Path.Combine(RuntimeRoot, "server-host");
+
     public static string FrpRoot => Path.Combine(RuntimeRoot, "frp");
 
     public static string FrpExecutablePath => Path.Combine(FrpRoot, "frpc.exe");
@@ -76,6 +78,7 @@ internal static partial class WorkspacePathHelper
         Directory.CreateDirectory(TempRoot);
         Directory.CreateDirectory(RuntimeRoot);
         Directory.CreateDirectory(ServerRelayRoot);
+        Directory.CreateDirectory(ServerHostRuntimeRoot);
         Directory.CreateDirectory(FrpRoot);
         Directory.CreateDirectory(ThirdPartyFrpcRoot);
         Directory.CreateDirectory(EasyTierRoot);

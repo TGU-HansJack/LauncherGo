@@ -1,4 +1,5 @@
 using System.IO.Pipes;
+using System.Text.Json;
 using LauncherGo.Services;
 using Xunit;
 
@@ -190,15 +191,262 @@ public sealed class ServerProcessRelayTests
         }
     }
 
-    private static Task StartRelayLoop(
-        string pipeName,
-        Func<string, CancellationToken, Task> writeCommand,
-        CancellationToken cancellationToken)
+    [Fact]
+    public async Task Version2Relay_RejectsUnauthenticatedCommand()
     {
-        return ServerProcessRelay.RunPipeLoopAsync(
+        var pipeName = CreatePipeName();
+        using var testCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var forwarded = false;
+        var loopTask = StartRelayLoop(
+            pipeName,
+            (_, _) =>
+            {
+                forwarded = true;
+                return Task.CompletedTask;
+            },
+            testCts.Token,
+            CreateAuthenticatedState(pipeName));
+
+        try
+        {
+            var response = await ServerRelayClient.SendCommandAsync(
+                pipeName,
+                "/announce blocked",
+                testCts.Token);
+
+            Assert.False(response.Success);
+            Assert.Equal("Relay instance authentication failed.", response.Error);
+            Assert.False(forwarded);
+        }
+        finally
+        {
+            await StopRelayLoopAsync(testCts, loopTask);
+        }
+    }
+
+    [Fact]
+    public async Task Discover_ReturnsLiveIdentity_AndAuthenticatedCommandSucceeds()
+    {
+        var pipeName = CreatePipeName();
+        using var testCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var state = CreateAuthenticatedState(pipeName);
+        var forwardedCommand = string.Empty;
+        var loopTask = StartRelayLoop(
+            pipeName,
+            (command, _) =>
+            {
+                forwardedCommand = command;
+                return Task.CompletedTask;
+            },
+            testCts.Token,
+            state);
+
+        try
+        {
+            var discovery = await ServerRelayClient.DiscoverAsync(pipeName, testCts.Token);
+            Assert.True(discovery.Success, discovery.Error);
+            Assert.Equal(state.InstanceId, discovery.State?.InstanceId);
+            Assert.Equal(state.ControlToken, discovery.State?.ControlToken);
+
+            var response = await ServerRelayClient.SendCommandAsync(
+                discovery.State!,
+                "/announce recovered",
+                testCts.Token);
+
+            Assert.True(response.Success, response.Error);
+            Assert.Equal("/announce recovered", forwardedCommand);
+        }
+        finally
+        {
+            await StopRelayLoopAsync(testCts, loopTask);
+        }
+    }
+
+    [Fact]
+    public async Task AuthenticatedPing_DoesNotDependOnCallersSynchronizationContext()
+    {
+        var pipeName = CreatePipeName();
+        using var testCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var state = CreateAuthenticatedState(pipeName);
+        var loopTask = StartRelayLoop(
+            pipeName,
+            (_, _) => Task.CompletedTask,
+            testCts.Token,
+            state);
+        var completed = new TaskCompletionSource<ServerRelayResponse>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var thread = new Thread(() =>
+        {
+            SynchronizationContext.SetSynchronizationContext(new NonPumpingSynchronizationContext());
+            try
+            {
+                completed.TrySetResult(
+                    ServerRelayClient.PingAsync(state, testCts.Token).GetAwaiter().GetResult());
+            }
+            catch (Exception ex)
+            {
+                completed.TrySetException(ex);
+            }
+        })
+        {
+            IsBackground = true
+        };
+
+        try
+        {
+            thread.Start();
+            var response = await completed.Task.WaitAsync(TimeSpan.FromSeconds(3), testCts.Token);
+            Assert.True(response.Success, response.Error);
+        }
+        finally
+        {
+            await StopRelayLoopAsync(testCts, loopTask);
+        }
+    }
+
+    [Fact]
+    public async Task WrongToken_CannotExecuteCommand()
+    {
+        var pipeName = CreatePipeName();
+        using var testCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var state = CreateAuthenticatedState(pipeName);
+        var forwarded = false;
+        var loopTask = StartRelayLoop(
+            pipeName,
+            (_, _) =>
+            {
+                forwarded = true;
+                return Task.CompletedTask;
+            },
+            testCts.Token,
+            state);
+
+        try
+        {
+            var invalidState = CreateAuthenticatedState(pipeName);
+            invalidState.InstanceId = state.InstanceId;
+            var response = await ServerRelayClient.SendCommandAsync(
+                invalidState,
+                "/announce blocked",
+                testCts.Token);
+
+            Assert.False(response.Success);
+            Assert.False(forwarded);
+        }
+        finally
+        {
+            await StopRelayLoopAsync(testCts, loopTask);
+        }
+    }
+
+    [Fact]
+    public async Task Version2Relay_WithMissingIdentity_RejectsCommand()
+    {
+        var pipeName = CreatePipeName();
+        using var testCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var forwarded = false;
+        var state = new ServerRelayState
+        {
+            SchemaVersion = ServerRelayProtocol.CurrentSchemaVersion,
+            PipeName = pipeName,
+            RelayProcessId = Environment.ProcessId,
+            ServerProcessId = Environment.ProcessId
+        };
+        var loopTask = StartRelayLoop(
+            pipeName,
+            (_, _) =>
+            {
+                forwarded = true;
+                return Task.CompletedTask;
+            },
+            testCts.Token,
+            state);
+
+        try
+        {
+            var response = await ServerRelayClient.SendCommandAsync(
+                pipeName,
+                "/announce blocked",
+                testCts.Token);
+
+            Assert.False(response.Success);
+            Assert.Equal("Relay instance authentication failed.", response.Error);
+            Assert.False(forwarded);
+        }
+        finally
+        {
+            await StopRelayLoopAsync(testCts, loopTask);
+        }
+    }
+
+    [Fact]
+    public async Task StateCacheWriteFailure_DoesNotBreakControlChannel()
+    {
+        var pipeName = CreatePipeName();
+        using var testCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var forwardedCommand = string.Empty;
+        var loopTask = ServerProcessRelay.RunPipeLoopAsync(
             pipeName,
             new ServerRelayState
             {
+                SchemaVersion = 1,
+                PipeName = pipeName,
+                RelayProcessId = Environment.ProcessId,
+                ServerProcessId = Environment.ProcessId
+            },
+            isProcessTerminated: () => false,
+            getProcessId: () => Environment.ProcessId,
+            writeConsoleCommand: (command, _) =>
+            {
+                forwardedCommand = command;
+                return Task.CompletedTask;
+            },
+            TestTimeouts,
+            testCts.Token,
+            stateChanged: () => throw new IOException("Simulated unavailable state cache."));
+
+        try
+        {
+            var ping = await ServerRelayClient.PingAsync(pipeName, testCts.Token);
+            Assert.True(ping.Success, ping.Error);
+
+            var command = await ServerRelayClient.SendCommandAsync(
+                pipeName,
+                "/announce cache-independent",
+                testCts.Token);
+
+            Assert.True(command.Success, command.Error);
+            Assert.Equal("/announce cache-independent", forwardedCommand);
+        }
+        finally
+        {
+            await StopRelayLoopAsync(testCts, loopTask);
+        }
+    }
+
+    [Fact]
+    public void MissingSchemaVersion_DeserializesAsLegacyState()
+    {
+        var state = JsonSerializer.Deserialize<ServerRelayState>(
+            "{}",
+            ServerRelayProtocol.JsonOptions);
+
+        Assert.NotNull(state);
+        Assert.Equal(0, state.SchemaVersion);
+    }
+
+    private static Task StartRelayLoop(
+        string pipeName,
+        Func<string, CancellationToken, Task> writeCommand,
+        CancellationToken cancellationToken,
+        ServerRelayState? state = null)
+    {
+        return ServerProcessRelay.RunPipeLoopAsync(
+            pipeName,
+            state ?? new ServerRelayState
+            {
+                SchemaVersion = 1,
                 PipeName = pipeName,
                 RelayProcessId = Environment.ProcessId,
                 ServerProcessId = Environment.ProcessId
@@ -208,6 +456,27 @@ public sealed class ServerProcessRelayTests
             writeCommand,
             TestTimeouts,
             cancellationToken);
+    }
+
+    private static ServerRelayState CreateAuthenticatedState(string pipeName)
+    {
+        return new ServerRelayState
+        {
+            SchemaVersion = ServerRelayProtocol.CurrentSchemaVersion,
+            PipeName = pipeName,
+            InstanceId = Guid.NewGuid().ToString("N"),
+            ControlToken = Guid.NewGuid().ToString("N"),
+            RelayProcessId = Environment.ProcessId,
+            ServerProcessId = Environment.ProcessId,
+            ProfileId = Guid.NewGuid().ToString("N")
+        };
+    }
+
+    private sealed class NonPumpingSynchronizationContext : SynchronizationContext
+    {
+        public override void Post(SendOrPostCallback d, object? state)
+        {
+        }
     }
 
     private static async Task StopRelayLoopAsync(

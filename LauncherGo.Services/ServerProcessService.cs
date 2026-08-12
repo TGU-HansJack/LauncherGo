@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Management;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -29,7 +30,6 @@ public sealed partial class ServerProcessService : IServerProcessService
     private readonly IServerAuthService? _serverAuthService;
     private readonly IServerMapService? _serverMapService;
     private readonly ILogger<ServerProcessService> _logger;
-    private DateTimeOffset _lastDiscoveryUtc = DateTimeOffset.MinValue;
     private string _activeProfileId = string.Empty;
 
     public ServerProcessService()
@@ -77,15 +77,7 @@ public sealed partial class ServerProcessService : IServerProcessService
     public ServerRuntimeStatus GetCurrentStatus(string profileId)
     {
         if (string.IsNullOrWhiteSpace(profileId))
-        {
             return new ServerRuntimeStatus();
-        }
-
-        var profile = _profileService?.GetProfileById(profileId.Trim());
-        if (profile is not null)
-        {
-            return GetOrCreateController(profile).GetCurrentStatus(profile);
-        }
 
         lock (_gate)
         {
@@ -97,28 +89,39 @@ public sealed partial class ServerProcessService : IServerProcessService
 
     public IReadOnlyList<ServerRuntimeStatus> GetCurrentStatuses()
     {
-        DiscoverKnownProfiles();
+        return GetCachedStatuses();
+    }
 
-        List<(InstanceProfile Profile, SingleServerProcessController Controller)> controllers;
-        lock (_gate)
-        {
-            controllers = _controllers
-                .Select(pair => (_controllerProfiles[pair.Key], pair.Value))
-                .ToList();
-        }
+    public async Task<ServerRuntimeStatus> RefreshStatusAsync(
+        string profileId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(profileId))
+            return new ServerRuntimeStatus();
 
-        foreach (var (profile, controller) in controllers)
-        {
-            controller.GetCurrentStatus(profile);
-        }
+        var normalizedProfileId = profileId.Trim();
+        var profile = _profileService?.GetProfileById(normalizedProfileId);
+        if (profile is null)
+            return GetCurrentStatus(normalizedProfileId);
 
-        lock (_gate)
-        {
-            return _statuses.Values
-                .OrderByDescending(static status => status.IsRunning)
-                .ThenBy(status => ResolveStatusProfileName(status.ProfileId))
-                .ToList();
-        }
+        var controller = GetOrCreateController(profile);
+        return await Task.Run(
+                () => controller.RefreshStatusAsync(profile, cancellationToken),
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<ServerRuntimeStatus>> RefreshStatusesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (_profileService is null)
+            return GetCachedStatuses();
+
+        var profiles = await Task.Run(_profileService.GetProfiles, cancellationToken)
+            .ConfigureAwait(false);
+        await Task.WhenAll(profiles.Select(profile => RefreshStatusAsync(profile.Id, cancellationToken)))
+            .ConfigureAwait(false);
+        return GetCachedStatuses();
     }
 
     public ServerRuntimeStatus GetCachedStatus()
@@ -277,32 +280,6 @@ public sealed partial class ServerProcessService : IServerProcessService
         return SendCommandAsync(status.ProfileId, command, cancellationToken);
     }
 
-    private void DiscoverKnownProfiles()
-    {
-        if (_profileService is null || DateTimeOffset.UtcNow - _lastDiscoveryUtc < TimeSpan.FromSeconds(2))
-        {
-            return;
-        }
-
-        _lastDiscoveryUtc = DateTimeOffset.UtcNow;
-
-        IReadOnlyList<InstanceProfile> profiles;
-        try
-        {
-            profiles = _profileService.GetProfiles();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Failed to discover profiles for server process status.");
-            return;
-        }
-
-        foreach (var profile in profiles)
-        {
-            GetOrCreateController(profile).GetCurrentStatus(profile);
-        }
-    }
-
     private SingleServerProcessController GetOrCreateController(InstanceProfile profile)
     {
         lock (_gate)
@@ -428,6 +405,7 @@ internal sealed partial class SingleServerProcessController
     private Process? _process;
     private InstanceProfile? _currentProfile;
     private ServerRelayState? _relayState;
+    private bool _relayConnected;
     private bool _manualStopRequested;
     private CancellationTokenSource? _monitorCts;
     private Task? _monitorTask;
@@ -472,17 +450,47 @@ internal sealed partial class SingleServerProcessController
     /// <inheritdoc />
     public ServerRuntimeStatus GetCurrentStatus(InstanceProfile? preferredProfile = null)
     {
-        if (!_processGate.Wait(0))
-            return _currentStatus;
+        return _currentStatus;
+    }
 
+    public async Task<ServerRuntimeStatus> RefreshStatusAsync(
+        InstanceProfile preferredProfile,
+        CancellationToken cancellationToken = default)
+    {
+        await _processGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            _currentProfile ??= preferredProfile;
             ClearTrackedProcessIfTerminated();
 
             if (_process is null)
             {
-                if (!TryAttachToExistingWorkspaceServerRelay(preferredProfile, emitOutput: false) &&
-                    !TryAttachToExistingWorkspaceServerProcess(preferredProfile, emitOutput: false))
+                var attachedToRelay = await TryAttachToExistingWorkspaceServerRelayAsync(
+                        preferredProfile,
+                        emitOutput: false,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                var attachedToProcess = !attachedToRelay &&
+                                        TryAttachToExistingWorkspaceServerProcess(
+                                            preferredProfile,
+                                            emitOutput: false);
+
+                if (!attachedToRelay && !attachedToProcess &&
+                    await HasLiveServerHostForProfileAsync(preferredProfile, cancellationToken)
+                        .ConfigureAwait(false))
+                {
+                    UpdateStatus(new ServerRuntimeStatus
+                    {
+                        IsRunning = true,
+                        ProcessId = null,
+                        StartedAtUtc = _currentStatus.StartedAtUtc,
+                        ProfileId = preferredProfile.Id,
+                        CanSendCommands = false,
+                        ControlMode = "server-host",
+                        Message = "ServerHost control channel reconnecting"
+                    });
+                }
+                else if (!attachedToRelay && !attachedToProcess)
                 {
                     PublishStoppedStatusIfStale();
                 }
@@ -533,20 +541,31 @@ internal sealed partial class SingleServerProcessController
             WorkspacePathHelper.EnsureWorkspace();
             profile.DirectoryPath = WorkspacePathHelper.ResolveProfileDataPath(profile.DirectoryPath);
 
-            if (TryAttachToExistingWorkspaceServerRelay(profile, emitOutput: true) ||
+            if (await TryAttachToExistingWorkspaceServerRelayAsync(
+                    profile,
+                    emitOutput: true,
+                    cancellationToken).ConfigureAwait(false) ||
                 TryAttachToExistingWorkspaceServerProcess(profile, emitOutput: true))
             {
                 if (_currentProfile?.Id.Equals(profile.Id, StringComparison.OrdinalIgnoreCase) == true)
                 {
                     if (!HasControlChannel())
+                    {
+                        if (_relayState is not null && IsRelayHostProcess(_relayState))
+                            throw new InvalidOperationException("ServerHost 正在运行，但控制通道尚未恢复，请稍后重试。");
+
                         throw new InvalidOperationException(
-                            $"检测到该档案已有服务端进程正在运行（PID={_currentStatus.ProcessId}），但它没有可恢复控制通道。请先停止当前服务端，再由新版 LauncherGo 重新启动以恢复命令输入。");
+                            $"检测到该档案存在外部或旧版服务端进程（PID={_currentStatus.ProcessId}），无法恢复命令输入。请先停止该进程，再由 LauncherGo 重新启动。");
+                    }
 
                     return;
                 }
 
                 DetachCurrentProcessTracking();
             }
+
+            if (await HasLiveServerHostForProfileAsync(profile, cancellationToken).ConfigureAwait(false))
+                throw new InvalidOperationException("检测到该档案的 ServerHost 已在运行，控制通道正在恢复，请稍后重试。");
 
             var installPath = _profileService?.EnsureVersionInstalled(profile.Version)
                               ?? WorkspacePathHelper.GetServerInstallPath(profile.Version);
@@ -695,7 +714,10 @@ internal sealed partial class SingleServerProcessController
                     return;
                 }
 
-                if (!TryAttachToExistingWorkspaceServerRelay(preferredProfile, emitOutput: true) &&
+                if (!await TryAttachToExistingWorkspaceServerRelayAsync(
+                        preferredProfile,
+                        emitOutput: true,
+                        cancellationToken).ConfigureAwait(false) &&
                     !TryAttachToExistingWorkspaceServerProcess(preferredProfile, emitOutput: true))
                 {
                     PublishStoppedStatusIfStale();
@@ -810,16 +832,27 @@ internal sealed partial class SingleServerProcessController
         if (GetCommandName(normalized).Equals("/stop", StringComparison.OrdinalIgnoreCase))
             _manualStopRequested = true;
 
+        if ((_process is null || _relayState is null || !_relayConnected) &&
+            await TryRecoverRelayForTrackedProcessAsync(cancellationToken))
+        {
+            await SendCommandInternalAsync(normalized, cancellationToken);
+            return;
+        }
+
         if (_relayState is not null)
         {
-            if (!IsProcessIdRunning(_relayState.RelayProcessId))
+            if (!_relayConnected && !await TryRecoverRelayForTrackedProcessAsync(cancellationToken))
+                throw new InvalidOperationException("ServerHost 控制通道暂时不可达，请稍后重试。");
+
+            if (!IsRelayHostProcess(_relayState))
             {
                 _relayState = null;
+                _relayConnected = false;
                 throw new InvalidOperationException("后台控制通道不可用。");
             }
 
             var response = await ServerRelayClient.SendCommandAsync(
-                _relayState.PipeName,
+                _relayState,
                 normalized,
                 cancellationToken);
             if (!response.Success)
@@ -830,7 +863,8 @@ internal sealed partial class SingleServerProcessController
                     _relayState.RelayProcessId,
                     response.Error);
 
-                if (!IsProcessIdRunning(_relayState.RelayProcessId))
+                _relayConnected = false;
+                if (!IsRelayHostProcess(_relayState))
                     _relayState = null;
 
                 throw new InvalidOperationException(response.Error ?? "后台控制通道不可用。");
@@ -838,6 +872,7 @@ internal sealed partial class SingleServerProcessController
 
             if (response.State is not null)
                 _relayState = response.State;
+            _relayConnected = true;
 
             OutputReceived?.Invoke(this, $"[cmd] {normalized}");
             ScheduleCommandReceiptCheck(normalized);
@@ -848,7 +883,16 @@ internal sealed partial class SingleServerProcessController
             throw new InvalidOperationException("服务器未运行。");
 
         if (!_canWriteStandardInput)
-            throw new InvalidOperationException("当前服务端进程没有可用控制通道。若它是在旧版本 LauncherGo 崩溃前启动的，需要先停止该服务端，并由新版 LauncherGo 重新启动一次。");
+        {
+            if (await TryRecoverRelayForTrackedProcessAsync(cancellationToken))
+            {
+                await SendCommandInternalAsync(normalized, cancellationToken);
+                return;
+            }
+
+            throw new InvalidOperationException(
+                "当前服务端进程不是由可恢复的 ServerHost 管理，无法安全发送命令。请停止该外部或旧版进程后重新启动。");
+        }
 
         await WriteServerConsoleCommandAsync(_process, normalized, cancellationToken);
         OutputReceived?.Invoke(this, $"[cmd] {normalized}");
@@ -864,6 +908,9 @@ internal sealed partial class SingleServerProcessController
                 var process = _process;
                 if (process is null || IsProcessTerminated(process))
                     break;
+
+                if (_relayState is not null && !_relayConnected)
+                    await TryRecoverRelayForTrackedProcessAsync(cancellationToken);
 
                 RefreshPlayerCountFromLog();
 
@@ -883,7 +930,7 @@ internal sealed partial class SingleServerProcessController
                     PeakOnlinePlayers = _peakOnlinePlayers,
                     CanSendCommands = HasControlChannel(),
                     ControlMode = GetControlMode(),
-                    Message = HasControlChannel() ? "Relay" : "attached"
+                    Message = HasControlChannel() ? "ServerHost" : "control channel reconnecting"
                 });
 
                 await Task.Delay(1000, cancellationToken);
@@ -1354,6 +1401,7 @@ internal sealed partial class SingleServerProcessController
         _monitorCts = null;
         _monitorTask = null;
         _relayState = null;
+        _relayConnected = false;
         _manualStopRequested = false;
         _canWriteStandardInput = false;
         _playerCountLogPath = null;
@@ -1438,6 +1486,7 @@ internal sealed partial class SingleServerProcessController
         _monitorCts = null;
         _monitorTask = null;
         _relayState = null;
+        _relayConnected = false;
         _manualStopRequested = false;
         _canWriteStandardInput = false;
         _playerCountLogPath = null;
@@ -1475,6 +1524,7 @@ internal sealed partial class SingleServerProcessController
 
         var previousProfileId = _currentStatus.ProfileId ?? _currentProfile?.Id;
         _relayState = null;
+        _relayConnected = false;
         _manualStopRequested = false;
         _canWriteStandardInput = false;
         _playerCountLogPath = null;
@@ -1536,19 +1586,21 @@ internal sealed partial class SingleServerProcessController
         if (_canWriteStandardInput)
             return true;
 
-        return _relayState is { IsRestarting: false } &&
+        return _relayConnected &&
+               _relayState is { IsRestarting: false } &&
                _process is not null &&
                !IsProcessTerminated(_process) &&
-               IsProcessIdRunning(_relayState.RelayProcessId);
+               IsRelayHostProcess(_relayState);
     }
 
     private string GetControlMode()
     {
-        if (_relayState is { IsRestarting: false } &&
+        if (_relayConnected &&
+            _relayState is { IsRestarting: false } &&
             _process is not null &&
             !IsProcessTerminated(_process) &&
-            IsProcessIdRunning(_relayState.RelayProcessId))
-            return "relay";
+            IsRelayHostProcess(_relayState))
+            return "server-host";
 
         return _canWriteStandardInput ? "direct" : string.Empty;
     }
@@ -1569,14 +1621,14 @@ internal sealed partial class SingleServerProcessController
     {
         return !_manualStopRequested &&
                _relayState is { RestartOnCrash: true } relayState &&
-               IsProcessIdRunning(relayState.RelayProcessId);
+               IsRelayHostProcess(relayState);
     }
 
     private bool IsRelayRestartInProgress()
     {
         if (_manualStopRequested ||
             _relayState is not { RestartOnCrash: true } relayState ||
-            !IsProcessIdRunning(relayState.RelayProcessId))
+            !IsRelayHostProcess(relayState))
         {
             return false;
         }
@@ -1689,22 +1741,24 @@ internal sealed partial class SingleServerProcessController
         string installPath,
         CancellationToken cancellationToken)
     {
-        var launcherPath = Environment.ProcessPath;
-        if (string.IsNullOrWhiteSpace(launcherPath) || !File.Exists(launcherPath))
-            throw new InvalidOperationException("无法定位 LauncherGo 主程序，不能启动后台控制通道。");
+        var hostPath = ServerHostRuntimeStager.Prepare(ResolveServerHostPath());
+        if (string.IsNullOrWhiteSpace(hostPath) || !File.Exists(hostPath))
+            throw new InvalidOperationException(
+                $"未找到独立服务端控制程序 {ServerRelayProtocol.ServerHostExecutableName}，请重新安装或重新发布 LauncherGo。");
 
         var pipeName = ServerRelayProtocol.CreatePipeName(profile.Id);
         var statePath = WorkspacePathHelper.GetServerRelayStatePath(profile.Id);
+        var instanceId = Guid.NewGuid().ToString("N");
+        var controlToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         TryDeleteFile(statePath);
 
         var startInfo = new ProcessStartInfo
         {
-            FileName = launcherPath,
-            WorkingDirectory = Path.GetDirectoryName(launcherPath) ?? AppContext.BaseDirectory,
+            FileName = hostPath,
+            WorkingDirectory = Path.GetDirectoryName(hostPath) ?? AppContext.BaseDirectory,
             UseShellExecute = false,
             CreateNoWindow = true
         };
-        startInfo.ArgumentList.Add(ServerRelayProtocol.LauncherArgument);
         startInfo.ArgumentList.Add("--pipe-name");
         startInfo.ArgumentList.Add(pipeName);
         startInfo.ArgumentList.Add("--state-path");
@@ -1723,6 +1777,10 @@ internal sealed partial class SingleServerProcessController
         startInfo.ArgumentList.Add(profile.Version);
         startInfo.ArgumentList.Add("--restart-on-crash");
         startInfo.ArgumentList.Add(IsAutoRestartAfterCrashEnabled().ToString());
+        startInfo.ArgumentList.Add("--instance-id");
+        startInfo.ArgumentList.Add(instanceId);
+        startInfo.ArgumentList.Add("--control-token");
+        startInfo.ArgumentList.Add(controlToken);
 
         using var relayProcess = new Process { StartInfo = startInfo };
         if (!relayProcess.Start())
@@ -1730,7 +1788,13 @@ internal sealed partial class SingleServerProcessController
 
         try
         {
-            return await WaitForRelayStateAsync(relayProcess, statePath, pipeName, cancellationToken);
+            return await WaitForRelayStateAsync(
+                relayProcess,
+                statePath,
+                pipeName,
+                instanceId,
+                controlToken,
+                cancellationToken);
         }
         catch
         {
@@ -1744,10 +1808,19 @@ internal sealed partial class SingleServerProcessController
         Process relayProcess,
         string statePath,
         string pipeName,
+        string instanceId,
+        string controlToken,
         CancellationToken cancellationToken)
     {
         var deadline = DateTimeOffset.UtcNow.AddSeconds(20);
         string? lastError = null;
+        var expectedState = new ServerRelayState
+        {
+            SchemaVersion = ServerRelayProtocol.CurrentSchemaVersion,
+            PipeName = pipeName,
+            InstanceId = instanceId,
+            ControlToken = controlToken
+        };
 
         while (DateTimeOffset.UtcNow < deadline)
         {
@@ -1756,15 +1829,27 @@ internal sealed partial class SingleServerProcessController
             if (IsProcessTerminated(relayProcess))
                 throw new InvalidOperationException($"后台控制通道启动后已退出，退出码：{TryGetExitCode(relayProcess)}。");
 
-            var state = TryReadRelayState(statePath);
-            if (state is not null && state.PipeName.Equals(pipeName, StringComparison.Ordinal))
-            {
-                var response = await ServerRelayClient.PingAsync(pipeName, cancellationToken);
-                if (response.Success && response.State is { } liveState)
-                    return liveState;
+            var cachedState = TryReadRelayState(statePath);
+            var state = cachedState is not null &&
+                        cachedState.SchemaVersion >= ServerRelayProtocol.CurrentSchemaVersion &&
+                        cachedState.PipeName.Equals(pipeName, StringComparison.Ordinal) &&
+                        cachedState.InstanceId.Equals(instanceId, StringComparison.Ordinal) &&
+                        FixedTimeEquals(cachedState.ControlToken, controlToken)
+                ? cachedState
+                : expectedState;
 
-                lastError = response.Error;
+            var response = await ServerRelayClient.PingAsync(state, cancellationToken);
+            if (response.Success &&
+                response.State is { } liveState &&
+                liveState.RelayProcessId == TryGetProcessId(relayProcess) &&
+                IsRelayHostProcess(liveState))
+            {
+                return liveState;
             }
+
+            lastError = response.Success
+                ? "后台控制通道实例身份不匹配。"
+                : response.Error;
 
             await Task.Delay(250, cancellationToken);
         }
@@ -1773,6 +1858,118 @@ internal sealed partial class SingleServerProcessController
             string.IsNullOrWhiteSpace(lastError)
                 ? "等待后台控制通道就绪超时。"
                 : $"等待后台控制通道就绪超时：{lastError}");
+    }
+
+    private static bool IsRelayHostProcess(ServerRelayState state)
+    {
+        if (!IsProcessIdRunning(state.RelayProcessId))
+            return false;
+
+        using var process = TryOpenProcess(state.RelayProcessId);
+        if (process is null)
+            return false;
+
+        if (state.SchemaVersion < ServerRelayProtocol.CurrentSchemaVersion)
+            return IsLegacyRelayProcess(process, state.ProfileId);
+
+        if (string.IsNullOrWhiteSpace(state.InstanceId) ||
+            string.IsNullOrWhiteSpace(state.ControlToken) ||
+            string.IsNullOrWhiteSpace(state.HostExecutablePath) ||
+            state.RelayStartedAtUtc == default)
+        {
+            return false;
+        }
+
+        var startedAt = TryGetStartTimeUtc(process);
+        if (state.RelayStartedAtUtc != default &&
+            (!startedAt.HasValue ||
+             Math.Abs((startedAt.Value - state.RelayStartedAtUtc).TotalSeconds) > 1))
+        {
+            return false;
+        }
+
+        try
+        {
+            var actualPath = NormalizePath(process.MainModule?.FileName);
+            var expectedPath = NormalizePath(state.HostExecutablePath);
+            return !string.IsNullOrWhiteSpace(actualPath) &&
+                   !string.IsNullOrWhiteSpace(expectedPath) &&
+                   actualPath.Equals(expectedPath, StringComparison.OrdinalIgnoreCase) &&
+                   Path.GetFileName(actualPath).Equals(
+                       ServerRelayProtocol.ServerHostExecutableName,
+                       StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsLegacyRelayProcess(Process process, string profileId)
+    {
+        if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(profileId))
+            return false;
+
+        try
+        {
+            using var searcher = new ManagementObjectSearcher(
+                $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {process.Id}");
+            foreach (ManagementObject item in searcher.Get())
+            {
+                var commandLine = item["CommandLine"]?.ToString() ?? string.Empty;
+                if (!commandLine.Contains(
+                        ServerRelayProtocol.LauncherArgument,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                var match = ProfileIdArgumentPattern().Match(commandLine);
+                return match.Success &&
+                       string.Equals(match.Groups["id"].Value, profileId, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+        catch
+        {
+            // A legacy state is trusted only when its live command line proves identity.
+        }
+
+        return false;
+    }
+
+    private static bool IsServerProcessForState(Process process, ServerRelayState state)
+    {
+        var processId = TryGetProcessId(process);
+        if (!processId.HasValue || processId != state.ServerProcessId)
+            return false;
+
+        if (state.ServerProcessStartedAtUtc is not { } expectedStartedAt)
+            return true;
+
+        var actualStartedAt = TryGetStartTimeUtc(process);
+        return actualStartedAt.HasValue &&
+               Math.Abs((actualStartedAt.Value - expectedStartedAt).TotalSeconds) <= 1;
+    }
+
+    private static string ResolveServerHostPath()
+    {
+        var candidates = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, ServerRelayProtocol.ServerHostExecutableName),
+            Path.Combine(AppContext.BaseDirectory, "ServerHost", ServerRelayProtocol.ServerHostExecutableName),
+            Path.Combine(
+                Path.GetDirectoryName(Environment.ProcessPath) ?? string.Empty,
+                ServerRelayProtocol.ServerHostExecutableName)
+        };
+
+        return candidates.FirstOrDefault(File.Exists) ?? candidates[0];
+    }
+
+    private static bool FixedTimeEquals(string left, string right)
+    {
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(left),
+            Encoding.UTF8.GetBytes(right));
     }
 
     private async Task<bool> WaitForRestartingRelayAsync(
@@ -1787,12 +1984,12 @@ internal sealed partial class SingleServerProcessController
         }
 
         if (state is not { RestartOnCrash: true } ||
-            !IsProcessIdRunning(state.RelayProcessId))
+            !IsRelayHostProcess(state))
         {
             return false;
         }
 
-        var response = await ServerRelayClient.PingAsync(state.PipeName, cancellationToken);
+        var response = await ServerRelayClient.PingAsync(state, cancellationToken);
         var liveState = response.State ?? state;
         if (!string.Equals(liveState.ProfileId, profile.Id, StringComparison.OrdinalIgnoreCase))
             return false;
@@ -1804,6 +2001,9 @@ internal sealed partial class SingleServerProcessController
             {
                 try
                 {
+                    if (!IsServerProcessForState(serverProcess, liveState))
+                        return false;
+
                     AttachToRelayProcess(serverProcess, liveState, profile, emitOutput: true);
                     return true;
                 }
@@ -1821,6 +2021,7 @@ internal sealed partial class SingleServerProcessController
         liveState.IsRestarting = true;
 
         _relayState = liveState;
+        _relayConnected = response.Success;
         _currentProfile = profile;
         OutputReceived?.Invoke(this, "[system] 检测到服务端正在由 Relay 自动重启，正在等待新进程就绪。");
 
@@ -1829,10 +2030,10 @@ internal sealed partial class SingleServerProcessController
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (!IsProcessIdRunning(liveState.RelayProcessId))
+            if (!IsRelayHostProcess(liveState))
                 return false;
 
-            response = await ServerRelayClient.PingAsync(liveState.PipeName, cancellationToken);
+            response = await ServerRelayClient.PingAsync(liveState, cancellationToken);
             if (response.State is { } updatedState)
                 liveState = updatedState;
 
@@ -1843,6 +2044,12 @@ internal sealed partial class SingleServerProcessController
                 {
                     try
                     {
+                        if (!IsServerProcessForState(restartedProcess, liveState))
+                        {
+                            await Task.Delay(250, cancellationToken);
+                            continue;
+                        }
+
                         AttachToRelayProcess(restartedProcess, liveState, profile, emitOutput: true);
                         return true;
                     }
@@ -1857,7 +2064,7 @@ internal sealed partial class SingleServerProcessController
             await Task.Delay(250, cancellationToken);
         }
 
-        if (IsProcessIdRunning(liveState.RelayProcessId))
+        if (IsRelayHostProcess(liveState))
         {
             throw new InvalidOperationException(
                 "服务端正在自动重启，尚未在限定时间内恢复。Relay 会继续按重试策略处理，请稍后再查看状态。");
@@ -1892,6 +2099,7 @@ internal sealed partial class SingleServerProcessController
 
         TryDeleteFile(WorkspacePathHelper.GetServerRelayStatePath(relayState.ProfileId));
         _relayState = null;
+        _relayConnected = false;
         _canWriteStandardInput = false;
         _manualStopRequested = false;
         OutputReceived?.Invoke(this, "[system] 已停止等待重启的后台 Relay。");
@@ -1912,20 +2120,31 @@ internal sealed partial class SingleServerProcessController
         }
     }
 
-    private bool TryAttachToExistingWorkspaceServerRelay(InstanceProfile? preferredProfile, bool emitOutput)
+    private async Task<bool> TryAttachToExistingWorkspaceServerRelayAsync(
+        InstanceProfile? preferredProfile,
+        bool emitOutput,
+        CancellationToken cancellationToken)
     {
         WorkspacePathHelper.EnsureWorkspace();
 
-        string[] stateFiles;
+        var stateFiles = new List<string>();
         try
         {
-            stateFiles = Directory.GetFiles(WorkspacePathHelper.ServerRelayRoot, "*.json", SearchOption.TopDirectoryOnly);
+            stateFiles.AddRange(Directory.GetFiles(
+                WorkspacePathHelper.ServerRelayRoot,
+                "*.json",
+                SearchOption.TopDirectoryOnly));
         }
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Failed to enumerate server relay state files.");
-            return false;
         }
+
+        var discoveredState = preferredProfile is null
+            ? null
+            : await TryDiscoverRelayStateAsync(preferredProfile, cancellationToken).ConfigureAwait(false);
+        if (discoveredState is not null)
+            TryWriteRelayStateCache(discoveredState);
 
         var profiles = SafeGetProfiles();
         Process? selectedProcess = null;
@@ -1935,35 +2154,63 @@ internal sealed partial class SingleServerProcessController
         var selectedStartedAt = DateTimeOffset.MinValue;
         var restartTracked = false;
 
-        foreach (var stateFile in stateFiles)
+        var states = stateFiles
+            .Select(TryReadRelayState)
+            .Where(static state => state is not null)
+            .Cast<ServerRelayState>()
+            .ToList();
+        if (discoveredState is not null)
+        {
+            states.RemoveAll(state =>
+                string.Equals(
+                    state.ProfileId,
+                    discoveredState.ProfileId,
+                    StringComparison.OrdinalIgnoreCase));
+            states.Insert(0, discoveredState);
+        }
+
+        foreach (var state in states)
         {
             Process? process = null;
             var processSelected = false;
 
             try
             {
-                var state = TryReadRelayState(stateFile);
-                if (state is null || string.IsNullOrWhiteSpace(state.PipeName))
+                if (string.IsNullOrWhiteSpace(state.PipeName))
                 {
-                    TryDeleteFile(stateFile);
                     continue;
                 }
 
-                var response = ServerRelayClient.PingAsync(state.PipeName).GetAwaiter().GetResult();
+                cancellationToken.ThrowIfCancellationRequested();
+                var response = await ServerRelayClient.PingAsync(state, cancellationToken)
+                    .ConfigureAwait(false);
                 if (!response.Success)
                 {
+                    process = TryOpenProcess(state.ServerProcessId);
+                    if (process is not null &&
+                        IsServerProcessForState(process, state) &&
+                        preferredProfile is not null &&
+                        string.Equals(state.ProfileId, preferredProfile.Id, StringComparison.OrdinalIgnoreCase) &&
+                        IsRelayHostProcess(state))
+                    {
+                        AttachToDisconnectedRelayProcess(process, state, preferredProfile, emitOutput);
+                        processSelected = true;
+                        return true;
+                    }
+
                     if (state.RestartOnCrash &&
                         preferredProfile is not null &&
                         string.Equals(state.ProfileId, preferredProfile.Id, StringComparison.OrdinalIgnoreCase) &&
-                        IsProcessIdRunning(state.RelayProcessId))
+                        IsRelayHostProcess(state) &&
+                        (state.IsRestarting || state.ServerProcessId is null))
                     {
                         state.IsRestarting = true;
                         TrackRestartingRelay(state, preferredProfile, emitOutput);
                         restartTracked = true;
                     }
-                    else if (!IsProcessIdRunning(state.RelayProcessId))
+                    else if (!IsRelayHostProcess(state))
                     {
-                        TryDeleteFile(stateFile);
+                        TryDeleteFile(WorkspacePathHelper.GetServerRelayStatePath(state.ProfileId));
                     }
 
                     continue;
@@ -1971,7 +2218,9 @@ internal sealed partial class SingleServerProcessController
 
                 var liveState = response.State ?? state;
                 process = TryOpenProcess(liveState.ServerProcessId);
-                if (process is null || IsProcessTerminated(process))
+                if (process is null ||
+                    IsProcessTerminated(process) ||
+                    !IsServerProcessForState(process, liveState))
                 {
                     if (preferredProfile is not null &&
                         liveState.RestartOnCrash &&
@@ -2022,9 +2271,13 @@ internal sealed partial class SingleServerProcessController
                 selectedStartedAt = startedAt;
                 processSelected = true;
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
-                _logger.LogDebug(ex, "Failed to inspect server relay state file {StateFile}.", stateFile);
+                _logger.LogDebug(ex, "Failed to inspect server relay state for profile {ProfileId}.", state.ProfileId);
             }
             finally
             {
@@ -2060,6 +2313,7 @@ internal sealed partial class SingleServerProcessController
                                  _currentStatus.IsRunning;
 
         _relayState = relayState;
+        _relayConnected = true;
         _currentProfile = profile;
         _manualStopRequested = false;
         _canWriteStandardInput = false;
@@ -2097,6 +2351,14 @@ internal sealed partial class SingleServerProcessController
 
     private bool TryAttachToExistingWorkspaceServerProcess(InstanceProfile? preferredProfile, bool emitOutput)
     {
+        if (preferredProfile is not null && HasCachedLiveServerHostForProfile(preferredProfile))
+        {
+            _logger.LogDebug(
+                "Skipped unmanaged process attachment while a ServerHost exists. ProfileId={ProfileId}.",
+                preferredProfile.Id);
+            return false;
+        }
+
         var serversRoot = NormalizePath(WorkspacePathHelper.ServersRoot);
         if (string.IsNullOrWhiteSpace(serversRoot))
             return false;
@@ -2200,6 +2462,9 @@ internal sealed partial class SingleServerProcessController
 
         try
         {
+            if (!IsServerProcessForState(process, state))
+                throw new InvalidOperationException("后台控制通道返回的服务端进程身份不匹配。");
+
             AttachToRelayProcess(process, state, profile, emitOutput);
         }
         catch
@@ -2217,6 +2482,7 @@ internal sealed partial class SingleServerProcessController
         _process = process;
         _currentProfile = profile;
         _relayState = state;
+        _relayConnected = true;
         _relayState.IsRestarting = false;
         _manualStopRequested = false;
         _canWriteStandardInput = false;
@@ -2267,6 +2533,7 @@ internal sealed partial class SingleServerProcessController
         _process = process;
         _currentProfile = profile;
         _relayState = null;
+        _relayConnected = false;
         _canWriteStandardInput = false;
         ResetOnlinePlayerTracking();
         _peakOnlinePlayers = 0;
@@ -2578,6 +2845,195 @@ internal sealed partial class SingleServerProcessController
         return processDataPath.Equals(normalizedTargetDataPath, StringComparison.OrdinalIgnoreCase);
     }
 
+    private void AttachToDisconnectedRelayProcess(
+        Process process,
+        ServerRelayState state,
+        InstanceProfile profile,
+        bool emitOutput)
+    {
+        AttachToRelayProcess(process, state, profile, emitOutput: false);
+        _relayConnected = false;
+        UpdateStatus(new ServerRuntimeStatus
+        {
+            IsRunning = true,
+            ProcessId = _currentStatus.ProcessId,
+            StartedAtUtc = _currentStatus.StartedAtUtc,
+            ProfileId = profile.Id,
+            CpuPercent = _currentStatus.CpuPercent,
+            MemoryBytes = _currentStatus.MemoryBytes,
+            OnlinePlayers = _currentStatus.OnlinePlayers,
+            OnlinePlayerNames = _currentStatus.OnlinePlayerNames,
+            PeakOnlinePlayers = _currentStatus.PeakOnlinePlayers,
+            CanSendCommands = false,
+            ControlMode = "server-host",
+            Message = "ServerHost control channel reconnecting"
+        });
+
+        if (emitOutput)
+            OutputReceived?.Invoke(this, "[system] 已识别 ServerHost，控制通道正在重新连接。");
+    }
+
+    private async Task<bool> TryRecoverRelayForTrackedProcessAsync(CancellationToken cancellationToken)
+    {
+        var profile = _currentProfile;
+        if (profile is null)
+            return false;
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            var state = await TryDiscoverRelayStateAsync(profile, cancellationToken).ConfigureAwait(false) ??
+                        TryReadRelayState(WorkspacePathHelper.GetServerRelayStatePath(profile.Id));
+            if (state is not null)
+            {
+                var response = await ServerRelayClient.PingAsync(state, cancellationToken);
+                var liveState = response.State ?? state;
+                if (response.Success)
+                {
+                    if (_process is null)
+                    {
+                        var discoveredProcess = TryOpenProcess(liveState.ServerProcessId);
+                        if (discoveredProcess is null || !IsServerProcessForState(discoveredProcess, liveState))
+                        {
+                            discoveredProcess?.Dispose();
+                            continue;
+                        }
+
+                        AttachToRelayProcess(discoveredProcess, liveState, profile, emitOutput: true);
+                        TryWriteRelayStateCache(liveState);
+                        return true;
+                    }
+
+                    if (!IsServerProcessForState(_process, liveState))
+                        continue;
+
+                    _relayState = liveState;
+                    _relayConnected = true;
+                    TryWriteRelayStateCache(liveState);
+                    UpdateStatus(new ServerRuntimeStatus
+                    {
+                        IsRunning = true,
+                        ProcessId = _currentStatus.ProcessId,
+                        StartedAtUtc = _currentStatus.StartedAtUtc,
+                        ProfileId = profile.Id,
+                        CpuPercent = _currentStatus.CpuPercent,
+                        MemoryBytes = _currentStatus.MemoryBytes,
+                        OnlinePlayers = _currentStatus.OnlinePlayers,
+                        OnlinePlayerNames = _currentStatus.OnlinePlayerNames,
+                        PeakOnlinePlayers = _currentStatus.PeakOnlinePlayers,
+                        CanSendCommands = true,
+                        ControlMode = "server-host",
+                        Message = "ServerHost"
+                    });
+                    return true;
+                }
+            }
+
+            if (attempt < 2)
+                await Task.Delay(250, cancellationToken);
+        }
+
+        return false;
+    }
+
+    private static bool HasCachedLiveServerHostForProfile(InstanceProfile profile)
+    {
+        var state = TryReadRelayState(WorkspacePathHelper.GetServerRelayStatePath(profile.Id));
+        return state is not null && IsRelayHostProcess(state) ||
+               IsServerHostProcessRunningForProfile(profile.Id);
+    }
+
+    private static async Task<bool> HasLiveServerHostForProfileAsync(
+        InstanceProfile profile,
+        CancellationToken cancellationToken)
+    {
+        var state = await TryDiscoverRelayStateAsync(profile, cancellationToken).ConfigureAwait(false) ??
+                    TryReadRelayState(WorkspacePathHelper.GetServerRelayStatePath(profile.Id));
+        return state is not null && IsRelayHostProcess(state) ||
+               IsServerHostProcessRunningForProfile(profile.Id);
+    }
+
+    private static bool IsServerHostProcessRunningForProfile(string profileId)
+    {
+        if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(profileId))
+            return false;
+
+        try
+        {
+            using var searcher = new ManagementObjectSearcher(
+                $"SELECT ExecutablePath, CommandLine FROM Win32_Process WHERE Name = '{ServerRelayProtocol.ServerHostExecutableName}'");
+            foreach (ManagementObject item in searcher.Get())
+            {
+                var executablePath = NormalizePath(item["ExecutablePath"]?.ToString());
+                if (!Path.GetFileName(executablePath).Equals(
+                        ServerRelayProtocol.ServerHostExecutableName,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var commandLine = item["CommandLine"]?.ToString() ?? string.Empty;
+                var match = ProfileIdArgumentPattern().Match(commandLine);
+                if (match.Success &&
+                    string.Equals(match.Groups["id"].Value, profileId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+            // Process discovery is a conservative guard against unmanaged fallback.
+        }
+
+        return false;
+    }
+
+    private static async Task<ServerRelayState?> TryDiscoverRelayStateAsync(
+        InstanceProfile profile,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var response = await ServerRelayClient
+                .DiscoverAsync(ServerRelayProtocol.CreatePipeName(profile.Id), cancellationToken)
+                .ConfigureAwait(false);
+            var state = response.Success ? response.State : null;
+            return state is not null &&
+                   string.Equals(state.ProfileId, profile.Id, StringComparison.OrdinalIgnoreCase) &&
+                   IsRelayHostProcess(state)
+                ? state
+                : null;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void TryWriteRelayStateCache(ServerRelayState state)
+    {
+        try
+        {
+            var path = WorkspacePathHelper.GetServerRelayStatePath(state.ProfileId);
+            var tempPath = path + ".launcher.tmp";
+            File.WriteAllText(
+                tempPath,
+                JsonSerializer.Serialize(
+                    state,
+                    new JsonSerializerOptions(ServerRelayProtocol.JsonOptions) { WriteIndented = true }),
+                Encoding.UTF8);
+            File.Move(tempPath, path, overwrite: true);
+        }
+        catch
+        {
+            // The live ServerHost pipe is authoritative; this file is only a discovery cache.
+        }
+    }
+
     private static Process[] GetServerProcessCandidates()
     {
         return Process.GetProcessesByName("VintagestoryServer")
@@ -2885,5 +3341,8 @@ internal sealed partial class SingleServerProcessController
 
     [GeneratedRegex(@"--dataPath(?:=|\s+)(?:""(?<path>[^""]+)""|(?<path>\S+))", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex DataPathArgumentPattern();
+
+    [GeneratedRegex(@"--profile-id(?:=|\s+)(?:""(?<id>[^""]+)""|(?<id>\S+))", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ProfileIdArgumentPattern();
 }
 

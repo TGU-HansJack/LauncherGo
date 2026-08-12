@@ -2,13 +2,23 @@ namespace LauncherGo.Services;
 
 internal sealed class ServerRelayState
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; }
+
+    public string InstanceId { get; set; } = string.Empty;
+
+    public string ControlToken { get; set; } = string.Empty;
 
     public string PipeName { get; set; } = string.Empty;
 
     public int RelayProcessId { get; set; }
 
+    public DateTimeOffset RelayStartedAtUtc { get; set; }
+
+    public string HostExecutablePath { get; set; } = string.Empty;
+
     public int? ServerProcessId { get; set; }
+
+    public DateTimeOffset? ServerProcessStartedAtUtc { get; set; }
 
     public bool RestartOnCrash { get; set; }
 

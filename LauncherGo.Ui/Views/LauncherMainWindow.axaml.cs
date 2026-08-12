@@ -503,6 +503,24 @@ public partial class LauncherMainWindow : Window
             Hide();
         }
 
+        try
+        {
+            using var recoveryCts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            await _serverProcessService.RefreshStatusesAsync(recoveryCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            AppendConsoleLine(T(
+                "[system] 恢复后台服务器状态超时，界面将继续启动。",
+                "[system] Timed out while restoring background server status; startup will continue."));
+        }
+        catch (Exception ex)
+        {
+            AppendConsoleLine(T(
+                $"[system] 恢复后台服务器状态失败：{ex.Message}",
+                $"[system] Failed to restore background server status: {ex.Message}"));
+        }
+
         await StartConfiguredConnectionServicesAsync(preferences);
     }
 
@@ -590,22 +608,36 @@ public partial class LauncherMainWindow : Window
                 return;
             }
 
+            var profilesToStart = new List<InstanceProfile>();
+            foreach (var profileId in profileIds)
+            {
+                var profile = _profileService.GetProfileById(profileId.Trim());
+                if (profile is null)
+                    continue;
+
+                try
+                {
+                    using var recoveryCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                    var status = await _serverProcessService.RefreshStatusAsync(profile.Id, recoveryCts.Token);
+                    if (!status.IsRunning)
+                        profilesToStart.Add(profile);
+                }
+                catch (OperationCanceledException)
+                {
+                    AppendConsoleLine(T(
+                        $"[system] 恢复服务器 {profile.Name} 状态超时，已跳过自启动以避免重复进程。",
+                        $"[system] Timed out restoring server {profile.Name}; auto-start was skipped to avoid a duplicate process."));
+                }
+            }
+
+            if (profilesToStart.Count == 0)
+                return;
+
             SetLaunchOperationBusy(T("启动中...", "Starting..."));
             try
             {
-                foreach (var profileId in profileIds)
+                foreach (var profile in profilesToStart)
                 {
-                    var profile = _profileService.GetProfileById(profileId.Trim());
-                    if (profile is null)
-                    {
-                        continue;
-                    }
-
-                    if (_serverProcessService.GetCurrentStatus(profile.Id).IsRunning)
-                    {
-                        continue;
-                    }
-
                     var savePath = NormalizeFullPath(profile.ActiveSaveFile);
 
                     var reloadedProfile = await EnsureLaunchableProfileSaveAsync(profile, savePath);

@@ -1,4 +1,5 @@
 using System.IO.Pipes;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
@@ -12,6 +13,28 @@ internal static class ServerRelayClient
     {
         return SendAsync(
             pipeName,
+            new ServerRelayRequest { Type = ServerRelayProtocol.RequestTypePing },
+            TimeSpan.FromSeconds(2),
+            cancellationToken);
+    }
+
+    public static Task<ServerRelayResponse> DiscoverAsync(
+        string pipeName,
+        CancellationToken cancellationToken = default)
+    {
+        return SendAsync(
+            pipeName,
+            new ServerRelayRequest { Type = ServerRelayProtocol.RequestTypeDiscover },
+            TimeSpan.FromMilliseconds(500),
+            cancellationToken);
+    }
+
+    public static Task<ServerRelayResponse> PingAsync(
+        ServerRelayState state,
+        CancellationToken cancellationToken = default)
+    {
+        return SendAuthenticatedAsync(
+            state,
             new ServerRelayRequest { Type = ServerRelayProtocol.RequestTypePing },
             TimeSpan.FromSeconds(2),
             cancellationToken);
@@ -31,6 +54,58 @@ internal static class ServerRelayClient
             },
             TimeSpan.FromSeconds(5),
             cancellationToken);
+    }
+
+    public static Task<ServerRelayResponse> SendCommandAsync(
+        ServerRelayState state,
+        string command,
+        CancellationToken cancellationToken = default)
+    {
+        return SendAuthenticatedAsync(
+            state,
+            new ServerRelayRequest
+            {
+                Type = ServerRelayProtocol.RequestTypeCommand,
+                Command = command
+            },
+            TimeSpan.FromSeconds(5),
+            cancellationToken);
+    }
+
+    private static async Task<ServerRelayResponse> SendAuthenticatedAsync(
+        ServerRelayState state,
+        ServerRelayRequest request,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        request.InstanceId = state.InstanceId;
+        request.ControlToken = state.ControlToken;
+        var response = await SendAsync(state.PipeName, request, timeout, cancellationToken)
+            .ConfigureAwait(false);
+        if (!response.Success || state.SchemaVersion < ServerRelayProtocol.CurrentSchemaVersion)
+        {
+            return response;
+        }
+
+        if (response.State is null ||
+            !string.Equals(response.State.InstanceId, state.InstanceId, StringComparison.Ordinal) ||
+            !FixedTimeEquals(response.State.ControlToken, state.ControlToken))
+        {
+            return new ServerRelayResponse
+            {
+                Success = false,
+                Error = "Relay response identity did not match the expected instance."
+            };
+        }
+
+        return response;
+    }
+
+    private static bool FixedTimeEquals(string left, string right)
+    {
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(left),
+            Encoding.UTF8.GetBytes(right));
     }
 
     private static async Task<ServerRelayResponse> SendAsync(
@@ -75,6 +150,10 @@ internal static class ServerRelayClient
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             return new ServerRelayResponse { Success = false, Error = "Relay request timed out." };
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {

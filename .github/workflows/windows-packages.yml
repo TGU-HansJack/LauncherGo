@@ -180,12 +180,14 @@ jobs:
         shell: pwsh
         run: |
           $requiredPaths = @(
+            "artifacts/publish/win-x64/LauncherGo.ServerHost.exe",
             "artifacts/publish/win-x64/EmbeddedMods/launchergoauth/serverauth.dll",
             "artifacts/publish/win-x64/EmbeddedMods/launchergoauth/modinfo.json",
             "artifacts/publish/win-x64/EmbeddedMods/launchergoauth/README.txt",
             "artifacts/publish/portable/EmbeddedMods/launchergoauth/serverauth.dll",
             "artifacts/publish/portable/EmbeddedMods/launchergoauth/modinfo.json",
-            "artifacts/publish/portable/EmbeddedMods/launchergoauth/README.txt"
+            "artifacts/publish/portable/EmbeddedMods/launchergoauth/README.txt",
+            "artifacts/publish/portable/LauncherGo.ServerHost.exe"
           )
 
           foreach ($path in $requiredPaths) {

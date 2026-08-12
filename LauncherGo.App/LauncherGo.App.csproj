@@ -8,6 +8,10 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <BaseOutputPath>bin\watch\</BaseOutputPath>
+  </PropertyGroup>
+
   <ItemGroup>
     <AvaloniaResource Include="Assets\**\*" />
     <Content Include="..\docs\launchergo-introduction.html" Link="launchergo-introduction.html" CopyToOutputDirectory="PreserveNewest" />
@@ -32,6 +36,8 @@
     <ProjectReference Include="..\LauncherGo.Abstractions\LauncherGo.Abstractions.csproj" />
     <ProjectReference Include="..\LauncherGo.Domains\LauncherGo.Domains.csproj" />
     <ProjectReference Include="..\LauncherGo.Services\LauncherGo.Services.csproj" />
+    <ProjectReference Include="..\LauncherGo.ServerHost\LauncherGo.ServerHost.csproj"
+                      ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\LauncherGo.Ui\LauncherGo.Ui.csproj" />
   </ItemGroup>
 
@@ -43,5 +49,46 @@
     </ItemGroup>
 
     <Delete Files="@(_PublishSymbols)" />
+  </Target>
+
+  <Target Name="CopyServerHostBuildOutput"
+          AfterTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <_ServerHostBuildDir>$(MSBuildProjectDirectory)\..\LauncherGo.ServerHost\bin\$(Configuration)\net10.0\</_ServerHostBuildDir>
+      <_ServerHostBuildDir Condition="'$(RuntimeIdentifier)' != ''">$(_ServerHostBuildDir)$(RuntimeIdentifier)\</_ServerHostBuildDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_ServerHostBuildFile Include="$(_ServerHostBuildDir)LauncherGo.ServerHost.exe" />
+      <_ServerHostBuildFile Include="$(_ServerHostBuildDir)LauncherGo.ServerHost.dll" />
+      <_ServerHostBuildFile Include="$(_ServerHostBuildDir)LauncherGo.ServerHost.deps.json" />
+      <_ServerHostBuildFile Include="$(_ServerHostBuildDir)LauncherGo.ServerHost.runtimeconfig.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_ServerHostBuildFile)"
+          DestinationFolder="$(TargetDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="PublishServerHost"
+          AfterTargets="Publish"
+          Condition="'$(RuntimeIdentifier)' != ''">
+    <PropertyGroup>
+      <_ServerHostProject>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\LauncherGo.ServerHost\LauncherGo.ServerHost.csproj'))</_ServerHostProject>
+      <_ServerHostPublishDir>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)serverhost-publish'))\</_ServerHostPublishDir>
+    </PropertyGroup>
+
+    <RemoveDir Directories="$(_ServerHostPublishDir)" />
+    <MSBuild Projects="$(_ServerHostProject)"
+             Targets="Publish"
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);PublishSingleFile=true;IncludeNativeLibrariesForSelfExtract=true;DebugType=None;DebugSymbols=false;PublishDir=$(_ServerHostPublishDir)" />
+    <Copy SourceFiles="$(_ServerHostPublishDir)LauncherGo.ServerHost.exe"
+          DestinationFiles="$(PublishDir)LauncherGo.ServerHost.exe" />
+    <ItemGroup>
+      <_ServerHostCompanion Include="$(PublishDir)LauncherGo.ServerHost.dll" />
+      <_ServerHostCompanion Include="$(PublishDir)LauncherGo.ServerHost.deps.json" />
+      <_ServerHostCompanion Include="$(PublishDir)LauncherGo.ServerHost.runtimeconfig.json" />
+      <_ServerHostCompanion Include="$(PublishDir)LauncherGo.ServerHost.pdb" />
+    </ItemGroup>
+    <Delete Files="@(_ServerHostCompanion)" />
   </Target>
 </Project>

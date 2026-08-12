@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO.Pipes;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
@@ -24,11 +25,45 @@ public static class ServerProcessRelay
     public static async Task<int> RunAsync(string[] args, CancellationToken cancellationToken = default)
     {
         var options = RelayOptions.Parse(args);
-        Directory.CreateDirectory(Path.GetDirectoryName(options.StatePath)!);
+        using var instanceSemaphore = new Semaphore(1, 1, $"Local\\{options.PipeName}");
+        var ownsInstanceSemaphore = false;
+        try
+        {
+            ownsInstanceSemaphore = instanceSemaphore.WaitOne(0);
+            if (!ownsInstanceSemaphore)
+                throw new InvalidOperationException($"A ServerHost is already running for profile '{options.ProfileId}'.");
+
+            return await RunOwnedAsync(options, cancellationToken);
+        }
+        finally
+        {
+            if (ownsInstanceSemaphore)
+                instanceSemaphore.Release();
+        }
+    }
+
+    private static async Task<int> RunOwnedAsync(
+        RelayOptions options,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(options.StatePath)!);
+        }
+        catch
+        {
+            // The state file is only a discovery cache; the live pipe is authoritative.
+        }
+
         var state = new ServerRelayState
         {
+            SchemaVersion = ServerRelayProtocol.CurrentSchemaVersion,
+            InstanceId = options.InstanceId,
+            ControlToken = options.ControlToken,
             PipeName = options.PipeName,
             RelayProcessId = Environment.ProcessId,
+            RelayStartedAtUtc = GetCurrentProcessStartedAtUtc(),
+            HostExecutablePath = Environment.ProcessPath ?? string.Empty,
             ProfileId = options.ProfileId,
             ProfileName = options.ProfileName,
             Version = options.Version,
@@ -48,6 +83,7 @@ public static class ServerProcessRelay
         var lastExitCode = 0;
         DateTimeOffset? currentProcessStartedAt = null;
         Task? pipeTask = null;
+        using var lifetimeGuard = new ServerProcessLifetimeGuard();
 
         Process? GetCurrentProcess()
         {
@@ -77,6 +113,17 @@ public static class ServerProcessRelay
             while (!relayCts.IsCancellationRequested && Volatile.Read(ref stopRequested) == 0)
             {
                 var process = StartServerProcess(options);
+                try
+                {
+                    lifetimeGuard.Add(process);
+                }
+                catch
+                {
+                    TryKillProcess(process);
+                    process.Dispose();
+                    throw;
+                }
+
                 lock (processGate)
                 {
                     currentProcess = process;
@@ -85,14 +132,11 @@ public static class ServerProcessRelay
 
                 currentProcessStartedAt = DateTimeOffset.UtcNow;
                 state.ServerProcessId = process.Id;
+                state.ServerProcessStartedAtUtc = TryGetProcessStartedAtUtc(process) ?? currentProcessStartedAt;
                 state.IsRestarting = false;
                 state.LastError = null;
                 state.StartedAtUtc = currentProcessStartedAt.Value;
-                if (!PersistState())
-                {
-                    TryKillProcess(process);
-                    throw new IOException("Failed to write server relay state file.");
-                }
+                PersistState();
 
                 pipeTask ??= RunPipeLoopAsync(
                     options.PipeName,
@@ -142,6 +186,7 @@ public static class ServerProcessRelay
                 }
 
                 state.ServerProcessId = null;
+                state.ServerProcessStartedAtUtc = null;
                 state.LastExitCode = lastExitCode;
                 state.UpdatedAtUtc = DateTimeOffset.UtcNow;
                 PersistState();
@@ -193,7 +238,7 @@ public static class ServerProcessRelay
             var liveProcess = GetCurrentProcess();
             if (liveProcess is not null)
             {
-                TryKillProcess(liveProcess);
+                TryKillProcessAndWait(liveProcess);
             }
 
             if (pipeTask is not null)
@@ -208,6 +253,8 @@ public static class ServerProcessRelay
                 }
             }
 
+            var allServerProcessesTerminated = processes.All(IsProcessTerminated);
+
             foreach (var process in processes.Distinct())
             {
                 try
@@ -219,6 +266,9 @@ public static class ServerProcessRelay
                     // Best-effort disposal only.
                 }
             }
+
+            if (allServerProcessesTerminated)
+                lifetimeGuard.CompleteNormalShutdown();
 
             TryDeleteState(options.StatePath);
         }
@@ -286,7 +336,7 @@ public static class ServerProcessRelay
                     PipeDirection.InOut,
                     1,
                     PipeTransmissionMode.Byte,
-                    PipeOptions.Asynchronous);
+                    PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
                 await pipe.WaitForConnectionAsync(cancellationToken);
                 await HandleClientAsync(
                     pipe,
@@ -419,6 +469,34 @@ public static class ServerProcessRelay
         state.UpdatedAtUtc = DateTimeOffset.UtcNow;
         state.ServerProcessId = getProcessId();
         TryInvokeStateChanged(stateChanged);
+
+        if (request.Type.Equals(ServerRelayProtocol.RequestTypeDiscover, StringComparison.OrdinalIgnoreCase))
+        {
+            await TryWriteResponseAsync(
+                pipe,
+                new ServerRelayResponse
+                {
+                    Success = true,
+                    State = state
+                },
+                timeouts.ResponseWrite,
+                relayCancellationToken);
+            return;
+        }
+
+        if (!IsAuthorizedRequest(request, state))
+        {
+            await TryWriteResponseAsync(
+                pipe,
+                new ServerRelayResponse
+                {
+                    Success = false,
+                    Error = "Relay instance authentication failed."
+                },
+                timeouts.ResponseWrite,
+                relayCancellationToken);
+            return;
+        }
 
         if (request.Type.Equals(ServerRelayProtocol.RequestTypePing, StringComparison.OrdinalIgnoreCase) ||
             request.Type.Equals(ServerRelayProtocol.RequestTypeStatus, StringComparison.OrdinalIgnoreCase))
@@ -630,6 +708,43 @@ public static class ServerProcessRelay
         }
     }
 
+    private static bool IsAuthorizedRequest(ServerRelayRequest request, ServerRelayState state)
+    {
+        if (state.SchemaVersion < ServerRelayProtocol.CurrentSchemaVersion)
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(state.InstanceId) ||
+            string.IsNullOrWhiteSpace(state.ControlToken))
+        {
+            return false;
+        }
+
+        return string.Equals(request.InstanceId, state.InstanceId, StringComparison.Ordinal) &&
+               CryptographicOperations.FixedTimeEquals(
+                   Encoding.UTF8.GetBytes(request.ControlToken),
+                   Encoding.UTF8.GetBytes(state.ControlToken));
+    }
+
+    private static DateTimeOffset GetCurrentProcessStartedAtUtc()
+    {
+        using var process = Process.GetCurrentProcess();
+        return TryGetProcessStartedAtUtc(process) ?? DateTimeOffset.UtcNow;
+    }
+
+    private static DateTimeOffset? TryGetProcessStartedAtUtc(Process process)
+    {
+        try
+        {
+            return new DateTimeOffset(process.StartTime.ToUniversalTime(), TimeSpan.Zero);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private static void TryDeleteState(string statePath)
     {
         try
@@ -719,6 +834,10 @@ public static class ServerProcessRelay
 
         public bool RestartOnCrash { get; private init; }
 
+        public string InstanceId { get; private init; } = string.Empty;
+
+        public string ControlToken { get; private init; } = string.Empty;
+
         public static RelayOptions Parse(string[] args)
         {
             var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -744,7 +863,9 @@ public static class ServerProcessRelay
                 ProfileId = Require(values, "--profile-id"),
                 ProfileName = values.GetValueOrDefault("--profile-name") ?? string.Empty,
                 Version = values.GetValueOrDefault("--version") ?? string.Empty,
-                RestartOnCrash = ParseBoolean(values.GetValueOrDefault("--restart-on-crash"))
+                RestartOnCrash = ParseBoolean(values.GetValueOrDefault("--restart-on-crash")),
+                InstanceId = Require(values, "--instance-id"),
+                ControlToken = Require(values, "--control-token")
             };
 
             if (!File.Exists(options.ServerExecutablePath))
@@ -764,6 +885,19 @@ public static class ServerProcessRelay
         private static bool ParseBoolean(string? value)
         {
             return bool.TryParse(value, out var parsed) && parsed;
+        }
+    }
+
+    private static void TryKillProcessAndWait(Process process)
+    {
+        TryKillProcess(process);
+        try
+        {
+            process.WaitForExit(5000);
+        }
+        catch
+        {
+            // Closing the job handle remains the final cleanup boundary.
         }
     }
 

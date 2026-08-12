@@ -177,6 +177,7 @@ jobs:
             "artifacts/publish/small-package/LauncherGo.App.exe",
             "artifacts/publish/small-package/LauncherGo.App.deps.json",
             "artifacts/publish/small-package/LauncherGo.App.runtimeconfig.json",
+            "artifacts/publish/small-package/LauncherGo.ServerHost.exe",
             "artifacts/publish/small-package/coreclr.dll",
             "artifacts/publish/small-package/hostfxr.dll",
             "artifacts/publish/small-package/hostpolicy.dll",

@@ -73,6 +73,7 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 | Path | Description |
 | --- | --- |
 | `LauncherGo.App` | Avalonia application entry point, host, theme, and global resources |
+| `LauncherGo.ServerHost` | Independent server process host, recoverable control channel, and crash cleanup |
 | `LauncherGo.Ui` | Main window, guide window, UI resources, platform window effects, and interface logic |
 | `LauncherGo.Services` | Server downloads, profiles, saves, process control, logs, automation, FRP, OpenServerQuery, QQ bot, and authentication services |
 | `LauncherGo.Abstractions` | Service interfaces and cross-layer abstractions |

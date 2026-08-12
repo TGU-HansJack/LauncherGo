@@ -3,6 +3,7 @@
   <Project Path="LauncherGo.App/LauncherGo.App.csproj" />
   <Project Path="LauncherGo.Domains/LauncherGo.Domains.csproj" />
   <Project Path="LauncherGo.Services/LauncherGo.Services.csproj" />
+  <Project Path="LauncherGo.ServerHost/LauncherGo.ServerHost.csproj" />
   <Project Path="LauncherGo.Tests/LauncherGo.Tests.csproj" />
   <Project Path="LauncherGo.Ui/LauncherGo.Ui.csproj" />
 </Solution>
