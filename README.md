@@ -1,6 +1,22 @@
 # LauncherGo
 
 <p align="center">
+  <strong>简体中文</strong> |
+  <a href="./README_en.md">English</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/vscn-studio/LauncherGo/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/vscn-studio/LauncherGo?include_prereleases&amp;sort=semver"></a>
+  <a href="https://github.com/vscn-studio/LauncherGo/releases"><img alt="Total Downloads" src="https://img.shields.io/github/downloads/vscn-studio/LauncherGo/total?logo=github&amp;label=downloads"></a>
+  <a href="https://github.com/vscn-studio/LauncherGo/stargazers"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/vscn-studio/LauncherGo?logo=github&amp;style=flat"></a>
+  <a href="https://github.com/vscn-studio/LauncherGo/actions/workflows/windows-packages.yml"><img alt="Windows Build" src="https://github.com/vscn-studio/LauncherGo/actions/workflows/windows-packages.yml/badge.svg?branch=2.0.0"></a>
+  <a href="https://github.com/vscn-studio/LauncherGo/actions/workflows/windows-packages.yml"><img alt="Windows Build Count" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fvscn-studio%2FLauncherGo%2Factions%2Fworkflows%2Fwindows-packages.yml%2Fruns%3Fper_page%3D1&amp;query=%24.total_count&amp;label=builds&amp;logo=githubactions"></a>
+  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/github/license/vscn-studio/LauncherGo"></a>
+  <img alt=".NET 10" src="https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&amp;logoColor=white">
+  <img alt="Avalonia 12" src="https://img.shields.io/badge/Avalonia-12.0.1-8B44AC">
+</p>
+
+<p align="center">
   <strong>Vintage Story 第二代服务器启动器</strong><br/>
   <span>由微尘工作室（Vintage Story CN Studio, VSCN）开发与维护</span>
 </p>
@@ -37,8 +53,9 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | 模组管理 | 模组扫描、启用与禁用、依赖与问题展示、文件状态展示 |
 | 下载版本 | 服务端版本列表、搜索、下载、导入服务端压缩包、下载缓存清理 |
 | 连接功能 | 常规内网穿透、第三方 FRPC、OpenServerQuery 开放信息、QQ 机器人、ServerAuth 密码、Discourse SSO 与 OAuth2/OIDC 认证配置 |
-| 设置 | 服务器设置、外观、网络、高级、关于、赞助者、贡献者 |
-| 日志 | 软件日志文件、控制台日志、自动化运行日志、服务端日志导出 |
+| 设置 | 服务器设置、外观、网络、高级、关于、赞助者、贡献者，以及 GitHub 代理和 LauncherGo 自动或手动更新检查 |
+| LauncherGo 更新 | 支持完整安装版、精简安装版、单文件便携版和 Small 目录版，包含安装方式识别、SHA-256 校验和 Markdown 更新日志 |
+| 日志 | 软件日志文件、控制台日志、自动化运行日志、服务端日志导出，以及直接打开每个档案的 `Logs` 文件夹 |
 | 国际化 | 中英文资源与运行时语言切换 |
 | 发布 | Windows 打包、框架依赖小体积分发、预发布、正式发布、嵌入 ServerAuth 模组构建 |
 | 赞助者数据 | 通过 `https://vscn.studio/api/afdian/sponsors` 获取，客户端不保存爱发电 USERID 或 Token |

@@ -1,6 +1,22 @@
 # LauncherGo
 
 <p align="center">
+  <a href="./README.md">简体中文</a> |
+  <strong>English</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/vscn-studio/LauncherGo/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/vscn-studio/LauncherGo?include_prereleases&amp;sort=semver"></a>
+  <a href="https://github.com/vscn-studio/LauncherGo/releases"><img alt="Total Downloads" src="https://img.shields.io/github/downloads/vscn-studio/LauncherGo/total?logo=github&amp;label=downloads"></a>
+  <a href="https://github.com/vscn-studio/LauncherGo/stargazers"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/vscn-studio/LauncherGo?logo=github&amp;style=flat"></a>
+  <a href="https://github.com/vscn-studio/LauncherGo/actions/workflows/windows-packages.yml"><img alt="Windows Build" src="https://github.com/vscn-studio/LauncherGo/actions/workflows/windows-packages.yml/badge.svg?branch=2.0.0"></a>
+  <a href="https://github.com/vscn-studio/LauncherGo/actions/workflows/windows-packages.yml"><img alt="Windows Build Count" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fvscn-studio%2FLauncherGo%2Factions%2Fworkflows%2Fwindows-packages.yml%2Fruns%3Fper_page%3D1&amp;query=%24.total_count&amp;label=builds&amp;logo=githubactions"></a>
+  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/github/license/vscn-studio/LauncherGo"></a>
+  <img alt=".NET 10" src="https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&amp;logoColor=white">
+  <img alt="Avalonia 12" src="https://img.shields.io/badge/Avalonia-12.0.1-8B44AC">
+</p>
+
+<p align="center">
   <strong>The second-generation Vintage Story server launcher</strong><br/>
   <span>Developed and maintained by Vintage Story CN Studio, also known as VSCN</span>
 </p>
@@ -13,7 +29,7 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 
 | Item | Current Status |
 | --- | --- |
-| Application version | The source tree does not hard-code a fixed product version. Windows packaging and Release publishing receive `Version` and `InformationalVersion` from `.github/workflows/windows-packages.yml`, `.github/workflows/publish-release.yml`, or `v*` tags |
+| Application version | Local development builds default to `2.5.5`; Windows packaging and Release publishing override `Version` and `InformationalVersion` through `.github/workflows/windows-packages.yml`, `.github/workflows/publish-release.yml`, or `v*` tags |
 | Product stage | Second-generation server launcher, under active development |
 | Target framework | `.NET net10.0` |
 | Desktop UI | `Avalonia 12.0.1` and `Semi.Avalonia 12.0.1` |
@@ -37,8 +53,9 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 | Mod management | Mod scanning, enable and disable operations, dependency display, issue display, and file status display |
 | Downloads | Server version list, search, download, server package import, and download cache cleanup |
 | Connections | Regular FRP, third-party FRPC, OpenServerQuery open information, QQ bot, and ServerAuth password, Discourse SSO, and OAuth2/OIDC configuration |
-| Settings | Server, appearance, network, advanced, about, sponsors, and contributors pages |
-| Logging | Application log files, console logs, automation runtime logs, and server log export |
+| Settings | Server, appearance, network, advanced, about, sponsors, and contributors pages; GitHub proxy selection and automatic or manual LauncherGo update checks |
+| Launcher updates | Installation-aware updates for the full installer, small installer, portable single-file build, and Small directory package, with SHA-256 verification and Markdown release notes |
+| Logging | Application log files, console logs, automation runtime logs, server log export, and direct access to each profile's `Logs` directory |
 | Internationalization | Chinese and English resources with runtime language switching |
 | Release | Windows packaging, framework-dependent small-package distribution, prerelease, official release, and embedded ServerAuth build |
 | Sponsor data | Fetched from `https://vscn.studio/api/afdian/sponsors`; the client does not store Afdian USERID or Token |
