@@ -88,6 +88,8 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
                 defaults.StratumServerDownloadCatalogUrl),
             EnableChunkedDownloads = source.EnableChunkedDownloads,
             DownloadChunkCount = Math.Clamp(source.DownloadChunkCount <= 0 ? defaults.DownloadChunkCount : source.DownloadChunkCount, 1, 32),
+            GitHubProxy = Enum.IsDefined(source.GitHubProxy) ? source.GitHubProxy : GitHubProxyKind.Direct,
+            AutoCheckUpdates = source.AutoCheckUpdates,
             DefaultLaunchProfileId = string.Join(';', defaultLaunchProfileIds),
             DefaultLaunchProfileIds = defaultLaunchProfileIds,
             DefaultLaunchSaveFile = NormalizeFilePathOrEmpty(source.DefaultLaunchSaveFile),

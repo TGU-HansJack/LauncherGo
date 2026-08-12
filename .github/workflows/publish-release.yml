@@ -8,7 +8,7 @@ on:
       version:
         description: "Version number (for example: 1.2.3)"
         required: true
-        default: "0.0.0"
+        default: "2.5.5"
         type: string
       channel:
         description: "Release type"
@@ -147,6 +147,60 @@ jobs:
           "title=$title" >> $env:GITHUB_OUTPUT
           "prerelease=$isPrerelease" >> $env:GITHUB_OUTPUT
 
+      - name: Prepare bilingual release notes
+        id: release_notes
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.meta.outputs.version }}
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+        run: |
+          $notesRoot = Join-Path $pwd "docs/releases"
+          $zhPath = Join-Path $notesRoot "v$env:RELEASE_VERSION.zh-CN.md"
+          $enPath = Join-Path $notesRoot "v$env:RELEASE_VERSION.en-US.md"
+
+          foreach ($path in @($zhPath, $enPath)) {
+            if (!(Test-Path -LiteralPath $path)) {
+              throw "Missing release notes file: $path"
+            }
+          }
+
+          $zhBody = (Get-Content -LiteralPath $zhPath -Raw).Trim()
+          $enBody = (Get-Content -LiteralPath $enPath -Raw).Trim()
+          if ([string]::IsNullOrWhiteSpace($zhBody) -or [string]::IsNullOrWhiteSpace($enBody)) {
+            throw "Release notes files must not be empty."
+          }
+
+          $previousTag = git tag --sort=-version:refname |
+            Where-Object { $_ -ne $env:RELEASE_TAG -and $_ -match '^v\d+(\.\d+){2}' } |
+            Select-Object -First 1
+          $compareLine = if ([string]::IsNullOrWhiteSpace($previousTag)) {
+            "Release tag: $env:RELEASE_TAG"
+          }
+          else {
+            "[Full Changelog: $previousTag...$env:RELEASE_TAG](https://github.com/$env:RELEASE_REPOSITORY/compare/$previousTag...$env:RELEASE_TAG)"
+          }
+
+          $outputPath = Join-Path $pwd "artifacts/release-notes.md"
+          New-Item -ItemType Directory -Force -Path (Split-Path -Parent $outputPath) | Out-Null
+          @(
+            "# LauncherGo $env:RELEASE_VERSION"
+            ""
+            "## 中文"
+            ""
+            $zhBody
+            ""
+            "## English"
+            ""
+            $enBody
+            ""
+            "---"
+            ""
+            $compareLine
+          ) -join [Environment]::NewLine | Set-Content -LiteralPath $outputPath -Encoding utf8NoBOM
+
+          "path=$outputPath" >> $env:GITHUB_OUTPUT
+
       - name: Restore
         run: dotnet restore LauncherGo.slnx
 
@@ -202,6 +256,10 @@ jobs:
               Copy-Item -LiteralPath (Join-Path $sourceRoot $fileName) -Destination (Join-Path $targetRoot $fileName) -Force
             }
           }
+
+          Set-Content -LiteralPath "artifacts/publish/win-x64/launchergo-package-kind.txt" -Value "Installer" -NoNewline
+          Set-Content -LiteralPath "artifacts/publish/portable/launchergo-package-kind.txt" -Value "Portable" -NoNewline
+          Set-Content -LiteralPath "artifacts/publish/small-package/launchergo-package-kind.txt" -Value "SmallPackage" -NoNewline
 
       - name: Verify embedded ServerAuth payload exists
         shell: pwsh
@@ -331,6 +389,7 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ steps.meta.outputs.version }}"
+          Set-Content -LiteralPath "artifacts/publish/small-package/launchergo-package-kind.txt" -Value "SmallInstaller" -NoNewline
           $buildDir = (Resolve-Path "artifacts/publish/small-package").Path
           $outputDir = (Resolve-Path "artifacts/installer").Path
           $outputBaseName = "LauncherGo-Small-Setup-$version-win-x64"
@@ -353,7 +412,8 @@ jobs:
           name: ${{ steps.meta.outputs.title }}
           target_commitish: ${{ github.sha }}
           prerelease: ${{ steps.meta.outputs.prerelease }}
-          generate_release_notes: true
+          generate_release_notes: false
+          body_path: ${{ steps.release_notes.outputs.path }}
           files: |
             artifacts/installer/*.exe
             artifacts/portable/LauncherGo-portable-${{ steps.meta.outputs.version }}-win-x64.zip

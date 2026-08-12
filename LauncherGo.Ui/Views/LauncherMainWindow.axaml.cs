@@ -104,7 +104,9 @@ public partial class LauncherMainWindow : Window
         ("消息", "Message"),
         ("命令", "Command"),
         ("日志路径", "Log path"),
+        ("日志文件夹", "Log folder"),
         ("查看日志", "View logs"),
+        ("打开文件夹", "Open folder"),
         ("定时备份", "Scheduled Backup"),
         ("日志导出", "Log Export"),
         ("定时广播", "Scheduled Broadcast"),
@@ -239,6 +241,7 @@ public partial class LauncherMainWindow : Window
     private readonly IInstanceModService _instanceModService;
     private readonly IServerAuthService _serverAuthService;
     private readonly IServerMapService _serverMapService;
+    private readonly ILauncherUpdateService _launcherUpdateService;
     private readonly ILogger<LauncherMainWindow> _logger;
     private readonly DispatcherTimer _dataTimer;
     private readonly DispatcherTimer _tickerTimer;
@@ -266,6 +269,7 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<ConfigWorldRuleItem> _configWorldRuleItems = [];
     private readonly ObservableCollection<ConfigChoiceOption> _thirdPartyFrpcModeOptions = [];
     private readonly ObservableCollection<ConfigChoiceOption> _saveCompressionUpdateModeOptions = [];
+    private readonly ObservableCollection<ConfigChoiceOption> _gitHubProxyOptions = [];
     private readonly ObservableCollection<SettingsContributorItem> _settingsContributorItems = [];
     private readonly ObservableCollection<SettingsSponsorItem> _settingsSponsorItems = [];
     private readonly ObservableCollection<InstanceProfile> _automationProfileItems = [];
@@ -337,6 +341,7 @@ public partial class LauncherMainWindow : Window
     private bool _isTogglingOsq;
     private bool _isTogglingRobot;
     private bool _isExitRequested;
+    private bool _isExitConfirmationOpen;
     private bool _isRefreshingAutomation;
     private bool _isRefreshingMods;
     private bool _isRefreshingAuth;
@@ -374,6 +379,7 @@ public partial class LauncherMainWindow : Window
             ServiceLocator.GetRequiredService<IInstanceModService>(),
             ServiceLocator.GetRequiredService<IServerAuthService>(),
             ServiceLocator.GetRequiredService<IServerMapService>(),
+            ServiceLocator.GetRequiredService<ILauncherUpdateService>(),
             ServiceLocator.GetRequiredService<ILogger<LauncherMainWindow>>())
     {
     }
@@ -396,6 +402,7 @@ public partial class LauncherMainWindow : Window
         IInstanceModService instanceModService,
         IServerAuthService serverAuthService,
         IServerMapService serverMapService,
+        ILauncherUpdateService launcherUpdateService,
         ILogger<LauncherMainWindow>? logger = null)
     {
         _preferencesService = preferencesService;
@@ -415,6 +422,7 @@ public partial class LauncherMainWindow : Window
         _instanceModService = instanceModService;
         _serverAuthService = serverAuthService;
         _serverMapService = serverMapService;
+        _launcherUpdateService = launcherUpdateService;
         _logger = logger ?? NullLogger<LauncherMainWindow>.Instance;
 
         InitializeComponent();
@@ -522,6 +530,10 @@ public partial class LauncherMainWindow : Window
         }
 
         await StartConfiguredConnectionServicesAsync(preferences);
+        if (preferences.AutoCheckUpdates)
+        {
+            _ = CheckLauncherUpdatesAsync(onlyShowWhenAvailable: true);
+        }
     }
 
     public void RequestExit()
@@ -532,15 +544,83 @@ public partial class LauncherMainWindow : Window
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
     {
-        var preferences = _preferencesService.Load();
-        if (!_isExitRequested &&
-            e.CloseReason is not WindowCloseReason.ApplicationShutdown and not WindowCloseReason.OSShutdown &&
-            preferences.CloseToTrayOnExit)
+        if (_isExitRequested || e.CloseReason is WindowCloseReason.ApplicationShutdown or WindowCloseReason.OSShutdown)
         {
-            e.Cancel = true;
-            ShowInTaskbar = false;
-            Hide();
+            return;
         }
+
+        var preferences = _preferencesService.Load();
+        e.Cancel = true;
+        if (preferences.CloseToTrayOnExit)
+        {
+            HideToTray();
+            return;
+        }
+
+        ScheduleExitConfirmation();
+    }
+
+    private void RequestWindowClose()
+    {
+        var preferences = _preferencesService.Load();
+        if (preferences.CloseToTrayOnExit)
+        {
+            HideToTray();
+            return;
+        }
+
+        ScheduleExitConfirmation();
+    }
+
+    private void ScheduleExitConfirmation()
+    {
+        if (_isExitConfirmationOpen)
+        {
+            return;
+        }
+
+        _isExitConfirmationOpen = true;
+        Dispatcher.UIThread.Post(async () => await ShowExitConfirmationAsync());
+    }
+
+    private async Task ShowExitConfirmationAsync()
+    {
+        try
+        {
+            var preferences = _preferencesService.Load();
+            var dialog = new LauncherExitConfirmationWindow(_isChinese, preferences.CloseToTrayOnExit);
+            var result = await dialog.ShowDialog<LauncherExitConfirmationResult?>(this);
+            if (result is null)
+            {
+                return;
+            }
+
+            if (preferences.CloseToTrayOnExit != result.CloseToTrayOnExit)
+            {
+                preferences.CloseToTrayOnExit = result.CloseToTrayOnExit;
+                _preferencesService.Save(preferences);
+                SettingsCloseToTrayCheckBox.IsChecked = result.CloseToTrayOnExit;
+            }
+
+            if (result.ExitApplication)
+            {
+                RequestExit();
+            }
+            else
+            {
+                HideToTray();
+            }
+        }
+        finally
+        {
+            _isExitConfirmationOpen = false;
+        }
+    }
+
+    private void HideToTray()
+    {
+        ShowInTaskbar = false;
+        Hide();
     }
 
     private async Task StartConfiguredConnectionServicesAsync(LauncherPreferences preferences)
@@ -727,6 +807,8 @@ public partial class LauncherMainWindow : Window
         ToolTip.SetTip(RepositoryButton, T("仓库", "Repository"));
         ToolTip.SetTip(FeedbackButton, T("反馈", "Feedback"));
         ToolTip.SetTip(SponsorButton, T("赞助", "Sponsor"));
+        ToolTip.SetTip(MinimizeButton, T("最小化", "Minimize"));
+        UpdateMaximizeButton();
         ToolTip.SetTip(CloseButton, T("关闭", "Close"));
         LaunchAddProfileComboBox.PlaceholderText = T("添加服务器", "Add server");
         SettingsServerSaveButton.Content = T("保存", "Save");
@@ -945,6 +1027,10 @@ public partial class LauncherMainWindow : Window
         SettingsStratumServerTextBox.IsVisible = ServerFeatureFlags.StratumServerSupportEnabled;
         SettingsDownloadChunkCountLabelTextBlock.Text = T("分片数量", "Chunk Count");
         SettingsChunkedDownloadLabelTextBlock.Text = T("大文件分片下载", "Chunked large-file downloads");
+        SettingsUpdateTitleTextBlock.Text = T("LauncherGo 更新", "LauncherGo Updates");
+        SettingsGitHubProxyLabelTextBlock.Text = T("GitHub 代理", "GitHub Proxy");
+        SettingsAutoCheckUpdatesLabelTextBlock.Text = T("启动时自动检查", "Check on startup");
+        SettingsCheckUpdatesButton.Content = T("检查最新版本", "Check latest version");
     }
 
     private void InitializeAdvancedSettingsStaticTexts()
@@ -3175,6 +3261,7 @@ public partial class LauncherMainWindow : Window
         SettingsStratumServerTextBox.LostFocus += OnNetworkSettingsAutoSaveChanged;
         SettingsDownloadChunkCountTextBox.LostFocus += OnNetworkSettingsAutoSaveChanged;
         SettingsChunkedDownloadToggleSwitch.IsCheckedChanged += OnNetworkSettingsAutoSaveChanged;
+        SettingsAutoCheckUpdatesToggleSwitch.IsCheckedChanged += OnNetworkSettingsAutoSaveChanged;
 
         ConnectionFrpCommandTextBox.LostFocus += OnFrpAutoSaveChanged;
         ConnectionThirdPartyFrpcCommandTextBox.LostFocus += OnFrpAutoSaveChanged;
@@ -3417,6 +3504,12 @@ public partial class LauncherMainWindow : Window
                 : preferences.StratumServerDownloadCatalogUrl;
             SettingsChunkedDownloadToggleSwitch.IsChecked = preferences.EnableChunkedDownloads;
             SettingsDownloadChunkCountTextBox.Text = Math.Clamp(preferences.DownloadChunkCount, 1, 32).ToString(CultureInfo.InvariantCulture);
+            EnsureGitHubProxyOptions();
+            SelectConfigChoiceByValue(SettingsGitHubProxyComboBox, _gitHubProxyOptions, preferences.GitHubProxy.ToString());
+            SettingsAutoCheckUpdatesToggleSwitch.IsChecked = preferences.AutoCheckUpdates;
+            SettingsUpdateStatusTextBlock.Text = T(
+                $"当前版本：{_launcherUpdateService.CurrentVersion} · {_launcherUpdateService.PackageKind}",
+                $"Current: {_launcherUpdateService.CurrentVersion} · {_launcherUpdateService.PackageKind}");
         }
         finally
         {
@@ -3431,6 +3524,8 @@ public partial class LauncherMainWindow : Window
         preferences.StratumServerDownloadCatalogUrl = SettingsStratumServerTextBox.Text?.Trim() ?? string.Empty;
         preferences.EnableChunkedDownloads = SettingsChunkedDownloadToggleSwitch.IsChecked == true;
         preferences.DownloadChunkCount = ParseClampedInt(SettingsDownloadChunkCountTextBox.Text, 4, 1, 32);
+        preferences.GitHubProxy = GetSelectedGitHubProxy();
+        preferences.AutoCheckUpdates = SettingsAutoCheckUpdatesToggleSwitch.IsChecked == true;
         _preferencesService.Save(preferences);
         _downloadCatalogLoaded = false;
 
@@ -5915,9 +6010,18 @@ public partial class LauncherMainWindow : Window
     private void OnToggleMaximizeClick(object? sender, RoutedEventArgs e)
     {
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        UpdateMaximizeButton();
     }
 
-    private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
+    private void UpdateMaximizeButton()
+    {
+        var isMaximized = WindowState == WindowState.Maximized;
+        MaximizeIconPath.IsVisible = !isMaximized;
+        RestoreIconCanvas.IsVisible = isMaximized;
+        ToolTip.SetTip(ToggleMaximizeButton, isMaximized ? T("还原", "Restore") : T("最大化", "Maximize"));
+    }
+
+    private void OnCloseClick(object? sender, RoutedEventArgs e) => RequestWindowClose();
 
     private void OnHomeNavClick(object? sender, RoutedEventArgs e) => SelectTab(MainTab.Monitor);
 
@@ -6193,6 +6297,66 @@ public partial class LauncherMainWindow : Window
         RefreshSidebarSelection();
     }
 
+    private void EnsureGitHubProxyOptions()
+    {
+        if (_gitHubProxyOptions.Count > 0)
+            return;
+        _gitHubProxyOptions.Add(new ConfigChoiceOption(GitHubProxyKind.Direct.ToString(), T("直连", "Direct")));
+        _gitHubProxyOptions.Add(new ConfigChoiceOption(GitHubProxyKind.GhProxy.ToString(), "gh-proxy.com"));
+        _gitHubProxyOptions.Add(new ConfigChoiceOption(GitHubProxyKind.GhProxyV6.ToString(), "v6.gh-proxy.com"));
+        _gitHubProxyOptions.Add(new ConfigChoiceOption(GitHubProxyKind.GhProxyHk.ToString(), "hk.gh-proxy.com"));
+        _gitHubProxyOptions.Add(new ConfigChoiceOption(GitHubProxyKind.GhProxyCdn.ToString(), "cdn.gh-proxy.com"));
+        _gitHubProxyOptions.Add(new ConfigChoiceOption(GitHubProxyKind.GhProxyEdgeOne.ToString(), "edgeone.gh-proxy.com"));
+        SettingsGitHubProxyComboBox.ItemsSource = _gitHubProxyOptions;
+    }
+
+    private GitHubProxyKind GetSelectedGitHubProxy()
+    {
+        var value = (SettingsGitHubProxyComboBox.SelectedItem as ConfigChoiceOption)?.Value;
+        return Enum.TryParse<GitHubProxyKind>(value, out var proxy) ? proxy : GitHubProxyKind.Direct;
+    }
+
+    private void OnGitHubProxySelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (!_isApplyingNetworkSettings)
+            SaveNetworkSettings(refreshEditor: false);
+    }
+
+    private async void OnSettingsCheckUpdatesClick(object? sender, RoutedEventArgs e) =>
+        await CheckLauncherUpdatesAsync(onlyShowWhenAvailable: false);
+
+    private async Task CheckLauncherUpdatesAsync(bool onlyShowWhenAvailable)
+    {
+        SettingsCheckUpdatesButton.IsEnabled = false;
+        SettingsUpdateStatusTextBlock.Text = T("正在检查更新...", "Checking for updates...");
+        try
+        {
+            var preferences = _preferencesService.Load();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var result = await _launcherUpdateService.CheckLatestAsync(preferences.GitHubProxy, cts.Token);
+            SettingsUpdateStatusTextBlock.Text = result.IsUpdateAvailable
+                ? T($"发现新版本 {result.LatestVersion}", $"Version {result.LatestVersion} is available")
+                : T($"当前已是最新版本 {result.CurrentVersion}", $"Up to date: {result.CurrentVersion}");
+            if (result.IsUpdateAvailable || !onlyShowWhenAvailable)
+            {
+                var window = new LauncherUpdateWindow(_launcherUpdateService, result, preferences.GitHubProxy, _isChinese);
+                await window.ShowDialog(this);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            SettingsUpdateStatusTextBlock.Text = T("检查更新超时。", "Update check timed out.");
+        }
+        catch (Exception ex)
+        {
+            SettingsUpdateStatusTextBlock.Text = T($"检查更新失败：{ex.Message}", $"Update check failed: {ex.Message}");
+        }
+        finally
+        {
+            SettingsCheckUpdatesButton.IsEnabled = true;
+        }
+    }
+
     private void OnLogsRefreshClick(object? sender, RoutedEventArgs e)
     {
         RefreshLogItems();
@@ -6205,27 +6369,23 @@ public partial class LauncherMainWindow : Window
             return;
         }
 
-        if (!Directory.Exists(item.LogPath))
+        if (!Directory.Exists(item.LogDirectoryPath))
         {
             ShowToast(T(
-                $"日志目录不存在：{item.LogPath}",
-                $"Log directory not found: {item.LogPath}"), ToastKind.Error);
+                $"日志文件夹不存在：{item.LogDirectoryPath}",
+                $"Log folder not found: {item.LogDirectoryPath}"), ToastKind.Error);
             return;
         }
 
         try
         {
-            var target = Directory
-                .EnumerateFiles(item.LogPath, "*.log", SearchOption.TopDirectoryOnly)
-                .OrderByDescending(File.GetLastWriteTimeUtc)
-                .FirstOrDefault() ?? item.LogPath;
-            OpenLocalFile(target);
+            OpenLocalFile(item.LogDirectoryPath);
         }
         catch (Exception ex)
         {
             ShowToast(T(
-                $"读取日志目录失败：{ex.Message}",
-                $"Failed to read log directory: {ex.Message}"), ToastKind.Error);
+                $"打开日志文件夹失败：{ex.Message}",
+                $"Failed to open log folder: {ex.Message}"), ToastKind.Error);
         }
     }
 
@@ -10017,7 +10177,7 @@ public partial class LauncherMainWindow : Window
 
         public required string ProfileName { get; init; }
 
-        public required string LogPath { get; init; }
+        public required string LogDirectoryPath { get; init; }
 
         public static ProfileLogListItem FromProfile(InstanceProfile profile)
         {
@@ -10025,7 +10185,7 @@ public partial class LauncherMainWindow : Window
             {
                 ProfileId = profile.Id,
                 ProfileName = string.IsNullOrWhiteSpace(profile.Name) ? profile.Id : profile.Name,
-                LogPath = Path.Combine(profile.DirectoryPath, "Logs")
+                LogDirectoryPath = Path.Combine(profile.DirectoryPath, "Logs")
             };
         }
     }

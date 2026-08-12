@@ -1,0 +1,55 @@
+<Window
+    x:Class="LauncherGo.Ui.Views.LauncherUpdateWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="LauncherGo Update"
+    Width="720"
+    Height="480"
+    MinWidth="620"
+    MinHeight="360"
+    SizeToContent="Manual"
+    Opened="OnOpened"
+    WindowStartupLocation="CenterOwner"
+    Icon="avares://LauncherGo.Ui/Assets/app-icon.ico">
+    <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="14">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <StackPanel Spacing="4">
+                <TextBlock x:Name="TitleTextBlock" FontSize="21" FontWeight="SemiBold" />
+                <TextBlock x:Name="VersionTextBlock" FontSize="13" Opacity="0.72" />
+            </StackPanel>
+            <Border Grid.Column="1" Padding="10,5" CornerRadius="4" BorderThickness="1" VerticalAlignment="Center">
+                <TextBlock x:Name="PackageKindTextBlock" FontSize="12" />
+            </Border>
+        </Grid>
+
+        <TextBlock x:Name="StatusTextBlock" Grid.Row="1" FontSize="13" Opacity="0.72" TextWrapping="Wrap" />
+
+        <Grid Grid.Row="2" RowDefinitions="Auto,*" RowSpacing="8" MinHeight="140">
+            <TextBlock x:Name="ReleaseNotesTitleTextBlock" FontSize="14" FontWeight="SemiBold" />
+            <ScrollViewer x:Name="ReleaseNotesScrollViewer"
+                          Grid.Row="1"
+                          Padding="12"
+                          HorizontalContentAlignment="Stretch"
+                          VerticalContentAlignment="Top"
+                          VerticalAlignment="Stretch"
+                          SizeChanged="OnReleaseNotesSizeChanged"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                <StackPanel x:Name="ReleaseNotesPanel"
+                            Spacing="4"
+                            HorizontalAlignment="Stretch" />
+            </ScrollViewer>
+        </Grid>
+
+        <Grid Grid.Row="3" RowDefinitions="Auto,Auto" RowSpacing="5">
+            <ProgressBar x:Name="DownloadProgressBar" Minimum="0" Maximum="100" Height="6" IsVisible="False" />
+            <TextBlock x:Name="ProgressTextBlock" Grid.Row="1" FontSize="12" Opacity="0.72" IsVisible="False" />
+        </Grid>
+
+        <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+            <Button x:Name="OpenReleaseButton" Click="OnOpenReleaseClick" />
+            <Button x:Name="CloseButton" Grid.Column="2" Click="OnCloseClick" />
+            <Button x:Name="UpdateButton" Grid.Column="3" Click="OnUpdateClick" />
+        </Grid>
+    </Grid>
+</Window>

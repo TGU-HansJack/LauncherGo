@@ -6,7 +6,7 @@ on:
       version:
         description: "Version number (for example: 1.2.3)"
         required: true
-        default: "0.0.0"
+        default: "2.5.5"
         type: string
       vintage_story_version:
         description: "Vintage Story server version used to build embedded ServerAuth mod"
@@ -175,6 +175,9 @@ jobs:
               Copy-Item -LiteralPath (Join-Path $sourceRoot $fileName) -Destination (Join-Path $targetRoot $fileName) -Force
             }
           }
+
+          Set-Content -LiteralPath "artifacts/publish/win-x64/launchergo-package-kind.txt" -Value "Installer" -NoNewline
+          Set-Content -LiteralPath "artifacts/publish/portable/launchergo-package-kind.txt" -Value "Portable" -NoNewline
 
       - name: Verify embedded ServerAuth payload exists
         shell: pwsh

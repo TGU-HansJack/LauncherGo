@@ -1,0 +1,53 @@
+<Window
+    x:Class="LauncherGo.Ui.Views.LauncherExitConfirmationWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Width="480"
+    SizeToContent="Height"
+    CanResize="False"
+    WindowStartupLocation="CenterOwner"
+    Icon="avares://LauncherGo.Ui/Assets/app-icon.ico">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="DialogSurfaceBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="DialogTextBrush" Color="#111111" />
+                    <SolidColorBrush x:Key="DialogSubTextBrush" Color="#64707D" />
+                    <SolidColorBrush x:Key="DialogBorderBrush" Color="#E3E7EC" />
+                    <SolidColorBrush x:Key="DialogPanelBrush" Color="#F7F8FA" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="DialogSurfaceBrush" Color="#191919" />
+                    <SolidColorBrush x:Key="DialogTextBrush" Color="#F5F5F5" />
+                    <SolidColorBrush x:Key="DialogSubTextBrush" Color="#B8C0C9" />
+                    <SolidColorBrush x:Key="DialogBorderBrush" Color="#3B4149" />
+                    <SolidColorBrush x:Key="DialogPanelBrush" Color="#232323" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid Margin="24" RowDefinitions="Auto,Auto,Auto" RowSpacing="20" Background="{DynamicResource DialogSurfaceBrush}">
+        <StackPanel Spacing="8">
+            <TextBlock x:Name="TitleTextBlock" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource DialogTextBrush}" />
+            <TextBlock x:Name="MessageTextBlock" FontSize="14" Foreground="{DynamicResource DialogSubTextBrush}" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Border Grid.Row="1" Padding="14,12" Background="{DynamicResource DialogPanelBrush}" BorderBrush="{DynamicResource DialogBorderBrush}" BorderThickness="1" CornerRadius="6">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                <StackPanel Spacing="3">
+                    <TextBlock x:Name="CloseToTrayLabelTextBlock" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource DialogTextBrush}" TextWrapping="Wrap" />
+                    <TextBlock x:Name="CloseToTrayHintTextBlock" FontSize="12" Foreground="{DynamicResource DialogSubTextBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+                <ToggleSwitch x:Name="CloseToTrayToggleSwitch" Grid.Column="1" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+            <Button x:Name="CancelButton" Grid.Column="1" MinWidth="76" Click="OnCancelClick" />
+            <Button x:Name="HideToTrayButton" Grid.Column="2" MinWidth="104" Click="OnHideToTrayClick" />
+            <Button x:Name="ExitButton" Grid.Column="3" MinWidth="76" Click="OnExitClick" />
+        </Grid>
+    </Grid>
+</Window>

@@ -35,6 +35,10 @@ public class LauncherPreferences
 
     public int DownloadChunkCount { get; set; } = 4;
 
+    public GitHubProxyKind GitHubProxy { get; set; } = GitHubProxyKind.Direct;
+
+    public bool AutoCheckUpdates { get; set; } = true;
+
     public string DefaultLaunchProfileId { get; set; } = string.Empty;
 
     public string DefaultLaunchSaveFile { get; set; } = string.Empty;

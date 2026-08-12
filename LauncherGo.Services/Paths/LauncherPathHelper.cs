@@ -1,4 +1,5 @@
 using System.Globalization;
+using LauncherGo.Domains.Enums;
 using LauncherGo.Domains.Models;
 
 namespace LauncherGo.Services.Paths;
@@ -65,6 +66,8 @@ public static class LauncherPathHelper
             StratumServerDownloadCatalogUrl = DefaultStratumServerDownloadCatalogUrl,
             EnableChunkedDownloads = false,
             DownloadChunkCount = 4,
+            GitHubProxy = GitHubProxyKind.Direct,
+            AutoCheckUpdates = true,
             DefaultLaunchProfileId = string.Empty,
             DefaultLaunchSaveFile = string.Empty,
             QuickCommands = [],

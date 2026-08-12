@@ -6,7 +6,7 @@ on:
       version:
         description: "Version number (for example: 1.2.3)"
         required: true
-        default: "0.0.0"
+        default: "2.5.5"
         type: string
       vintage_story_version:
         description: "Vintage Story server version used to build embedded ServerAuth mod"
@@ -170,6 +170,8 @@ jobs:
             Copy-Item -LiteralPath (Join-Path $sourceRoot $fileName) -Destination (Join-Path $targetRoot $fileName) -Force
           }
 
+          Set-Content -LiteralPath "artifacts/publish/small-package/launchergo-package-kind.txt" -Value "SmallPackage" -NoNewline
+
       - name: Verify small package publish output
         shell: pwsh
         run: |
@@ -226,6 +228,7 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ steps.resolve_version.outputs.value }}"
+          Set-Content -LiteralPath "artifacts/publish/small-package/launchergo-package-kind.txt" -Value "SmallInstaller" -NoNewline
           $buildDir = (Resolve-Path "artifacts/publish/small-package").Path
           $outputDir = (Resolve-Path "artifacts/small-package").Path
           $outputBaseName = "LauncherGo-Small-Setup-$version-win-x64"
