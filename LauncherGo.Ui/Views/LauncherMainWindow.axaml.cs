@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
@@ -342,6 +343,7 @@ public partial class LauncherMainWindow : Window
     private bool _isTogglingRobot;
     private bool _isExitRequested;
     private bool _isExitConfirmationOpen;
+    private bool _staticUiTranslationQueued;
     private bool _isRefreshingAutomation;
     private bool _isRefreshingMods;
     private bool _isRefreshingAuth;
@@ -524,9 +526,10 @@ public partial class LauncherMainWindow : Window
         }
         catch (Exception ex)
         {
+            var errorMessage = GetExceptionMessage(ex);
             AppendConsoleLine(T(
-                $"[system] 恢复后台服务器状态失败：{ex.Message}",
-                $"[system] Failed to restore background server status: {ex.Message}"));
+                $"[system] 恢复后台服务器状态失败：{errorMessage}",
+                $"[system] Failed to restore background server status: {errorMessage}"));
         }
 
         await StartConfiguredConnectionServicesAsync(preferences);
@@ -731,7 +734,8 @@ public partial class LauncherMainWindow : Window
         }
         catch (Exception ex)
         {
-            AppendConsoleLine(T($"[system] 自启动服务器失败：{ex.Message}", $"[system] Auto-start server failed: {ex.Message}"));
+            var errorMessage = GetExceptionMessage(ex);
+            AppendConsoleLine(T($"[system] 自启动服务器失败：{errorMessage}", $"[system] Auto-start server failed: {errorMessage}"));
         }
     }
 
@@ -846,6 +850,29 @@ public partial class LauncherMainWindow : Window
                     break;
             }
         }
+    }
+
+    private void RequestStaticUiTranslations()
+    {
+        // ItemsControl templates are realized after a tab becomes visible. Apply once
+        // immediately and once before the next render so their default text never lingers.
+        ApplyStaticUiTranslations();
+        QueueStaticUiTranslations();
+    }
+
+    private void QueueStaticUiTranslations()
+    {
+        if (_staticUiTranslationQueued)
+        {
+            return;
+        }
+
+        _staticUiTranslationQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _staticUiTranslationQueued = false;
+            ApplyStaticUiTranslations();
+        }, DispatcherPriority.Render);
     }
 
     private static bool IsStaticTextBlock(TextBlock textBlock)
@@ -1228,8 +1255,50 @@ public partial class LauncherMainWindow : Window
         SettingsAutoStartTargetsItemsControl.ItemsSource = _settingsAutoStartTargetItems;
         SettingsAutoStartAddProfileComboBox.ItemsSource = _settingsAutoStartAddProfileItems;
         ConsoleServerComboBox.ItemsSource = _consoleServerItems;
+        RegisterCollectionTranslationHandlers();
         RebuildConfigChoiceOptions();
         RebuildThirdPartyFrpcModeOptions();
+    }
+
+    private void RegisterCollectionTranslationHandlers()
+    {
+        INotifyCollectionChanged[] collections =
+        [
+            _profileItems,
+            _saveItems,
+            _downloadVersionItems,
+            _configWorldRuleItems,
+            _settingsContributorItems,
+            _settingsSponsorItems,
+            _automationConfigItems,
+            _automationActionWindowItems,
+            _automationBackupScheduleItems,
+            _automationBroadcastItems,
+            _automationCommandItems,
+            _automationExportTimeItems,
+            _logItems,
+            _modItems,
+            _authConfigItems,
+            _authPlayerItems,
+            _robotBindingItems,
+            _robotCustomCommandItems,
+            _openInfoConfigItems,
+            _dashboardServerItems,
+            _dashboardOnlinePlayerItems,
+            _dashboardUptimeItems,
+            _launchTargetItems,
+            _settingsAutoStartTargetItems
+        ];
+
+        foreach (var collection in collections)
+        {
+            collection.CollectionChanged += OnTranslatedCollectionChanged;
+        }
+    }
+
+    private void OnTranslatedCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        QueueStaticUiTranslations();
     }
 
     private static void FillWithZero(List<double> target, int count)
@@ -3049,6 +3118,7 @@ public partial class LauncherMainWindow : Window
         }
 
         ShowNonHomePanel(previousTab == MainTab.Home);
+        RequestStaticUiTranslations();
     }
 
     private void ShowNonHomePanel(bool animate)
@@ -3118,6 +3188,8 @@ public partial class LauncherMainWindow : Window
         {
             RefreshLogItems();
         }
+
+        RequestStaticUiTranslations();
     }
 
     private void SelectSettingsTab(SettingsTab tab)
@@ -3173,6 +3245,8 @@ public partial class LauncherMainWindow : Window
         {
             _ = RefreshContributorsAsync();
         }
+
+        RequestStaticUiTranslations();
     }
 
     private void SelectConnectionTab(ConnectionTab tab)
@@ -3201,6 +3275,8 @@ public partial class LauncherMainWindow : Window
             ShowAuthList();
             _ = RefreshAuthProfilesAsync();
         }
+
+        RequestStaticUiTranslations();
     }
 
     private void RefreshSidebarSelection()
@@ -5296,6 +5372,7 @@ public partial class LauncherMainWindow : Window
 
         _aboutIntroductionLoaded = false;
         InitializeStaticTexts();
+        RequestStaticUiTranslations();
         _ = RefreshSavesAsync();
         _ = RefreshDownloadVersionsAsync(forceReload: false);
         if (_selectedInstanceManageTab == InstanceManageTab.Mods)
@@ -5998,6 +6075,175 @@ public partial class LauncherMainWindow : Window
     }
 
     private string T(string zh, string en) => _isChinese ? zh : en;
+
+    private string GetExceptionMessage(Exception exception)
+    {
+        var message = exception.Message.Trim();
+        if (_isChinese || string.IsNullOrWhiteSpace(message))
+        {
+            return message;
+        }
+
+        var translated = TranslateExceptionMessage(message);
+        if (!translated.Equals(message, StringComparison.Ordinal) || !ContainsChineseText(translated))
+        {
+            return translated;
+        }
+
+        _logger.LogError(exception, "A user-facing exception did not have an English translation.");
+        return "The operation failed. Check the application log for details.";
+    }
+
+    private static string TranslateExceptionMessage(string message)
+    {
+        var exact = message switch
+        {
+            "档案名称不能为空。" => "Profile name is required.",
+            "请先选择服务端版本。" => "Select a server version first.",
+            "服务端版本不能为空。" => "Server version is required.",
+            "Stratum 服务端支持当前已关闭。" => "Stratum server support is currently disabled.",
+            "压缩包内未找到 VintagestoryServer.exe。" => "VintagestoryServer.exe was not found in the package.",
+            "无法识别服务端目录。" => "Unable to identify the server directory.",
+            "生成 serverconfig 超时。" => "Timed out while generating serverconfig.",
+            "服务端未生成 serverconfig.json。" => "The server did not generate serverconfig.json.",
+            "服务器已在运行中。" => "The server is already running.",
+            "ServerHost 正在运行，但控制通道尚未恢复，请稍后重试。" => "ServerHost is running, but its control channel has not recovered. Try again later.",
+            "检测到该档案的 ServerHost 已在运行，控制通道正在恢复，请稍后重试。" => "ServerHost for this profile is already running and its control channel is recovering. Try again later.",
+            "启动后台控制通道失败。" => "Failed to start the backend control channel.",
+            "后台控制通道不可用。" => "The backend control channel is unavailable.",
+            "ServerHost 控制通道暂时不可达，请稍后重试。" => "The ServerHost control channel is temporarily unavailable. Try again later.",
+            "服务器未运行。" => "The server is not running.",
+            "命令不能为空。" => "The command cannot be empty.",
+            "后台控制通道已启动，但未能打开服务端进程。" => "The backend control channel started, but could not open the server process.",
+            "后台控制通道返回的服务端进程身份不匹配。" => "The server process identity returned by the backend control channel does not match.",
+            "后台控制通道实例身份不匹配。" => "The backend control channel instance identity does not match.",
+            "等待后台控制通道就绪超时。" => "Timed out waiting for the backend control channel to become ready.",
+            "当前服务端进程不是由可恢复的 ServerHost 管理，无法安全发送命令。请停止该外部或旧版进程后重新启动。" => "The current server process is not managed by a recoverable ServerHost. Stop the external or old process, then start it again.",
+            "服务端正在自动重启，尚未在限定时间内恢复。Relay 会继续按重试策略处理，请稍后再查看状态。" => "The server is restarting and has not recovered within the time limit. Relay will keep retrying; check the status again later.",
+            "存档路径不能为空。" => "The save path cannot be empty.",
+            "无效存档路径。" => "The save path is invalid.",
+            "请选择档案目录。" => "Select a profile directory.",
+            "所选目录不是有效服务端档案目录，缺少 serverconfig.json。" => "The selected directory is not a valid server profile; serverconfig.json is missing.",
+            "档案 ID 不能为空。" => "The profile ID cannot be empty.",
+            "未找到要更新的档案。" => "The profile to update was not found.",
+            _ => string.Empty
+        };
+        if (!string.IsNullOrEmpty(exact))
+        {
+            return exact;
+        }
+
+        const string missingVersionPrefix = "未找到版本 ";
+        const string officialPackageSuffix = " 的官方服务端压缩包，请先下载或导入。";
+        if (message.StartsWith(missingVersionPrefix, StringComparison.Ordinal) && message.EndsWith(officialPackageSuffix, StringComparison.Ordinal))
+        {
+            var version = message[missingVersionPrefix.Length..^officialPackageSuffix.Length];
+            return $"The official server package for version {version} was not found. Download or import it first.";
+        }
+
+        const string stratumPackageSuffix = " 的 Stratum 压缩包，请先下载或导入。";
+        if (message.StartsWith(missingVersionPrefix, StringComparison.Ordinal) && message.EndsWith(stratumPackageSuffix, StringComparison.Ordinal))
+        {
+            var version = message[missingVersionPrefix.Length..^stratumPackageSuffix.Length];
+            return $"The Stratum package for version {version} was not found. Download or import it first.";
+        }
+
+        const string missingServerExecutablePrefix = "未找到服务端程序：";
+        if (message.StartsWith(missingServerExecutablePrefix, StringComparison.Ordinal))
+        {
+            return $"The server executable was not found: {message[missingServerExecutablePrefix.Length..]}";
+        }
+
+        const string missingServerHostPrefix = "未找到独立服务端控制程序 ";
+        const string missingServerHostSuffix = "，请重新安装或重新发布 LauncherGo。";
+        if (message.StartsWith(missingServerHostPrefix, StringComparison.Ordinal) && message.EndsWith(missingServerHostSuffix, StringComparison.Ordinal))
+        {
+            var programName = message[missingServerHostPrefix.Length..^missingServerHostSuffix.Length];
+            return $"The standalone server control program was not found: {programName}. Reinstall or republish LauncherGo.";
+        }
+
+        const string generateConfigFailedPrefix = "生成 serverconfig 失败，退出码 ";
+        if (message.StartsWith(generateConfigFailedPrefix, StringComparison.Ordinal))
+        {
+            var details = message[generateConfigFailedPrefix.Length..];
+            var separator = details.IndexOf('。');
+            if (separator >= 0)
+            {
+                var exitCode = details[..separator];
+                var stderr = details[(separator + 1)..].Trim();
+                return string.IsNullOrWhiteSpace(stderr) || ContainsChineseText(stderr)
+                    ? $"Failed to generate serverconfig (exit code {exitCode})."
+                    : $"Failed to generate serverconfig (exit code {exitCode}). {stderr}";
+            }
+        }
+
+        const string controlChannelExitedPrefix = "后台控制通道启动后已退出，退出码：";
+        if (message.StartsWith(controlChannelExitedPrefix, StringComparison.Ordinal))
+        {
+            return $"The backend control channel exited after startup (exit code {message[controlChannelExitedPrefix.Length..].TrimEnd('。')}).";
+        }
+
+        const string controlChannelTimeoutPrefix = "等待后台控制通道就绪超时：";
+        if (message.StartsWith(controlChannelTimeoutPrefix, StringComparison.Ordinal))
+        {
+            var details = TranslateExceptionMessage(message[controlChannelTimeoutPrefix.Length..]);
+            return ContainsChineseText(details)
+                ? "Timed out waiting for the backend control channel."
+                : $"Timed out waiting for the backend control channel: {details}";
+        }
+
+        const string externalProcessPrefix = "检测到该档案存在外部或旧版服务端进程（PID=";
+        const string externalProcessSuffix = "），无法恢复命令输入。请先停止该进程，再由 LauncherGo 重新启动。";
+        if (message.StartsWith(externalProcessPrefix, StringComparison.Ordinal) && message.EndsWith(externalProcessSuffix, StringComparison.Ordinal))
+        {
+            var processId = message[externalProcessPrefix.Length..^externalProcessSuffix.Length];
+            return $"An external or old server process was detected for this profile (PID={processId}), so command input cannot be recovered. Stop it, then start it again through LauncherGo.";
+        }
+
+        const string missingProfileDirectoryPrefix = "档案目录不存在：";
+        if (message.StartsWith(missingProfileDirectoryPrefix, StringComparison.Ordinal))
+        {
+            return $"The profile directory does not exist: {message[missingProfileDirectoryPrefix.Length..]}";
+        }
+
+        const string forceTerminateFailedPrefix = "强制终止服务器进程失败：";
+        if (message.StartsWith(forceTerminateFailedPrefix, StringComparison.Ordinal))
+        {
+            var details = TranslateExceptionMessage(message[forceTerminateFailedPrefix.Length..]);
+            return ContainsChineseText(details)
+                ? "Failed to force terminate the server process."
+                : $"Failed to force terminate the server process: {details}";
+        }
+
+        const string stopRestartingRelayFailedPrefix = "停止等待重启的后台 Relay 失败：";
+        if (message.StartsWith(stopRestartingRelayFailedPrefix, StringComparison.Ordinal))
+        {
+            var details = TranslateExceptionMessage(message[stopRestartingRelayFailedPrefix.Length..]);
+            return ContainsChineseText(details)
+                ? "Failed to stop the restarting backend Relay."
+                : $"Failed to stop the restarting backend Relay: {details}";
+        }
+
+        const string remainingProcessPrefix = "停服后仍检测到 ";
+        const string remainingProcessSuffix = " 个同档案服务端进程残留，请稍后重试。";
+        if (message.StartsWith(remainingProcessPrefix, StringComparison.Ordinal) && message.EndsWith(remainingProcessSuffix, StringComparison.Ordinal))
+        {
+            var count = message[remainingProcessPrefix.Length..^remainingProcessSuffix.Length];
+            return $"{count} server process(es) for the same profile are still running after stop. Try again later.";
+        }
+
+        const string wrongTrackedProfilePrefix = "当前控制器跟踪的进程不属于目标档案 ";
+        const string wrongTrackedProfileSuffix = "，已拒绝停止以避免误停其他服务器。";
+        if (message.StartsWith(wrongTrackedProfilePrefix, StringComparison.Ordinal) && message.EndsWith(wrongTrackedProfileSuffix, StringComparison.Ordinal))
+        {
+            var profileName = message[wrongTrackedProfilePrefix.Length..^wrongTrackedProfileSuffix.Length];
+            return $"The process tracked by the current controller does not belong to profile {profileName}. Stop was refused to avoid terminating another server.";
+        }
+
+        return message;
+    }
+
+    private static bool ContainsChineseText(string value) => value.Any(character => character is >= '\u4e00' and <= '\u9fff');
 
     private void OnRepositoryClick(object? sender, RoutedEventArgs e) => OpenUrl("https://github.com/vscn-studio/LauncherGo");
 
@@ -7601,7 +7847,8 @@ public partial class LauncherMainWindow : Window
         }
         catch (Exception ex)
         {
-            AppendConsoleLine(T($"[system] 启动/停止失败：{ex.Message}", $"[system] Start/stop failed: {ex.Message}"));
+            var errorMessage = GetExceptionMessage(ex);
+            AppendConsoleLine(T($"[system] 启动/停止失败：{errorMessage}", $"[system] Start/stop failed: {errorMessage}"));
         }
         finally
         {
@@ -7622,7 +7869,8 @@ public partial class LauncherMainWindow : Window
         }
         catch (Exception ex)
         {
-            AppendConsoleLine(T($"[system] 启动/停止失败：{ex.Message}", $"[system] Start/stop failed: {ex.Message}"));
+            var errorMessage = GetExceptionMessage(ex);
+            AppendConsoleLine(T($"[system] 启动/停止失败：{errorMessage}", $"[system] Start/stop failed: {errorMessage}"));
         }
         finally
         {
@@ -7656,7 +7904,8 @@ public partial class LauncherMainWindow : Window
         }
         catch (Exception ex)
         {
-            AppendConsoleLine(T($"[system] 启动/停止失败：{ex.Message}", $"[system] Start/stop failed: {ex.Message}"));
+            var errorMessage = GetExceptionMessage(ex);
+            AppendConsoleLine(T($"[system] 启动/停止失败：{errorMessage}", $"[system] Start/stop failed: {errorMessage}"));
         }
         finally
         {
@@ -7723,7 +7972,8 @@ public partial class LauncherMainWindow : Window
         }
         catch (Exception ex)
         {
-            AppendConsoleLine(T($"[system] 启动/停止失败：{ex.Message}", $"[system] Start/stop failed: {ex.Message}"));
+            var errorMessage = GetExceptionMessage(ex);
+            AppendConsoleLine(T($"[system] 启动/停止失败：{errorMessage}", $"[system] Start/stop failed: {errorMessage}"));
         }
         finally
         {
@@ -9434,7 +9684,8 @@ public partial class LauncherMainWindow : Window
         }
         catch (Exception ex)
         {
-            AppendConsoleLine(T($"[system] 创建档案失败：{ex.Message}", $"[system] Failed to create profile: {ex.Message}"));
+            var errorMessage = GetExceptionMessage(ex);
+            AppendConsoleLine(T($"[system] 创建档案失败：{errorMessage}", $"[system] Failed to create profile: {errorMessage}"));
         }
     }
 
