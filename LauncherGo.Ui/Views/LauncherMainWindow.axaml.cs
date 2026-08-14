@@ -285,6 +285,7 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<ModListItem> _modItems = [];
     private readonly ObservableCollection<InstanceProfile> _authProfileItems = [];
     private readonly ObservableCollection<ProfileConfigListItem> _authConfigItems = [];
+    private readonly List<AuthPlayerListItem> _authPlayerSourceItems = [];
     private readonly ObservableCollection<AuthPlayerListItem> _authPlayerItems = [];
     private readonly ObservableCollection<RobotProfileBindingItem> _robotBindingItems = [];
     private readonly ObservableCollection<RobotCustomCommandItem> _robotCustomCommandItems = [];
@@ -430,7 +431,8 @@ public partial class LauncherMainWindow : Window
         InitializeComponent();
         AddHandler(InputElement.PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
 
-        _isChinese = CultureInfo.CurrentUICulture.Name.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
+        var launcherPreferences = _preferencesService.Load();
+        _isChinese = launcherPreferences.Language.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
 
         _dataTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _dataTimer.Tick += OnDataTimerTick;
@@ -1088,8 +1090,8 @@ public partial class LauncherMainWindow : Window
         ConnectionFrpTabButton.Content = T("FRP", "FRP");
         ConnectionEasyTierTabButton.Content = T("EasyTier", "EasyTier");
         ConnectionOpenInfoTabButton.Content = T("开放API", "Open API");
-        ConnectionRobotTabButton.Content = T("机器人", "Robot");
-        ConnectionAuthTabButton.Content = T("安全", "Security");
+        ConnectionRobotTabButton.Content = "OneBot";
+        ConnectionAuthTabButton.Content = T("认证", "Authentication");
 
         ConnectionFrpImportButton.Content = T("导入frpc", "Import frpc");
         ConnectionThirdPartyFrpcImportButton.Content = T("导入第三方frpc", "Import third-party frpc");
@@ -1198,6 +1200,7 @@ public partial class LauncherMainWindow : Window
         AuthPlayersTitleTextBlock.Text = T("玩家认证数据", "Player Auth Data");
         AuthExternalAccountHeaderTextBlock.Text = T("外部账号", "External Account");
         AuthRefreshPlayersButton.Content = T("刷新玩家", "Refresh Players");
+        AuthPlayerSearchTextBox.PlaceholderText = T("搜索玩家名、UID 或外部账号", "Search player name, UID, or external account");
         RebuildThirdPartyFrpcModeOptions();
     }
 
@@ -2575,6 +2578,7 @@ public partial class LauncherMainWindow : Window
         _editingAuthProfileId = string.Empty;
         AuthListPanel.IsVisible = true;
         AuthEditorPanel.IsVisible = false;
+        AuthClearButton.IsVisible = true;
         AuthBackButton.IsVisible = false;
         AuthSaveButton.IsVisible = false;
         AuthDeployButton.IsVisible = false;
@@ -2586,6 +2590,7 @@ public partial class LauncherMainWindow : Window
         _editingAuthProfileId = profile.Id;
         AuthListPanel.IsVisible = false;
         AuthEditorPanel.IsVisible = true;
+        AuthClearButton.IsVisible = false;
         AuthBackButton.IsVisible = true;
         AuthSaveButton.IsVisible = true;
         AuthDeployButton.IsVisible = true;
@@ -2762,6 +2767,7 @@ public partial class LauncherMainWindow : Window
             AuthProfileComboBox.ItemsSource = _authProfileItems;
             if (_authProfileItems.Count == 0)
             {
+                _authPlayerSourceItems.Clear();
                 _authPlayerItems.Clear();
                 SetAuthStatus(T("暂无档案，请先创建档案。", "No profile found. Create a profile first."), notify: false);
                 return;
@@ -2862,10 +2868,25 @@ public partial class LauncherMainWindow : Window
     private async Task LoadAuthPlayersAsync(InstanceProfile profile)
     {
         var players = await _serverAuthService.GetPlayersAsync(profile);
+        _authPlayerSourceItems.Clear();
+        _authPlayerSourceItems.AddRange(players.Select(player => AuthPlayerListItem.FromModel(player, _isChinese)));
+        ApplyAuthPlayerSearch();
+    }
+
+    private void ApplyAuthPlayerSearch()
+    {
+        var keyword = AuthPlayerSearchTextBox.Text?.Trim() ?? string.Empty;
         _authPlayerItems.Clear();
-        foreach (var player in players)
+
+        foreach (var player in _authPlayerSourceItems)
         {
-            _authPlayerItems.Add(AuthPlayerListItem.FromModel(player, _isChinese));
+            if (string.IsNullOrWhiteSpace(keyword) ||
+                player.PlayerName.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                player.PlayerUid.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                player.ExternalUsername.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+            {
+                _authPlayerItems.Add(player);
+            }
         }
     }
 
@@ -6916,6 +6937,12 @@ public partial class LauncherMainWindow : Window
     private async void OnAutomationClearClick(object? sender, RoutedEventArgs e)
     {
         var selected = _automationConfigItems.Where(static item => item.IsSelected).ToList();
+        if (selected.Count == 0)
+        {
+            SetAutomationStatus(T("请先选择自动化配置。", "Select automation configurations first."));
+            return;
+        }
+
         foreach (var item in selected)
         {
             var profile = _profileService.GetProfileById(item.ProfileId);
@@ -7307,6 +7334,12 @@ public partial class LauncherMainWindow : Window
     private async void OnAuthClearClick(object? sender, RoutedEventArgs e)
     {
         var selected = _authConfigItems.Where(static item => item.IsSelected).ToList();
+        if (selected.Count == 0)
+        {
+            SetAuthStatus(T("请先选择认证配置。", "Select authentication configurations first."));
+            return;
+        }
+
         foreach (var item in selected)
         {
             var profile = _profileService.GetProfileById(item.ProfileId);
@@ -7355,6 +7388,11 @@ public partial class LauncherMainWindow : Window
         {
             await LoadAuthPlayersAsync(profile);
         }
+    }
+
+    private void OnAuthPlayerSearchTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        ApplyAuthPlayerSearch();
     }
 
     private async void OnAuthClearPlayerPasswordClick(object? sender, RoutedEventArgs e)
@@ -9728,6 +9766,7 @@ public partial class LauncherMainWindow : Window
             .ToArray() ?? [];
         if (selectedIds.Length == 0)
         {
+            ShowToast(T("请先选择档案。", "Select profiles first."));
             return;
         }
 
@@ -9805,6 +9844,7 @@ public partial class LauncherMainWindow : Window
             .ToArray() ?? [];
         if (selectedPaths.Length == 0)
         {
+            ShowToast(T("请先选择存档。", "Select saves first."));
             return;
         }
 

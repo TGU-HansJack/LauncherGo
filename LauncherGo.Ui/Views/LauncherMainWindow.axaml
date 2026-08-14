@@ -43,6 +43,9 @@
                     <SolidColorBrush x:Key="LaunchSelectionPillBrush" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="LaunchSelectionPillTextBrush" Color="#111111" />
                     <SolidColorBrush x:Key="ControlHoverBrush" Color="#ECEFF2" />
+                    <SolidColorBrush x:Key="DangerButtonTextBrush" Color="#B42318" />
+                    <SolidColorBrush x:Key="DangerButtonHoverBrush" Color="#FEE4E2" />
+                    <SolidColorBrush x:Key="DangerButtonPressedBrush" Color="#FECACA" />
                     <SolidColorBrush x:Key="HeaderIconBrush" Color="#000000" />
                     <SolidColorBrush x:Key="HeaderIconHoverBrush" Color="#000000" />
                     <SolidColorBrush x:Key="ToolTipBackgroundBrush" Color="#E5E7EB" />
@@ -87,6 +90,9 @@
                     <SolidColorBrush x:Key="LaunchSelectionPillBrush" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="LaunchSelectionPillTextBrush" Color="#111111" />
                     <SolidColorBrush x:Key="ControlHoverBrush" Color="#3C3C3C" />
+                    <SolidColorBrush x:Key="DangerButtonTextBrush" Color="#FFB4AB" />
+                    <SolidColorBrush x:Key="DangerButtonHoverBrush" Color="#4A1D1D" />
+                    <SolidColorBrush x:Key="DangerButtonPressedBrush" Color="#642020" />
                     <SolidColorBrush x:Key="HeaderIconBrush" Color="#F5F5F5" />
                     <SolidColorBrush x:Key="HeaderIconHoverBrush" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="ToolTipBackgroundBrush" Color="#000000" />
@@ -429,6 +435,23 @@
         </Style>
         <Style Selector="Button.SecondaryActionButton /template/ ContentPresenter">
             <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="Button.DangerButton">
+            <Setter Property="Foreground" Value="{DynamicResource DangerButtonTextBrush}" />
+        </Style>
+        <Style Selector="Button.DangerButton:pointerover">
+            <Setter Property="Background" Value="{DynamicResource DangerButtonHoverBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource DangerButtonTextBrush}" />
+        </Style>
+        <Style Selector="Button.DangerButton:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource DangerButtonHoverBrush}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.DangerButton:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource DangerButtonPressedBrush}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
         </Style>
         <Style Selector="Button.LaunchIconButton">
             <Setter Property="Width" Value="34" />
@@ -1118,13 +1141,13 @@
                                     <Button x:Name="SavesTabButton" Classes="SidebarNavButton" Content="存档" Click="OnSavesSubTabClick" />
                                     <Button x:Name="ModsTabButton" Classes="SidebarNavButton" Content="模组" Click="OnModsSubTabClick" />
                                     <Button x:Name="AutomationTabButton" Classes="SidebarNavButton" Content="自动化" Click="OnAutomationSubTabClick" />
-                                    <Button x:Name="ConnectionAuthTabButton" Classes="SidebarNavButton" Content="安全" Click="OnConnectionAuthTabClick" />
+                                    <Button x:Name="ConnectionAuthTabButton" Classes="SidebarNavButton" Content="认证" Click="OnConnectionAuthTabClick" />
                                     <Button x:Name="LogsNavButton" Classes="SidebarNavButton" Content="日志" Click="OnLogsNavClick" />
                                     <Button x:Name="DownloadVersionsNavButton" Classes="SidebarNavButton" Content="下载版本" Click="OnDownloadVersionsSubTabClick" />
 
                                     <TextBlock Classes="SidebarSectionTitle" Text="连接" />
                                     <Button x:Name="ConnectionOpenInfoTabButton" Classes="SidebarNavButton" Content="开放API" Click="OnConnectionOpenInfoTabClick" />
-                                    <Button x:Name="ConnectionRobotTabButton" Classes="SidebarNavButton" Content="机器人" Click="OnConnectionRobotTabClick" />
+                                    <Button x:Name="ConnectionRobotTabButton" Classes="SidebarNavButton" Content="OneBot" Click="OnConnectionRobotTabClick" />
                                     <Button x:Name="ConnectionFrpTabButton" Classes="SidebarNavButton" Content="FRP" Click="OnConnectionFrpTabClick" />
                                     <Button x:Name="ConnectionEasyTierTabButton" Classes="SidebarNavButton" Content="EasyTier" Click="OnConnectionEasyTierTabClick" />
 
@@ -1380,7 +1403,7 @@
                                             <TextBox x:Name="ProfileNameTextBox" Grid.Column="1" Classes="CompactInput" PlaceholderText="档案名称" />
                                             <Button x:Name="CreateProfileButton" Grid.Column="2" Classes="ActionButton" Content="创建" Click="OnCreateProfileClick" />
                                             <Button x:Name="ImportProfileButton" Grid.Column="3" Classes="SecondaryActionButton" Content="导入" Click="OnImportProfileClick" />
-                                            <Button x:Name="DeleteProfileButton" Grid.Column="4" Classes="SecondaryActionButton" Content="删除" Click="OnDeleteProfilesClick" />
+                                            <Button x:Name="DeleteProfileButton" Grid.Column="4" Classes="SecondaryActionButton DangerButton" Content="删除" Click="OnDeleteProfilesClick" />
                                             <Button x:Name="RefreshProfilesButton" Grid.Column="5" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshProfilesClick" />
                                         </Grid>
                                         <Grid Grid.Row="1" RowDefinitions="Auto,*">
@@ -1680,7 +1703,7 @@
                                             <TextBox x:Name="NewSaveNameTextBox" Grid.Column="1" Classes="CompactInput" PlaceholderText="新存档名称" />
                                             <Button x:Name="CreateSaveButton" Grid.Column="2" Classes="SecondaryActionButton" Content="创建存档" Click="OnCreateSaveClick" />
                                             <Button x:Name="ImportSaveButton" Grid.Column="3" Classes="SecondaryActionButton" Content="导入" Click="OnImportSaveClick" />
-                                            <Button x:Name="DeleteSaveButton" Grid.Column="4" Classes="SecondaryActionButton" Content="删除" Click="OnDeleteSavesClick" />
+                                            <Button x:Name="DeleteSaveButton" Grid.Column="4" Classes="SecondaryActionButton DangerButton" Content="删除" Click="OnDeleteSavesClick" />
                                             <Button x:Name="RefreshSavesButton" Grid.Column="5" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshSavesClick" />
                                         </Grid>
                                         <Grid Grid.Row="1" RowDefinitions="Auto,*">
@@ -1727,7 +1750,7 @@
                                         <Grid Grid.Row="1">
                                             <Grid x:Name="AutomationListPanel" RowDefinitions="Auto,*" RowSpacing="8">
                                                 <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8">
-                                                    <Button x:Name="AutomationClearButton" Classes="SecondaryActionButton" Content="清空" Click="OnAutomationClearClick" />
+                                                    <Button x:Name="AutomationClearButton" Classes="SecondaryActionButton DangerButton" Content="清空" Click="OnAutomationClearClick" />
                                                     <Button x:Name="AutomationListRefreshButton" Grid.Column="1" Classes="SecondaryActionButton" Content="刷新" Click="OnAutomationRefreshClick" />
                                                 </Grid>
                                                 <Grid Grid.Row="1" RowDefinitions="Auto,*">
@@ -1859,7 +1882,7 @@
                                                                                     <TextBox Grid.Column="4" Classes="CompactInput" PlaceholderText="08:00" Text="{Binding StartTime, Mode=TwoWay}" />
                                                                                     <TextBox Grid.Column="5" Classes="CompactInput" PlaceholderText="23:00" Text="{Binding EndTime, Mode=TwoWay}" />
                                                                                     <ComboBox Grid.Column="6" Classes="CompactCombo" ItemsSource="{Binding ActionOptions}" SelectedItem="{Binding SelectedAction, Mode=TwoWay}" />
-                                                                                    <Button Grid.Column="7" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveActionClick" />
+                                                                                    <Button Grid.Column="7" Classes="SecondaryActionButton DangerButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveActionClick" />
                                                                                 </Grid>
                                                                             </Border>
                                                                         </DataTemplate>
@@ -1934,7 +1957,7 @@
                                                                                                 </Flyout>
                                                                                             </Button.Flyout>
                                                                                         </Button>
-                                                                                        <Button Grid.Column="4" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveBackupScheduleClick" />
+                                                                                        <Button Grid.Column="4" Classes="SecondaryActionButton DangerButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveBackupScheduleClick" />
                                                                                     </Grid>
                                                                                 </Border>
                                                                             </DataTemplate>
@@ -1969,7 +1992,7 @@
                                                                                 <Border Classes="TableRow">
                                                                                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                                                                         <TextBox Classes="CompactInput" PlaceholderText="12:00" Text="{Binding Time, Mode=TwoWay}" />
-                                                                                        <Button Grid.Column="1" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveExportTimeClick" />
+                                                                                        <Button Grid.Column="1" Classes="SecondaryActionButton DangerButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveExportTimeClick" />
                                                                                     </Grid>
                                                                                 </Border>
                                                                             </DataTemplate>
@@ -2005,7 +2028,7 @@
                                                                                     <ToggleSwitch Classes="TableSwitch" IsChecked="{Binding Enabled, Mode=TwoWay}" />
                                                                                     <TextBox Grid.Column="1" Classes="CompactInput" PlaceholderText="12:00" Text="{Binding Time, Mode=TwoWay}" />
                                                                                     <TextBox Grid.Column="2" Classes="CompactInput" Text="{Binding Message, Mode=TwoWay}" />
-                                                                                    <Button Grid.Column="3" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveBroadcastClick" />
+                                                                                    <Button Grid.Column="3" Classes="SecondaryActionButton DangerButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveBroadcastClick" />
                                                                                 </Grid>
                                                                             </Border>
                                                                         </DataTemplate>
@@ -2040,7 +2063,7 @@
                                                                                     <ToggleSwitch Classes="TableSwitch" IsChecked="{Binding Enabled, Mode=TwoWay}" />
                                                                                     <TextBox Grid.Column="1" Classes="CompactInput" PlaceholderText="12:00" Text="{Binding Time, Mode=TwoWay}" />
                                                                                     <TextBox Grid.Column="2" Classes="CompactInput" Text="{Binding Command, Mode=TwoWay}" />
-                                                                                    <Button Grid.Column="3" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveCommandClick" />
+                                                                                    <Button Grid.Column="3" Classes="SecondaryActionButton DangerButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveCommandClick" />
                                                                                 </Grid>
                                                                             </Border>
                                                                         </DataTemplate>
@@ -2101,7 +2124,7 @@
                                             <TextBox x:Name="ModZipPathTextBox" Grid.Column="1" Classes="CompactInput" PlaceholderText="Mod ZIP 路径" />
                                             <Button x:Name="BrowseModZipButton" Grid.Column="2" Classes="SecondaryActionButton" Content="浏览" Click="OnBrowseModZipClick" />
                                             <Button x:Name="ImportModZipButton" Grid.Column="3" Classes="SecondaryActionButton" Content="导入" Click="OnImportModZipClick" />
-                                            <Button x:Name="DeleteSelectedModsButton" Grid.Column="4" Classes="SecondaryActionButton" Content="删除" Click="OnDeleteSelectedModsClick" />
+                                            <Button x:Name="DeleteSelectedModsButton" Grid.Column="4" Classes="SecondaryActionButton DangerButton" Content="删除" Click="OnDeleteSelectedModsClick" />
                                             <Button x:Name="RefreshModsButton" Grid.Column="5" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshModsClick" />
                                         </Grid>
                                         <TextBlock x:Name="ModStatusTextBlock" Grid.Row="1" Classes="ConfigHintText" TextWrapping="Wrap" />
@@ -2315,7 +2338,7 @@
                                                                         </ComboBox.ItemTemplate>
                                                                     </ComboBox>
                                                                     <Button x:Name="SettingsAutoStartAddProfileButton" Grid.Column="1" Classes="SecondaryActionButton" Content="+" Click="OnSettingsAutoStartAddProfileClick" />
-                                                                    <Button x:Name="SettingsAutoStartRemoveProfileButton" Grid.Column="2" Classes="SecondaryActionButton" Content="-" Click="OnSettingsAutoStartRemoveSelectedProfileClick" />
+                                                                    <Button x:Name="SettingsAutoStartRemoveProfileButton" Grid.Column="2" Classes="SecondaryActionButton DangerButton" Content="-" Click="OnSettingsAutoStartRemoveSelectedProfileClick" />
                                                                 </Grid>
                                                             </StackPanel>
                                                         </StackPanel>
@@ -2403,8 +2426,8 @@
                                                     <TextBlock x:Name="SettingsAdvancedActionsTitleTextBlock" Classes="ConfigSectionTitle" Text="维护" />
                                                     <WrapPanel Orientation="Horizontal">
                                                         <Button x:Name="SettingsOpenLogButton" Classes="SecondaryActionButton" Content="打开软件日志" Click="OnSettingsOpenLogClick" Margin="0,0,8,8" />
-                                                        <Button x:Name="SettingsClearDownloadCacheButton" Classes="SecondaryActionButton" Content="清空下载缓存" Click="OnSettingsClearDownloadCacheClick" Margin="0,0,8,8" />
-                                                        <Button x:Name="SettingsResetAllButton" Classes="SecondaryActionButton" Content="重置所有设置" Click="OnSettingsResetAllClick" Margin="0,0,8,8" />
+                                                        <Button x:Name="SettingsClearDownloadCacheButton" Classes="SecondaryActionButton DangerButton" Content="清空下载缓存" Click="OnSettingsClearDownloadCacheClick" Margin="0,0,8,8" />
+                                                        <Button x:Name="SettingsResetAllButton" Classes="SecondaryActionButton DangerButton" Content="重置所有设置" Click="OnSettingsResetAllClick" Margin="0,0,8,8" />
                                                     </WrapPanel>
                                                     <TextBlock x:Name="SettingsAdvancedStatusTextBlock" Classes="ConfigHintText" />
                                                 </StackPanel>
@@ -2713,7 +2736,7 @@
                                             <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
                                                 <Button x:Name="RobotSaveButton" Classes="ActionButton" Content="保存" Click="OnRobotSaveClick" />
                                                 <Button x:Name="RobotToggleButton" Grid.Column="1" Classes="SecondaryActionButton" Content="启动" Click="OnRobotToggleClick" />
-                                                <Button x:Name="RobotClearButton" Grid.Column="2" Classes="SecondaryActionButton" Content="清空" Click="OnRobotClearClick" />
+                                                <Button x:Name="RobotClearButton" Grid.Column="2" Classes="SecondaryActionButton DangerButton" Content="清空" Click="OnRobotClearClick" />
                                                 <Button x:Name="RobotRefreshButton" Grid.Column="3" Classes="SecondaryActionButton" Content="刷新" Click="OnRobotRefreshClick" />
                                             </Grid>
                                             <Border x:Name="RobotEditorPanel" Classes="ConfigCard">
@@ -2785,7 +2808,7 @@
                                                                                     </ComboBox>
                                                                                     <TextBox Grid.Column="1" Classes="CompactInput" Text="{Binding GroupId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                                                     <TextBox Grid.Column="2" Classes="CompactInput" Text="{Binding SuperUserId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                                                    <Button Grid.Column="3" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnRobotBindingRemoveClick" />
+                                                                                    <Button Grid.Column="3" Classes="SecondaryActionButton DangerButton" Tag="{Binding}" Content="删除" Click="OnRobotBindingRemoveClick" />
                                                                                 </Grid>
                                                                             </Border>
                                                                         </DataTemplate>
@@ -2825,7 +2848,7 @@
                                                                                     <Button Grid.Column="2" Classes="SecondaryActionButton" Tag="{Binding}" Click="OnRobotCustomCommandImagePathClick" Height="72" HorizontalAlignment="Stretch" VerticalAlignment="Top" IsVisible="{Binding IsImage}">
                                                                                         <TextBlock Text="{Binding ImagePathButtonText}" TextTrimming="CharacterEllipsis" />
                                                                                     </Button>
-                                                                                    <Button Grid.Column="3" Classes="SecondaryActionButton" Tag="{Binding}" Content="删除" Click="OnRobotCustomCommandRemoveClick" Width="68" HorizontalAlignment="Stretch" VerticalAlignment="Top" />
+                                                                                    <Button Grid.Column="3" Classes="SecondaryActionButton DangerButton" Tag="{Binding}" Content="删除" Click="OnRobotCustomCommandRemoveClick" Width="68" HorizontalAlignment="Stretch" VerticalAlignment="Top" />
                                                                                 </Grid>
                                                                             </Border>
                                                                         </DataTemplate>
@@ -2850,7 +2873,7 @@
                                                         </DataTemplate>
                                                     </ComboBox.ItemTemplate>
                                                 </ComboBox>
-                                                <Button x:Name="AuthClearButton" Classes="SecondaryActionButton" Content="清空" Click="OnAuthClearClick" />
+                                                <Button x:Name="AuthClearButton" Classes="SecondaryActionButton DangerButton" Content="清空" Click="OnAuthClearClick" />
                                                 <Button x:Name="AuthBackButton" Grid.Column="1" Classes="SecondaryActionButton" Content="返回" Click="OnAuthBackClick" IsVisible="False" />
                                                 <Button x:Name="AuthSaveButton" Grid.Column="2" Classes="ActionButton" Content="保存" Click="OnAuthSaveClick" IsVisible="False" />
                                                 <Button x:Name="AuthRefreshButton" Grid.Column="3" Classes="SecondaryActionButton" Content="刷新" Click="OnAuthRefreshClick" />
@@ -2992,12 +3015,13 @@
                                                 </StackPanel>
                                             </Border>
                                             <Border Classes="ConfigCard">
-                                                <Grid RowDefinitions="Auto,*" RowSpacing="8">
-                                                    <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8">
+                                                <Grid RowDefinitions="Auto,Auto" RowSpacing="8">
+                                                    <Grid ColumnDefinitions="Auto,Auto,260,*" ColumnSpacing="8">
                                                         <TextBlock x:Name="AuthPlayersTitleTextBlock" Classes="ConfigSectionTitle" Text="玩家认证数据" />
                                                         <Button x:Name="AuthRefreshPlayersButton" Grid.Column="1" Classes="SecondaryActionButton" Content="刷新玩家" Click="OnAuthRefreshPlayersClick" />
+                                                        <TextBox x:Name="AuthPlayerSearchTextBox" Grid.Column="2" Classes="CompactInput" PlaceholderText="搜索玩家名、UID 或外部账号" TextChanged="OnAuthPlayerSearchTextChanged" />
                                                     </Grid>
-                                                    <Grid Grid.Row="1" RowDefinitions="Auto,*" Height="190">
+                                                    <Grid Grid.Row="1" RowDefinitions="Auto,Auto">
                                                         <Border Grid.Row="0" Classes="TableHeader">
                                                             <Grid ColumnDefinitions="1.5*,1.4*,1.4*,1*,1.2*,Auto" ColumnSpacing="8">
                                                                 <TextBlock Classes="TableHeaderText" Text="玩家" />
@@ -3009,7 +3033,7 @@
                                                             </Grid>
                                                         </Border>
                                                         <Border Grid.Row="1" Classes="TableBody">
-                                                            <ListBox x:Name="AuthPlayersListBox" Classes="FlatList TableList">
+                                                            <ListBox x:Name="AuthPlayersListBox" Classes="FlatList TableList" ScrollViewer.VerticalScrollBarVisibility="Disabled">
                                                                 <ListBox.ItemTemplate>
                                                                     <DataTemplate>
                                                                         <Grid ColumnDefinitions="1.5*,1.4*,1.4*,1*,1.2*,Auto" ColumnSpacing="8" MinHeight="38">
@@ -3027,7 +3051,7 @@
                                                                             </StackPanel>
                                                                             <TextBlock Grid.Column="3" Classes="TableCellText" Text="{Binding PasswordStateText}" />
                                                                             <TextBlock Grid.Column="4" Classes="TableCellText" Text="{Binding ExternalUsername}" />
-                                                                            <Button Grid.Column="5" Classes="SecondaryActionButton" Tag="{Binding}" Content="清空密码" Click="OnAuthClearPlayerPasswordClick" />
+                                                                            <Button Grid.Column="5" Classes="SecondaryActionButton DangerButton" Tag="{Binding}" Content="清空密码" Click="OnAuthClearPlayerPasswordClick" />
                                                                         </Grid>
                                                                     </DataTemplate>
                                                                 </ListBox.ItemTemplate>
@@ -3070,7 +3094,7 @@
                                             </ComboBox.ItemTemplate>
                                         </ComboBox>
                                         <Button x:Name="LaunchAddProfileButton" Grid.Column="1" Classes="SecondaryActionButton LaunchIconButton" Content="+" Click="OnLaunchAddProfileClick" />
-                                        <Button x:Name="LaunchRemoveProfileButton" Grid.Column="2" Classes="SecondaryActionButton LaunchIconButton" Content="-" Click="OnLaunchRemoveSelectedProfileClick" />
+                                        <Button x:Name="LaunchRemoveProfileButton" Grid.Column="2" Classes="SecondaryActionButton DangerButton LaunchIconButton" Content="-" Click="OnLaunchRemoveSelectedProfileClick" />
                                     </Grid>
                                     <Grid Grid.Column="2" VerticalAlignment="Center" MinWidth="154">
                                         <Button
