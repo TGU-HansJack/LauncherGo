@@ -9,6 +9,7 @@
 
     <Application.Styles>
         <semi:SemiTheme Locale="zh-CN" />
+        <StyleInclude Source="avares://LauncherGo.Ui/Styles/AvaloniaEditSemi.axaml" />
     </Application.Styles>
 
     <TrayIcon.Icons>

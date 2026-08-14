@@ -2130,7 +2130,7 @@
                                         <TextBlock x:Name="ModStatusTextBlock" Grid.Row="1" Classes="ConfigHintText" TextWrapping="Wrap" />
                                         <Grid Grid.Row="2" RowDefinitions="Auto,*">
                                             <Border Grid.Row="0" Classes="TableHeader">
-                                                <Grid ColumnDefinitions="44,1.1*,.7*,1.1*,1.1*,1.8*,2.2*,58" ColumnSpacing="8">
+                                                <Grid ColumnDefinitions="44,1.1*,.7*,1.1*,1.1*,1.8*,2.2*,58,96" ColumnSpacing="8">
                                                     <TextBlock Classes="TableHeaderText" Text="选择" HorizontalAlignment="Center" />
                                                     <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="Mod ID" />
                                                     <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="版本" />
@@ -2139,13 +2139,14 @@
                                                     <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="配置路径" />
                                                     <TextBlock Grid.Column="6" Classes="TableHeaderText" Text="文件" />
                                                     <TextBlock Grid.Column="7" Classes="TableHeaderText" Text="启用" HorizontalAlignment="Center" />
+                                                    <TextBlock x:Name="ModEditConfigHeaderTextBlock" Grid.Column="8" Classes="TableHeaderText" Text="编辑配置" HorizontalAlignment="Center" />
                                                 </Grid>
                                             </Border>
                                             <Border Grid.Row="1" Classes="TableBody">
                                                 <ListBox x:Name="ModsListBox" Classes="FlatList TableList" SelectionMode="Multiple">
                                                     <ListBox.ItemTemplate>
                                                         <DataTemplate>
-                                                            <Grid ColumnDefinitions="44,1.1*,.7*,1.1*,1.1*,1.8*,2.2*,58" ColumnSpacing="8" MinHeight="36">
+                                                            <Grid ColumnDefinitions="44,1.1*,.7*,1.1*,1.1*,1.8*,2.2*,58,96" ColumnSpacing="8" MinHeight="36">
                                                                 <CheckBox Classes="TableSelectCheck" IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}, Mode=TwoWay}" />
                                                                 <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding ModId}" FontWeight="SemiBold" />
                                                                 <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding Version}" />
@@ -2156,6 +2157,7 @@
                                                                 </Button>
                                                                 <TextBlock Grid.Column="6" Classes="TableCellText" Text="{Binding FilePath}" />
                                                                 <ToggleSwitch Grid.Column="7" Classes="TableSwitch" IsChecked="{Binding ModEnabled, Mode=OneWay}" Tag="{Binding}" Click="OnModEnabledSwitchClick" />
+                                                                <Button Grid.Column="8" Classes="SecondaryActionButton" Tag="{Binding}" Content="{Binding EditConfigText}" IsEnabled="{Binding CanEditConfig}" Click="OnEditModConfigClick" />
                                                             </Grid>
                                                         </DataTemplate>
                                                     </ListBox.ItemTemplate>

@@ -956,6 +956,7 @@ public partial class LauncherMainWindow : Window
         DeployMapModButton.Content = T("部署地图模组", "Deploy Map Mod");
         DeleteSelectedModsButton.Content = T("删除", "Delete");
         RefreshModsButton.Content = T("刷新", "Refresh");
+        ModEditConfigHeaderTextBlock.Text = T("编辑配置", "Edit Config");
     }
 
     private void InitializeConfigStaticTexts()
@@ -7390,6 +7391,24 @@ public partial class LauncherMainWindow : Window
         }
     }
 
+    private async void OnEditModConfigClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ModListItem item } || !item.CanEditConfig)
+        {
+            return;
+        }
+
+        try
+        {
+            var editor = new ModConfigEditorWindow(item.ConfigPath, _isChinese);
+            await editor.ShowDialog(this);
+        }
+        catch (Exception ex)
+        {
+            SetModStatus(T($"打开配置编辑器失败：{ex.Message}", $"Failed to open configuration editor: {ex.Message}"));
+        }
+    }
+
     private void OnAuthPlayerSearchTextChanged(object? sender, TextChangedEventArgs e)
     {
         ApplyAuthPlayerSearch();
@@ -11693,6 +11712,10 @@ public partial class LauncherMainWindow : Window
 
         public required string ConfigPath { get; init; }
 
+        public required string EditConfigText { get; init; }
+
+        public bool CanEditConfig => IsEditableConfigFile(ConfigPath);
+
         public bool IsDisabled { get; init; }
 
         public bool ModEnabled => !IsDisabled;
@@ -11717,6 +11740,7 @@ public partial class LauncherMainWindow : Window
                 Version = model.Version,
                 FilePath = model.FilePath,
                 ConfigPath = model.ConfigPath,
+                EditConfigText = isChinese ? "编辑" : "Edit",
                 IsDisabled = model.IsDisabled,
                 DependenciesText = model.DependenciesText,
                 IssuesText = BuildModIssuesText(model, isChinese)
@@ -11736,6 +11760,13 @@ public partial class LauncherMainWindow : Window
                 Dependencies = [],
                 DependencyIssues = []
             };
+        }
+
+        private static bool IsEditableConfigFile(string? path)
+        {
+            return !string.IsNullOrWhiteSpace(path) &&
+                   !path.Contains(" | ", StringComparison.Ordinal) &&
+                   File.Exists(path);
         }
 
         private static string BuildModIssuesText(ModEntry model, bool isChinese)

@@ -1,0 +1,90 @@
+<Window
+    x:Class="LauncherGo.Ui.Views.ModConfigEditorWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:avaloniaEdit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+    Width="960"
+    Height="680"
+    MinWidth="640"
+    MinHeight="420"
+    WindowStartupLocation="CenterOwner"
+    Background="{DynamicResource EditorSurfaceBrush}"
+    Icon="avares://LauncherGo.Ui/Assets/app-icon.ico">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="EditorSurfaceBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="EditorTextBrush" Color="#111111" />
+                    <SolidColorBrush x:Key="EditorSubTextBrush" Color="#64707D" />
+                    <SolidColorBrush x:Key="EditorBorderBrush" Color="#D8DEE6" />
+                    <SolidColorBrush x:Key="EditorPanelBrush" Color="#F7F8FA" />
+                    <SolidColorBrush x:Key="EditorActionBrush" Color="#555555" />
+                    <SolidColorBrush x:Key="EditorActionHoverBrush" Color="#666666" />
+                    <SolidColorBrush x:Key="EditorErrorBrush" Color="#C62828" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="EditorSurfaceBrush" Color="#191919" />
+                    <SolidColorBrush x:Key="EditorTextBrush" Color="#F5F5F5" />
+                    <SolidColorBrush x:Key="EditorSubTextBrush" Color="#B8C0C9" />
+                    <SolidColorBrush x:Key="EditorBorderBrush" Color="#3B4149" />
+                    <SolidColorBrush x:Key="EditorPanelBrush" Color="#232323" />
+                    <SolidColorBrush x:Key="EditorActionBrush" Color="#666666" />
+                    <SolidColorBrush x:Key="EditorActionHoverBrush" Color="#777777" />
+                    <SolidColorBrush x:Key="EditorErrorBrush" Color="#FF8A80" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+    <Window.Styles>
+        <Style Selector="Button.ToolbarButton">
+            <Setter Property="MinWidth" Value="76" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="Button.SaveButton">
+            <Setter Property="MinWidth" Value="76" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="{DynamicResource EditorActionBrush}" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+        </Style>
+        <Style Selector="Button.SaveButton:pointerover">
+            <Setter Property="Background" Value="{DynamicResource EditorActionHoverBrush}" />
+        </Style>
+        <Style Selector="Button.SaveButton /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource EditorActionBrush}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="Button.SaveButton:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource EditorActionHoverBrush}" />
+        </Style>
+        <Style Selector="TextBlock.StatusText">
+            <Setter Property="Foreground" Value="{DynamicResource EditorSubTextBrush}" />
+        </Style>
+        <Style Selector="TextBlock.StatusText.Error">
+            <Setter Property="Foreground" Value="{DynamicResource EditorErrorBrush}" />
+        </Style>
+    </Window.Styles>
+
+    <Grid Margin="16" RowDefinitions="Auto,*,Auto" RowSpacing="10">
+        <StackPanel Spacing="3">
+            <TextBlock x:Name="FileNameTextBlock" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource EditorTextBrush}" TextTrimming="CharacterEllipsis" />
+            <TextBlock x:Name="FilePathTextBlock" FontSize="12" Foreground="{DynamicResource EditorSubTextBrush}" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <Border Grid.Row="1" Background="{DynamicResource EditorPanelBrush}" BorderBrush="{DynamicResource EditorBorderBrush}" BorderThickness="1" CornerRadius="4" ClipToBounds="True">
+            <avaloniaEdit:TextEditor x:Name="Editor" ShowLineNumbers="True" FontFamily="Cascadia Mono, Consolas" FontSize="13" Background="{DynamicResource EditorPanelBrush}" Foreground="{DynamicResource EditorTextBrush}" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" TextChanged="OnEditorTextChanged" />
+        </Border>
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+            <TextBlock x:Name="StatusTextBlock" Classes="StatusText" VerticalAlignment="Center" FontSize="12" TextTrimming="CharacterEllipsis" />
+            <Button x:Name="ReloadButton" Grid.Column="1" Classes="ToolbarButton" Click="OnReloadClick" />
+            <Button x:Name="ValidateButton" Grid.Column="2" Classes="ToolbarButton" Click="OnValidateClick" />
+            <Button x:Name="SaveButton" Grid.Column="3" Classes="SaveButton" Click="OnSaveClick" />
+            <Button x:Name="CloseButton" Grid.Column="4" Classes="ToolbarButton" Click="OnCloseClick" />
+        </Grid>
+    </Grid>
+</Window>
