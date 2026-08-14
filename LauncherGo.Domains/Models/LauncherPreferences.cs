@@ -35,6 +35,8 @@ public class LauncherPreferences
 
     public int DownloadChunkCount { get; set; } = 4;
 
+    public int DownloadThreadCount { get; set; } = 4;
+
     public GitHubProxyKind GitHubProxy { get; set; } = GitHubProxyKind.Direct;
 
     public bool AutoCheckUpdates { get; set; } = true;

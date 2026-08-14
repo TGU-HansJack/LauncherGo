@@ -197,6 +197,7 @@ public sealed partial class ServerPackageService : IServerPackageService
                     cdnUrl,
                     fullFilePath,
                     preferences.DownloadChunkCount,
+                    preferences.DownloadThreadCount,
                     progress,
                     cancellationToken);
                 if (downloadedInChunks)
@@ -275,6 +276,7 @@ public sealed partial class ServerPackageService : IServerPackageService
         string url,
         string targetFilePath,
         int requestedChunkCount,
+        int requestedThreadCount,
         IProgress<double>? progress,
         CancellationToken cancellationToken)
     {
@@ -294,6 +296,7 @@ public sealed partial class ServerPackageService : IServerPackageService
 
         var chunkCount = Math.Clamp(requestedChunkCount, 2, 32);
         chunkCount = (int)Math.Min(chunkCount, contentLength.Value);
+        var threadCount = Math.Min(Math.Clamp(requestedThreadCount, 1, 32), chunkCount);
 
         await using (var file = new FileStream(targetFilePath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
         {
@@ -302,21 +305,25 @@ public sealed partial class ServerPackageService : IServerPackageService
 
         long totalRead = 0;
         var chunkSize = contentLength.Value / chunkCount;
-        var tasks = new List<Task>(chunkCount);
-        for (var index = 0; index < chunkCount; index++)
-        {
-            var start = index * chunkSize;
-            var end = index == chunkCount - 1
-                ? contentLength.Value - 1
-                : start + chunkSize - 1;
-            tasks.Add(DownloadRangeAsync(url, targetFilePath, start, end, contentLength.Value, value =>
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, chunkCount),
+            new ParallelOptions
             {
-                var read = Interlocked.Add(ref totalRead, value);
-                progress?.Report((double)read / contentLength.Value);
-            }, cancellationToken));
-        }
-
-        await Task.WhenAll(tasks);
+                MaxDegreeOfParallelism = threadCount,
+                CancellationToken = cancellationToken
+            },
+            async (index, token) =>
+            {
+                var start = index * chunkSize;
+                var end = index == chunkCount - 1
+                    ? contentLength.Value - 1
+                    : start + chunkSize - 1;
+                await DownloadRangeAsync(url, targetFilePath, start, end, contentLength.Value, value =>
+                {
+                    var read = Interlocked.Add(ref totalRead, value);
+                    progress?.Report((double)read / contentLength.Value);
+                }, token);
+            });
         progress?.Report(1d);
         return true;
     }

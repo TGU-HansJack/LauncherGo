@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 using LauncherGo.Abstractions.Services;
 using LauncherGo.Domains.Enums;
 using LauncherGo.Domains.Models;
+using LauncherGo.Services.Downloads;
 using LauncherGo.Services.Paths;
 
 namespace LauncherGo.Services;
@@ -15,6 +16,13 @@ public sealed class LauncherUpdateService : ILauncherUpdateService
 {
     private const string Repository = "vscn-studio/LauncherGo";
     private static readonly HttpClient HttpClient = CreateHttpClient();
+    private static readonly HttpRangeFileDownloader FileDownloader = new(HttpClient);
+    private readonly ILauncherPreferencesService _preferencesService;
+
+    public LauncherUpdateService(ILauncherPreferencesService preferencesService)
+    {
+        _preferencesService = preferencesService;
+    }
 
     public string CurrentVersion => ReadCurrentVersion();
 
@@ -85,24 +93,18 @@ public sealed class LauncherUpdateService : ILauncherUpdateService
             throw new InvalidDataException("更新文件名无效。");
         var assetPath = Path.Combine(updateRoot, fileName);
 
-        using var response = await HttpClient.GetAsync(asset.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        var length = response.Content.Headers.ContentLength;
-        await using (var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
-        await using (var target = new FileStream(assetPath, FileMode.Create, FileAccess.Write, FileShare.None))
-        {
-            var buffer = new byte[128 * 1024];
-            long total = 0;
-            int read;
-            while ((read = await source.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false)) > 0)
+        var preferences = _preferencesService.Load();
+        await FileDownloader.DownloadAsync(
+            asset.DownloadUrl,
+            assetPath,
+            new HttpRangeFileDownloadOptions
             {
-                await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-                total += read;
-                if (length is > 0)
-                    progress?.Report((double)total / length.Value);
-            }
-        }
-        progress?.Report(1d);
+                EnableRangeRequests = preferences.EnableChunkedDownloads,
+                SegmentCount = preferences.DownloadChunkCount,
+                MaxConcurrentDownloads = preferences.DownloadThreadCount
+            },
+            progress,
+            cancellationToken).ConfigureAwait(false);
         await VerifyDigestAsync(assetPath, asset.Digest, cancellationToken).ConfigureAwait(false);
 
         var scriptPath = Path.Combine(updateRoot, "apply-update.ps1");

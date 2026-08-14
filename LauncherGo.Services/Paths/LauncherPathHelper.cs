@@ -66,6 +66,7 @@ public static class LauncherPathHelper
             StratumServerDownloadCatalogUrl = DefaultStratumServerDownloadCatalogUrl,
             EnableChunkedDownloads = false,
             DownloadChunkCount = 4,
+            DownloadThreadCount = 4,
             GitHubProxy = GitHubProxyKind.Direct,
             AutoCheckUpdates = true,
             DefaultLaunchProfileId = string.Empty,

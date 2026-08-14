@@ -46,4 +46,5 @@ public sealed class LauncherUpdateServiceTests
         Assert.True(LauncherUpdateService.CompareVersions("2.10.0", "2.9.9") > 0);
         Assert.Equal(0, LauncherUpdateService.CompareVersions("2.5.4", "2.5.4"));
     }
+
 }

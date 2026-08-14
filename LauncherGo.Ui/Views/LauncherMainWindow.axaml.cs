@@ -1052,11 +1052,13 @@ public partial class LauncherMainWindow : Window
         SettingsStratumServerLabelTextBlock.Text = T("Stratum 服务端", "Stratum Server");
         SettingsStratumServerLabelTextBlock.IsVisible = ServerFeatureFlags.StratumServerSupportEnabled;
         SettingsStratumServerTextBox.IsVisible = ServerFeatureFlags.StratumServerSupportEnabled;
-        SettingsDownloadChunkCountLabelTextBlock.Text = T("分片数量", "Chunk Count");
-        SettingsChunkedDownloadLabelTextBlock.Text = T("大文件分片下载", "Chunked large-file downloads");
         SettingsUpdateTitleTextBlock.Text = T("LauncherGo 更新", "LauncherGo Updates");
         SettingsGitHubProxyLabelTextBlock.Text = T("GitHub 代理", "GitHub Proxy");
         SettingsAutoCheckUpdatesLabelTextBlock.Text = T("启动时自动检查", "Check on startup");
+        SettingsChunkedDownloadsTitleTextBlock.Text = T("多线程分片", "Multithreaded chunking");
+        SettingsChunkedDownloadLabelTextBlock.Text = T("启用", "Enabled");
+        SettingsDownloadChunkCountLabelTextBlock.Text = T("分片数量", "Chunk count");
+        SettingsDownloadThreadCountLabelTextBlock.Text = T("下载线程数", "Download threads");
         SettingsCheckUpdatesButton.Content = T("检查最新版本", "Check latest version");
     }
 
@@ -3336,6 +3338,7 @@ public partial class LauncherMainWindow : Window
         SettingsThirdPartyServerTextBox.LostFocus += OnNetworkSettingsAutoSaveChanged;
         SettingsStratumServerTextBox.LostFocus += OnNetworkSettingsAutoSaveChanged;
         SettingsDownloadChunkCountTextBox.LostFocus += OnNetworkSettingsAutoSaveChanged;
+        SettingsDownloadThreadCountTextBox.LostFocus += OnNetworkSettingsAutoSaveChanged;
         SettingsChunkedDownloadToggleSwitch.IsCheckedChanged += OnNetworkSettingsAutoSaveChanged;
         SettingsAutoCheckUpdatesToggleSwitch.IsCheckedChanged += OnNetworkSettingsAutoSaveChanged;
 
@@ -3580,6 +3583,7 @@ public partial class LauncherMainWindow : Window
                 : preferences.StratumServerDownloadCatalogUrl;
             SettingsChunkedDownloadToggleSwitch.IsChecked = preferences.EnableChunkedDownloads;
             SettingsDownloadChunkCountTextBox.Text = Math.Clamp(preferences.DownloadChunkCount, 1, 32).ToString(CultureInfo.InvariantCulture);
+            SettingsDownloadThreadCountTextBox.Text = Math.Clamp(preferences.DownloadThreadCount, 1, 32).ToString(CultureInfo.InvariantCulture);
             EnsureGitHubProxyOptions();
             SelectConfigChoiceByValue(SettingsGitHubProxyComboBox, _gitHubProxyOptions, preferences.GitHubProxy.ToString());
             SettingsAutoCheckUpdatesToggleSwitch.IsChecked = preferences.AutoCheckUpdates;
@@ -3600,6 +3604,7 @@ public partial class LauncherMainWindow : Window
         preferences.StratumServerDownloadCatalogUrl = SettingsStratumServerTextBox.Text?.Trim() ?? string.Empty;
         preferences.EnableChunkedDownloads = SettingsChunkedDownloadToggleSwitch.IsChecked == true;
         preferences.DownloadChunkCount = ParseClampedInt(SettingsDownloadChunkCountTextBox.Text, 4, 1, 32);
+        preferences.DownloadThreadCount = ParseClampedInt(SettingsDownloadThreadCountTextBox.Text, 4, 1, 32);
         preferences.GitHubProxy = GetSelectedGitHubProxy();
         preferences.AutoCheckUpdates = SettingsAutoCheckUpdatesToggleSwitch.IsChecked == true;
         _preferencesService.Save(preferences);

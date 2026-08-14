@@ -2353,14 +2353,6 @@
                                                             <TextBlock x:Name="SettingsStratumServerLabelTextBlock" Classes="ConfigFieldLabel" Text="Stratum 服务端" />
                                                             <TextBox x:Name="SettingsStratumServerTextBox" Classes="CompactInput" />
                                                         </StackPanel>
-                                                        <StackPanel Classes="ConfigFormField">
-                                                            <TextBlock x:Name="SettingsDownloadChunkCountLabelTextBlock" Classes="ConfigFieldLabel" Text="分片数量" />
-                                                            <TextBox x:Name="SettingsDownloadChunkCountTextBox" Classes="CompactInput" />
-                                                        </StackPanel>
-                                                        <StackPanel Classes="ConfigFormField">
-                                                            <TextBlock x:Name="SettingsChunkedDownloadLabelTextBlock" Classes="ConfigFieldLabel" Text="大文件分片下载" />
-                                                            <ToggleSwitch x:Name="SettingsChunkedDownloadToggleSwitch" />
-                                                        </StackPanel>
                                                     </WrapPanel>
                                                 </StackPanel>
                                             </Border>
@@ -2380,6 +2372,25 @@
                                                     <WrapPanel Orientation="Horizontal">
                                                         <Button x:Name="SettingsCheckUpdatesButton" Classes="SecondaryActionButton" Content="检查最新版本" Click="OnSettingsCheckUpdatesClick" Margin="0,0,8,0" />
                                                         <TextBlock x:Name="SettingsUpdateStatusTextBlock" Classes="ConfigHintText" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    </WrapPanel>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Classes="ConfigCard">
+                                                <StackPanel Spacing="10">
+                                                    <TextBlock x:Name="SettingsChunkedDownloadsTitleTextBlock" Classes="ConfigSectionTitle" Text="多线程分片" />
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="SettingsChunkedDownloadLabelTextBlock" Classes="ConfigFieldLabel" Text="启用" />
+                                                            <ToggleSwitch x:Name="SettingsChunkedDownloadToggleSwitch" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="SettingsDownloadChunkCountLabelTextBlock" Classes="ConfigFieldLabel" Text="分片数量" />
+                                                            <TextBox x:Name="SettingsDownloadChunkCountTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="SettingsDownloadThreadCountLabelTextBlock" Classes="ConfigFieldLabel" Text="下载线程数" />
+                                                            <TextBox x:Name="SettingsDownloadThreadCountTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
                                                     </WrapPanel>
                                                 </StackPanel>
                                             </Border>
