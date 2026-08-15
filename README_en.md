@@ -29,7 +29,7 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 
 | Item | Current Status |
 | --- | --- |
-| Application version | Local development builds default to `2.5.7`; Windows packaging and Release publishing override `Version` and `InformationalVersion` through `.github/workflows/windows-packages.yml`, `.github/workflows/publish-release.yml`, or `v*` tags |
+| Application version | Local development builds default to `2.5.8`; Windows packaging and Release publishing override `Version` and `InformationalVersion` through `.github/workflows/windows-packages.yml`, `.github/workflows/publish-release.yml`, or `v*` tags |
 | Product stage | Second-generation server launcher, under active development |
 | Target framework | `.NET net10.0` |
 | Desktop UI | `Avalonia 12.0.1` and `Semi.Avalonia 12.0.1` |

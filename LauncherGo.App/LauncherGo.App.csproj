@@ -2,8 +2,8 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <Version>2.5.7</Version>
-    <InformationalVersion>2.5.7</InformationalVersion>
+    <Version>2.5.8</Version>
+    <InformationalVersion>2.5.8</InformationalVersion>
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\app-icon.ico</ApplicationIcon>

@@ -189,7 +189,8 @@ public partial class LauncherMainWindow : Window
         ("高级", "Advanced"),
         ("关于", "About"),
         ("贡献者", "Contributors"),
-        ("赞助者", "Sponsors")
+        ("赞助者", "Sponsors"),
+        ("启动时自动启动网关", "Auto-start Gateway on launch")
     ];
 
     private static readonly (string Code, string Zh, string En)[] AppearanceLanguageOptions =
@@ -726,6 +727,23 @@ public partial class LauncherMainWindow : Window
             await StartEasyTierAsync();
         }
 
+        if (preferences.AutoStartGatewayOnLaunch)
+        {
+            try
+            {
+                if (!_tcpGatewayService.GetCurrentStatus().IsRunning)
+                {
+                    await _tcpGatewayService.StartAsync(preferences.TcpGateway);
+                }
+            }
+            catch (Exception ex)
+            {
+                SetConnectionStatus(T(
+                    $"TCP 网关自启动失败：{GetExceptionMessage(ex)}",
+                    $"TCP gateway auto-start failed: {GetExceptionMessage(ex)}"));
+            }
+        }
+
         RefreshConnectionRuntimeStatus();
     }
 
@@ -1098,6 +1116,7 @@ public partial class LauncherMainWindow : Window
         SettingsAutoStartFrpLabelTextBlock.Text = T("启动时自动开启内网穿透（常规）", "Auto-start FRP (regular) on launch");
         SettingsAutoStartThirdPartyFrpcLabelTextBlock.Text = T("启动时自动开启第三方内网穿透", "Auto-start third-party FRPC on launch");
         SettingsAutoStartEasyTierLabelTextBlock.Text = T("启动时自动开启 EasyTier", "Auto-start EasyTier on launch");
+        SettingsAutoStartGatewayLabelTextBlock.Text = T("启动时自动启动网关", "Auto-start Gateway on launch");
     }
 
     private void InitializeNetworkSettingsStaticTexts()
@@ -3441,6 +3460,7 @@ public partial class LauncherMainWindow : Window
                      SettingsAutoStartFrpCheckBox,
                      SettingsAutoStartThirdPartyFrpcCheckBox,
                      SettingsAutoStartEasyTierCheckBox,
+                     SettingsAutoStartGatewayCheckBox,
                      SettingsSaveCompressionEnabledCheckBox,
                      SettingsSaveCompressionDeleteSourceCheckBox
                  })
@@ -3625,6 +3645,7 @@ public partial class LauncherMainWindow : Window
             SettingsAutoStartFrpCheckBox.IsChecked = preferences.AutoStartFrpOnLaunch;
             SettingsAutoStartThirdPartyFrpcCheckBox.IsChecked = preferences.AutoStartThirdPartyFrpcOnLaunch;
             SettingsAutoStartEasyTierCheckBox.IsChecked = preferences.AutoStartEasyTierOnLaunch;
+            SettingsAutoStartGatewayCheckBox.IsChecked = preferences.AutoStartGatewayOnLaunch;
             SettingsAutoStartServerProfileComboBox.ItemsSource = profiles;
             var autoStartIds = SplitProfileIds(preferences.AutoStartServerProfileIds, preferences.AutoStartServerProfileId);
             SettingsAutoStartServerProfileComboBox.SelectedItem = profiles.FirstOrDefault(profile =>
@@ -3667,6 +3688,7 @@ public partial class LauncherMainWindow : Window
         preferences.AutoStartFrpOnLaunch = SettingsAutoStartFrpCheckBox.IsChecked == true;
         preferences.AutoStartThirdPartyFrpcOnLaunch = SettingsAutoStartThirdPartyFrpcCheckBox.IsChecked == true;
         preferences.AutoStartEasyTierOnLaunch = SettingsAutoStartEasyTierCheckBox.IsChecked == true;
+        preferences.AutoStartGatewayOnLaunch = SettingsAutoStartGatewayCheckBox.IsChecked == true;
         _preferencesService.Save(preferences);
         RefreshQuickCommandItems(preferences.QuickCommands);
         try

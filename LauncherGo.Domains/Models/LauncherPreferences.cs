@@ -73,6 +73,8 @@ public class LauncherPreferences
 
     public bool AutoStartEasyTierOnLaunch { get; set; }
 
+    public bool AutoStartGatewayOnLaunch { get; set; }
+
     public OpenServerQuerySettings OpenServerQuery { get; set; } = new();
 
     public RobotIntegrationSettings Robot { get; set; } = new();

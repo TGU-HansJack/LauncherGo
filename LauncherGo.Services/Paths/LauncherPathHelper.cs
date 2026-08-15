@@ -75,6 +75,7 @@ public static class LauncherPathHelper
             AutoStartServerOnLaunch = false,
             AutoRestartServerAfterCrash = false,
             AutoStartServerProfileId = string.Empty,
+            AutoStartGatewayOnLaunch = false,
             OpenServerQuery = new OpenServerQuerySettings(),
             Robot = new RobotIntegrationSettings
             {

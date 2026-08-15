@@ -6,10 +6,10 @@ on:
       version:
         description: "Version number (for example: 1.2.3)"
         required: true
-        default: "2.5.7"
+        default: "2.5.8"
         type: string
       vintage_story_version:
-        description: "Vintage Story server version used to build embedded ServerAuth mod"
+        description: "Vintage Story server version used to build embedded mods"
         required: true
         default: "1.22.2"
         type: string
@@ -24,6 +24,7 @@ jobs:
     env:
       PROJECT_PATH: LauncherGo.App/LauncherGo.App.csproj
       EMBEDDED_AUTH_PROJECT: LauncherGo.Services/EmbeddedMods/VsslAuthMod/VsslAuthMod.csproj
+      EMBEDDED_REDIRECT_PROJECT: LauncherGo.Services/EmbeddedMods/LauncherGoRedirectMod/LauncherGoRedirectMod.csproj
       CONFIGURATION: Release
       RUNTIME: win-x64
       VINTAGE_STORY_VERSION: 1.22.2
@@ -105,8 +106,11 @@ jobs:
       - name: Restore
         run: dotnet restore LauncherGo.slnx
 
-      - name: Restore embedded ServerAuth mod project
-        run: dotnet restore $env:EMBEDDED_AUTH_PROJECT
+      - name: Restore embedded mod projects
+        shell: pwsh
+        run: |
+          dotnet restore $env:EMBEDDED_AUTH_PROJECT
+          dotnet restore $env:EMBEDDED_REDIRECT_PROJECT
 
       - name: Resolve package version
         id: resolve_version
@@ -129,24 +133,40 @@ jobs:
 
           "value=$version" >> $env:GITHUB_OUTPUT
 
-      - name: Build embedded ServerAuth mod
+      - name: Build embedded mods
         shell: pwsh
         run: |
-          dotnet build $env:EMBEDDED_AUTH_PROJECT -c $env:CONFIGURATION --no-restore
-          if ($LASTEXITCODE -ne 0) {
-            throw "Build failed: $env:EMBEDDED_AUTH_PROJECT"
+          function Build-EmbeddedMod {
+            param(
+              [string]$Project,
+              [string]$DllPath,
+              [string]$TargetPath,
+              [string]$Name
+            )
+
+            dotnet build $Project -c $env:CONFIGURATION --no-restore
+            if ($LASTEXITCODE -ne 0) {
+              throw "Build failed for embedded $Name mod: $Project"
+            }
+
+            if (!(Test-Path $DllPath)) {
+              throw "Missing built $Name DLL: $DllPath"
+            }
+
+            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $TargetPath) | Out-Null
+            Copy-Item -LiteralPath $DllPath -Destination $TargetPath -Force
           }
 
-          $dllPath = "LauncherGo.Services/EmbeddedMods/VsslAuthMod/bin/$env:CONFIGURATION/net10.0/serverauth.dll"
-          $targetDir = "LauncherGo.Services/EmbeddedMods/launchergoauth"
-          $targetPath = Join-Path $targetDir "serverauth.dll"
-
-          if (!(Test-Path $dllPath)) {
-            throw "Missing built ServerAuth DLL: $dllPath"
-          }
-
-          New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
-          Copy-Item -LiteralPath $dllPath -Destination $targetPath -Force
+          Build-EmbeddedMod `
+            -Project $env:EMBEDDED_AUTH_PROJECT `
+            -DllPath "LauncherGo.Services/EmbeddedMods/VsslAuthMod/bin/$env:CONFIGURATION/net10.0/serverauth.dll" `
+            -TargetPath "LauncherGo.Services/EmbeddedMods/launchergoauth/serverauth.dll" `
+            -Name "ServerAuth"
+          Build-EmbeddedMod `
+            -Project $env:EMBEDDED_REDIRECT_PROJECT `
+            -DllPath "LauncherGo.Services/EmbeddedMods/LauncherGoRedirectMod/bin/$env:CONFIGURATION/net10.0/launchergoredirect.dll" `
+            -TargetPath "LauncherGo.Services/EmbeddedMods/launchergoredirect/launchergoredirect.dll" `
+            -Name "Gateway Redirect"
 
       - name: Publish installer payload
         run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -o artifacts/publish/win-x64
@@ -154,32 +174,36 @@ jobs:
       - name: Publish portable single-file
         run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o artifacts/publish/portable
 
-      - name: Copy embedded ServerAuth payload to publish outputs
+      - name: Copy embedded mod payloads to publish outputs
         shell: pwsh
         run: |
-          $sourceRoot = "LauncherGo.Services/EmbeddedMods/launchergoauth"
-          $requiredFiles = @("serverauth.dll", "modinfo.json", "README.txt")
+          $mods = @(
+            @{ Id = "launchergoauth"; SourceRoot = "LauncherGo.Services/EmbeddedMods/launchergoauth"; Files = @("serverauth.dll", "modinfo.json", "README.txt") },
+            @{ Id = "launchergoredirect"; SourceRoot = "LauncherGo.Services/EmbeddedMods/launchergoredirect"; Files = @("launchergoredirect.dll", "modinfo.json", "README.txt") }
+          )
 
-          foreach ($fileName in $requiredFiles) {
-            $sourcePath = Join-Path $sourceRoot $fileName
-            if (!(Test-Path $sourcePath)) {
-              throw "Missing embedded ServerAuth source payload: $sourcePath"
+          foreach ($mod in $mods) {
+            foreach ($fileName in $mod.Files) {
+              $sourcePath = Join-Path $mod.SourceRoot $fileName
+              if (!(Test-Path $sourcePath)) {
+                throw "Missing embedded $($mod.Id) source payload: $sourcePath"
+              }
             }
-          }
 
-          foreach ($publishRoot in @("artifacts/publish/win-x64", "artifacts/publish/portable")) {
-            $targetRoot = Join-Path $publishRoot "EmbeddedMods/launchergoauth"
-            New-Item -ItemType Directory -Force -Path $targetRoot | Out-Null
+            foreach ($publishRoot in @("artifacts/publish/win-x64", "artifacts/publish/portable")) {
+              $targetRoot = Join-Path $publishRoot "EmbeddedMods/$($mod.Id)"
+              New-Item -ItemType Directory -Force -Path $targetRoot | Out-Null
 
-            foreach ($fileName in $requiredFiles) {
-              Copy-Item -LiteralPath (Join-Path $sourceRoot $fileName) -Destination (Join-Path $targetRoot $fileName) -Force
+              foreach ($fileName in $mod.Files) {
+                Copy-Item -LiteralPath (Join-Path $mod.SourceRoot $fileName) -Destination (Join-Path $targetRoot $fileName) -Force
+              }
             }
           }
 
           Set-Content -LiteralPath "artifacts/publish/win-x64/launchergo-package-kind.txt" -Value "Installer" -NoNewline
           Set-Content -LiteralPath "artifacts/publish/portable/launchergo-package-kind.txt" -Value "Portable" -NoNewline
 
-      - name: Verify embedded ServerAuth payload exists
+      - name: Verify embedded mod payloads
         shell: pwsh
         run: |
           $requiredPaths = @(
@@ -187,39 +211,51 @@ jobs:
             "artifacts/publish/win-x64/EmbeddedMods/launchergoauth/serverauth.dll",
             "artifacts/publish/win-x64/EmbeddedMods/launchergoauth/modinfo.json",
             "artifacts/publish/win-x64/EmbeddedMods/launchergoauth/README.txt",
+            "artifacts/publish/win-x64/EmbeddedMods/launchergoredirect/launchergoredirect.dll",
+            "artifacts/publish/win-x64/EmbeddedMods/launchergoredirect/modinfo.json",
+            "artifacts/publish/win-x64/EmbeddedMods/launchergoredirect/README.txt",
             "artifacts/publish/portable/EmbeddedMods/launchergoauth/serverauth.dll",
             "artifacts/publish/portable/EmbeddedMods/launchergoauth/modinfo.json",
             "artifacts/publish/portable/EmbeddedMods/launchergoauth/README.txt",
+            "artifacts/publish/portable/EmbeddedMods/launchergoredirect/launchergoredirect.dll",
+            "artifacts/publish/portable/EmbeddedMods/launchergoredirect/modinfo.json",
+            "artifacts/publish/portable/EmbeddedMods/launchergoredirect/README.txt",
             "artifacts/publish/portable/LauncherGo.ServerHost.exe"
           )
 
           foreach ($path in $requiredPaths) {
             if (!(Test-Path $path)) {
-              throw "Missing embedded ServerAuth payload: $path"
+              throw "Missing embedded mod payload: $path"
             }
           }
 
-      - name: Prepare embedded ServerAuth artifact
+      - name: Prepare embedded mod artifacts
         shell: pwsh
         run: |
-          $modRoot = "artifacts/publish/win-x64/EmbeddedMods/launchergoauth"
           $outputRoot = "artifacts/embedded-mods"
-          $zipPath = Join-Path $outputRoot "launchergoauth.zip"
-
           New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
 
-          foreach ($fileName in @("serverauth.dll", "modinfo.json", "README.txt")) {
-            $requiredPath = Join-Path $modRoot $fileName
-            if (!(Test-Path $requiredPath)) {
-              throw "Missing embedded ServerAuth package file: $requiredPath"
+          $mods = @(
+            @{ Id = "launchergoauth"; Files = @("serverauth.dll", "modinfo.json", "README.txt") },
+            @{ Id = "launchergoredirect"; Files = @("launchergoredirect.dll", "modinfo.json", "README.txt") }
+          )
+
+          foreach ($mod in $mods) {
+            $modRoot = "artifacts/publish/win-x64/EmbeddedMods/$($mod.Id)"
+            $zipPath = Join-Path $outputRoot "$($mod.Id).zip"
+            foreach ($fileName in $mod.Files) {
+              $requiredPath = Join-Path $modRoot $fileName
+              if (!(Test-Path $requiredPath)) {
+                throw "Missing embedded $($mod.Id) package file: $requiredPath"
+              }
             }
-          }
 
-          if (Test-Path $zipPath) {
-            Remove-Item -LiteralPath $zipPath -Force
-          }
+            if (Test-Path $zipPath) {
+              Remove-Item -LiteralPath $zipPath -Force
+            }
 
-          Compress-Archive -Path (Join-Path $modRoot "*") -DestinationPath $zipPath -CompressionLevel Optimal
+            Compress-Archive -Path (Join-Path $modRoot "*") -DestinationPath $zipPath -CompressionLevel Optimal
+          }
 
       - name: Prepare portable artifact
         shell: pwsh
@@ -279,7 +315,7 @@ jobs:
           path: artifacts/portable/LauncherGo-portable-${{ steps.resolve_version.outputs.value }}-win-x64.zip
           if-no-files-found: error
 
-      - name: Upload embedded ServerAuth artifact
+      - name: Upload embedded mod artifacts
         uses: actions/upload-artifact@v4
         with:
           name: LauncherGo-embedded-mods-${{ steps.resolve_version.outputs.value }}

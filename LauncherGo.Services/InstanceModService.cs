@@ -242,9 +242,9 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
         if (node is null)
             return BuildFallbackEntry(filePath, "InvalidMetadata", disabledSet, modConfigPath);
 
-        var modId = node["modid"]?.GetValue<string>() ?? Path.GetFileNameWithoutExtension(filePath);
-        var version = node["version"]?.GetValue<string>() ?? "unknown";
-        var dependencies = ReadDependencies(node["dependencies"]);
+        var modId = GetMetadataProperty(node, "modid")?.GetValue<string>() ?? Path.GetFileNameWithoutExtension(filePath);
+        var version = GetMetadataProperty(node, "version")?.GetValue<string>() ?? "unknown";
+        var dependencies = ReadDependencies(GetMetadataProperty(node, "dependencies"));
         var disabled = disabledSet.Contains(modId) || disabledSet.Contains($"{modId}@{version}");
 
         return new ModEntry
@@ -301,13 +301,13 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
                 foreach (var dependencyNode in dependenciesArray)
                 {
                     if (dependencyNode is not JsonObject dependencyItem) continue;
-                    var modId = dependencyItem["modid"]?.GetValue<string>();
+                    var modId = GetMetadataProperty(dependencyItem, "modid")?.GetValue<string>();
                     if (string.IsNullOrWhiteSpace(modId)) continue;
 
                     dependencies.Add(new ModDependency
                     {
                         ModId = modId,
-                        Version = dependencyItem["version"]?.GetValue<string>()
+                        Version = GetMetadataProperty(dependencyItem, "version")?.GetValue<string>()
                     });
                 }
 
@@ -315,6 +315,19 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
         }
 
         return dependencies;
+    }
+
+    private static JsonNode? GetMetadataProperty(JsonObject node, string propertyName)
+    {
+        foreach (var property in node)
+        {
+            if (property.Key.Equals(propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                return property.Value;
+            }
+        }
+
+        return null;
     }
 
     private static string ResolveModConfigPath(string modConfigPath, string modId)

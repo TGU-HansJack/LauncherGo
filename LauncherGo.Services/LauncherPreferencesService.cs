@@ -108,6 +108,7 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             AutoStartFrpOnLaunch = source.AutoStartFrpOnLaunch,
             AutoStartThirdPartyFrpcOnLaunch = source.AutoStartThirdPartyFrpcOnLaunch,
             AutoStartEasyTierOnLaunch = source.AutoStartEasyTierOnLaunch,
+            AutoStartGatewayOnLaunch = source.AutoStartGatewayOnLaunch,
             OpenServerQuery = NormalizeOpenServerQuery(source.OpenServerQuery),
             Robot = NormalizeRobot(source.Robot, qqBotDirectory),
             Frp = NormalizeFrp(source.Frp),

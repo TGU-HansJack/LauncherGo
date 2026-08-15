@@ -2312,6 +2312,10 @@
                                                             <TextBlock x:Name="SettingsAutoStartEasyTierLabelTextBlock" Classes="ConfigFieldLabel" Text="启动时自动开启 EasyTier" />
                                                             <ToggleSwitch x:Name="SettingsAutoStartEasyTierCheckBox" Classes="LabelledToggle" />
                                                         </StackPanel>
+                                                        <StackPanel Classes="ToggleField">
+                                                            <TextBlock x:Name="SettingsAutoStartGatewayLabelTextBlock" Classes="ConfigFieldLabel" Text="启动时自动启动网关" />
+                                                            <ToggleSwitch x:Name="SettingsAutoStartGatewayCheckBox" Classes="LabelledToggle" />
+                                                        </StackPanel>
                                                         <StackPanel Classes="ConfigFormFieldWide">
                                                             <TextBlock x:Name="SettingsAutoStartServerProfileLabelTextBlock" Classes="ConfigFieldLabel" Text="自启动服务器档案" />
                                                             <ComboBox x:Name="SettingsAutoStartServerProfileComboBox" Classes="CompactCombo" SelectionChanged="OnSettingsAutoStartServerProfileSelectionChanged" IsVisible="False">
