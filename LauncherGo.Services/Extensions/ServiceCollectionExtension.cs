@@ -25,6 +25,7 @@ public static class ServiceCollectionExtension
         services.AddSingleton<IGatewayRedirectModService, GatewayRedirectModService>();
         services.AddSingleton<IInstanceModService, InstanceModService>();
         services.AddSingleton<IServerAuthService, ServerAuthService>();
+        services.AddSingleton<ICommandBridgeService, CommandBridgeService>();
         services.AddSingleton<IServerMapService, ServerMapService>();
         services.AddSingleton<IOsqSnapshotCacheService, OsqSnapshotCacheService>();
         services.AddSingleton<IOpenServerQueryService, OpenServerQueryService>();

@@ -72,6 +72,7 @@ public sealed class ServerProcessRelayTests
 
             var pingWhileWriteIsStalled = await ServerRelayClient.PingAsync(pipeName, testCts.Token);
             Assert.True(pingWhileWriteIsStalled.Success, pingWhileWriteIsStalled.Error);
+            Assert.False(pingWhileWriteIsStalled.State?.CommandChannelAvailable);
 
             releaseWrite.SetResult();
 
@@ -86,6 +87,75 @@ public sealed class ServerProcessRelayTests
         finally
         {
             releaseWrite.TrySetResult();
+            await StopRelayLoopAsync(testCts, loopTask);
+        }
+    }
+
+    [Fact]
+    public async Task TimedOutWrite_IsCancelled_AndTheNextCommandDoesNotRequireManualRelease()
+    {
+        var pipeName = CreatePipeName();
+        using var testCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var writeAttempts = 0;
+
+        async Task WriteCommandAsync(string _, CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref writeAttempts) == 1)
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+        }
+
+        var loopTask = StartRelayLoop(pipeName, WriteCommandAsync, testCts.Token);
+
+        try
+        {
+            var timedOut = await ServerRelayClient.SendCommandAsync(pipeName, "/announce first", testCts.Token);
+            Assert.False(timedOut.Success);
+            Assert.Equal("Relay command forwarding timed out.", timedOut.Error);
+
+            var recovered = await ServerRelayClient.SendCommandAsync(pipeName, "/announce second", testCts.Token);
+            Assert.True(recovered.Success, recovered.Error);
+            Assert.Equal(2, Volatile.Read(ref writeAttempts));
+        }
+        finally
+        {
+            await StopRelayLoopAsync(testCts, loopTask);
+        }
+    }
+
+    [Fact]
+    public async Task FailedConsoleWrite_MarksOnlyTheCommandChannelUnavailable()
+    {
+        var pipeName = CreatePipeName();
+        using var testCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var writeAttempts = 0;
+        var loopTask = StartRelayLoop(
+            pipeName,
+            (_, _) =>
+            {
+                Interlocked.Increment(ref writeAttempts);
+                throw new IOException("stdin is closed");
+            },
+            testCts.Token);
+
+        try
+        {
+            var failed = await ServerRelayClient.SendCommandAsync(pipeName, "/announce first", testCts.Token);
+            Assert.False(failed.Success);
+            Assert.Equal("stdin is closed", failed.Error);
+
+            var ping = await ServerRelayClient.PingAsync(pipeName, testCts.Token);
+            Assert.True(ping.Success, ping.Error);
+            Assert.False(ping.State?.CommandChannelAvailable);
+
+            var rejected = await ServerRelayClient.SendCommandAsync(pipeName, "/announce second", testCts.Token);
+            Assert.False(rejected.Success);
+            Assert.Equal("Relay command channel is unavailable after a console write failure.", rejected.Error);
+            Assert.Equal(1, Volatile.Read(ref writeAttempts));
+        }
+        finally
+        {
             await StopRelayLoopAsync(testCts, loopTask);
         }
     }

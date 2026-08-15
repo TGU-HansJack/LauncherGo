@@ -7,6 +7,9 @@
     <EmbeddedRedirectModProject>$(MSBuildThisFileDirectory)EmbeddedMods\LauncherGoRedirectMod\LauncherGoRedirectMod.csproj</EmbeddedRedirectModProject>
     <EmbeddedRedirectModBuildOutput>$(MSBuildThisFileDirectory)EmbeddedMods\LauncherGoRedirectMod\bin\$(Configuration)\net10.0\</EmbeddedRedirectModBuildOutput>
     <EmbeddedRedirectRoot>$(MSBuildThisFileDirectory)EmbeddedMods\launchergoredirect\</EmbeddedRedirectRoot>
+    <EmbeddedCommandBridgeModProject>$(MSBuildThisFileDirectory)EmbeddedMods\LauncherGoCommandBridgeMod\LauncherGoCommandBridgeMod.csproj</EmbeddedCommandBridgeModProject>
+    <EmbeddedCommandBridgeModBuildOutput>$(MSBuildThisFileDirectory)EmbeddedMods\LauncherGoCommandBridgeMod\bin\$(Configuration)\net10.0\</EmbeddedCommandBridgeModBuildOutput>
+    <EmbeddedCommandBridgeRoot>$(MSBuildThisFileDirectory)EmbeddedMods\launchergocommandbridge\</EmbeddedCommandBridgeRoot>
   </PropertyGroup>
 
   <ItemGroup>
@@ -36,6 +39,9 @@
     <None Update="EmbeddedMods\launchergoredirect\modinfo.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\launchergoredirect\README.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\launchergoredirect\launchergoredirect.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('EmbeddedMods\launchergoredirect\launchergoredirect.dll')" />
+    <None Update="EmbeddedMods\launchergocommandbridge\modinfo.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="EmbeddedMods\launchergocommandbridge\README.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="EmbeddedMods\launchergocommandbridge\commandbridge.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('EmbeddedMods\launchergocommandbridge\commandbridge.dll')" />
     <None Update="EmbeddedMods\servermap\**\*.*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
@@ -63,6 +69,15 @@
              Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY);NoRestore=true" />
   </Target>
 
+  <Target Name="BuildEmbeddedCommandBridgeMod" BeforeTargets="BeforeBuild" Condition="'$(BuildEmbeddedCommandBridgeMod)' == 'true'">
+    <MSBuild Projects="$(EmbeddedCommandBridgeModProject)"
+             Targets="Restore"
+             Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY)" />
+    <MSBuild Projects="$(EmbeddedCommandBridgeModProject)"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY);NoRestore=true" />
+  </Target>
+
   <Target Name="CopyBuiltEmbeddedAuthModToOutput" AfterTargets="Build" Condition="'$(BuildEmbeddedAuthMod)' == 'true' and Exists('$(EmbeddedAuthModBuildOutput)serverauth.dll')">
     <PropertyGroup>
       <_EmbeddedAuthOutputDir>$(TargetDir)EmbeddedMods\launchergoauth\</_EmbeddedAuthOutputDir>
@@ -86,6 +101,19 @@
           SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(EmbeddedRedirectRoot)modinfo.json;$(EmbeddedRedirectRoot)README.txt"
           DestinationFolder="$(_EmbeddedRedirectOutputDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyBuiltEmbeddedCommandBridgeModToOutput" AfterTargets="Build" Condition="'$(BuildEmbeddedCommandBridgeMod)' == 'true' and Exists('$(EmbeddedCommandBridgeModBuildOutput)commandbridge.dll')">
+    <PropertyGroup>
+      <_EmbeddedCommandBridgeOutputDir>$(TargetDir)EmbeddedMods\launchergocommandbridge\</_EmbeddedCommandBridgeOutputDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(_EmbeddedCommandBridgeOutputDir)" />
+    <Copy SourceFiles="$(EmbeddedCommandBridgeModBuildOutput)commandbridge.dll"
+          DestinationFiles="$(_EmbeddedCommandBridgeOutputDir)commandbridge.dll"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(EmbeddedCommandBridgeRoot)modinfo.json;$(EmbeddedCommandBridgeRoot)README.txt"
+          DestinationFolder="$(_EmbeddedCommandBridgeOutputDir)"
           SkipUnchangedFiles="true" />
   </Target>
 

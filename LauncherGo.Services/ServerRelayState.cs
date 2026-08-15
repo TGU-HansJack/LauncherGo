@@ -40,6 +40,13 @@ internal sealed class ServerRelayState
 
     public string ServerExecutablePath { get; set; } = string.Empty;
 
+    /// <summary>
+    ///     Null is a legacy relay which did not report command-write state. False means stdin forwarding is still blocked.
+    /// </summary>
+    public bool? CommandChannelAvailable { get; set; }
+
+    public string? LastCommandForwardError { get; set; }
+
     public DateTimeOffset StartedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset UpdatedAtUtc { get; set; } = DateTimeOffset.UtcNow;

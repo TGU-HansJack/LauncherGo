@@ -70,6 +70,7 @@ public static class ServerProcessRelay
             DataPath = options.DataPath,
             ServerExecutablePath = options.ServerExecutablePath,
             RestartOnCrash = options.RestartOnCrash,
+            CommandChannelAvailable = true,
             StartedAtUtc = DateTimeOffset.UtcNow,
             UpdatedAtUtc = DateTimeOffset.UtcNow
         };
@@ -466,6 +467,7 @@ public static class ServerProcessRelay
             return;
         }
 
+        ApplyCommandForwarderState(state, commandForwarder);
         state.UpdatedAtUtc = DateTimeOffset.UtcNow;
         state.ServerProcessId = getProcessId();
         TryInvokeStateChanged(stateChanged);
@@ -560,6 +562,7 @@ public static class ServerProcessRelay
                     command,
                     timeouts.CommandForward,
                     relayCancellationToken);
+                ApplyCommandForwarderState(state, commandForwarder);
                 state.UpdatedAtUtc = DateTimeOffset.UtcNow;
                 TryInvokeStateChanged(stateChanged);
                 await TryWriteResponseAsync(
@@ -579,6 +582,8 @@ public static class ServerProcessRelay
             }
             catch (TimeoutException ex)
             {
+                ApplyCommandForwarderState(state, commandForwarder, ex.Message);
+                TryInvokeStateChanged(stateChanged);
                 await TryWriteResponseAsync(
                     pipe,
                     new ServerRelayResponse
@@ -593,6 +598,8 @@ public static class ServerProcessRelay
             }
             catch (Exception ex)
             {
+                ApplyCommandForwarderState(state, commandForwarder, ex.Message);
+                TryInvokeStateChanged(stateChanged);
                 await TryWriteResponseAsync(
                     pipe,
                     new ServerRelayResponse
@@ -617,6 +624,22 @@ public static class ServerProcessRelay
             },
             timeouts.ResponseWrite,
             relayCancellationToken);
+    }
+
+    private static void ApplyCommandForwarderState(
+        ServerRelayState state,
+        ServerRelayCommandForwarder commandForwarder,
+        string? failure = null)
+    {
+        state.CommandChannelAvailable = commandForwarder.IsAvailable;
+        if (!string.IsNullOrWhiteSpace(failure))
+        {
+            state.LastCommandForwardError = failure;
+        }
+        else if (commandForwarder.IsAvailable)
+        {
+            state.LastCommandForwardError = null;
+        }
     }
 
     private static async Task<bool> TryWriteResponseAsync(
@@ -943,6 +966,12 @@ internal sealed class ServerRelayCommandForwarder
 {
     private readonly SemaphoreSlim _writeGate = new(1, 1);
     private readonly Func<string, CancellationToken, Task> _writeConsoleCommand;
+    private int _writeInFlight;
+    private int _writeFaulted;
+
+    public bool IsAvailable =>
+        Volatile.Read(ref _writeInFlight) == 0 &&
+        Volatile.Read(ref _writeFaulted) == 0;
 
     public ServerRelayCommandForwarder(Func<string, CancellationToken, Task> writeConsoleCommand)
     {
@@ -957,6 +986,9 @@ internal sealed class ServerRelayCommandForwarder
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(relayCancellationToken);
         timeoutCts.CancelAfter(timeout > TimeSpan.Zero ? timeout : TimeSpan.FromMilliseconds(1));
 
+        if (Volatile.Read(ref _writeFaulted) != 0)
+            throw new InvalidOperationException("Relay command channel is unavailable after a console write failure.");
+
         var gateAcquired = false;
         try
         {
@@ -966,8 +998,9 @@ internal sealed class ServerRelayCommandForwarder
             // The Process standard-input stream can be backed by a synchronous
             // Windows pipe. Run the write outside the request handler so even a
             // synchronously blocked WriteAsync call cannot freeze the relay loop.
+            Interlocked.Exchange(ref _writeInFlight, 1);
             var writeTask = Task.Run(
-                () => WriteAndReleaseGateAsync(command, relayCancellationToken),
+                () => WriteAndReleaseGateAsync(command, timeoutCts.Token),
                 CancellationToken.None);
             gateAcquired = false;
 
@@ -997,14 +1030,24 @@ internal sealed class ServerRelayCommandForwarder
 
     private async Task WriteAndReleaseGateAsync(
         string command,
-        CancellationToken relayCancellationToken)
+        CancellationToken cancellationToken)
     {
         try
         {
-            await _writeConsoleCommand(command, relayCancellationToken);
+            await _writeConsoleCommand(command, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            Interlocked.Exchange(ref _writeFaulted, 1);
+            throw;
         }
         finally
         {
+            Interlocked.Exchange(ref _writeInFlight, 0);
             _writeGate.Release();
         }
     }

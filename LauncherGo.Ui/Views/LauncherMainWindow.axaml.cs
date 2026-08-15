@@ -281,6 +281,7 @@ public partial class LauncherMainWindow : Window
     private readonly IGatewayRedirectModService _gatewayRedirectModService;
     private readonly IInstanceModService _instanceModService;
     private readonly IServerAuthService _serverAuthService;
+    private readonly ICommandBridgeService _commandBridgeService;
     private readonly IServerMapService _serverMapService;
     private readonly ILauncherUpdateService _launcherUpdateService;
     private readonly ILogger<LauncherMainWindow> _logger;
@@ -325,6 +326,8 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<ModListItem> _modItems = [];
     private readonly ObservableCollection<InstanceProfile> _authProfileItems = [];
     private readonly ObservableCollection<ProfileConfigListItem> _authConfigItems = [];
+    private readonly ObservableCollection<InstanceProfile> _commandBridgeProfileItems = [];
+    private readonly ObservableCollection<ProfileConfigListItem> _commandBridgeConfigItems = [];
     private readonly List<AuthPlayerListItem> _authPlayerSourceItems = [];
     private readonly ObservableCollection<AuthPlayerListItem> _authPlayerItems = [];
     private readonly ObservableCollection<RobotProfileBindingItem> _robotBindingItems = [];
@@ -393,6 +396,7 @@ public partial class LauncherMainWindow : Window
     private bool _isRefreshingAutomation;
     private bool _isRefreshingMods;
     private bool _isRefreshingAuth;
+    private bool _isRefreshingCommandBridge;
     private bool _toastPointerOver;
     private string _editingConfigProfileId = string.Empty;
     private string _pendingConfigLoadProfileId = string.Empty;
@@ -400,6 +404,7 @@ public partial class LauncherMainWindow : Window
     private string _selectedConsoleProfileId = string.Empty;
     private string _editingAutomationProfileId = string.Empty;
     private string _editingAuthProfileId = string.Empty;
+    private string _editingCommandBridgeProfileId = string.Empty;
     private string _editingOpenInfoProfileId = string.Empty;
     private long _configLoadVersion;
     private long _dashboardSettingsVersion;
@@ -428,6 +433,7 @@ public partial class LauncherMainWindow : Window
             ServiceLocator.GetRequiredService<IGatewayRedirectModService>(),
             ServiceLocator.GetRequiredService<IInstanceModService>(),
             ServiceLocator.GetRequiredService<IServerAuthService>(),
+            ServiceLocator.GetRequiredService<ICommandBridgeService>(),
             ServiceLocator.GetRequiredService<IServerMapService>(),
             ServiceLocator.GetRequiredService<ILauncherUpdateService>(),
             ServiceLocator.GetRequiredService<ILogger<LauncherMainWindow>>())
@@ -453,6 +459,7 @@ public partial class LauncherMainWindow : Window
         IGatewayRedirectModService gatewayRedirectModService,
         IInstanceModService instanceModService,
         IServerAuthService serverAuthService,
+        ICommandBridgeService commandBridgeService,
         IServerMapService serverMapService,
         ILauncherUpdateService launcherUpdateService,
         ILogger<LauncherMainWindow>? logger = null)
@@ -475,6 +482,7 @@ public partial class LauncherMainWindow : Window
         _gatewayRedirectModService = gatewayRedirectModService;
         _instanceModService = instanceModService;
         _serverAuthService = serverAuthService;
+        _commandBridgeService = commandBridgeService;
         _serverMapService = serverMapService;
         _launcherUpdateService = launcherUpdateService;
         _logger = logger ?? NullLogger<LauncherMainWindow>.Instance;
@@ -1297,6 +1305,20 @@ public partial class LauncherMainWindow : Window
         AuthExternalAccountHeaderTextBlock.Text = T("外部账号", "External Account");
         AuthRefreshPlayersButton.Content = T("刷新玩家", "Refresh Players");
         AuthPlayerSearchTextBox.PlaceholderText = T("搜索玩家名、UID 或外部账号", "Search player name, UID, or external account");
+        CommandBridgeTabButton.Content = T("命令桥接", "Cmd Bridge");
+        CommandBridgeSaveButton.Content = T("保存", "Save");
+        CommandBridgeRefreshButton.Content = T("刷新", "Refresh");
+        CommandBridgeClearButton.Content = T("清空", "Clear");
+        CommandBridgeBackButton.Content = T("返回", "Back");
+        CommandBridgeDeployButton.Content = T("部署命令桥接模组", "Deploy Command Bridge");
+        CommandBridgeTestButton.Content = T("测试连接", "Test Connection");
+        CommandBridgeRegenerateTokenButton.Content = T("轮换令牌", "Rotate Token");
+        CommandBridgeEnabledLabelTextBlock.Text = T("启用命令桥接", "Enable Command Bridge");
+        CommandBridgePortLabelTextBlock.Text = T("本机端口", "Local Port");
+        CommandBridgeTimeoutLabelTextBlock.Text = T("命令超时毫秒", "Command Timeout ms");
+        CommandBridgeMaxLengthLabelTextBlock.Text = T("最大命令长度", "Max Command Length");
+        CommandBridgeFallbackLabelTextBlock.Text = T("桥接不可用时回退 Relay", "Fallback to Relay when bridge is unavailable");
+        CommandBridgeTokenLabelTextBlock.Text = T("访问令牌", "Access Token");
         RebuildThirdPartyFrpcModeOptions();
     }
 
@@ -1350,6 +1372,8 @@ public partial class LauncherMainWindow : Window
         AuthConfigItemsControl.ItemsSource = _authConfigItems;
         AuthProfileComboBox.ItemsSource = _authProfileItems;
         AuthPlayersListBox.ItemsSource = _authPlayerItems;
+        CommandBridgeConfigItemsControl.ItemsSource = _commandBridgeConfigItems;
+        CommandBridgeProfileComboBox.ItemsSource = _commandBridgeProfileItems;
         DashboardServersItemsControl.ItemsSource = _dashboardServerItems;
         DashboardOnlinePlayersItemsControl.ItemsSource = _dashboardOnlinePlayerItems;
         DashboardUptimeItemsControl.ItemsSource = _dashboardUptimeItems;
@@ -1383,6 +1407,7 @@ public partial class LauncherMainWindow : Window
             _modItems,
             _authConfigItems,
             _authPlayerItems,
+            _commandBridgeConfigItems,
             _robotBindingItems,
             _robotCustomCommandItems,
             _openInfoConfigItems,
@@ -2304,6 +2329,7 @@ public partial class LauncherMainWindow : Window
         _ = RefreshAutomationAsync();
         _ = RefreshModsAsync();
         _ = RefreshAuthProfilesAsync();
+        _ = RefreshCommandBridgeProfilesAsync();
     }
 
     private void RefreshLogItems(IReadOnlyList<InstanceProfile>? profiles = null)
@@ -2627,6 +2653,15 @@ public partial class LauncherMainWindow : Window
         }
     }
 
+    private void SetCommandBridgeStatus(string message, bool notify = true)
+    {
+        CommandBridgeStatusTextBlock.Text = message;
+        if (notify)
+        {
+            ShowToast(message);
+        }
+    }
+
     private void ShowAutomationList()
     {
         _editingAutomationProfileId = string.Empty;
@@ -2704,6 +2739,124 @@ public partial class LauncherMainWindow : Window
             item.Id.Equals(profile.Id, StringComparison.OrdinalIgnoreCase)) ?? profile;
         await LoadAuthForProfileAsync(profile);
     }
+
+    private void ShowCommandBridgeList()
+    {
+        _editingCommandBridgeProfileId = string.Empty;
+        CommandBridgeListPanel.IsVisible = true;
+        CommandBridgeEditorPanel.IsVisible = false;
+        CommandBridgeClearButton.IsVisible = true;
+        CommandBridgeBackButton.IsVisible = false;
+        CommandBridgeSaveButton.IsVisible = false;
+        CommandBridgeDeployButton.IsVisible = false;
+        CommandBridgeTestButton.IsVisible = false;
+        CommandBridgeRegenerateTokenButton.IsVisible = false;
+        RefreshCommandBridgeConfigItems();
+    }
+
+    private async Task ShowCommandBridgeEditorAsync(InstanceProfile profile)
+    {
+        _editingCommandBridgeProfileId = profile.Id;
+        CommandBridgeListPanel.IsVisible = false;
+        CommandBridgeEditorPanel.IsVisible = true;
+        CommandBridgeClearButton.IsVisible = false;
+        CommandBridgeBackButton.IsVisible = true;
+        CommandBridgeSaveButton.IsVisible = true;
+        CommandBridgeDeployButton.IsVisible = true;
+        CommandBridgeTestButton.IsVisible = true;
+        CommandBridgeRegenerateTokenButton.IsVisible = true;
+        CommandBridgeProfileComboBox.SelectedItem = _commandBridgeProfileItems.FirstOrDefault(item =>
+            item.Id.Equals(profile.Id, StringComparison.OrdinalIgnoreCase)) ?? profile;
+        await LoadCommandBridgeForProfileAsync(profile);
+    }
+
+    private async Task RefreshCommandBridgeProfilesAsync()
+    {
+        if (_isRefreshingCommandBridge)
+            return;
+
+        _isRefreshingCommandBridge = true;
+        try
+        {
+            var profiles = _profileService.GetProfiles();
+            var selectedProfileId = !string.IsNullOrWhiteSpace(_editingCommandBridgeProfileId)
+                ? _editingCommandBridgeProfileId
+                : CommandBridgeProfileComboBox.SelectedItem is InstanceProfile selectedProfile
+                    ? selectedProfile.Id
+                    : string.Empty;
+            _commandBridgeProfileItems.Clear();
+            foreach (var profile in profiles)
+            {
+                _commandBridgeProfileItems.Add(profile);
+            }
+
+            RefreshCommandBridgeConfigItems(profiles);
+            if (_commandBridgeProfileItems.Count == 0)
+            {
+                SetCommandBridgeStatus(T("暂无档案，请先创建档案。", "No profile found. Create a profile first."), notify: false);
+                return;
+            }
+
+            var target = _commandBridgeProfileItems.FirstOrDefault(profile =>
+                !string.IsNullOrWhiteSpace(selectedProfileId) &&
+                profile.Id.Equals(selectedProfileId, StringComparison.OrdinalIgnoreCase))
+                ?? _commandBridgeProfileItems.FirstOrDefault();
+            CommandBridgeProfileComboBox.SelectedItem = target;
+            if (target is not null && CommandBridgeEditorPanel.IsVisible)
+            {
+                await LoadCommandBridgeForProfileAsync(target);
+            }
+        }
+        catch (Exception ex)
+        {
+            SetCommandBridgeStatus(T($"命令桥接加载失败：{ex.Message}", $"Command bridge load failed: {ex.Message}"));
+        }
+        finally
+        {
+            _isRefreshingCommandBridge = false;
+        }
+    }
+
+    private async Task LoadCommandBridgeForProfileAsync(InstanceProfile profile)
+    {
+        var settings = await _commandBridgeService.LoadSettingsAsync(profile);
+        ApplyCommandBridgeSettings(settings);
+        var modEnabled = await _commandBridgeService.GetCommandBridgeModEnabledAsync(profile);
+        var runtime = await _commandBridgeService.GetRuntimeStatusAsync(profile);
+        SetCommandBridgeStatus(T(
+            $"已加载命令桥接配置，模组{(modEnabled ? "已启用" : "未启用或未部署")}；{runtime.Message}",
+            $"Command bridge settings loaded, mod {(modEnabled ? "enabled" : "disabled or not deployed")}; {runtime.Message}"), notify: false);
+    }
+
+    private void ApplyCommandBridgeSettings(CommandBridgeSettings settings)
+    {
+        CommandBridgeEnabledCheckBox.IsChecked = settings.Enabled;
+        CommandBridgePortNumericUpDown.Value = settings.Port;
+        CommandBridgeTimeoutNumericUpDown.Value = settings.CommandTimeoutMilliseconds;
+        CommandBridgeMaxLengthNumericUpDown.Value = settings.MaxCommandLength;
+        CommandBridgeFallbackCheckBox.IsChecked = settings.AllowRelayFallback;
+        CommandBridgeTokenTextBox.Text = settings.AccessToken;
+    }
+
+    private CommandBridgeSettings CollectCommandBridgeSettings() => new()
+    {
+        Enabled = CommandBridgeEnabledCheckBox.IsChecked == true,
+        Port = GetNumericValue(CommandBridgePortNumericUpDown, 19090),
+        CommandTimeoutMilliseconds = GetNumericValue(CommandBridgeTimeoutNumericUpDown, 5000),
+        MaxCommandLength = GetNumericValue(CommandBridgeMaxLengthNumericUpDown, 4096),
+        AllowRelayFallback = CommandBridgeFallbackCheckBox.IsChecked != false,
+        AccessToken = CommandBridgeTokenTextBox.Text?.Trim() ?? string.Empty
+    };
+
+    private static CommandBridgeSettings BuildClearedCommandBridgeSettings() => new()
+    {
+        Enabled = false,
+        Port = 0,
+        CommandTimeoutMilliseconds = 5000,
+        MaxCommandLength = 4096,
+        AllowRelayFallback = true,
+        AccessToken = string.Empty
+    };
 
     private static AutomationSettings BuildClearedAutomationSettings(string profileId)
     {
@@ -3291,6 +3444,7 @@ public partial class LauncherMainWindow : Window
         ModsPanel.IsVisible = tab == InstanceManageTab.Mods;
         DownloadVersionsPanel.IsVisible = tab == InstanceManageTab.DownloadVersions;
         LogsPanel.IsVisible = tab == InstanceManageTab.Logs;
+        CommandBridgePanel.IsVisible = tab == InstanceManageTab.CommandBridge;
         RefreshSidebarSelection();
 
         if (tab == InstanceManageTab.Config)
@@ -3316,6 +3470,11 @@ public partial class LauncherMainWindow : Window
         else if (tab == InstanceManageTab.Logs)
         {
             RefreshLogItems();
+        }
+        else if (tab == InstanceManageTab.CommandBridge)
+        {
+            ShowCommandBridgeList();
+            _ = RefreshCommandBridgeProfilesAsync();
         }
 
         RequestStaticUiTranslations();
@@ -3426,6 +3585,7 @@ public partial class LauncherMainWindow : Window
         SetSelectedClass(DownloadVersionsTabButton, false);
         SetSelectedClass(DownloadVersionsNavButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.DownloadVersions);
         SetSelectedClass(ConnectionAuthTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Auth);
+        SetSelectedClass(CommandBridgeTabButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.CommandBridge);
         SetSelectedClass(LogsNavButton, _logsNavSelected);
         SetSelectedClass(ConnectionFrpTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Frp);
         SetSelectedClass(ConnectionEasyTierTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.EasyTier);
@@ -4291,6 +4451,7 @@ public partial class LauncherMainWindow : Window
             RefreshRobotProfileItems();
             RefreshOpenInfoConfigItems();
             RefreshAuthConfigItems();
+            RefreshCommandBridgeConfigItems();
         }
         finally
         {
@@ -4512,6 +4673,18 @@ public partial class LauncherMainWindow : Window
         if (updateStatus)
         {
             SetConnectionStatus(T("EasyTier 配置已保存。", "EasyTier configuration saved."));
+        }
+    }
+
+    private void RefreshCommandBridgeConfigItems(IReadOnlyList<InstanceProfile>? profiles = null)
+    {
+        var profileList = profiles ?? _profileService.GetProfiles();
+        _commandBridgeConfigItems.Clear();
+        foreach (var profile in profileList)
+        {
+            _commandBridgeConfigItems.Add(ProfileConfigListItem.FromPath(
+                profile,
+                GetCommandBridgeSettingsPath(profile)));
         }
     }
 
@@ -5824,6 +5997,11 @@ public partial class LauncherMainWindow : Window
             _ = RefreshAuthProfilesAsync();
         }
 
+        if (_selectedInstanceManageTab == InstanceManageTab.CommandBridge)
+        {
+            _ = RefreshCommandBridgeProfilesAsync();
+        }
+
         RefreshAppearanceSettingsEditor();
         if (_selectedSettingsTab == SettingsTab.About)
         {
@@ -6312,6 +6490,12 @@ public partial class LauncherMainWindow : Window
         }
 
         var lower = normalized.ToLowerInvariant();
+
+        if (lower.Contains("[audit]", StringComparison.Ordinal) &&
+            lower.Contains("rejected mount position update", StringComparison.Ordinal))
+        {
+            return true;
+        }
 
         if (lower.Contains("[audit]", StringComparison.Ordinal))
         {
@@ -6972,6 +7156,12 @@ public partial class LauncherMainWindow : Window
     {
         SelectTab(MainTab.Connection);
         SelectConnectionTab(ConnectionTab.Auth);
+    }
+
+    private void OnCommandBridgeSubTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.InstanceManage);
+        SelectInstanceManageTab(InstanceManageTab.CommandBridge);
     }
 
     private void OnConnectionGatewayTabClick(object? sender, RoutedEventArgs e)
@@ -8143,6 +8333,167 @@ public partial class LauncherMainWindow : Window
         if (AuthProfileComboBox.SelectedItem is InstanceProfile profile)
         {
             await LoadAuthPlayersAsync(profile);
+        }
+    }
+
+    private async void OnCommandBridgeProfileSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_isRefreshingCommandBridge)
+            return;
+
+        if (CommandBridgeEditorPanel.IsVisible &&
+            CommandBridgeProfileComboBox.SelectedItem is InstanceProfile profile)
+        {
+            await LoadCommandBridgeForProfileAsync(profile);
+        }
+    }
+
+    private async void OnCommandBridgeSaveClick(object? sender, RoutedEventArgs e)
+    {
+        if (CommandBridgeProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            SetCommandBridgeStatus(T("请先选择档案。", "Select a profile first."));
+            return;
+        }
+
+        try
+        {
+            var settings = CollectCommandBridgeSettings();
+            await _commandBridgeService.SaveSettingsAsync(profile, settings);
+            if (settings.Enabled)
+            {
+                await _commandBridgeService.EnsureCommandBridgeModDeployedAsync(profile, enableMod: true);
+            }
+            else
+            {
+                await _commandBridgeService.SetCommandBridgeModEnabledAsync(profile, enabled: false);
+            }
+
+            await LoadCommandBridgeForProfileAsync(profile);
+            SetCommandBridgeStatus(T(
+                "命令桥接配置已保存。配置和模组将在服务端下次启动时加载。",
+                "Command bridge settings saved. The configuration and mod load on the next server start."));
+        }
+        catch (Exception ex)
+        {
+            SetCommandBridgeStatus(T($"保存失败：{ex.Message}", $"Save failed: {ex.Message}"));
+        }
+    }
+
+    private async void OnCommandBridgeRefreshClick(object? sender, RoutedEventArgs e)
+    {
+        if (CommandBridgeEditorPanel.IsVisible &&
+            CommandBridgeProfileComboBox.SelectedItem is InstanceProfile profile)
+        {
+            await LoadCommandBridgeForProfileAsync(profile);
+            return;
+        }
+
+        await RefreshCommandBridgeProfilesAsync();
+    }
+
+    private async void OnCommandBridgeEditConfigClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ProfileConfigListItem item })
+            return;
+
+        var profile = _profileService.GetProfileById(item.ProfileId);
+        if (profile is not null)
+            await ShowCommandBridgeEditorAsync(profile);
+    }
+
+    private void OnCommandBridgeBackClick(object? sender, RoutedEventArgs e)
+    {
+        ShowCommandBridgeList();
+    }
+
+    private async void OnCommandBridgeClearClick(object? sender, RoutedEventArgs e)
+    {
+        var selected = _commandBridgeConfigItems.Where(static item => item.IsSelected).ToList();
+        if (selected.Count == 0)
+        {
+            SetCommandBridgeStatus(T("请先选择命令桥接配置。", "Select command bridge configurations first."));
+            return;
+        }
+
+        foreach (var item in selected)
+        {
+            var profile = _profileService.GetProfileById(item.ProfileId);
+            if (profile is null)
+                continue;
+
+            await _commandBridgeService.SaveSettingsAsync(profile, BuildClearedCommandBridgeSettings());
+            await _commandBridgeService.SetCommandBridgeModEnabledAsync(profile, enabled: false);
+        }
+
+        RefreshCommandBridgeConfigItems();
+        SetCommandBridgeStatus(T($"已清空 {selected.Count} 个命令桥接配置。", $"Cleared {selected.Count} command bridge configurations."));
+    }
+
+    private async void OnCommandBridgeDeployClick(object? sender, RoutedEventArgs e)
+    {
+        if (CommandBridgeProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            SetCommandBridgeStatus(T("请先选择档案。", "Select a profile first."));
+            return;
+        }
+
+        try
+        {
+            var settings = CollectCommandBridgeSettings();
+            await _commandBridgeService.SaveSettingsAsync(profile, settings);
+            await _commandBridgeService.EnsureCommandBridgeModDeployedAsync(profile, enableMod: settings.Enabled);
+            await LoadCommandBridgeForProfileAsync(profile);
+            SetCommandBridgeStatus(settings.Enabled
+                ? T("命令桥接模组已部署并启用；将在服务端下次启动时监听。", "Command bridge mod deployed and enabled; it listens on the next server start.")
+                : T("命令桥接模组已部署，但当前配置未启用。", "Command bridge mod deployed, but the current configuration is disabled."));
+        }
+        catch (Exception ex)
+        {
+            SetCommandBridgeStatus(T($"部署失败：{ex.Message}", $"Deployment failed: {ex.Message}"));
+        }
+    }
+
+    private async void OnCommandBridgeTestClick(object? sender, RoutedEventArgs e)
+    {
+        if (CommandBridgeProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            SetCommandBridgeStatus(T("请先选择档案。", "Select a profile first."));
+            return;
+        }
+
+        var status = await _commandBridgeService.GetRuntimeStatusAsync(profile);
+        SetCommandBridgeStatus(T(
+            $"命令桥接状态：{status.Message}（127.0.0.1:{status.Port}）",
+            $"Command bridge status: {status.Message} (127.0.0.1:{status.Port})"));
+    }
+
+    private async void OnCommandBridgeRegenerateTokenClick(object? sender, RoutedEventArgs e)
+    {
+        if (CommandBridgeProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            SetCommandBridgeStatus(T("请先选择档案。", "Select a profile first."));
+            return;
+        }
+
+        try
+        {
+            CommandBridgeRegenerateTokenButton.IsEnabled = false;
+            await _commandBridgeService.RotateAccessTokenAsync(profile);
+            await LoadCommandBridgeForProfileAsync(profile);
+            SetCommandBridgeStatus(T(
+                "访问令牌已热轮换并自动保存，无需点击保存或重启服务端。",
+                "Access token rotated live and saved automatically; no Save click or server restart is required."));
+        }
+        catch (Exception ex)
+        {
+            SetCommandBridgeStatus(T(
+                $"令牌热轮换失败：{ex.Message}",
+                $"Live access-token rotation failed: {ex.Message}"));
+        }
+        finally
+        {
+            CommandBridgeRegenerateTokenButton.IsEnabled = true;
         }
     }
 
@@ -10172,6 +10523,19 @@ public partial class LauncherMainWindow : Window
         }
     }
 
+    private static string GetCommandBridgeSettingsPath(InstanceProfile profile)
+    {
+        var configPath = Path.Combine(profile.DirectoryPath, "ModConfig", "launchergocommandbridge.json");
+        try
+        {
+            return Path.GetFullPath(configPath);
+        }
+        catch
+        {
+            return configPath;
+        }
+    }
+
     private string GetWorkspaceRootForUi()
     {
         var root = _preferencesService.Load().WorkspaceRoot;
@@ -11200,7 +11564,8 @@ public partial class LauncherMainWindow : Window
         Automation,
         Logs,
         Mods,
-        DownloadVersions
+        DownloadVersions,
+        CommandBridge
     }
 
     private enum SettingsTab

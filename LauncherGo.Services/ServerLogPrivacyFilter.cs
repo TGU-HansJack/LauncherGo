@@ -93,6 +93,12 @@ internal static class ServerLogPrivacyFilter
         }
 
         var lower = normalized.ToLowerInvariant();
+        if (lower.Contains("[audit]", StringComparison.Ordinal) &&
+            lower.Contains("rejected mount position update", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
         if (lower.Contains("[noofflinecontainerfoodspoil]", StringComparison.Ordinal))
         {
             return true;

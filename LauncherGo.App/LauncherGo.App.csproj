@@ -2,8 +2,8 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <Version>2.5.8</Version>
-    <InformationalVersion>2.5.8</InformationalVersion>
+    <Version>2.5.9</Version>
+    <InformationalVersion>2.5.9</InformationalVersion>
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\app-icon.ico</ApplicationIcon>
@@ -111,6 +111,54 @@
     </ItemGroup>
     <Copy SourceFiles="@(_GatewayHostBuildFile)"
           DestinationFolder="$(TargetDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="BuildCommandBridgeMod"
+          BeforeTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <_CommandBridgeProject>$(MSBuildProjectDirectory)\..\LauncherGo.Services\EmbeddedMods\LauncherGoCommandBridgeMod\LauncherGoCommandBridgeMod.csproj</_CommandBridgeProject>
+    </PropertyGroup>
+    <MSBuild Projects="$(_CommandBridgeProject)"
+             Targets="Restore"
+             Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY)" />
+    <MSBuild Projects="$(_CommandBridgeProject)"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY);NoRestore=true" />
+  </Target>
+
+  <Target Name="CopyCommandBridgeModBuildOutput"
+          AfterTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <_CommandBridgeBuildDir>$(MSBuildProjectDirectory)\..\LauncherGo.Services\EmbeddedMods\LauncherGoCommandBridgeMod\bin\$(Configuration)\net10.0\</_CommandBridgeBuildDir>
+      <_CommandBridgeContentDir>$(MSBuildProjectDirectory)\..\LauncherGo.Services\EmbeddedMods\launchergocommandbridge\</_CommandBridgeContentDir>
+      <_CommandBridgeOutputDir>$(TargetDir)EmbeddedMods\launchergocommandbridge\</_CommandBridgeOutputDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(_CommandBridgeOutputDir)" />
+    <Copy SourceFiles="$(_CommandBridgeBuildDir)commandbridge.dll"
+          DestinationFiles="$(_CommandBridgeOutputDir)commandbridge.dll"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(_CommandBridgeContentDir)modinfo.json;$(_CommandBridgeContentDir)README.txt"
+          DestinationFolder="$(_CommandBridgeOutputDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyCommandBridgeModPublishOutput"
+          AfterTargets="Publish"
+          Condition="'$(DesignTimeBuild)' != 'true' and Exists('$(PublishDir)')">
+    <PropertyGroup>
+      <_CommandBridgeBuildDir>$(MSBuildProjectDirectory)\..\LauncherGo.Services\EmbeddedMods\LauncherGoCommandBridgeMod\bin\$(Configuration)\net10.0\</_CommandBridgeBuildDir>
+      <_CommandBridgeContentDir>$(MSBuildProjectDirectory)\..\LauncherGo.Services\EmbeddedMods\launchergocommandbridge\</_CommandBridgeContentDir>
+      <_CommandBridgePublishDir>$(PublishDir)EmbeddedMods\launchergocommandbridge\</_CommandBridgePublishDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(_CommandBridgePublishDir)" />
+    <Copy SourceFiles="$(_CommandBridgeBuildDir)commandbridge.dll"
+          DestinationFiles="$(_CommandBridgePublishDir)commandbridge.dll"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(_CommandBridgeContentDir)modinfo.json;$(_CommandBridgeContentDir)README.txt"
+          DestinationFolder="$(_CommandBridgePublishDir)"
           SkipUnchangedFiles="true" />
   </Target>
 

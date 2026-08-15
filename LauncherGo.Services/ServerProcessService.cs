@@ -28,12 +28,13 @@ public sealed partial class ServerProcessService : IServerProcessService
     private readonly IInstanceProfileService? _profileService;
     private readonly ILauncherPreferencesService? _preferencesService;
     private readonly IServerAuthService? _serverAuthService;
+    private readonly ICommandBridgeService? _commandBridgeService;
     private readonly IServerMapService? _serverMapService;
     private readonly ILogger<ServerProcessService> _logger;
     private string _activeProfileId = string.Empty;
 
     public ServerProcessService()
-        : this(null, null, null, NullLogger<ServerProcessService>.Instance, null)
+        : this(null, null, null, NullLogger<ServerProcessService>.Instance, null, null)
     {
     }
 
@@ -42,12 +43,14 @@ public sealed partial class ServerProcessService : IServerProcessService
         IServerAuthService? serverAuthService = null,
         IServerMapService? serverMapService = null,
         ILogger<ServerProcessService>? logger = null,
-        ILauncherPreferencesService? preferencesService = null)
+        ILauncherPreferencesService? preferencesService = null,
+        ICommandBridgeService? commandBridgeService = null)
     {
         _profileService = profileService;
         _preferencesService = preferencesService;
         _serverAuthService = serverAuthService;
         _serverMapService = serverMapService;
+        _commandBridgeService = commandBridgeService;
         _logger = logger ?? NullLogger<ServerProcessService>.Instance;
     }
 
@@ -295,7 +298,8 @@ public sealed partial class ServerProcessService : IServerProcessService
                 _serverAuthService,
                 _serverMapService,
                 _logger,
-                _preferencesService);
+                _preferencesService,
+                _commandBridgeService);
             _controllers[profile.Id] = controller;
             _controllerProfiles[profile.Id] = profile;
             _statuses[profile.Id] = new ServerRuntimeStatus { ProfileId = profile.Id };
@@ -400,6 +404,7 @@ internal sealed partial class SingleServerProcessController
     private readonly IInstanceProfileService? _profileService;
     private readonly ILauncherPreferencesService? _preferencesService;
     private readonly IServerAuthService? _serverAuthService;
+    private readonly ICommandBridgeService? _commandBridgeService;
     private readonly IServerMapService? _serverMapService;
     private readonly ILogger<ServerProcessService> _logger;
     private Process? _process;
@@ -423,7 +428,7 @@ internal sealed partial class SingleServerProcessController
     private double _lastCpuPercent;
 
     public SingleServerProcessController()
-        : this(null, null, null, NullLogger<ServerProcessService>.Instance, null)
+        : this(null, null, null, NullLogger<ServerProcessService>.Instance, null, null)
     {
     }
 
@@ -432,12 +437,14 @@ internal sealed partial class SingleServerProcessController
         IServerAuthService? serverAuthService = null,
         IServerMapService? serverMapService = null,
         ILogger<ServerProcessService>? logger = null,
-        ILauncherPreferencesService? preferencesService = null)
+        ILauncherPreferencesService? preferencesService = null,
+        ICommandBridgeService? commandBridgeService = null)
     {
         _profileService = profileService;
         _preferencesService = preferencesService;
         _serverAuthService = serverAuthService;
         _serverMapService = serverMapService;
+        _commandBridgeService = commandBridgeService;
         _logger = logger ?? NullLogger<ServerProcessService>.Instance;
     }
 
@@ -832,6 +839,42 @@ internal sealed partial class SingleServerProcessController
         if (GetCommandName(normalized).Equals("/stop", StringComparison.OrdinalIgnoreCase))
             _manualStopRequested = true;
 
+        if (_commandBridgeService is not null && _currentProfile is { } bridgeProfile)
+        {
+            var bridgeSettings = await _commandBridgeService
+                .LoadSettingsAsync(bridgeProfile, cancellationToken)
+                .ConfigureAwait(false);
+            if (bridgeSettings.Enabled)
+            {
+                try
+                {
+                    await _commandBridgeService
+                        .SendCommandAsync(bridgeProfile, normalized, cancellationToken)
+                        .ConfigureAwait(false);
+                    OutputReceived?.Invoke(this, $"[cmd:bridge] {normalized}");
+                    return;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "Command bridge failed. ProfileId={ProfileId}, AllowRelayFallback={AllowRelayFallback}.",
+                        bridgeProfile.Id,
+                        bridgeSettings.AllowRelayFallback);
+                    if (!bridgeSettings.AllowRelayFallback)
+                    {
+                        throw new InvalidOperationException(
+                            $"命令桥接不可用，且已关闭 Relay 回退：{ex.Message}",
+                            ex);
+                    }
+                }
+            }
+        }
+
         if ((_process is null || _relayState is null || !_relayConnected) &&
             await TryRecoverRelayForTrackedProcessAsync(cancellationToken))
         {
@@ -851,6 +894,12 @@ internal sealed partial class SingleServerProcessController
                 throw new InvalidOperationException("后台控制通道不可用。");
             }
 
+            if (_relayState.CommandChannelAvailable == false)
+            {
+                throw new InvalidOperationException(
+                    "Relay 仍可连接，但其 stdin 命令写入正在阻塞。请启用 LauncherGo Command Bridge，或等待当前写入恢复后重试。");
+            }
+
             var response = await ServerRelayClient.SendCommandAsync(
                 _relayState,
                 normalized,
@@ -863,7 +912,9 @@ internal sealed partial class SingleServerProcessController
                     _relayState.RelayProcessId,
                     response.Error);
 
-                _relayConnected = false;
+                if (response.State is not null)
+                    _relayState = response.State;
+                _relayConnected = response.State is not null;
                 if (!IsRelayHostProcess(_relayState))
                     _relayState = null;
 
@@ -1588,6 +1639,7 @@ internal sealed partial class SingleServerProcessController
 
         return _relayConnected &&
                _relayState is { IsRestarting: false } &&
+               IsRelayCommandChannelAvailable(_relayState) &&
                _process is not null &&
                !IsProcessTerminated(_process) &&
                IsRelayHostProcess(_relayState);
@@ -1597,6 +1649,7 @@ internal sealed partial class SingleServerProcessController
     {
         if (_relayConnected &&
             _relayState is { IsRestarting: false } &&
+            IsRelayCommandChannelAvailable(_relayState) &&
             _process is not null &&
             !IsProcessTerminated(_process) &&
             IsRelayHostProcess(_relayState))
@@ -1604,6 +1657,9 @@ internal sealed partial class SingleServerProcessController
 
         return _canWriteStandardInput ? "direct" : string.Empty;
     }
+
+    private static bool IsRelayCommandChannelAvailable(ServerRelayState state) =>
+        state.CommandChannelAvailable != false;
 
     private bool IsAutoRestartAfterCrashEnabled()
     {
@@ -2920,9 +2976,11 @@ internal sealed partial class SingleServerProcessController
                         OnlinePlayers = _currentStatus.OnlinePlayers,
                         OnlinePlayerNames = _currentStatus.OnlinePlayerNames,
                         PeakOnlinePlayers = _currentStatus.PeakOnlinePlayers,
-                        CanSendCommands = true,
+                        CanSendCommands = IsRelayCommandChannelAvailable(liveState),
                         ControlMode = "server-host",
-                        Message = "ServerHost"
+                        Message = IsRelayCommandChannelAvailable(liveState)
+                            ? "ServerHost"
+                            : "ServerHost relay command channel unavailable"
                     });
                     return true;
                 }
