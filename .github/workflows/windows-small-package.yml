@@ -6,7 +6,7 @@ on:
       version:
         description: "Version number (for example: 1.2.3)"
         required: true
-        default: "2.5.8"
+        default: "2.5.9"
         type: string
       vintage_story_version:
         description: "Vintage Story server version used to build embedded mods"
@@ -25,6 +25,7 @@ jobs:
       PROJECT_PATH: LauncherGo.App/LauncherGo.App.csproj
       EMBEDDED_AUTH_PROJECT: LauncherGo.Services/EmbeddedMods/VsslAuthMod/VsslAuthMod.csproj
       EMBEDDED_REDIRECT_PROJECT: LauncherGo.Services/EmbeddedMods/LauncherGoRedirectMod/LauncherGoRedirectMod.csproj
+      EMBEDDED_COMMAND_BRIDGE_PROJECT: LauncherGo.Services/EmbeddedMods/LauncherGoCommandBridgeMod/LauncherGoCommandBridgeMod.csproj
       CONFIGURATION: Release
       RUNTIME: win-x64
       VINTAGE_STORY_VERSION: 1.22.2
@@ -111,6 +112,7 @@ jobs:
         run: |
           dotnet restore $env:EMBEDDED_AUTH_PROJECT
           dotnet restore $env:EMBEDDED_REDIRECT_PROJECT
+          dotnet restore $env:EMBEDDED_COMMAND_BRIDGE_PROJECT
 
       - name: Resolve package version
         id: resolve_version
@@ -167,6 +169,11 @@ jobs:
             -DllPath "LauncherGo.Services/EmbeddedMods/LauncherGoRedirectMod/bin/$env:CONFIGURATION/net10.0/launchergoredirect.dll" `
             -TargetPath "LauncherGo.Services/EmbeddedMods/launchergoredirect/launchergoredirect.dll" `
             -Name "Gateway Redirect"
+          Build-EmbeddedMod `
+            -Project $env:EMBEDDED_COMMAND_BRIDGE_PROJECT `
+            -DllPath "LauncherGo.Services/EmbeddedMods/LauncherGoCommandBridgeMod/bin/$env:CONFIGURATION/net10.0/commandbridge.dll" `
+            -TargetPath "LauncherGo.Services/EmbeddedMods/launchergocommandbridge/commandbridge.dll" `
+            -Name "Command Bridge"
 
       - name: Publish self-contained small package
         run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -p:DebugType=None -p:DebugSymbols=false -p:StripPublishSymbols=true -o artifacts/publish/small-package
@@ -176,7 +183,8 @@ jobs:
         run: |
           $mods = @(
             @{ Id = "launchergoauth"; SourceRoot = "LauncherGo.Services/EmbeddedMods/launchergoauth"; Files = @("serverauth.dll", "modinfo.json", "README.txt") },
-            @{ Id = "launchergoredirect"; SourceRoot = "LauncherGo.Services/EmbeddedMods/launchergoredirect"; Files = @("launchergoredirect.dll", "modinfo.json", "README.txt") }
+            @{ Id = "launchergoredirect"; SourceRoot = "LauncherGo.Services/EmbeddedMods/launchergoredirect"; Files = @("launchergoredirect.dll", "modinfo.json", "README.txt") },
+            @{ Id = "launchergocommandbridge"; SourceRoot = "LauncherGo.Services/EmbeddedMods/launchergocommandbridge"; Files = @("commandbridge.dll", "modinfo.json", "README.txt") }
           )
 
           foreach ($mod in $mods) {
@@ -212,7 +220,10 @@ jobs:
             "artifacts/publish/small-package/EmbeddedMods/launchergoauth/README.txt",
             "artifacts/publish/small-package/EmbeddedMods/launchergoredirect/launchergoredirect.dll",
             "artifacts/publish/small-package/EmbeddedMods/launchergoredirect/modinfo.json",
-            "artifacts/publish/small-package/EmbeddedMods/launchergoredirect/README.txt"
+            "artifacts/publish/small-package/EmbeddedMods/launchergoredirect/README.txt",
+            "artifacts/publish/small-package/EmbeddedMods/launchergocommandbridge/commandbridge.dll",
+            "artifacts/publish/small-package/EmbeddedMods/launchergocommandbridge/modinfo.json",
+            "artifacts/publish/small-package/EmbeddedMods/launchergocommandbridge/README.txt"
           )
 
           foreach ($path in $requiredPaths) {

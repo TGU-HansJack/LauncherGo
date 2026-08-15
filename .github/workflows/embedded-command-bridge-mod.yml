@@ -1,0 +1,105 @@
+name: Build Embedded Command Bridge Mod
+
+on:
+  workflow_dispatch:
+    inputs:
+      vintage_story_version:
+        description: "Vintage Story server version used for API references"
+        required: true
+        default: "1.22.2"
+        type: string
+
+jobs:
+  build-launchergocommandbridge:
+    runs-on: windows-latest
+
+    env:
+      CONFIGURATION: Release
+      VINTAGE_STORY_VERSION: ${{ inputs.vintage_story_version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Prepare Vintage Story API refs
+        shell: pwsh
+        run: |
+          $vsVersion = $env:VINTAGE_STORY_VERSION.Trim()
+          if ([string]::IsNullOrWhiteSpace($vsVersion)) { throw "VINTAGE_STORY_VERSION is empty." }
+
+          $vsRoot = Join-Path $pwd ".vintagestory-runtime"
+          $requiredEntries = @("VintagestoryAPI.dll", "VintagestoryLib.dll", "Lib/protobuf-net.dll")
+          $missingReference = $requiredEntries | Where-Object { !(Test-Path (Join-Path $vsRoot $_)) } | Select-Object -First 1
+          if ($null -ne $missingReference) {
+            New-Item -ItemType Directory -Force -Path $vsRoot | Out-Null
+            $zipPath = Join-Path $vsRoot "vs_server_win-x64_$vsVersion.zip"
+            $downloadUrl = "https://cdn.vintagestory.at/gamefiles/stable/vs_server_win-x64_$vsVersion.zip"
+
+            Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+            try {
+              foreach ($entryName in $requiredEntries) {
+                $entry = $zip.GetEntry($entryName)
+                if ($null -eq $entry) { throw "Missing required file '$entryName' in $downloadUrl" }
+
+                $targetPath = Join-Path $vsRoot $entryName
+                $targetDir = Split-Path -Parent $targetPath
+                if (!(Test-Path $targetDir)) { New-Item -ItemType Directory -Force -Path $targetDir | Out-Null }
+
+                $entryStream = $entry.Open()
+                $fileStream = [System.IO.File]::Open($targetPath, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
+                try { $entryStream.CopyTo($fileStream) }
+                finally {
+                  $entryStream.Dispose()
+                  $fileStream.Dispose()
+                }
+              }
+            }
+            finally {
+              $zip.Dispose()
+            }
+
+            Remove-Item -LiteralPath $zipPath -Force
+          }
+
+          "VINTAGE_STORY=$vsRoot" >> $env:GITHUB_ENV
+
+      - name: Restore command bridge mod
+        run: dotnet restore LauncherGo.Services/EmbeddedMods/LauncherGoCommandBridgeMod/LauncherGoCommandBridgeMod.csproj
+
+      - name: Build command bridge mod
+        run: dotnet build LauncherGo.Services/EmbeddedMods/LauncherGoCommandBridgeMod/LauncherGoCommandBridgeMod.csproj -c $env:CONFIGURATION --no-restore
+
+      - name: Package command bridge mod
+        shell: pwsh
+        run: |
+          $projectDir = "LauncherGo.Services/EmbeddedMods/LauncherGoCommandBridgeMod"
+          $metadataDir = "LauncherGo.Services/EmbeddedMods/launchergocommandbridge"
+          $outputDir = "artifacts/embedded-mods/launchergocommandbridge"
+          $zipPath = "artifacts/embedded-mods/launchergocommandbridge.zip"
+          $dllPath = Join-Path $projectDir "bin/$env:CONFIGURATION/net10.0/commandbridge.dll"
+
+          if (!(Test-Path $dllPath)) { throw "Missing built DLL: $dllPath" }
+          foreach ($file in @("modinfo.json", "README.txt")) {
+            $path = Join-Path $metadataDir $file
+            if (!(Test-Path $path)) { throw "Missing command bridge metadata: $path" }
+          }
+
+          New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+          Copy-Item -LiteralPath $dllPath -Destination (Join-Path $outputDir "commandbridge.dll") -Force
+          Copy-Item -LiteralPath (Join-Path $metadataDir "modinfo.json") -Destination $outputDir -Force
+          Copy-Item -LiteralPath (Join-Path $metadataDir "README.txt") -Destination $outputDir -Force
+          Compress-Archive -Path (Join-Path $outputDir "*") -DestinationPath $zipPath -Force
+
+      - name: Upload command bridge mod artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LauncherGo-launchergocommandbridge
+          path: artifacts/embedded-mods/launchergocommandbridge.zip
+          if-no-files-found: error
