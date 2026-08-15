@@ -81,5 +81,7 @@ public class LauncherPreferences
 
     public EasyTierIntegrationSettings EasyTier { get; set; } = new();
 
+    public TcpGatewaySettings TcpGateway { get; set; } = new();
+
     public SaveCompressionSettings SaveCompression { get; set; } = new();
 }

@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>launchergoredirect</AssemblyName>
+    <RootNamespace>LauncherGoRedirect</RootNamespace>
+    <VintageStoryDir Condition="'$(VINTAGE_STORY)' != ''">$(VINTAGE_STORY)</VintageStoryDir>
+    <VintageStoryDir Condition="'$(VintageStoryDir)' == '' and Exists('$(MSBuildThisFileDirectory)..\..\..\..\vs_client_linux-x64_1.22.2\vintagestory\VintagestoryAPI.dll')">$(MSBuildThisFileDirectory)..\..\..\..\vs_client_linux-x64_1.22.2\vintagestory</VintageStoryDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="VintagestoryAPI">
+      <HintPath>$(VintageStoryDir)\VintagestoryAPI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="VintagestoryLib">
+      <HintPath>$(VintageStoryDir)\VintagestoryLib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="protobuf-net">
+      <HintPath>$(VintageStoryDir)\Lib\protobuf-net.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="ValidateVintageStoryDir" BeforeTargets="BeforeBuild">
+    <Error
+      Condition="'$(VintageStoryDir)' == '' or !Exists('$(VintageStoryDir)\VintagestoryAPI.dll')"
+      Text="LauncherGo redirect mod build failed: set VINTAGE_STORY to a Vintage Story install containing VintagestoryAPI.dll." />
+  </Target>
+</Project>

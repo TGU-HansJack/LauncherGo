@@ -40,6 +40,8 @@
     <ProjectReference Include="..\LauncherGo.Services\LauncherGo.Services.csproj" />
     <ProjectReference Include="..\LauncherGo.ServerHost\LauncherGo.ServerHost.csproj"
                       ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\LauncherGo.GatewayHost\LauncherGo.GatewayHost.csproj"
+                      ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\LauncherGo.Ui\LauncherGo.Ui.csproj" />
   </ItemGroup>
 
@@ -92,5 +94,45 @@
       <_ServerHostCompanion Include="$(PublishDir)LauncherGo.ServerHost.pdb" />
     </ItemGroup>
     <Delete Files="@(_ServerHostCompanion)" />
+  </Target>
+
+  <Target Name="CopyGatewayHostBuildOutput"
+          AfterTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <_GatewayHostBuildDir>$(MSBuildProjectDirectory)\..\LauncherGo.GatewayHost\bin\$(Configuration)\net10.0\</_GatewayHostBuildDir>
+      <_GatewayHostBuildDir Condition="'$(RuntimeIdentifier)' != ''">$(_GatewayHostBuildDir)$(RuntimeIdentifier)\</_GatewayHostBuildDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_GatewayHostBuildFile Include="$(_GatewayHostBuildDir)LauncherGo.GatewayHost.exe" />
+      <_GatewayHostBuildFile Include="$(_GatewayHostBuildDir)LauncherGo.GatewayHost.dll" />
+      <_GatewayHostBuildFile Include="$(_GatewayHostBuildDir)LauncherGo.GatewayHost.deps.json" />
+      <_GatewayHostBuildFile Include="$(_GatewayHostBuildDir)LauncherGo.GatewayHost.runtimeconfig.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_GatewayHostBuildFile)"
+          DestinationFolder="$(TargetDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="PublishGatewayHost"
+          AfterTargets="Publish"
+          Condition="'$(RuntimeIdentifier)' != ''">
+    <PropertyGroup>
+      <_GatewayHostProject>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\LauncherGo.GatewayHost\LauncherGo.GatewayHost.csproj'))</_GatewayHostProject>
+      <_GatewayHostPublishDir>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)gatewayhost-publish'))\</_GatewayHostPublishDir>
+    </PropertyGroup>
+    <RemoveDir Directories="$(_GatewayHostPublishDir)" />
+    <MSBuild Projects="$(_GatewayHostProject)"
+             Targets="Publish"
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);PublishSingleFile=true;IncludeNativeLibrariesForSelfExtract=true;DebugType=None;DebugSymbols=false;PublishDir=$(_GatewayHostPublishDir)" />
+    <Copy SourceFiles="$(_GatewayHostPublishDir)LauncherGo.GatewayHost.exe"
+          DestinationFiles="$(PublishDir)LauncherGo.GatewayHost.exe" />
+    <ItemGroup>
+      <_GatewayHostCompanion Include="$(PublishDir)LauncherGo.GatewayHost.dll" />
+      <_GatewayHostCompanion Include="$(PublishDir)LauncherGo.GatewayHost.deps.json" />
+      <_GatewayHostCompanion Include="$(PublishDir)LauncherGo.GatewayHost.runtimeconfig.json" />
+      <_GatewayHostCompanion Include="$(PublishDir)LauncherGo.GatewayHost.pdb" />
+    </ItemGroup>
+    <Delete Files="@(_GatewayHostCompanion)" />
   </Target>
 </Project>

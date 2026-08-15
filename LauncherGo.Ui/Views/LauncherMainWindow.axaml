@@ -2,6 +2,7 @@
     x:Class="LauncherGo.Ui.Views.LauncherMainWindow"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="clr-namespace:LauncherGo.Ui.Converters"
     Width="1120"
     Height="720"
     MinWidth="900"
@@ -16,6 +17,7 @@
     Title="LauncherGo">
     <Window.Resources>
         <ResourceDictionary>
+            <converters:GatewayRoutingStateDisplayConverter x:Key="GatewayRoutingStateDisplayConverter" />
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="WindowSurfaceBrush" Color="#FFFFFF" />
@@ -1150,6 +1152,7 @@
                                     <Button x:Name="ConnectionRobotTabButton" Classes="SidebarNavButton" Content="OneBot" Click="OnConnectionRobotTabClick" />
                                     <Button x:Name="ConnectionFrpTabButton" Classes="SidebarNavButton" Content="FRP" Click="OnConnectionFrpTabClick" />
                                     <Button x:Name="ConnectionEasyTierTabButton" Classes="SidebarNavButton" Content="EasyTier" Click="OnConnectionEasyTierTabClick" />
+                                    <Button x:Name="ConnectionGatewayTabButton" Classes="SidebarNavButton" Content="网关" Click="OnConnectionGatewayTabClick" />
 
                                     <TextBlock Classes="SidebarSectionTitle" Text="设置" />
                                     <Button x:Name="ServerSettingsTabButton" Classes="SidebarNavButton" Content="服务器设置" Click="OnServerSettingsTabClick" />
@@ -2860,6 +2863,187 @@
                                                         </Grid>
                                                         <Button x:Name="RobotCustomCommandAddButton" Classes="SecondaryActionButton" Width="120" HorizontalAlignment="Left" Content="添加" Click="OnRobotCustomCommandAddClick" />
                                                     </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </ScrollViewer>
+
+                                    <ScrollViewer x:Name="ConnectionGatewayPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
+                                        <StackPanel Spacing="10">
+                                            <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="8">
+                                                <Button x:Name="GatewaySaveButton" Classes="ActionButton" Content="保存" Click="OnGatewaySaveClick" />
+                                                <Button x:Name="GatewayRefreshButton" Grid.Column="1" Classes="SecondaryActionButton" Content="刷新" Click="OnGatewayRefreshClick" />
+                                                <Button x:Name="GatewayToggleButton" Grid.Column="2" Classes="SecondaryActionButton" Content="启动" Click="OnGatewayToggleClick" />
+                                            </Grid>
+                                            <Border Classes="ConfigCard">
+                                                <StackPanel Spacing="10">
+                                                    <TextBlock x:Name="GatewayConfigTitleTextBlock" Classes="ConfigSectionTitle" Text="TCP 网关" />
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="GatewayListenHostLabelTextBlock" Classes="ConfigFieldLabel" Text="监听地址" />
+                                                            <TextBox x:Name="GatewayListenHostTextBox" Classes="CompactInput" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="GatewayListenPortLabelTextBlock" Classes="ConfigFieldLabel" Text="监听端口" />
+                                                            <NumericUpDown x:Name="GatewayListenPortNumericUpDown" Classes="CompactNumber" Minimum="1" Maximum="65535" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="GatewayMaxConnectionsLabelTextBlock" Classes="ConfigFieldLabel" Text="最大连接数" />
+                                                            <NumericUpDown x:Name="GatewayMaxConnectionsNumericUpDown" Classes="CompactNumber" Minimum="1" Maximum="100000" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="GatewayMaxConnectionsPerIpLabelTextBlock" Classes="ConfigFieldLabel" Text="单 IP 连接上限" />
+                                                            <NumericUpDown x:Name="GatewayMaxConnectionsPerIpNumericUpDown" Classes="CompactNumber" Minimum="1" Maximum="10000" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="GatewayConnectTimeoutLabelTextBlock" Classes="ConfigFieldLabel" Text="后端连接超时秒数" />
+                                                            <NumericUpDown x:Name="GatewayConnectTimeoutNumericUpDown" Classes="CompactNumber" Minimum="1" Maximum="120" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormField">
+                                                            <TextBlock x:Name="GatewayHealthCheckIntervalLabelTextBlock" Classes="ConfigFieldLabel" Text="健康检查间隔秒数" />
+                                                            <NumericUpDown x:Name="GatewayHealthCheckIntervalNumericUpDown" Classes="CompactNumber" Minimum="1" Maximum="300" />
+                                                        </StackPanel>
+                                                    </WrapPanel>
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="GatewayAllowListLabelTextBlock" Classes="ConfigFieldLabel" Text="IP 白名单" />
+                                                            <TextBox x:Name="GatewayAllowListTextBox" Classes="CompactInput MultiLineInput" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="72" />
+                                                        </StackPanel>
+                                                        <StackPanel Classes="ConfigFormFieldWide">
+                                                            <TextBlock x:Name="GatewayBlockListLabelTextBlock" Classes="ConfigFieldLabel" Text="IP 黑名单" />
+                                                            <TextBox x:Name="GatewayBlockListTextBox" Classes="CompactInput MultiLineInput" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="72" />
+                                                        </StackPanel>
+                                                    </WrapPanel>
+                                                    <TextBlock x:Name="GatewayIpRulesHintTextBlock" Classes="ConfigHintText" Text="每行一个 IP 或 CIDR 网段；黑名单优先。" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Classes="ConfigCard">
+                                                <StackPanel Spacing="8">
+                                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                        <TextBlock x:Name="GatewayBackendsTitleTextBlock" Classes="ConfigSectionTitle" Text="后端服务器" />
+                                                        <Button x:Name="GatewayAddBackendButton" Grid.Column="1" Classes="SecondaryActionButton" Content="添加" Click="OnGatewayAddBackendClick" />
+                                                    </Grid>
+                                                    <Grid RowDefinitions="Auto,*">
+                                                        <Border Grid.Row="0" Classes="TableHeader">
+                                                            <Grid ColumnDefinitions="112,112,128,96,58,90,132,Auto" ColumnSpacing="8">
+                                                                    <TextBlock Classes="TableHeaderText" Text="后端名称" />
+                                                                    <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="ServerId" />
+                                                                    <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="主机" />
+                                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="端口" />
+                                                                    <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="权重" />
+                                                                    <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="路由状态" />
+                                                                    <TextBlock Grid.Column="6" Classes="TableHeaderText" Text="本地实例" />
+                                                                    <TextBlock Grid.Column="7" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                            </Grid>
+                                                        </Border>
+                                                        <Border Grid.Row="1" Classes="TableBody">
+                                                            <ItemsControl x:Name="GatewayBackendsItemsControl">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Classes="TableRow">
+                                                                            <Grid ColumnDefinitions="112,112,128,96,58,90,132,Auto" ColumnSpacing="8">
+                                                                                <TextBox Classes="CompactInput" Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                                                <TextBlock Grid.Column="1" Classes="TableSubCellText" Text="{Binding Id}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Id}" VerticalAlignment="Center" />
+                                                                                <TextBox Grid.Column="2" Classes="CompactInput" Text="{Binding Host, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                                                <NumericUpDown Grid.Column="3" Classes="CompactNumber" Minimum="1" Maximum="65535" Value="{Binding Port, Mode=TwoWay}" />
+                                                                                <NumericUpDown Grid.Column="4" Classes="CompactNumber" Minimum="0" Maximum="100" Value="{Binding Weight, Mode=TwoWay}" />
+                                                                                <ComboBox Grid.Column="5" Classes="CompactCombo" ItemsSource="{Binding RoutingStateOptions}" SelectedItem="{Binding RoutingState, Mode=TwoWay}">
+                                                                                    <ComboBox.ItemTemplate>
+                                                                                        <DataTemplate>
+                                                                                            <TextBlock Text="{Binding Converter={StaticResource GatewayRoutingStateDisplayConverter}}" />
+                                                                                        </DataTemplate>
+                                                                                    </ComboBox.ItemTemplate>
+                                                                                </ComboBox>
+                                                                                <ComboBox Grid.Column="6" Classes="CompactCombo" ItemsSource="{Binding ProfileOptions}" SelectedItem="{Binding SelectedProfile, Mode=TwoWay}">
+                                                                                        <ComboBox.ItemTemplate>
+                                                                                            <DataTemplate>
+                                                                                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                                                                            </DataTemplate>
+                                                                                        </ComboBox.ItemTemplate>
+                                                                                    </ComboBox>
+                                                                                    <Button Grid.Column="7" Classes="SecondaryActionButton DangerButton" Tag="{Binding}" Content="删除" Click="OnGatewayRemoveBackendClick" />
+                                                                            </Grid>
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </Border>
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Classes="ConfigCard">
+                                                <StackPanel Spacing="8">
+                                                    <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="8">
+                                                        <TextBlock x:Name="GatewayRuntimeTitleTextBlock" Classes="ConfigSectionTitle" Text="路由与重定向" />
+                                                        <Button x:Name="GatewayDeployRedirectModButton" Grid.Column="1" Classes="SecondaryActionButton" Content="部署重定向模组" Click="OnGatewayDeployRedirectModClick" />
+                                                        <Button x:Name="GatewayRoutingHistoryButton" Grid.Column="2" Classes="SecondaryActionButton" Content="历史" Click="OnGatewayShowRoutingHistoryClick" />
+                                                    </Grid>
+                                                    <TextBlock x:Name="GatewayRuntimeSummaryTextBlock" Classes="ConfigHintText" TextWrapping="Wrap" />
+                                                    <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="14">
+                                                        <StackPanel Spacing="2">
+                                                            <TextBlock Classes="ConfigFieldLabel" Text="活跃连接" />
+                                                            <TextBlock x:Name="GatewayActiveConnectionsTextBlock" Classes="TableCellText" Text="0" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" Spacing="2">
+                                                            <TextBlock Classes="ConfigFieldLabel" Text="已接收" />
+                                                            <TextBlock x:Name="GatewayAcceptedConnectionsTextBlock" Classes="TableCellText" Text="0" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="2" Spacing="2">
+                                                            <TextBlock Classes="ConfigFieldLabel" Text="已拒绝" />
+                                                            <TextBlock x:Name="GatewayRejectedConnectionsTextBlock" Classes="TableCellText" Text="0" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="3" Spacing="2">
+                                                            <TextBlock Classes="ConfigFieldLabel" Text="失败" />
+                                                            <TextBlock x:Name="GatewayFailedConnectionsTextBlock" Classes="TableCellText" Text="0" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="4" Spacing="2">
+                                                            <TextBlock Classes="ConfigFieldLabel" Text="上行" />
+                                                            <TextBlock x:Name="GatewayUpstreamTextBlock" Classes="TableCellText" Text="0 B" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="5" Spacing="2">
+                                                            <TextBlock Classes="ConfigFieldLabel" Text="下行" />
+                                                            <TextBlock x:Name="GatewayDownstreamTextBlock" Classes="TableCellText" Text="0 B" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <Grid RowDefinitions="Auto,*">
+                                                        <Border Grid.Row="0" Classes="TableHeader">
+                                                            <Grid ColumnDefinitions="220,90,74,55,120,176" ColumnSpacing="8">
+                                                                <TextBlock Classes="TableHeaderText" Text="后端名称/主机/ServerId" />
+                                                                <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="状态" />
+                                                                <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="活跃连接" />
+                                                                <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="权重" />
+                                                                <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="实时 / 峰值流量" />
+                                                                <TextBlock x:Name="GatewayBackendStatisticsHeaderTextBlock" Grid.Column="5" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                            </Grid>
+                                                        </Border>
+                                                        <Border Grid.Row="1" Classes="TableBody">
+                                                            <ItemsControl x:Name="GatewayBackendRuntimeItemsControl">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Classes="TableRow">
+                                                                            <Grid ColumnDefinitions="220,90,74,55,120,176" ColumnSpacing="8">
+                                                                                <StackPanel Spacing="1">
+                                                                                    <TextBlock Classes="TableCellText" Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" />
+                                                                                    <TextBlock Classes="TableSubCellText" Text="{Binding Address}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Address}" />
+                                                                                    <TextBlock Classes="TableSubCellText" Text="{Binding BackendId}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding BackendId}" />
+                                                                                </StackPanel>
+                                                                                <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding StatusText}" />
+                                                                                <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding ActiveConnectionsText}" />
+                                                                                <TextBlock Grid.Column="3" Classes="TableCellText" Text="{Binding WeightText}" />
+                                                                                <TextBlock Grid.Column="4" Classes="TableSubCellText" Text="{Binding TrafficText}" TextWrapping="Wrap" />
+                                                                                <WrapPanel Grid.Column="5" Orientation="Horizontal" ItemHeight="28" ItemWidth="76">
+                                                                                    <Button Classes="InlineActionButton" Tag="{Binding}" Content="统计" Click="OnGatewayShowStatisticsClick" />
+                                                                                    <Button Classes="InlineActionButton" Tag="{Binding}" Content="重定向" Click="OnGatewayRedirectPlayerClick" />
+                                                                                    <Button Classes="InlineActionButton" Tag="{Binding}" Content="维护" Click="OnGatewayEnterMaintenanceClick" />
+                                                                                    <Button Classes="InlineActionButton" Tag="{Binding}" Content="疏散" Click="OnGatewayEvacuateClick" />
+                                                                                </WrapPanel>
+                                                                            </Grid>
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </Border>
+                                                    </Grid>
                                                 </StackPanel>
                                             </Border>
                                         </StackPanel>

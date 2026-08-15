@@ -81,7 +81,8 @@ public static class LauncherPathHelper
                 DatabasePath = Path.Combine(DefaultQqBotDirectory, "vs2qq.db")
             },
             Frp = new FrpIntegrationSettings(),
-            EasyTier = new EasyTierIntegrationSettings()
+            EasyTier = new EasyTierIntegrationSettings(),
+            TcpGateway = new TcpGatewaySettings()
         };
     }
 

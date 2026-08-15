@@ -31,6 +31,20 @@ internal static partial class WorkspacePathHelper
 
     public static string ServerHostRuntimeRoot => Path.Combine(RuntimeRoot, "server-host");
 
+    public static string GatewayRoot => Path.Combine(RuntimeRoot, "tcp-gateway");
+
+    public static string GatewayHostRuntimeRoot => Path.Combine(RuntimeRoot, "gateway-host");
+
+    public static string GatewayConfigPath => Path.Combine(GatewayRoot, "gateway-config.json");
+
+    public static string GatewayStatePath => Path.Combine(GatewayRoot, "gateway-state.json");
+
+    public static string GatewayStopSignalPath => Path.Combine(GatewayRoot, "gateway.stop");
+
+    public static string GatewayReloadSignalPath => Path.Combine(GatewayRoot, "gateway.reload");
+
+    public static string GatewayRoutingHistoryPath => Path.Combine(GatewayRoot, "routing-history.jsonl");
+
     public static string FrpRoot => Path.Combine(RuntimeRoot, "frp");
 
     public static string FrpExecutablePath => Path.Combine(FrpRoot, "frpc.exe");
@@ -79,6 +93,8 @@ internal static partial class WorkspacePathHelper
         Directory.CreateDirectory(RuntimeRoot);
         Directory.CreateDirectory(ServerRelayRoot);
         Directory.CreateDirectory(ServerHostRuntimeRoot);
+        Directory.CreateDirectory(GatewayRoot);
+        Directory.CreateDirectory(GatewayHostRuntimeRoot);
         Directory.CreateDirectory(FrpRoot);
         Directory.CreateDirectory(ThirdPartyFrpcRoot);
         Directory.CreateDirectory(EasyTierRoot);

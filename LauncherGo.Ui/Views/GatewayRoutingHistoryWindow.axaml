@@ -1,0 +1,49 @@
+<Window
+    x:Class="LauncherGo.Ui.Views.GatewayRoutingHistoryWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:LauncherGo.Ui.Views"
+    Width="760"
+    Height="500"
+    MinWidth="520"
+    MinHeight="320"
+    WindowStartupLocation="CenterOwner"
+    Icon="avares://LauncherGo.Ui/Assets/app-icon.ico">
+    <Grid Margin="18" RowDefinitions="Auto,*,Auto" RowSpacing="12">
+        <StackPanel Spacing="3">
+            <TextBlock x:Name="TitleTextBlock" FontSize="18" FontWeight="SemiBold" />
+            <TextBlock x:Name="PathTextBlock" Opacity="0.7" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <Grid Grid.Row="1" RowDefinitions="Auto,*">
+            <Border BorderBrush="#808080" BorderThickness="1" Padding="8,6">
+                <Grid ColumnDefinitions="150,105,1.2*,1.2*,*" ColumnSpacing="8">
+                    <TextBlock x:Name="TimeHeaderTextBlock" FontWeight="SemiBold" ToolTip.Tip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+                    <TextBlock x:Name="ActionHeaderTextBlock" Grid.Column="1" FontWeight="SemiBold" ToolTip.Tip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+                    <TextBlock x:Name="SourceHeaderTextBlock" Grid.Column="2" FontWeight="SemiBold" ToolTip.Tip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+                    <TextBlock x:Name="TargetHeaderTextBlock" Grid.Column="3" FontWeight="SemiBold" ToolTip.Tip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+                    <TextBlock x:Name="DetailsHeaderTextBlock" Grid.Column="4" FontWeight="SemiBold" ToolTip.Tip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+                </Grid>
+            </Border>
+            <Border Grid.Row="1" BorderBrush="#808080" BorderThickness="1,0,1,1">
+                <ScrollViewer>
+                    <ItemsControl x:Name="HistoryItemsControl">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="local:GatewayRoutingHistoryItem">
+                                <Border BorderBrush="#808080" BorderThickness="0,0,0,1" Padding="8,6">
+                                    <Grid ColumnDefinitions="150,105,1.2*,1.2*,*" ColumnSpacing="8">
+                                        <TextBlock Text="{Binding TimeText}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TimeText}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding ActionText}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding ActionText}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding SourceText}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding SourceText}" />
+                                        <TextBlock Grid.Column="3" Text="{Binding TargetText}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TargetText}" />
+                                        <TextBlock Grid.Column="4" Text="{Binding DetailsText}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding DetailsText}" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+        <Button x:Name="CloseButton" Grid.Row="2" HorizontalAlignment="Right" MinWidth="76" Click="OnCloseClick" />
+    </Grid>
+</Window>

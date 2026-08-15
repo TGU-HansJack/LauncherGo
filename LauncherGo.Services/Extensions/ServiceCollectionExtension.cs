@@ -21,6 +21,8 @@ public static class ServiceCollectionExtension
         services.AddSingleton<IFrpService, FrpService>();
         services.AddSingleton<IThirdPartyFrpcService, ThirdPartyFrpcService>();
         services.AddSingleton<IEasyTierService, EasyTierService>();
+        services.AddSingleton<ITcpGatewayService, TcpGatewayService>();
+        services.AddSingleton<IGatewayRedirectModService, GatewayRedirectModService>();
         services.AddSingleton<IInstanceModService, InstanceModService>();
         services.AddSingleton<IServerAuthService, ServerAuthService>();
         services.AddSingleton<IServerMapService, ServerMapService>();

@@ -29,6 +29,7 @@ using LauncherGo.Domains.Enums;
 using LauncherGo.Domains.Features;
 using LauncherGo.Domains.Models;
 using LauncherGo.Ui;
+using LauncherGo.Ui.Converters;
 using LauncherGo.Ui.Platform;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -149,6 +150,42 @@ public partial class LauncherMainWindow : Window
         ("安全", "Security"),
         ("开放API", "Open API"),
         ("机器人", "Robot"),
+        ("网关", "Gateway"),
+        ("TCP 网关", "TCP Gateway"),
+        ("监听地址", "Listen Address"),
+        ("监听端口", "Listen Port"),
+        ("最大连接数", "Max Connections"),
+        ("单 IP 连接上限", "Per-IP Connection Limit"),
+        ("后端连接超时秒数", "Backend Connect Timeout Seconds"),
+        ("健康检查间隔秒数", "Health Check Interval Seconds"),
+        ("IP 白名单", "IP Allow List"),
+        ("IP 黑名单", "IP Block List"),
+        ("每行一个 IP 或 CIDR 网段；黑名单优先。", "One IP or CIDR range per line; block list takes priority."),
+        ("后端服务器", "Backend Servers"),
+        ("后端名称", "Backend Name"),
+        ("主机", "Host"),
+        ("端口", "Port"),
+        ("权重", "Weight"),
+        ("路由状态", "Routing State"),
+        ("本地实例", "Local Instance"),
+        ("路由与重定向", "Routing & Redirect"),
+        ("部署重定向模组", "Deploy Redirect Mod"),
+        ("历史", "History"),
+        ("后端名称/主机/ServerId", "Backend Name / Host / ServerId"),
+        ("实时 / 峰值流量", "Current / Peak Traffic"),
+        ("重定向", "Redirect"),
+        ("维护", "Maintenance"),
+        ("疏散", "Evacuate"),
+        ("运行状态", "Runtime Status"),
+        ("活跃连接", "Active Connections"),
+        ("已接收", "Accepted"),
+        ("已拒绝", "Rejected"),
+        ("失败", "Failed"),
+        ("上行", "Upstream"),
+        ("下行", "Downstream"),
+        ("状态", "Status"),
+        ("错误", "Error"),
+        ("统计", "Statistics"),
         ("高级", "Advanced"),
         ("关于", "About"),
         ("贡献者", "Contributors"),
@@ -239,6 +276,8 @@ public partial class LauncherMainWindow : Window
     private readonly IFrpService _frpService;
     private readonly IThirdPartyFrpcService _thirdPartyFrpcService;
     private readonly IEasyTierService _easyTierService;
+    private readonly ITcpGatewayService _tcpGatewayService;
+    private readonly IGatewayRedirectModService _gatewayRedirectModService;
     private readonly IInstanceModService _instanceModService;
     private readonly IServerAuthService _serverAuthService;
     private readonly IServerMapService _serverMapService;
@@ -291,6 +330,9 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<RobotCustomCommandItem> _robotCustomCommandItems = [];
     private readonly ObservableCollection<InstanceProfile> _robotProfileItems = [];
     private readonly ObservableCollection<OpenServerQueryProfileConfigItem> _openInfoConfigItems = [];
+    private readonly ObservableCollection<TcpGatewayBackend> _gatewayBackendItems = [];
+    private readonly ObservableCollection<GatewayBackendRuntimeItem> _gatewayBackendRuntimeItems = [];
+    private readonly HashSet<GatewayBackendStatisticsWindow> _gatewayStatisticsWindows = [];
     private readonly ObservableCollection<DashboardServerItem> _dashboardServerItems = [];
     private readonly ObservableCollection<DashboardPlayerItem> _dashboardOnlinePlayerItems = [];
     private readonly ObservableCollection<DashboardUptimeItem> _dashboardUptimeItems = [];
@@ -340,6 +382,8 @@ public partial class LauncherMainWindow : Window
     private bool _isTogglingFrp;
     private bool _isTogglingThirdPartyFrpc;
     private bool _isTogglingEasyTier;
+    private bool _isTogglingGateway;
+    private bool _isRefreshingGateway;
     private bool _isTogglingOsq;
     private bool _isTogglingRobot;
     private bool _isExitRequested;
@@ -379,6 +423,8 @@ public partial class LauncherMainWindow : Window
             ServiceLocator.GetRequiredService<IFrpService>(),
             ServiceLocator.GetRequiredService<IThirdPartyFrpcService>(),
             ServiceLocator.GetRequiredService<IEasyTierService>(),
+            ServiceLocator.GetRequiredService<ITcpGatewayService>(),
+            ServiceLocator.GetRequiredService<IGatewayRedirectModService>(),
             ServiceLocator.GetRequiredService<IInstanceModService>(),
             ServiceLocator.GetRequiredService<IServerAuthService>(),
             ServiceLocator.GetRequiredService<IServerMapService>(),
@@ -402,6 +448,8 @@ public partial class LauncherMainWindow : Window
         IFrpService frpService,
         IThirdPartyFrpcService thirdPartyFrpcService,
         IEasyTierService easyTierService,
+        ITcpGatewayService tcpGatewayService,
+        IGatewayRedirectModService gatewayRedirectModService,
         IInstanceModService instanceModService,
         IServerAuthService serverAuthService,
         IServerMapService serverMapService,
@@ -422,6 +470,8 @@ public partial class LauncherMainWindow : Window
         _frpService = frpService;
         _thirdPartyFrpcService = thirdPartyFrpcService;
         _easyTierService = easyTierService;
+        _tcpGatewayService = tcpGatewayService;
+        _gatewayRedirectModService = gatewayRedirectModService;
         _instanceModService = instanceModService;
         _serverAuthService = serverAuthService;
         _serverMapService = serverMapService;
@@ -454,6 +504,7 @@ public partial class LauncherMainWindow : Window
         _frpService.StatusChanged += OnFrpStatusChanged;
         _thirdPartyFrpcService.StatusChanged += OnThirdPartyFrpcStatusChanged;
         _easyTierService.StatusChanged += OnEasyTierStatusChanged;
+        _tcpGatewayService.StatusChanged += OnTcpGatewayStatusChanged;
         _openServerQueryService.OutputReceived += OnOpenServerQueryOutputReceived;
 
         InitializeStaticTexts();
@@ -493,6 +544,7 @@ public partial class LauncherMainWindow : Window
             _frpService.StatusChanged -= OnFrpStatusChanged;
             _thirdPartyFrpcService.StatusChanged -= OnThirdPartyFrpcStatusChanged;
             _easyTierService.StatusChanged -= OnEasyTierStatusChanged;
+            _tcpGatewayService.StatusChanged -= OnTcpGatewayStatusChanged;
             _openServerQueryService.OutputReceived -= OnOpenServerQueryOutputReceived;
             _ = _logTailService.StopAsync();
             _ = _openServerQueryService.StopAsync(TimeSpan.FromSeconds(2));
@@ -1088,11 +1140,35 @@ public partial class LauncherMainWindow : Window
 
     private void InitializeConnectionStaticTexts()
     {
+        ConfigureGatewayRoutingStateDisplay();
         ConnectionFrpTabButton.Content = T("FRP", "FRP");
         ConnectionEasyTierTabButton.Content = T("EasyTier", "EasyTier");
         ConnectionOpenInfoTabButton.Content = T("开放API", "Open API");
         ConnectionRobotTabButton.Content = "OneBot";
         ConnectionAuthTabButton.Content = T("认证", "Authentication");
+        ConnectionGatewayTabButton.Content = T("网关", "Gateway");
+
+        GatewaySaveButton.Content = T("保存", "Save");
+        GatewayRefreshButton.Content = T("刷新", "Refresh");
+        GatewayAddBackendButton.Content = T("添加", "Add");
+        GatewayConfigTitleTextBlock.Text = T("TCP 网关", "TCP Gateway");
+        GatewayListenHostLabelTextBlock.Text = T("监听地址", "Listen Address");
+        GatewayListenPortLabelTextBlock.Text = T("监听端口", "Listen Port");
+        GatewayMaxConnectionsLabelTextBlock.Text = T("最大连接数", "Max Connections");
+        GatewayMaxConnectionsPerIpLabelTextBlock.Text = T("单 IP 连接上限", "Per-IP Connection Limit");
+        GatewayConnectTimeoutLabelTextBlock.Text = T("后端连接超时秒数", "Backend Connect Timeout Seconds");
+        GatewayHealthCheckIntervalLabelTextBlock.Text = T("健康检查间隔秒数", "Health Check Interval Seconds");
+        GatewayAllowListLabelTextBlock.Text = T("IP 白名单", "IP Allow List");
+        GatewayBlockListLabelTextBlock.Text = T("IP 黑名单", "IP Block List");
+        GatewayIpRulesHintTextBlock.Text = T(
+            "每行一个 IP 或 CIDR 网段；黑名单优先。",
+            "One IP or CIDR range per line; block list takes priority.");
+        GatewayBackendsTitleTextBlock.Text = T("后端服务器", "Backend Servers");
+        GatewayRuntimeTitleTextBlock.Text = T("路由与重定向", "Routing & Redirect");
+        GatewayDeployRedirectModButton.Content = T("部署重定向模组", "Deploy Redirect Mod");
+        GatewayRoutingHistoryButton.Content = T("历史", "History");
+        GatewayBackendStatisticsHeaderTextBlock.Text = T("操作", "Actions");
+        UpdateGatewayToggleButtonText();
 
         ConnectionFrpImportButton.Content = T("导入frpc", "Import frpc");
         ConnectionThirdPartyFrpcImportButton.Content = T("导入第三方frpc", "Import third-party frpc");
@@ -1250,6 +1326,8 @@ public partial class LauncherMainWindow : Window
         RobotBindingsItemsControl.ItemsSource = _robotBindingItems;
         RobotCustomCommandsItemsControl.ItemsSource = _robotCustomCommandItems;
         OpenInfoConfigItemsControl.ItemsSource = _openInfoConfigItems;
+        GatewayBackendsItemsControl.ItemsSource = _gatewayBackendItems;
+        GatewayBackendRuntimeItemsControl.ItemsSource = _gatewayBackendRuntimeItems;
         AuthConfigItemsControl.ItemsSource = _authConfigItems;
         AuthProfileComboBox.ItemsSource = _authProfileItems;
         AuthPlayersListBox.ItemsSource = _authPlayerItems;
@@ -1289,6 +1367,8 @@ public partial class LauncherMainWindow : Window
             _robotBindingItems,
             _robotCustomCommandItems,
             _openInfoConfigItems,
+            _gatewayBackendItems,
+            _gatewayBackendRuntimeItems,
             _dashboardServerItems,
             _dashboardOnlinePlayerItems,
             _dashboardUptimeItems,
@@ -1337,8 +1417,14 @@ public partial class LauncherMainWindow : Window
             var networkActive = _openServerQueryService.GetRuntimeStatus().IsListening ||
                                 _frpService.GetCurrentStatus().IsRunning ||
                                 _thirdPartyFrpcService.GetCurrentStatus().IsRunning ||
-                                _easyTierService.GetCurrentStatus().IsRunning;
+                                _easyTierService.GetCurrentStatus().IsRunning ||
+                                _tcpGatewayService.GetCurrentStatus().IsRunning;
             PushNextSample(_networkLatencySamples, networkActive ? 1 : 0, NetworkRangeCount);
+        }
+
+        if (_selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Gateway)
+        {
+            _ = RefreshGatewayStatusAsync();
         }
 
         UpdateCardValues(status);
@@ -3280,6 +3366,7 @@ public partial class LauncherMainWindow : Window
         ConnectionEasyTierPanel.IsVisible = tab == ConnectionTab.EasyTier;
         ConnectionOpenInfoPanel.IsVisible = tab == ConnectionTab.OpenInfo;
         ConnectionRobotPanel.IsVisible = tab == ConnectionTab.Robot;
+        ConnectionGatewayPanel.IsVisible = tab == ConnectionTab.Gateway;
         ConnectionAuthPanel.IsVisible = tab == ConnectionTab.Auth;
         RefreshSidebarSelection();
         RefreshConnectionSettingsEditor();
@@ -3300,6 +3387,11 @@ public partial class LauncherMainWindow : Window
             _ = RefreshAuthProfilesAsync();
         }
 
+        if (tab == ConnectionTab.Gateway)
+        {
+            _ = RefreshGatewayStatusAsync();
+        }
+
         RequestStaticUiTranslations();
     }
 
@@ -3318,6 +3410,7 @@ public partial class LauncherMainWindow : Window
         SetSelectedClass(LogsNavButton, _logsNavSelected);
         SetSelectedClass(ConnectionFrpTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Frp);
         SetSelectedClass(ConnectionEasyTierTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.EasyTier);
+        SetSelectedClass(ConnectionGatewayTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Gateway);
         SetSelectedClass(ConnectionOpenInfoTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.OpenInfo);
         SetSelectedClass(ConnectionRobotTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Robot);
         SetSelectedClass(ServerSettingsTabButton, !_logsNavSelected && _selectedTab == MainTab.Settings && _selectedSettingsTab == SettingsTab.Server);
@@ -4172,6 +4265,7 @@ public partial class LauncherMainWindow : Window
             ApplyEasyTierSettings(preferences.EasyTier);
             ApplyOpenServerQuerySettings(preferences.OpenServerQuery);
             ApplyRobotSettings(preferences.Robot);
+            ApplyGatewaySettings(preferences.TcpGateway);
             RefreshRobotProfileItems();
             RefreshOpenInfoConfigItems();
             RefreshAuthConfigItems();
@@ -4239,6 +4333,40 @@ public partial class LauncherMainWindow : Window
         EasyTierCompressionCheckBox.IsChecked = settings.Compression;
         EasyTierKcpCheckBox.IsChecked = settings.EnableKcpProxy;
         ApplyEasyTierRuntimeStatus(_easyTierService.GetCurrentStatus());
+    }
+
+    private void ApplyGatewaySettings(TcpGatewaySettings settings)
+    {
+        GatewayListenHostTextBox.Text = settings.ListenHost;
+        SetNumericValue(GatewayListenPortNumericUpDown, settings.ListenPort);
+        SetNumericValue(GatewayMaxConnectionsNumericUpDown, settings.MaxConnections);
+        SetNumericValue(GatewayMaxConnectionsPerIpNumericUpDown, settings.MaxConnectionsPerIp);
+        SetNumericValue(GatewayConnectTimeoutNumericUpDown, settings.ConnectTimeoutSec);
+        SetNumericValue(GatewayHealthCheckIntervalNumericUpDown, settings.HealthCheckIntervalSec);
+        GatewayAllowListTextBox.Text = settings.AllowListText;
+        GatewayBlockListTextBox.Text = settings.BlockListText;
+
+        _gatewayBackendItems.Clear();
+        var profileOptions = _profileService.GetProfiles();
+        foreach (var backend in settings.Backends ?? [])
+        {
+            _gatewayBackendItems.Add(new TcpGatewayBackend
+            {
+                Id = backend.Id,
+                Name = backend.Name,
+                Host = backend.Host,
+                Port = backend.Port,
+                Weight = backend.Weight,
+                RoutingState = backend.RoutingState == TcpGatewayBackendRoutingState.Offline
+                    ? TcpGatewayBackendRoutingState.Disabled
+                    : backend.RoutingState,
+                MaintenanceTargetServerId = backend.MaintenanceTargetServerId,
+                ProfileId = backend.ProfileId,
+                ProfileOptions = profileOptions
+            });
+        }
+
+        ApplyGatewayRuntimeStatus(_tcpGatewayService.GetCurrentStatus());
     }
 
     private void ApplyOpenServerQuerySettings(OpenServerQuerySettings settings)
@@ -4365,6 +4493,25 @@ public partial class LauncherMainWindow : Window
         }
     }
 
+    private void SaveGatewaySettings(bool updateStatus = true, bool refreshEditor = true)
+    {
+        var preferences = _preferencesService.Load();
+        preferences.TcpGateway = CollectGatewaySettings();
+        _preferencesService.Save(preferences);
+        if (refreshEditor)
+        {
+            RefreshConnectionSettingsEditor();
+        }
+
+        if (updateStatus)
+        {
+            SetConnectionStatus(
+                _tcpGatewayService.GetCurrentStatus().IsRunning
+                    ? T("TCP 网关配置已保存，重启网关后生效。", "TCP gateway configuration saved. Restart the gateway to apply it.")
+                    : T("TCP 网关配置已保存。", "TCP gateway configuration saved."));
+        }
+    }
+
     private void SaveOpenServerQuerySettings(bool updateStatus = true, bool refreshEditor = true)
     {
         var preferences = _preferencesService.Load();
@@ -4476,6 +4623,37 @@ public partial class LauncherMainWindow : Window
             EnableKcpProxy = EasyTierKcpCheckBox.IsChecked == true,
             Hostname = "LauncherGo-vs-server",
             Ipv4Address = EasyTierIntegrationSettings.DefaultIpv4Address
+        };
+    }
+
+    private TcpGatewaySettings CollectGatewaySettings()
+    {
+        return new TcpGatewaySettings
+        {
+            ListenHost = string.IsNullOrWhiteSpace(GatewayListenHostTextBox.Text)
+                ? TcpGatewaySettings.DefaultListenHost
+                : GatewayListenHostTextBox.Text.Trim(),
+            ListenPort = GetNumericValue(GatewayListenPortNumericUpDown, TcpGatewaySettings.DefaultListenPort),
+            MaxConnections = GetNumericValue(GatewayMaxConnectionsNumericUpDown, 200),
+            MaxConnectionsPerIp = GetNumericValue(GatewayMaxConnectionsPerIpNumericUpDown, 4),
+            ConnectTimeoutSec = GetNumericValue(GatewayConnectTimeoutNumericUpDown, 8),
+            HealthCheckIntervalSec = GetNumericValue(GatewayHealthCheckIntervalNumericUpDown, 5),
+            RedirectTicketSecret = _preferencesService.Load().TcpGateway.RedirectTicketSecret,
+            AllowListText = GatewayAllowListTextBox.Text?.Trim() ?? string.Empty,
+            BlockListText = GatewayBlockListTextBox.Text?.Trim() ?? string.Empty,
+            Backends = _gatewayBackendItems.Select(backend => new TcpGatewayBackend
+            {
+                Id = string.IsNullOrWhiteSpace(backend.Id) ? Guid.NewGuid().ToString("N") : backend.Id,
+                Name = backend.Name?.Trim() ?? string.Empty,
+                Host = backend.Host?.Trim() ?? string.Empty,
+                Port = backend.Port,
+                Weight = backend.Weight,
+                RoutingState = backend.RoutingState == TcpGatewayBackendRoutingState.Offline
+                    ? TcpGatewayBackendRoutingState.Disabled
+                    : backend.RoutingState,
+                MaintenanceTargetServerId = backend.MaintenanceTargetServerId?.Trim() ?? string.Empty,
+                ProfileId = backend.ProfileId?.Trim() ?? string.Empty
+            }).ToList()
         };
     }
 
@@ -5050,12 +5228,14 @@ public partial class LauncherMainWindow : Window
         UpdateEasyTierActionButtons();
         UpdateOsqToggleButtonText();
         UpdateRobotToggleButtonText();
+        UpdateGatewayToggleButtonText();
         var currentStatus = _selectedConnectionTab switch
         {
             ConnectionTab.Frp => BuildFrpRuntimeStatusText(),
             ConnectionTab.EasyTier => BuildEasyTierRuntimeStatusText(),
             ConnectionTab.OpenInfo => BuildOpenInfoRuntimeStatusText(),
             ConnectionTab.Robot => BuildRobotRuntimeStatusText(),
+            ConnectionTab.Gateway => BuildGatewayRuntimeStatusText(_tcpGatewayService.GetCurrentStatus()),
             ConnectionTab.Auth => AuthStatusTextBlock.Text ?? string.Empty,
             _ => string.Empty
         };
@@ -5133,6 +5313,216 @@ public partial class LauncherMainWindow : Window
         return T(
             $"QQ机器人：运行中 PID={status.ProcessId?.ToString(CultureInfo.InvariantCulture) ?? "--"}  {FormatConnectionUptime(status.StartedAtUtc)}",
             $"QQ robot: running PID={status.ProcessId?.ToString(CultureInfo.InvariantCulture) ?? "--"}  {FormatConnectionUptime(status.StartedAtUtc)}");
+    }
+
+    private void ConfigureGatewayRoutingStateDisplay()
+    {
+        if (Resources["GatewayRoutingStateDisplayConverter"] is GatewayRoutingStateDisplayConverter converter)
+        {
+            converter.IsChinese = _isChinese;
+        }
+
+        // Rebuild the editor rows only when the application language changes so the
+        // ComboBox item template reevaluates its localized state labels.
+        if (GatewayBackendsItemsControl.ItemsSource is not null)
+        {
+            GatewayBackendsItemsControl.ItemsSource = null;
+            GatewayBackendsItemsControl.ItemsSource = _gatewayBackendItems;
+        }
+    }
+
+    private string BuildGatewayRuntimeStatusText(TcpGatewayRuntimeStatus status)
+    {
+        if (!status.IsRunning)
+        {
+            var error = TranslateGatewayError(status.LastError);
+            return string.IsNullOrWhiteSpace(status.LastError)
+                ? T("TCP 网关：未启动", "TCP gateway: stopped")
+                : T($"TCP 网关：{error}", $"TCP gateway: {error}");
+        }
+
+        if (!status.IsListening)
+        {
+            return T(
+                $"TCP 网关：正在启动 PID={status.ProcessId?.ToString(CultureInfo.InvariantCulture) ?? "--"}",
+                $"TCP gateway: starting PID={status.ProcessId?.ToString(CultureInfo.InvariantCulture) ?? "--"}");
+        }
+
+        var runningStatus = T(
+            $"TCP 网关：运行中 {status.ListenAddress}  活跃 {status.ActiveConnections}  {FormatConnectionUptime(status.StartedAtUtc)}",
+            $"TCP gateway: running {status.ListenAddress}  active {status.ActiveConnections}  {FormatConnectionUptime(status.StartedAtUtc)}");
+        return status.RequiresRestart
+            ? $"{runningStatus}{Environment.NewLine}{TranslateGatewayError(status.PendingRestartReason)}"
+            : runningStatus;
+    }
+
+    private void UpdateGatewayToggleButtonText()
+    {
+        GatewayToggleButton.Content = _tcpGatewayService.GetCurrentStatus().IsRunning
+            ? T("停止", "Stop")
+            : T("启动", "Start");
+    }
+
+    private string TranslateGatewayError(string? message)
+    {
+        var raw = message?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return string.Empty;
+        }
+
+        if (raw.StartsWith("Invalid IP rule: ", StringComparison.Ordinal))
+        {
+            var rule = raw["Invalid IP rule: ".Length..];
+            return T($"无效的 IP 规则：{rule}", $"Invalid IP rule: {rule}");
+        }
+
+        if (raw.StartsWith("GatewayHost executable was not found.", StringComparison.Ordinal))
+        {
+            return T("未找到 GatewayHost 程序，请重新构建或重新安装 LauncherGo。", raw);
+        }
+
+        return raw switch
+        {
+            "Gateway listen host is required." => T("必须填写网关监听地址。", "Gateway listen host is required."),
+            "Gateway listen port must be between 1 and 65535." => T("网关监听端口必须在 1 到 65535 之间。", "Gateway listen port must be between 1 and 65535."),
+            "Gateway connection limits must be greater than zero." => T("网关连接上限必须大于 0。", "Gateway connection limits must be greater than zero."),
+            "Per-IP connection limit cannot exceed the total limit." => T("单 IP 连接上限不能大于最大连接数。", "Per-IP connection limit cannot exceed the total limit."),
+            "At least one enabled gateway backend is required." => T("请至少添加一个已启用的后端服务器。", "At least one enabled gateway backend is required."),
+            "Every gateway backend requires a unique ID." => T("每个后端服务器都必须具有唯一标识。", "Every gateway backend requires a unique ID."),
+            "Every enabled backend requires a host and port." => T("每个已启用的后端服务器都必须填写主机和端口。", "Every enabled backend requires a host and port."),
+            "TCP gateway is already running." => T("TCP 网关已经在运行。", "TCP gateway is already running."),
+            "GatewayHost exited before it started listening." => T("GatewayHost 在开始监听前已退出。", "GatewayHost exited before it started listening."),
+            "Timed out while waiting for GatewayHost to listen." => T("等待 GatewayHost 开始监听超时。", "Timed out while waiting for GatewayHost to listen."),
+            "TCP gateway is not running." => T("TCP 网关未在运行。", "TCP gateway is not running."),
+            "Gateway listen address or port changed; restart is required." => T("监听地址或端口已变更，需重启网关后生效。", "Gateway listen address or port changed; restart is required."),
+            _ => raw
+        };
+    }
+
+    private async Task RefreshGatewayStatusAsync()
+    {
+        if (_isRefreshingGateway)
+        {
+            return;
+        }
+
+        _isRefreshingGateway = true;
+        try
+        {
+            var status = await _tcpGatewayService.RefreshStatusAsync();
+            ApplyGatewayRuntimeStatus(status);
+            if (_selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Gateway)
+            {
+                SetConnectionStatus(BuildGatewayRuntimeStatusText(status), notify: false);
+            }
+        }
+        catch (Exception ex)
+        {
+            var message = TranslateGatewayError(GetExceptionMessage(ex));
+            SetConnectionStatus(T(
+                $"刷新 TCP 网关状态失败：{message}",
+                $"Failed to refresh TCP gateway status: {message}"));
+        }
+        finally
+        {
+            _isRefreshingGateway = false;
+        }
+    }
+
+    private void ApplyGatewayRuntimeStatus(TcpGatewayRuntimeStatus status)
+    {
+        GatewayRuntimeSummaryTextBlock.Text = BuildGatewayRuntimeStatusText(status);
+        GatewayActiveConnectionsTextBlock.Text = status.ActiveConnections.ToString(CultureInfo.InvariantCulture);
+        GatewayAcceptedConnectionsTextBlock.Text = status.AcceptedConnections.ToString(CultureInfo.InvariantCulture);
+        GatewayRejectedConnectionsTextBlock.Text = status.RejectedConnections.ToString(CultureInfo.InvariantCulture);
+        GatewayFailedConnectionsTextBlock.Text = status.FailedConnections.ToString(CultureInfo.InvariantCulture);
+        GatewayUpstreamTextBlock.Text = FormatDataSize(status.ClientToBackendBytes);
+        GatewayDownstreamTextBlock.Text = FormatDataSize(status.BackendToClientBytes);
+
+        var runtimeBackendsById = status.Backends
+            .ToDictionary(backend => backend.Id, StringComparer.OrdinalIgnoreCase);
+        var existingItemsById = _gatewayBackendRuntimeItems
+            .ToDictionary(item => item.BackendId, StringComparer.OrdinalIgnoreCase);
+        var activeBackendIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var definition in _gatewayBackendItems)
+        {
+            runtimeBackendsById.TryGetValue(definition.Id, out var backend);
+            backend ??= new TcpGatewayBackendRuntimeStatus
+            {
+                Id = definition.Id,
+                Name = definition.Name,
+                Address = $"{definition.Host}:{definition.Port}",
+                Enabled = definition.RoutingState != TcpGatewayBackendRoutingState.Disabled,
+                RoutingState = definition.RoutingState,
+                Weight = definition.Weight,
+                ProfileId = definition.ProfileId
+            };
+            activeBackendIds.Add(backend.Id);
+            if (!existingItemsById.TryGetValue(backend.Id, out var item))
+            {
+                item = new GatewayBackendRuntimeItem(backend.Id);
+                _gatewayBackendRuntimeItems.Add(item);
+            }
+
+            item.Update(
+                string.IsNullOrWhiteSpace(backend.Name) ? backend.Id : backend.Name,
+                backend.Address,
+                GetGatewayBackendStatusText(status, backend),
+                backend.ActiveConnections.ToString(CultureInfo.InvariantCulture),
+                backend.Weight.ToString(CultureInfo.InvariantCulture),
+                FormatGatewayTraffic(backend.Statistics),
+                T("统计", "Statistics"),
+                backend);
+        }
+
+        foreach (var item in _gatewayBackendRuntimeItems
+                     .Where(item => !activeBackendIds.Contains(item.BackendId))
+                     .ToArray())
+        {
+            _gatewayBackendRuntimeItems.Remove(item);
+        }
+
+        foreach (var window in _gatewayStatisticsWindows.ToArray())
+        {
+            var backend = status.Backends.FirstOrDefault(item =>
+                item.Id.Equals(window.BackendId, StringComparison.OrdinalIgnoreCase));
+            if (backend is not null)
+            {
+                window.UpdateStatus(backend);
+            }
+        }
+
+        UpdateGatewayToggleButtonText();
+    }
+
+    private string GetGatewayBackendStatusText(TcpGatewayRuntimeStatus gateway, TcpGatewayBackendRuntimeStatus backend)
+    {
+        if (!gateway.IsRunning)
+        {
+            return T("网关未运行", "Gateway stopped");
+        }
+
+        if (!gateway.IsListening)
+        {
+            return T("正在启动", "Starting");
+        }
+
+        return backend.RoutingState switch
+        {
+            TcpGatewayBackendRoutingState.Online => "Online",
+            TcpGatewayBackendRoutingState.Draining => "Draining",
+            TcpGatewayBackendRoutingState.Disabled => "Disabled",
+            TcpGatewayBackendRoutingState.Offline => "Offline",
+            _ => T("未知", "Unknown")
+        };
+    }
+
+    private static string FormatGatewayTraffic(TcpGatewayBackendStatistics statistics)
+    {
+        statistics ??= new TcpGatewayBackendStatistics();
+        return $"↑ {statistics.CurrentClientToBackendMbps:F3} / {statistics.PeakClientToBackendMbps:F3} Mbps\n" +
+               $"↓ {statistics.CurrentBackendToClientMbps:F3} / {statistics.PeakBackendToClientMbps:F3} Mbps";
     }
 
     private static string FormatConnectionUptime(DateTimeOffset? startedAtUtc)
@@ -6562,6 +6952,344 @@ public partial class LauncherMainWindow : Window
         SelectConnectionTab(ConnectionTab.Auth);
     }
 
+    private void OnConnectionGatewayTabClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.Connection);
+        SelectConnectionTab(ConnectionTab.Gateway);
+    }
+
+    private async void OnGatewaySaveClick(object? sender, RoutedEventArgs e)
+    {
+        SaveGatewaySettings(updateStatus: false, refreshEditor: false);
+        if (!_tcpGatewayService.GetCurrentStatus().IsRunning)
+        {
+            SetConnectionStatus(T("TCP 网关配置已保存。", "TCP gateway configuration saved."));
+            return;
+        }
+
+        try
+        {
+            var status = await _tcpGatewayService.ReloadAsync(_preferencesService.Load().TcpGateway);
+            ApplyGatewayRuntimeStatus(status);
+            SetConnectionStatus(status.RequiresRestart
+                ? T("后端和规则已热重载；监听地址或端口的改动将在重启网关后生效。", "Backends and rules were reloaded; listener address or port changes apply after restarting the gateway.")
+                : T("TCP 网关配置已热重载。", "TCP gateway configuration reloaded."));
+        }
+        catch (Exception ex)
+        {
+            var message = TranslateGatewayError(GetExceptionMessage(ex));
+            SetConnectionStatus(T($"TCP 网关配置重载失败：{message}", $"TCP gateway configuration reload failed: {message}"));
+        }
+    }
+
+    private async void OnGatewayRefreshClick(object? sender, RoutedEventArgs e)
+    {
+        RefreshConnectionSettingsEditor();
+        await RefreshGatewayStatusAsync();
+    }
+
+    private void OnGatewayAddBackendClick(object? sender, RoutedEventArgs e)
+    {
+        var profiles = _profileService.GetProfiles();
+        var backend = new TcpGatewayBackend
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Name = T("本地服务端", "Local Server"),
+            Host = "127.0.0.1",
+            Port = 42420,
+            Weight = 1,
+            RoutingState = TcpGatewayBackendRoutingState.Online,
+            ProfileOptions = profiles
+        };
+        backend.SelectedProfile = profiles.FirstOrDefault();
+        _gatewayBackendItems.Add(backend);
+    }
+
+    private void OnTcpGatewayStatusChanged(object? sender, TcpGatewayRuntimeStatus status)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            ApplyGatewayRuntimeStatus(status);
+            if (_selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Gateway)
+            {
+                SetConnectionStatus(BuildGatewayRuntimeStatusText(status), notify: false);
+            }
+        });
+    }
+
+    private void OnGatewayRemoveBackendClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: TcpGatewayBackend backend })
+        {
+            _gatewayBackendItems.Remove(backend);
+        }
+    }
+
+    private async void OnGatewayShowStatisticsClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: GatewayBackendRuntimeItem item })
+        {
+            return;
+        }
+
+        var window = new GatewayBackendStatisticsWindow(item.RuntimeStatus, _isChinese);
+        _gatewayStatisticsWindows.Add(window);
+        window.Closed += (_, _) => _gatewayStatisticsWindows.Remove(window);
+        try
+        {
+            await window.ShowDialog(this);
+        }
+        catch (Exception ex)
+        {
+            _gatewayStatisticsWindows.Remove(window);
+            SetConnectionStatus(T(
+                $"打开网关统计失败：{GetExceptionMessage(ex)}",
+                $"Failed to open gateway statistics: {GetExceptionMessage(ex)}"));
+        }
+    }
+
+    private async void OnGatewayDeployRedirectModClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            SaveGatewaySettings(updateStatus: false, refreshEditor: false);
+            var deployed = await _gatewayRedirectModService.DeployAsync(
+                _preferencesService.Load().TcpGateway,
+                _profileService.GetProfiles());
+            SetConnectionStatus(T(
+                $"已向 {deployed} 个关联实例部署 VSCN-Studio 重定向模组。",
+                $"VSCN-Studio redirect mod deployed to {deployed} associated instance(s)."));
+        }
+        catch (Exception ex)
+        {
+            SetConnectionStatus(T(
+                $"部署重定向模组失败：{GetExceptionMessage(ex)}",
+                $"Redirect mod deployment failed: {GetExceptionMessage(ex)}"));
+        }
+    }
+
+    private async void OnGatewayShowRoutingHistoryClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var history = await _tcpGatewayService.GetRoutingHistoryAsync();
+            var window = new GatewayRoutingHistoryWindow(
+                history,
+                _tcpGatewayService.GetCurrentStatus().RoutingHistoryLogPath,
+                _isChinese);
+            await window.ShowDialog(this);
+        }
+        catch (Exception ex)
+        {
+            SetConnectionStatus(T(
+                $"打开网关路由历史失败：{GetExceptionMessage(ex)}",
+                $"Failed to open gateway routing history: {GetExceptionMessage(ex)}"));
+        }
+    }
+
+    private async void OnGatewayRedirectPlayerClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: GatewayBackendRuntimeItem item }) return;
+        var request = await ShowGatewayRedirectDialogAsync(item, GatewayRedirectOperation.Player);
+        if (request is null) return;
+        await SendGatewayRedirectCommandAsync(item, request, "/launchergateway redirect");
+    }
+
+    private async void OnGatewayEvacuateClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: GatewayBackendRuntimeItem item }) return;
+        var request = await ShowGatewayRedirectDialogAsync(item, GatewayRedirectOperation.Evacuate);
+        if (request is null) return;
+        await SendGatewayRedirectCommandAsync(item, request, "/launchergateway evacuate");
+    }
+
+    private async void OnGatewayEnterMaintenanceClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: GatewayBackendRuntimeItem item }) return;
+        var source = _gatewayBackendItems.FirstOrDefault(backend =>
+            backend.Id.Equals(item.BackendId, StringComparison.OrdinalIgnoreCase));
+        if (source is null) return;
+
+        source.RoutingState = TcpGatewayBackendRoutingState.Draining;
+        source.MaintenanceTargetServerId = string.Empty;
+        try
+        {
+            await SaveAndReloadGatewaySettingsAsync();
+            await _tcpGatewayService.RecordRoutingHistoryAsync(new TcpGatewayRoutingHistoryEntry
+            {
+                Action = "Maintenance",
+                SourceServerId = source.Id,
+                TargetServerId = string.Empty,
+                Details = "Backend entered Draining maintenance mode."
+            });
+            await RefreshGatewayStatusAsync();
+            SetConnectionStatus(T(
+                "后端已进入 Draining 维护模式。新玩家将不再进入，当前玩家保持连接。",
+                "The backend entered Draining maintenance mode. New players are blocked while current players stay connected."));
+        }
+        catch (Exception ex)
+        {
+            SetConnectionStatus(T(
+                $"切换维护模式失败：{GetExceptionMessage(ex)}",
+                $"Failed to enter maintenance mode: {GetExceptionMessage(ex)}"));
+        }
+    }
+
+    private async Task<GatewayRedirectRequest?> ShowGatewayRedirectDialogAsync(
+        GatewayBackendRuntimeItem source,
+        GatewayRedirectOperation operation)
+    {
+        var gatewayStatus = _tcpGatewayService.GetCurrentStatus();
+        if (!gatewayStatus.IsRunning || !gatewayStatus.IsListening)
+        {
+            SetConnectionStatus(T("请先启动 TCP 网关后再执行重定向。", "Start TCP Gateway before redirecting players."));
+            return null;
+        }
+
+        if (gatewayStatus.RequiresRestart)
+        {
+            SetConnectionStatus(T(
+                "网关监听配置已变更，请先重启 TCP 网关。",
+                "Gateway listener configuration changed; restart TCP Gateway first."));
+            return null;
+        }
+
+        var sourceDefinition = _gatewayBackendItems.FirstOrDefault(backend =>
+            backend.Id.Equals(source.BackendId, StringComparison.OrdinalIgnoreCase));
+        if (sourceDefinition is null || string.IsNullOrWhiteSpace(sourceDefinition.ProfileId))
+        {
+            SetConnectionStatus(T(
+                "该后端未关联本地实例，无法向服务端下发重定向命令。",
+                "This backend is not linked to a local instance, so LauncherGo cannot send a redirect command."));
+            return null;
+        }
+
+        var targets = _gatewayBackendRuntimeItems
+            .Where(item => !item.BackendId.Equals(source.BackendId, StringComparison.OrdinalIgnoreCase))
+            .Where(item => item.RuntimeStatus.RoutingState is TcpGatewayBackendRoutingState.Online or TcpGatewayBackendRoutingState.Draining)
+            .Where(item => item.RuntimeStatus.IsHealthy)
+            .Select(item => new GatewayRedirectTargetItem(
+                item.BackendId,
+                $"{item.Name} ({item.StatusText})"))
+            .ToList();
+        if (targets.Count == 0)
+        {
+            SetConnectionStatus(T(
+                "没有可用的重定向目标。目标必须为 Online 或 Draining 且 TCP 可达。",
+                "No redirect target is available. A target must be Online or Draining and TCP reachable."));
+            return null;
+        }
+
+        var window = new GatewayRedirectWindow(operation, source.Name, targets, _isChinese);
+        return await window.ShowDialog<GatewayRedirectRequest?>(this);
+    }
+
+    private async Task SendGatewayRedirectCommandAsync(
+        GatewayBackendRuntimeItem source,
+        GatewayRedirectRequest request,
+        string commandPrefix,
+        bool recordHistory = true)
+    {
+        var sourceDefinition = _gatewayBackendItems.FirstOrDefault(backend =>
+            backend.Id.Equals(source.BackendId, StringComparison.OrdinalIgnoreCase));
+        if (sourceDefinition is null || string.IsNullOrWhiteSpace(sourceDefinition.ProfileId))
+        {
+            throw new InvalidOperationException(T(
+                "来源后端未关联本地实例。",
+                "The source backend is not linked to a local instance."));
+        }
+
+        var playerToken = request.PlayerNameOrUid.Trim();
+        if (request.Operation == GatewayRedirectOperation.Player &&
+            (playerToken.Any(char.IsWhiteSpace) || playerToken.Contains('"')))
+        {
+            throw new InvalidOperationException(T(
+                "玩家名称或 UID 不能包含空格或引号。",
+                "Player name or UID cannot contain spaces or quotes."));
+        }
+
+        var command = request.Operation == GatewayRedirectOperation.Player
+            ? $"{commandPrefix} {playerToken} {request.TargetServerId}"
+            : $"{commandPrefix} {request.TargetServerId}";
+        await _serverProcessService.SendCommandAsync(sourceDefinition.ProfileId, command);
+        if (recordHistory)
+        {
+            await _tcpGatewayService.RecordRoutingHistoryAsync(new TcpGatewayRoutingHistoryEntry
+            {
+                Action = request.Operation == GatewayRedirectOperation.Player ? "PlayerRedirect" : "Evacuate",
+                SourceServerId = sourceDefinition.Id,
+                TargetServerId = request.TargetServerId,
+                Details = request.Operation == GatewayRedirectOperation.Player
+                    ? $"Redirect command sent for player '{playerToken}'."
+                    : "Evacuation command sent to the associated local server instance."
+            });
+        }
+
+        SetConnectionStatus(request.Operation == GatewayRedirectOperation.Player
+            ? T("已向服务端发送玩家重定向请求。", "Player redirect request sent to the server.")
+            : T("已向服务端发送整服疏散请求。", "Server evacuation request sent to the server."));
+        await RefreshGatewayStatusAsync();
+    }
+
+    private async Task SaveAndReloadGatewaySettingsAsync()
+    {
+        SaveGatewaySettings(updateStatus: false, refreshEditor: false);
+        if (!_tcpGatewayService.GetCurrentStatus().IsRunning)
+        {
+            ApplyGatewayRuntimeStatus(_tcpGatewayService.GetCurrentStatus());
+            return;
+        }
+
+        var status = await _tcpGatewayService.ReloadAsync(_preferencesService.Load().TcpGateway);
+        ApplyGatewayRuntimeStatus(status);
+        if (status.RequiresRestart)
+        {
+            throw new InvalidOperationException(T(
+                "网关监听配置已变更，请先重启 TCP 网关。",
+                "Gateway listener configuration changed; restart TCP Gateway first."));
+        }
+
+        await RefreshGatewayStatusAsync();
+    }
+
+    private async void OnGatewayToggleClick(object? sender, RoutedEventArgs e)
+    {
+        if (_isTogglingGateway)
+        {
+            return;
+        }
+
+        _isTogglingGateway = true;
+        GatewayToggleButton.IsEnabled = false;
+        try
+        {
+            if (_tcpGatewayService.GetCurrentStatus().IsRunning)
+            {
+                await _tcpGatewayService.StopAsync(TimeSpan.FromSeconds(10));
+                SetConnectionStatus(T("TCP 网关已停止。", "TCP gateway stopped."));
+            }
+            else
+            {
+                SaveGatewaySettings(updateStatus: false, refreshEditor: false);
+                var settings = _preferencesService.Load().TcpGateway;
+                await _tcpGatewayService.StartAsync(settings);
+                SetConnectionStatus(T("TCP 网关已启动。", "TCP gateway started."));
+            }
+        }
+        catch (Exception ex)
+        {
+            var message = TranslateGatewayError(GetExceptionMessage(ex));
+            SetConnectionStatus(T($"TCP 网关启动/停止失败：{message}", $"TCP gateway start/stop failed: {message}"));
+        }
+        finally
+        {
+            _isTogglingGateway = false;
+            GatewayToggleButton.IsEnabled = true;
+            await RefreshGatewayStatusAsync();
+            UpdateCardValues(_serverProcessService.GetCachedStatus());
+        }
+    }
+
     private void OnLogsNavClick(object? sender, RoutedEventArgs e)
     {
         SelectTab(MainTab.InstanceManage);
@@ -6853,6 +7581,11 @@ public partial class LauncherMainWindow : Window
         if (_selectedConnectionTab == ConnectionTab.Auth)
         {
             _ = RefreshAuthProfilesAsync();
+        }
+
+        if (_selectedConnectionTab == ConnectionTab.Gateway)
+        {
+            _ = RefreshGatewayStatusAsync();
         }
     }
 
@@ -10336,6 +11069,26 @@ public partial class LauncherMainWindow : Window
         return bytes <= 0 ? 0 : bytes / 1024.0 / 1024.0;
     }
 
+    private static string FormatDataSize(long bytes)
+    {
+        if (bytes >= 1024L * 1024 * 1024)
+        {
+            return $"{bytes / 1024d / 1024d / 1024d:F2} GB";
+        }
+
+        if (bytes >= 1024L * 1024)
+        {
+            return $"{bytes / 1024d / 1024d:F1} MB";
+        }
+
+        if (bytes >= 1024)
+        {
+            return $"{bytes / 1024d:F1} KB";
+        }
+
+        return $"{bytes} B";
+    }
+
     private static long? ResolveProcessMemory(int? processId)
     {
         if (!processId.HasValue || processId.Value <= 0)
@@ -10445,6 +11198,7 @@ public partial class LauncherMainWindow : Window
         EasyTier,
         OpenInfo,
         Robot,
+        Gateway,
         Auth
     }
 
@@ -10459,6 +11213,102 @@ public partial class LauncherMainWindow : Window
         Neutral,
         Success,
         Error
+    }
+
+    public sealed class GatewayBackendRuntimeItem(string backendId) : INotifyPropertyChanged
+    {
+        private string _name = string.Empty;
+        private string _address = string.Empty;
+        private string _statusText = string.Empty;
+        private string _activeConnectionsText = "0";
+        private string _weightText = "0";
+        private string _trafficText = string.Empty;
+        private string _statisticsText = string.Empty;
+        private TcpGatewayBackendRuntimeStatus _runtimeStatus = new();
+
+        public string BackendId { get; } = backendId;
+
+        public string Name
+        {
+            get => _name;
+            private set => SetField(ref _name, value);
+        }
+
+        public string Address
+        {
+            get => _address;
+            private set => SetField(ref _address, value);
+        }
+
+        public string StatusText
+        {
+            get => _statusText;
+            private set => SetField(ref _statusText, value);
+        }
+
+        public string ActiveConnectionsText
+        {
+            get => _activeConnectionsText;
+            private set => SetField(ref _activeConnectionsText, value);
+        }
+
+        public string WeightText
+        {
+            get => _weightText;
+            private set => SetField(ref _weightText, value);
+        }
+
+        public string TrafficText
+        {
+            get => _trafficText;
+            private set => SetField(ref _trafficText, value);
+        }
+
+        public string StatisticsText
+        {
+            get => _statisticsText;
+            private set => SetField(ref _statisticsText, value);
+        }
+
+        public TcpGatewayBackendRuntimeStatus RuntimeStatus
+        {
+            get => _runtimeStatus;
+            private set => SetField(ref _runtimeStatus, value);
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public void Update(
+            string name,
+            string address,
+            string statusText,
+            string activeConnectionsText,
+            string weightText,
+            string trafficText,
+            string statisticsText,
+            TcpGatewayBackendRuntimeStatus runtimeStatus)
+        {
+            Name = name;
+            Address = address;
+            StatusText = statusText;
+            ActiveConnectionsText = activeConnectionsText;
+            WeightText = weightText;
+            TrafficText = trafficText;
+            StatisticsText = statisticsText;
+            RuntimeStatus = runtimeStatus;
+        }
+
+        private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+            {
+                return false;
+            }
+
+            field = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            return true;
+        }
     }
 
     public sealed class ProfileListItem

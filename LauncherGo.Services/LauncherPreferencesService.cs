@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using LauncherGo.Abstractions.Services;
@@ -111,6 +112,7 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             Robot = NormalizeRobot(source.Robot, qqBotDirectory),
             Frp = NormalizeFrp(source.Frp),
             EasyTier = NormalizeEasyTier(source.EasyTier),
+            TcpGateway = NormalizeTcpGateway(source.TcpGateway),
             SaveCompression = NormalizeSaveCompression(source.SaveCompression, workspaceRoot)
         };
     }
@@ -445,6 +447,81 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             .ToList();
 
         return entries.Count == 0 ? string.Empty : string.Join(Environment.NewLine, entries);
+    }
+
+    private static TcpGatewaySettings NormalizeTcpGateway(TcpGatewaySettings? source)
+    {
+        source ??= new TcpGatewaySettings();
+        var backends = new List<TcpGatewayBackend>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var backend in source.Backends ?? [])
+        {
+            var host = backend.Host?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(host))
+            {
+                continue;
+            }
+
+            var port = Math.Clamp(backend.Port, 1, ushort.MaxValue);
+            var key = $"{host}:{port}";
+            if (!seen.Add(key))
+            {
+                continue;
+            }
+
+            var id = string.IsNullOrWhiteSpace(backend.Id) ? Guid.NewGuid().ToString("N") : backend.Id.Trim();
+            while (!seenIds.Add(id))
+            {
+                id = Guid.NewGuid().ToString("N");
+            }
+
+            backends.Add(new TcpGatewayBackend
+            {
+                Id = id,
+                Name = backend.Name?.Trim() ?? string.Empty,
+                Host = host,
+                Port = port,
+                Weight = Math.Clamp(backend.Weight, 1, 100),
+                RoutingState = backend.RoutingState == TcpGatewayBackendRoutingState.Offline
+                    ? TcpGatewayBackendRoutingState.Disabled
+                    : backend.RoutingState,
+                MaintenanceTargetServerId = backend.MaintenanceTargetServerId?.Trim() ?? string.Empty,
+                ProfileId = backend.ProfileId?.Trim() ?? string.Empty
+            });
+        }
+
+        return new TcpGatewaySettings
+        {
+            ListenHost = string.IsNullOrWhiteSpace(source.ListenHost)
+                ? TcpGatewaySettings.DefaultListenHost
+                : source.ListenHost.Trim(),
+            ListenPort = Math.Clamp(
+                source.ListenPort <= 0 ? TcpGatewaySettings.DefaultListenPort : source.ListenPort,
+                1,
+                ushort.MaxValue),
+            MaxConnections = Math.Clamp(source.MaxConnections <= 0 ? 200 : source.MaxConnections, 1, 100_000),
+            MaxConnectionsPerIp = Math.Clamp(source.MaxConnectionsPerIp <= 0 ? 4 : source.MaxConnectionsPerIp, 1, 10_000),
+            ConnectTimeoutSec = Math.Clamp(source.ConnectTimeoutSec <= 0 ? 8 : source.ConnectTimeoutSec, 1, 120),
+            HealthCheckIntervalSec = Math.Clamp(source.HealthCheckIntervalSec <= 0 ? 5 : source.HealthCheckIntervalSec, 1, 300),
+            RedirectTicketSecret = string.IsNullOrWhiteSpace(source.RedirectTicketSecret)
+                ? Convert.ToHexString(RandomNumberGenerator.GetBytes(32))
+                : source.RedirectTicketSecret.Trim(),
+            AllowListText = NormalizeIpRules(source.AllowListText),
+            BlockListText = NormalizeIpRules(source.BlockListText),
+            Backends = backends
+        };
+    }
+
+    private static string NormalizeIpRules(string? value)
+    {
+        var rules = (value ?? string.Empty)
+            .Split(['\r', '\n', ';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(static rule => !string.IsNullOrWhiteSpace(rule))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return rules.Count == 0 ? string.Empty : string.Join(Environment.NewLine, rules);
     }
 
     private static string NormalizeListenPrefix(string? value)

@@ -4,6 +4,9 @@
     <EmbeddedAuthModProject>$(MSBuildThisFileDirectory)EmbeddedMods\VsslAuthMod\VsslAuthMod.csproj</EmbeddedAuthModProject>
     <EmbeddedAuthModBuildOutput>$(MSBuildThisFileDirectory)EmbeddedMods\VsslAuthMod\bin\$(Configuration)\net10.0\</EmbeddedAuthModBuildOutput>
     <EmbeddedAuthRoot>$(MSBuildThisFileDirectory)EmbeddedMods\launchergoauth\</EmbeddedAuthRoot>
+    <EmbeddedRedirectModProject>$(MSBuildThisFileDirectory)EmbeddedMods\LauncherGoRedirectMod\LauncherGoRedirectMod.csproj</EmbeddedRedirectModProject>
+    <EmbeddedRedirectModBuildOutput>$(MSBuildThisFileDirectory)EmbeddedMods\LauncherGoRedirectMod\bin\$(Configuration)\net10.0\</EmbeddedRedirectModBuildOutput>
+    <EmbeddedRedirectRoot>$(MSBuildThisFileDirectory)EmbeddedMods\launchergoredirect\</EmbeddedRedirectRoot>
   </PropertyGroup>
 
   <ItemGroup>
@@ -30,6 +33,9 @@
     <None Update="EmbeddedMods\launchergoauth\modinfo.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\launchergoauth\README.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\launchergoauth\serverauth.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('EmbeddedMods\launchergoauth\serverauth.dll')" />
+    <None Update="EmbeddedMods\launchergoredirect\modinfo.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="EmbeddedMods\launchergoredirect\README.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="EmbeddedMods\launchergoredirect\launchergoredirect.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('EmbeddedMods\launchergoredirect\launchergoredirect.dll')" />
     <None Update="EmbeddedMods\servermap\**\*.*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
@@ -48,6 +54,15 @@
              Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY);NoRestore=true" />
   </Target>
 
+  <Target Name="BuildEmbeddedRedirectMod" BeforeTargets="BeforeBuild" Condition="'$(BuildEmbeddedRedirectMod)' == 'true'">
+    <MSBuild Projects="$(EmbeddedRedirectModProject)"
+             Targets="Restore"
+             Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY)" />
+    <MSBuild Projects="$(EmbeddedRedirectModProject)"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY);NoRestore=true" />
+  </Target>
+
   <Target Name="CopyBuiltEmbeddedAuthModToOutput" AfterTargets="Build" Condition="'$(BuildEmbeddedAuthMod)' == 'true' and Exists('$(EmbeddedAuthModBuildOutput)serverauth.dll')">
     <PropertyGroup>
       <_EmbeddedAuthOutputDir>$(TargetDir)EmbeddedMods\launchergoauth\</_EmbeddedAuthOutputDir>
@@ -58,6 +73,19 @@
           SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(EmbeddedAuthRoot)modinfo.json;$(EmbeddedAuthRoot)README.txt"
           DestinationFolder="$(_EmbeddedAuthOutputDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyBuiltEmbeddedRedirectModToOutput" AfterTargets="Build" Condition="'$(BuildEmbeddedRedirectMod)' == 'true' and Exists('$(EmbeddedRedirectModBuildOutput)launchergoredirect.dll')">
+    <PropertyGroup>
+      <_EmbeddedRedirectOutputDir>$(TargetDir)EmbeddedMods\launchergoredirect\</_EmbeddedRedirectOutputDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(_EmbeddedRedirectOutputDir)" />
+    <Copy SourceFiles="$(EmbeddedRedirectModBuildOutput)launchergoredirect.dll"
+          DestinationFiles="$(_EmbeddedRedirectOutputDir)launchergoredirect.dll"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(EmbeddedRedirectRoot)modinfo.json;$(EmbeddedRedirectRoot)README.txt"
+          DestinationFolder="$(_EmbeddedRedirectOutputDir)"
           SkipUnchangedFiles="true" />
   </Target>
 
