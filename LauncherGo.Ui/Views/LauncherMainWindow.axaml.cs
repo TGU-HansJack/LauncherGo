@@ -282,7 +282,6 @@ public partial class LauncherMainWindow : Window
     private readonly IInstanceModService _instanceModService;
     private readonly IServerAuthService _serverAuthService;
     private readonly ICommandBridgeService _commandBridgeService;
-    private readonly IServerMapService _serverMapService;
     private readonly ILauncherUpdateService _launcherUpdateService;
     private readonly ILogger<LauncherMainWindow> _logger;
     private readonly DispatcherTimer _dataTimer;
@@ -434,7 +433,6 @@ public partial class LauncherMainWindow : Window
             ServiceLocator.GetRequiredService<IInstanceModService>(),
             ServiceLocator.GetRequiredService<IServerAuthService>(),
             ServiceLocator.GetRequiredService<ICommandBridgeService>(),
-            ServiceLocator.GetRequiredService<IServerMapService>(),
             ServiceLocator.GetRequiredService<ILauncherUpdateService>(),
             ServiceLocator.GetRequiredService<ILogger<LauncherMainWindow>>())
     {
@@ -460,7 +458,6 @@ public partial class LauncherMainWindow : Window
         IInstanceModService instanceModService,
         IServerAuthService serverAuthService,
         ICommandBridgeService commandBridgeService,
-        IServerMapService serverMapService,
         ILauncherUpdateService launcherUpdateService,
         ILogger<LauncherMainWindow>? logger = null)
     {
@@ -483,7 +480,6 @@ public partial class LauncherMainWindow : Window
         _instanceModService = instanceModService;
         _serverAuthService = serverAuthService;
         _commandBridgeService = commandBridgeService;
-        _serverMapService = serverMapService;
         _launcherUpdateService = launcherUpdateService;
         _logger = logger ?? NullLogger<LauncherMainWindow>.Instance;
 
@@ -1031,7 +1027,6 @@ public partial class LauncherMainWindow : Window
         ModZipPathTextBox.PlaceholderText = T("Mod ZIP 路径", "Mod ZIP path");
         BrowseModZipButton.Content = T("浏览", "Browse");
         ImportModZipButton.Content = T("导入", "Import");
-        DeployMapModButton.Content = T("部署地图模组", "Deploy Map Mod");
         DeleteSelectedModsButton.Content = T("删除", "Delete");
         RefreshModsButton.Content = T("刷新", "Refresh");
         ModEditConfigHeaderTextBlock.Text = T("编辑配置", "Edit Config");
@@ -1236,11 +1231,9 @@ public partial class LauncherMainWindow : Window
         OsqIncludeEventsLabelTextBlock.Text = T("玩家事件", "Player Events");
         OsqIncludeChatsLabelTextBlock.Text = T("聊天", "Chats");
         OsqIncludeNotificationsLabelTextBlock.Text = T("通知", "Notifications");
-        OsqIncludeMapLabelTextBlock.Text = T("地图数据", "Map Data");
         OsqBackButton.Content = T("返回", "Back");
         OsqConfigSaveButton.Content = T("保存", "Save");
         OsqConfigRefreshButton.Content = T("刷新", "Refresh");
-        DeployMapModButton.Content = T("部署地图模组", "Deploy Map Mod");
 
         UpdateRobotToggleButtonText();
         RobotConfigTitleTextBlock.Text = T("QQ机器人配置", "QQ Robot Configuration");
@@ -2692,7 +2685,6 @@ public partial class LauncherMainWindow : Window
         OsqBackButton.IsVisible = false;
         OsqConfigSaveButton.IsVisible = false;
         OsqConfigRefreshButton.IsVisible = false;
-        DeployMapModButton.IsVisible = false;
         UpdateOsqToggleButtonText();
         RefreshOpenInfoConfigItems();
     }
@@ -2709,7 +2701,6 @@ public partial class LauncherMainWindow : Window
         OsqBackButton.IsVisible = true;
         OsqConfigSaveButton.IsVisible = true;
         OsqConfigRefreshButton.IsVisible = true;
-        DeployMapModButton.IsVisible = true;
         ApplyOpenInfoEndpointConfig(endpoint);
         SetConnectionStatus(T($"正在编辑开放API配置：{profile.Name}", $"Editing Open API config: {profile.Name}"), notify: false);
     }
@@ -4563,7 +4554,6 @@ public partial class LauncherMainWindow : Window
         OsqIncludeEventsCheckBox.IsChecked = settings.IncludePlayerEvents;
         OsqIncludeChatsCheckBox.IsChecked = settings.IncludeChats;
         OsqIncludeNotificationsCheckBox.IsChecked = settings.IncludeNotifications;
-        OsqIncludeMapCheckBox.IsChecked = settings.IncludeMapData;
     }
 
     private void ApplyRobotSettings(RobotIntegrationSettings settings)
@@ -4870,7 +4860,6 @@ public partial class LauncherMainWindow : Window
             IncludePlayerEvents = current.IncludePlayerEvents,
             IncludeChats = current.IncludeChats,
             IncludeNotifications = current.IncludeNotifications,
-            IncludeMapData = current.IncludeMapData,
             Endpoints = endpoints,
             EndpointHost = firstEndpoint?.ServerHost ?? string.Empty,
             EndpointToken = firstEndpoint?.Token ?? string.Empty
@@ -5077,8 +5066,7 @@ public partial class LauncherMainWindow : Window
             IncludePlayers = OsqIncludePlayersCheckBox.IsChecked == true,
             IncludePlayerEvents = OsqIncludeEventsCheckBox.IsChecked == true,
             IncludeChats = OsqIncludeChatsCheckBox.IsChecked == true,
-            IncludeNotifications = OsqIncludeNotificationsCheckBox.IsChecked == true,
-            IncludeMapData = OsqIncludeMapCheckBox.IsChecked == true
+            IncludeNotifications = OsqIncludeNotificationsCheckBox.IsChecked == true
         };
     }
 
@@ -5092,7 +5080,6 @@ public partial class LauncherMainWindow : Window
         OsqIncludeEventsCheckBox.IsChecked = endpoint.IncludePlayerEvents;
         OsqIncludeChatsCheckBox.IsChecked = endpoint.IncludeChats;
         OsqIncludeNotificationsCheckBox.IsChecked = endpoint.IncludeNotifications;
-        OsqIncludeMapCheckBox.IsChecked = endpoint.IncludeMapData;
     }
 
     private static OpenServerQueryEndpointConfig? FindOpenInfoEndpoint(OpenServerQuerySettings settings, string profileId)
@@ -5120,8 +5107,7 @@ public partial class LauncherMainWindow : Window
             IncludePlayers = settings.IncludePlayers,
             IncludePlayerEvents = settings.IncludePlayerEvents,
             IncludeChats = settings.IncludeChats,
-            IncludeNotifications = settings.IncludeNotifications,
-            IncludeMapData = settings.IncludeMapData
+            IncludeNotifications = settings.IncludeNotifications
         };
     }
 
@@ -5191,8 +5177,7 @@ public partial class LauncherMainWindow : Window
                 IncludePlayers = endpoint.IncludePlayers,
                 IncludePlayerEvents = endpoint.IncludePlayerEvents,
                 IncludeChats = endpoint.IncludeChats,
-                IncludeNotifications = endpoint.IncludeNotifications,
-                IncludeMapData = endpoint.IncludeMapData
+                IncludeNotifications = endpoint.IncludeNotifications
             });
         }
 
@@ -5210,8 +5195,7 @@ public partial class LauncherMainWindow : Window
                 IncludePlayers = settings.IncludePlayers,
                 IncludePlayerEvents = settings.IncludePlayerEvents,
                 IncludeChats = settings.IncludeChats,
-                IncludeNotifications = settings.IncludeNotifications,
-                IncludeMapData = settings.IncludeMapData
+                IncludeNotifications = settings.IncludeNotifications
             });
         }
 
@@ -5226,7 +5210,6 @@ public partial class LauncherMainWindow : Window
             IncludePlayerEvents = settings.IncludePlayerEvents,
             IncludeChats = settings.IncludeChats,
             IncludeNotifications = settings.IncludeNotifications,
-            IncludeMapData = settings.IncludeMapData,
             Endpoints = endpoints
         };
     }
@@ -8044,42 +8027,6 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private async void OnDeployMapModClick(object? sender, RoutedEventArgs e)
-    {
-        InstanceProfile? profile = null;
-        if (!string.IsNullOrWhiteSpace(_editingOpenInfoProfileId))
-        {
-            profile = _profileService.GetProfileById(_editingOpenInfoProfileId);
-        }
-
-        if (profile is null && !TryGetLockedLaunchTarget(out profile, out _))
-        {
-            var runningProfileId = _serverProcessService.GetCachedStatuses()
-                .FirstOrDefault(static status => status.IsRunning && !string.IsNullOrWhiteSpace(status.ProfileId))
-                ?.ProfileId;
-            profile = string.IsNullOrWhiteSpace(runningProfileId)
-                ? null!
-                : _profileService.GetProfileById(runningProfileId);
-            if (profile is null)
-            {
-                SetConnectionStatus(T("请先进入某个开放API配置页面，或启动一个服务器后再部署地图模组。", "Open an Open API profile config page, or start a server before deploying the map mod."));
-                return;
-            }
-        }
-
-        try
-        {
-            await _serverMapService.EnsureMapModDeployedAsync(profile);
-            SetConnectionStatus(T(
-                $"地图模组已部署到：{profile.Name}。默认只监听 127.0.0.1；远程 ServerMap 通过开放信息上报接收地图数据。首次完整渲染可在游戏内执行 /servermap colormap 后再执行 /servermap fullrender。",
-                $"Map mod deployed to: {profile.Name}. It listens on 127.0.0.1 by default; remote ServerMap receives map data through Open Info reports. For the first full render, run /servermap colormap in game, then /servermap fullrender."));
-        }
-        catch (Exception ex)
-        {
-            SetConnectionStatus(T($"部署地图模组失败：{ex.Message}", $"Map mod deploy failed: {ex.Message}"));
-        }
-    }
-
     private async void OnDeleteSelectedModsClick(object? sender, RoutedEventArgs e)
     {
         if (ModProfileComboBox.SelectedItem is not InstanceProfile profile)
@@ -8716,7 +8663,6 @@ public partial class LauncherMainWindow : Window
         preferences.OpenServerQuery.IncludePlayerEvents = OsqIncludeEventsCheckBox.IsChecked == true;
         preferences.OpenServerQuery.IncludeChats = OsqIncludeChatsCheckBox.IsChecked == true;
         preferences.OpenServerQuery.IncludeNotifications = OsqIncludeNotificationsCheckBox.IsChecked == true;
-        preferences.OpenServerQuery.IncludeMapData = OsqIncludeMapCheckBox.IsChecked == true;
         _preferencesService.Save(preferences);
         SaveOpenInfoProfileConfigFile(profile, endpoint);
         await ReloadOpenInfoIfRunningAsync();

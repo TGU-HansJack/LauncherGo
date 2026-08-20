@@ -22,5 +22,4 @@ public sealed class OpenServerQueryEndpointConfig
 
     public bool IncludeNotifications { get; set; } = true;
 
-    public bool IncludeMapData { get; set; } = true;
 }

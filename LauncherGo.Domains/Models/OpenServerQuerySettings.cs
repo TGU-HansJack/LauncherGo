@@ -20,8 +20,6 @@ public sealed class OpenServerQuerySettings
 
     public bool IncludeNotifications { get; set; } = true;
 
-    public bool IncludeMapData { get; set; } = true;
-
     public List<OpenServerQueryEndpointConfig> Endpoints { get; set; } = [];
 
     // Legacy single-endpoint fields kept for backward compatibility.

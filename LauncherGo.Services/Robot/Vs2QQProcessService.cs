@@ -3212,8 +3212,6 @@ public sealed class Vs2QQProcessService
 
         public List<OsqServerNotificationInfo>? ServerNotifications { get; set; }
 
-        public JsonElement? ServerMap { get; set; }
-
         [JsonExtensionData]
         public Dictionary<string, JsonElement>? ExtensionData { get; set; }
     }

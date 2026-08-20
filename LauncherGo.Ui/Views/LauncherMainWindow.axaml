@@ -2723,14 +2723,13 @@
 
                                     <ScrollViewer x:Name="ConnectionOpenInfoPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
                                         <StackPanel Spacing="10">
-                                            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
                                                 <Button x:Name="OsqSaveButton" Classes="ActionButton" Content="保存" Click="OnOsqSaveClick" IsVisible="False" />
                                                 <Button x:Name="OsqRefreshButton" Grid.Column="1" Classes="SecondaryActionButton" Content="刷新" Click="OnConnectionRefreshClick" IsVisible="False" />
                                                 <Button x:Name="OsqToggleButton" Grid.Column="2" Classes="SecondaryActionButton" Content="启动" Click="OnOsqToggleClick" />
                                                 <Button x:Name="OsqBackButton" Grid.Column="3" Classes="SecondaryActionButton" Content="返回" Click="OnOsqBackClick" IsVisible="False" />
                                                 <Button x:Name="OsqConfigSaveButton" Grid.Column="4" Classes="ActionButton" Content="保存" Click="OnOsqConfigSaveClick" IsVisible="False" />
                                                 <Button x:Name="OsqConfigRefreshButton" Grid.Column="5" Classes="SecondaryActionButton" Content="刷新" Click="OnOsqConfigRefreshClick" IsVisible="False" />
-                                                <Button x:Name="DeployMapModButton" Grid.Column="6" Classes="SecondaryActionButton" Content="部署地图模组" Click="OnDeployMapModClick" IsVisible="False" />
                                             </Grid>
                                             <Border Classes="ConfigCard">
                                                 <StackPanel Spacing="10">
@@ -2818,10 +2817,6 @@
                                                                     <StackPanel Classes="ToggleField">
                                                                         <TextBlock x:Name="OsqIncludeNotificationsLabelTextBlock" Classes="ConfigFieldLabel" Text="通知" />
                                                                         <ToggleSwitch x:Name="OsqIncludeNotificationsCheckBox" Classes="LabelledToggle" />
-                                                                    </StackPanel>
-                                                                    <StackPanel Classes="ToggleField">
-                                                                        <TextBlock x:Name="OsqIncludeMapLabelTextBlock" Classes="ConfigFieldLabel" Text="地图数据" />
-                                                                        <ToggleSwitch x:Name="OsqIncludeMapCheckBox" Classes="LabelledToggle" />
                                                                     </StackPanel>
                                                                 </WrapPanel>
                                                             </StackPanel>

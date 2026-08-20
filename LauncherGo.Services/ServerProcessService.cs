@@ -29,19 +29,17 @@ public sealed partial class ServerProcessService : IServerProcessService
     private readonly ILauncherPreferencesService? _preferencesService;
     private readonly IServerAuthService? _serverAuthService;
     private readonly ICommandBridgeService? _commandBridgeService;
-    private readonly IServerMapService? _serverMapService;
     private readonly ILogger<ServerProcessService> _logger;
     private string _activeProfileId = string.Empty;
 
     public ServerProcessService()
-        : this(null, null, null, NullLogger<ServerProcessService>.Instance, null, null)
+        : this(null, null, NullLogger<ServerProcessService>.Instance, null, null)
     {
     }
 
     public ServerProcessService(
         IInstanceProfileService? profileService,
         IServerAuthService? serverAuthService = null,
-        IServerMapService? serverMapService = null,
         ILogger<ServerProcessService>? logger = null,
         ILauncherPreferencesService? preferencesService = null,
         ICommandBridgeService? commandBridgeService = null)
@@ -49,7 +47,6 @@ public sealed partial class ServerProcessService : IServerProcessService
         _profileService = profileService;
         _preferencesService = preferencesService;
         _serverAuthService = serverAuthService;
-        _serverMapService = serverMapService;
         _commandBridgeService = commandBridgeService;
         _logger = logger ?? NullLogger<ServerProcessService>.Instance;
     }
@@ -296,7 +293,6 @@ public sealed partial class ServerProcessService : IServerProcessService
             var controller = new SingleServerProcessController(
                 _profileService,
                 _serverAuthService,
-                _serverMapService,
                 _logger,
                 _preferencesService,
                 _commandBridgeService);
@@ -405,7 +401,6 @@ internal sealed partial class SingleServerProcessController
     private readonly ILauncherPreferencesService? _preferencesService;
     private readonly IServerAuthService? _serverAuthService;
     private readonly ICommandBridgeService? _commandBridgeService;
-    private readonly IServerMapService? _serverMapService;
     private readonly ILogger<ServerProcessService> _logger;
     private Process? _process;
     private InstanceProfile? _currentProfile;
@@ -428,14 +423,13 @@ internal sealed partial class SingleServerProcessController
     private double _lastCpuPercent;
 
     public SingleServerProcessController()
-        : this(null, null, null, NullLogger<ServerProcessService>.Instance, null, null)
+        : this(null, null, NullLogger<ServerProcessService>.Instance, null, null)
     {
     }
 
     public SingleServerProcessController(
         IInstanceProfileService? profileService,
         IServerAuthService? serverAuthService = null,
-        IServerMapService? serverMapService = null,
         ILogger<ServerProcessService>? logger = null,
         ILauncherPreferencesService? preferencesService = null,
         ICommandBridgeService? commandBridgeService = null)
@@ -443,7 +437,6 @@ internal sealed partial class SingleServerProcessController
         _profileService = profileService;
         _preferencesService = preferencesService;
         _serverAuthService = serverAuthService;
-        _serverMapService = serverMapService;
         _commandBridgeService = commandBridgeService;
         _logger = logger ?? NullLogger<ServerProcessService>.Instance;
     }
@@ -624,11 +617,6 @@ internal sealed partial class SingleServerProcessController
             OutputReceived?.Invoke(this, "[system] 已在启动前检查并部署 ServerAuth 模组。");
         }
 
-        if (_serverMapService is not null && await _serverMapService.GetMapModEnabledAsync(profile, cancellationToken))
-        {
-            await _serverMapService.EnsureMapModDeployedAsync(profile, cancellationToken);
-            OutputReceived?.Invoke(this, "[system] 已在启动前检查并部署 ServerMap 地图模组。");
-        }
     }
 
     private async Task<bool> IsAuthEnabledAsync(

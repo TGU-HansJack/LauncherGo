@@ -42,7 +42,6 @@
     <None Update="EmbeddedMods\launchergocommandbridge\modinfo.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\launchergocommandbridge\README.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\launchergocommandbridge\commandbridge.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('EmbeddedMods\launchergocommandbridge\commandbridge.dll')" />
-    <None Update="EmbeddedMods\servermap\**\*.*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>

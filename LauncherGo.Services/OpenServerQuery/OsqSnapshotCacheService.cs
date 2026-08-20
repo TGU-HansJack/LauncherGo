@@ -127,11 +127,6 @@ public sealed class OsqSnapshotCacheService : IOsqSnapshotCacheService
             capabilities.Add("chats");
         }
 
-        if (payload["serverMap"] is JsonObject)
-        {
-            capabilities.Add("map");
-        }
-
         return capabilities;
     }
 }

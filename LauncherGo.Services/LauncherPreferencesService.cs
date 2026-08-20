@@ -185,7 +185,6 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             IncludePlayerEvents = source.IncludePlayerEvents,
             IncludeChats = source.IncludeChats,
             IncludeNotifications = source.IncludeNotifications,
-            IncludeMapData = source.IncludeMapData,
             Endpoints = endpoints,
             EndpointHost = firstEndpoint?.ServerHost ?? string.Empty,
             EndpointToken = firstEndpoint?.Token ?? string.Empty
@@ -218,8 +217,7 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
                 IncludePlayers = endpoint.IncludePlayers,
                 IncludePlayerEvents = endpoint.IncludePlayerEvents,
                 IncludeChats = endpoint.IncludeChats,
-                IncludeNotifications = endpoint.IncludeNotifications,
-                IncludeMapData = endpoint.IncludeMapData
+                IncludeNotifications = endpoint.IncludeNotifications
             });
         }
 

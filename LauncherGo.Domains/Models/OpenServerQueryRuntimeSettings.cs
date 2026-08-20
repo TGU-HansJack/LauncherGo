@@ -23,8 +23,6 @@ public sealed class OpenServerQueryRuntimeSettings
 
     public bool IncludeNotifications { get; init; } = true;
 
-    public bool IncludeMapData { get; init; } = true;
-
     public IReadOnlyList<OpenServerQueryEndpointSettings> Endpoints { get; init; } = [];
 }
 
@@ -50,7 +48,6 @@ public sealed class OpenServerQueryEndpointSettings
 
     public bool IncludeNotifications { get; init; } = true;
 
-    public bool IncludeMapData { get; init; } = true;
 }
 
 public sealed class OpenServerQueryRuntimeStatus
