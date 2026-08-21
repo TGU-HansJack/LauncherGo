@@ -394,6 +394,8 @@ public partial class LauncherMainWindow : Window
     private bool _staticUiTranslationQueued;
     private bool _isRefreshingAutomation;
     private bool _isRefreshingMods;
+    private bool _isUpdatingModSelectAll;
+    private readonly List<string> _modImportPaths = [];
     private bool _isRefreshingAuth;
     private bool _isRefreshingCommandBridge;
     private bool _toastPointerOver;
@@ -1024,8 +1026,10 @@ public partial class LauncherMainWindow : Window
 
     private void InitializeModStaticTexts()
     {
-        ModZipPathTextBox.PlaceholderText = T("Mod ZIP 路径", "Mod ZIP path");
+        ModZipPathTextBox.PlaceholderText = T("Mod ZIP/文件夹路径", "Mod ZIP/folder path");
         BrowseModZipButton.Content = T("浏览", "Browse");
+        BrowseModFolderButton.Content = T("文件夹", "Folder");
+        ToolTip.SetTip(ModSelectAllCheckBox, T("全选/取消全选模组", "Select or clear all mods"));
         ImportModZipButton.Content = T("导入", "Import");
         DeleteSelectedModsButton.Content = T("删除", "Delete");
         RefreshModsButton.Content = T("刷新", "Refresh");
@@ -2973,6 +2977,7 @@ public partial class LauncherMainWindow : Window
         if (ModProfileComboBox.SelectedItem is not InstanceProfile profile)
         {
             _modItems.Clear();
+            UpdateModSelectAllState();
             SetModStatus(T("暂无档案，请先创建档案。", "No profile found. Create a profile first."), notify: false);
             return;
         }
@@ -2983,6 +2988,7 @@ public partial class LauncherMainWindow : Window
         {
             _modItems.Add(ModListItem.FromModel(mod, _isChinese));
         }
+        UpdateModSelectAllState();
 
         var enabledCount = mods.Count(static mod => !mod.IsDisabled);
         var disabledCount = mods.Count - enabledCount;
@@ -7978,12 +7984,56 @@ public partial class LauncherMainWindow : Window
         await LoadModsForSelectedProfileAsync();
     }
 
+    private void OnModsSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        UpdateModSelectAllState();
+    }
+
+    private void OnModSelectAllClick(object? sender, RoutedEventArgs e)
+    {
+        if (_isUpdatingModSelectAll)
+            return;
+
+        var selectedCount = ModsListBox.SelectedItems?.Count ?? 0;
+        var shouldSelectAll = _modItems.Count > 0 && selectedCount < _modItems.Count;
+        if (shouldSelectAll)
+            ModsListBox.SelectAll();
+        else
+            ModsListBox.SelectedItems?.Clear();
+
+        UpdateModSelectAllState();
+    }
+
+    private void UpdateModSelectAllState()
+    {
+        if (ModSelectAllCheckBox is null || ModsListBox is null)
+            return;
+
+        var total = _modItems.Count;
+        var selected = ModsListBox.SelectedItems?.Count ?? 0;
+        bool? state = total > 0 && selected == total
+            ? true
+            : selected > 0
+                ? null
+                : false;
+
+        _isUpdatingModSelectAll = true;
+        try
+        {
+            ModSelectAllCheckBox.IsChecked = state;
+        }
+        finally
+        {
+            _isUpdatingModSelectAll = false;
+        }
+    }
+
     private async void OnBrowseModZipClick(object? sender, RoutedEventArgs e)
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = T("选择 Mod ZIP 文件", "Select Mod ZIP file"),
-            AllowMultiple = false,
+            Title = T("选择 Mod ZIP 文件（可多选）", "Select Mod ZIP files"),
+            AllowMultiple = true,
             FileTypeFilter =
             [
                 new FilePickerFileType("ZIP")
@@ -7993,11 +8043,26 @@ public partial class LauncherMainWindow : Window
             ]
         });
 
-        var path = TryGetLocalPath(files.FirstOrDefault());
-        if (!string.IsNullOrWhiteSpace(path))
+        var paths = files
+            .Select(TryGetLocalPath)
+            .Where(static path => !string.IsNullOrWhiteSpace(path))
+            .Cast<string>()
+            .ToList();
+        if (paths.Count > 0)
+            SetModImportPaths(paths);
+    }
+
+    private async void OnBrowseModFolderClick(object? sender, RoutedEventArgs e)
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            ModZipPathTextBox.Text = path;
-        }
+            Title = T("选择模组文件夹", "Select mod folder"),
+            AllowMultiple = false
+        });
+
+        var path = TryGetLocalPath(folders.FirstOrDefault());
+        if (!string.IsNullOrWhiteSpace(path))
+            SetModImportPaths([path]);
     }
 
     private async void OnImportModZipClick(object? sender, RoutedEventArgs e)
@@ -8008,23 +8073,66 @@ public partial class LauncherMainWindow : Window
             return;
         }
 
-        var path = ModZipPathTextBox.Text?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(path))
+        var paths = GetModImportPaths();
+        if (paths.Count == 0)
         {
-            SetModStatus(T("请输入 Mod ZIP 路径。", "Enter a Mod ZIP path."));
+            SetModStatus(T("请选择 Mod ZIP 文件或模组文件夹。", "Select Mod ZIP files or a mod folder."));
             return;
         }
 
         try
         {
-            var imported = await _instanceModService.ImportModZipAsync(profile, path);
+            var imported = await _instanceModService.ImportModsAsync(profile, paths);
             await LoadModsForSelectedProfileAsync();
-            SetModStatus(T($"已导入：{imported.ModId}", $"Imported: {imported.ModId}"));
+            if (imported.Count == 0)
+            {
+                SetModStatus(T("未检测到包含 modinfo.json 的模组。", "No mods with modinfo.json were found."));
+                return;
+            }
+
+            SetModStatus(T($"已导入 {imported.Count} 个模组：{string.Join(", ", imported.Select(static mod => mod.ModId))}",
+                $"Imported {imported.Count} mods: {string.Join(", ", imported.Select(static mod => mod.ModId))}"));
         }
         catch (Exception ex)
         {
             SetModStatus(T($"导入失败：{ex.Message}", $"Import failed: {ex.Message}"));
         }
+    }
+
+    private void SetModImportPaths(IEnumerable<string> paths)
+    {
+        _modImportPaths.Clear();
+        _modImportPaths.AddRange(paths
+            .Where(static path => !string.IsNullOrWhiteSpace(path))
+            .Select(static path => path.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase));
+        ModZipPathTextBox.Text = _modImportPaths.Count switch
+        {
+            0 => string.Empty,
+            1 => _modImportPaths[0],
+            _ => T($"已选择 {_modImportPaths.Count} 个来源", $"{_modImportPaths.Count} sources selected")
+        };
+    }
+
+    private IReadOnlyList<string> GetModImportPaths()
+    {
+        var raw = ModZipPathTextBox.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(raw))
+            return [];
+
+        var selectedSummary = _modImportPaths.Count switch
+        {
+            0 => string.Empty,
+            1 => _modImportPaths[0],
+            _ => T($"已选择 {_modImportPaths.Count} 个来源", $"{_modImportPaths.Count} sources selected")
+        };
+        if (_modImportPaths.Count > 0 && string.Equals(raw, selectedSummary, StringComparison.Ordinal))
+            return _modImportPaths.ToList();
+
+        return raw
+            .Split([Environment.NewLine, ";", "|"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private async void OnDeleteSelectedModsClick(object? sender, RoutedEventArgs e)

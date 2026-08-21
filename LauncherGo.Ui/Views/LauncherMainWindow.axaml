@@ -2122,7 +2122,7 @@
                                     </Grid>
 
                                     <Grid x:Name="ModsPanel" RowDefinitions="Auto,Auto,*" RowSpacing="8" IsVisible="False">
-                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
                                             <ComboBox x:Name="ModProfileComboBox" Grid.Column="0" Classes="CompactCombo" SelectionChanged="OnModProfileSelectionChanged">
                                                 <ComboBox.ItemTemplate>
                                                     <DataTemplate>
@@ -2130,17 +2130,18 @@
                                                     </DataTemplate>
                                                 </ComboBox.ItemTemplate>
                                             </ComboBox>
-                                            <TextBox x:Name="ModZipPathTextBox" Grid.Column="1" Classes="CompactInput" PlaceholderText="Mod ZIP 路径" />
+                                            <TextBox x:Name="ModZipPathTextBox" Grid.Column="1" Classes="CompactInput" PlaceholderText="Mod ZIP/文件夹路径" />
                                             <Button x:Name="BrowseModZipButton" Grid.Column="2" Classes="SecondaryActionButton" Content="浏览" Click="OnBrowseModZipClick" />
-                                            <Button x:Name="ImportModZipButton" Grid.Column="3" Classes="SecondaryActionButton" Content="导入" Click="OnImportModZipClick" />
-                                            <Button x:Name="DeleteSelectedModsButton" Grid.Column="4" Classes="SecondaryActionButton DangerButton" Content="删除" Click="OnDeleteSelectedModsClick" />
-                                            <Button x:Name="RefreshModsButton" Grid.Column="5" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshModsClick" />
+                                            <Button x:Name="BrowseModFolderButton" Grid.Column="3" Classes="SecondaryActionButton" Content="文件夹" Click="OnBrowseModFolderClick" />
+                                            <Button x:Name="ImportModZipButton" Grid.Column="4" Classes="SecondaryActionButton" Content="导入" Click="OnImportModZipClick" />
+                                            <Button x:Name="DeleteSelectedModsButton" Grid.Column="5" Classes="SecondaryActionButton DangerButton" Content="删除" Click="OnDeleteSelectedModsClick" />
+                                            <Button x:Name="RefreshModsButton" Grid.Column="6" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshModsClick" />
                                         </Grid>
                                         <TextBlock x:Name="ModStatusTextBlock" Grid.Row="1" Classes="ConfigHintText" TextWrapping="Wrap" />
                                         <Grid Grid.Row="2" RowDefinitions="Auto,*">
                                             <Border Grid.Row="0" Classes="TableHeader">
                                                 <Grid ColumnDefinitions="44,1.1*,.7*,1.1*,1.1*,1.8*,2.2*,58,96" ColumnSpacing="8">
-                                                    <TextBlock Classes="TableHeaderText" Text="选择" HorizontalAlignment="Center" />
+                                                    <CheckBox x:Name="ModSelectAllCheckBox" Classes="TableSelectCheck" IsThreeState="True" Click="OnModSelectAllClick" />
                                                     <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="Mod ID" />
                                                     <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="版本" />
                                                     <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="依赖" />
@@ -2152,7 +2153,7 @@
                                                 </Grid>
                                             </Border>
                                             <Border Grid.Row="1" Classes="TableBody">
-                                                <ListBox x:Name="ModsListBox" Classes="FlatList TableList" SelectionMode="Multiple">
+                                                <ListBox x:Name="ModsListBox" Classes="FlatList TableList" SelectionMode="Multiple" SelectionChanged="OnModsSelectionChanged">
                                                     <ListBox.ItemTemplate>
                                                         <DataTemplate>
                                                             <Grid ColumnDefinitions="44,1.1*,.7*,1.1*,1.1*,1.8*,2.2*,58,96" ColumnSpacing="8" MinHeight="36">

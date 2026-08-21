@@ -102,6 +102,60 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<ModEntry>> ImportModsAsync(
+        InstanceProfile profile,
+        IReadOnlyCollection<string> sourcePaths,
+        CancellationToken cancellationToken = default)
+    {
+        if (sourcePaths is null || sourcePaths.Count == 0)
+            return [];
+
+        var candidates = DiscoverModSources(sourcePaths, cancellationToken);
+        if (candidates.Count == 0)
+            return [];
+
+        var modsPath = WorkspacePathHelper.GetProfileModsPath(profile.DirectoryPath);
+        Directory.CreateDirectory(modsPath);
+        var disabledSet = await LoadDisabledModSetAsync(profile, cancellationToken);
+        var modConfigPath = Path.Combine(WorkspacePathHelper.ResolveProfileDataPath(profile.DirectoryPath), "ModConfig");
+        var imported = new List<ModEntry>(candidates.Count);
+
+        foreach (var sourcePath in candidates)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (File.Exists(sourcePath))
+            {
+                var destination = Path.Combine(modsPath, WorkspacePathHelper.SanitizeFileName(Path.GetFileName(sourcePath)));
+                if (!PathsEqual(sourcePath, destination))
+                    File.Copy(sourcePath, destination, overwrite: true);
+                imported.Add(ReadModFromZip(destination, disabledSet, modConfigPath));
+                continue;
+            }
+
+            if (!Directory.Exists(sourcePath))
+                continue;
+
+            var folderName = WorkspacePathHelper.SanitizeFileName(Path.GetFileName(sourcePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
+            if (string.IsNullOrWhiteSpace(folderName))
+                continue;
+
+            var sourceFullPath = Path.GetFullPath(sourcePath);
+            var destinationPath = Path.Combine(modsPath, folderName);
+            if (!PathsEqual(sourceFullPath, destinationPath) && !IsPathWithin(destinationPath, sourceFullPath))
+            {
+                CopyDirectory(sourceFullPath, destinationPath);
+            }
+
+            imported.Add(ReadModFromDirectory(
+                IsPathWithin(destinationPath, sourceFullPath) ? sourceFullPath : destinationPath,
+                disabledSet,
+                modConfigPath));
+        }
+
+        return imported;
+    }
+
+    /// <inheritdoc />
     public async Task SetModEnabledAsync(
         InstanceProfile profile,
         string modId,
@@ -315,6 +369,140 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
         }
 
         return dependencies;
+    }
+
+    private static List<string> DiscoverModSources(
+        IEnumerable<string> sourcePaths,
+        CancellationToken cancellationToken)
+    {
+        var candidates = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var rawPath in sourcePaths)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(rawPath))
+                continue;
+
+            string path;
+            try
+            {
+                path = Path.GetFullPath(rawPath.Trim());
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (File.Exists(path))
+            {
+                if (Path.GetExtension(path).Equals(".zip", StringComparison.OrdinalIgnoreCase) && HasModInfo(path))
+                    AddCandidate(path, candidates, seen);
+                continue;
+            }
+
+            if (!Directory.Exists(path))
+                continue;
+
+            AddModSourcesFromDirectory(path, candidates, seen, cancellationToken);
+        }
+
+        return candidates;
+    }
+
+    private static void AddModSourcesFromDirectory(
+        string directoryPath,
+        List<string> candidates,
+        HashSet<string> seen,
+        CancellationToken cancellationToken)
+    {
+        if (HasModInfo(directoryPath))
+        {
+            AddCandidate(directoryPath, candidates, seen);
+            return;
+        }
+
+        IEnumerable<string> files;
+        IEnumerable<string> directories;
+        try
+        {
+            files = Directory.EnumerateFiles(directoryPath, "*.zip", SearchOption.AllDirectories);
+            directories = Directory.EnumerateDirectories(directoryPath, "*", SearchOption.AllDirectories);
+        }
+        catch
+        {
+            return;
+        }
+
+        foreach (var file in files)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (HasModInfo(file))
+                AddCandidate(file, candidates, seen);
+        }
+
+        foreach (var directory in directories)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (HasModInfo(directory))
+                AddCandidate(directory, candidates, seen);
+        }
+    }
+
+    private static bool HasModInfo(string path)
+    {
+        if (File.Exists(path))
+        {
+            try
+            {
+                using var archive = ZipFile.OpenRead(path);
+                return archive.Entries.Any(entry =>
+                    entry.FullName.TrimEnd('/').EndsWith("modinfo.json", StringComparison.OrdinalIgnoreCase));
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        return Directory.Exists(path) && File.Exists(Path.Combine(path, "modinfo.json"));
+    }
+
+    private static void AddCandidate(string path, List<string> candidates, HashSet<string> seen)
+    {
+        var fullPath = Path.GetFullPath(path);
+        if (seen.Add(fullPath))
+            candidates.Add(fullPath);
+    }
+
+    private static void CopyDirectory(string sourcePath, string destinationPath)
+    {
+        if (Directory.Exists(destinationPath))
+            Directory.Delete(destinationPath, recursive: true);
+
+        Directory.CreateDirectory(destinationPath);
+        foreach (var sourceFile in Directory.EnumerateFiles(sourcePath, "*", SearchOption.AllDirectories))
+        {
+            var relativePath = Path.GetRelativePath(sourcePath, sourceFile);
+            var destinationFile = Path.Combine(destinationPath, relativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
+            File.Copy(sourceFile, destinationFile, overwrite: true);
+        }
+    }
+
+    private static bool PathsEqual(string left, string right) =>
+        string.Equals(
+            Path.GetFullPath(left).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            Path.GetFullPath(right).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsPathWithin(string candidatePath, string rootPath)
+    {
+        var candidate = Path.GetFullPath(candidatePath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var root = Path.GetFullPath(rootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return candidate.Equals(root, StringComparison.OrdinalIgnoreCase) ||
+               candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+               candidate.StartsWith(root + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
     private static JsonNode? GetMetadataProperty(JsonObject node, string propertyName)
