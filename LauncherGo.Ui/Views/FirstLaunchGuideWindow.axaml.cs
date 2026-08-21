@@ -12,11 +12,13 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using LauncherGo.Abstractions.Services;
+using LauncherGo.Abstractions.Services.I18n;
 using LauncherGo.Domains.Enums;
 using LauncherGo.Domains.Features;
 using LauncherGo.Domains.Models;
 using LauncherGo.Ui;
 using LauncherGo.Ui.Platform;
+using LauncherGo.Ui.Services.I18n;
 
 namespace LauncherGo.Ui.Views;
 
@@ -40,6 +42,7 @@ public partial class FirstLaunchGuideWindow : Window
 
     private readonly ILauncherPreferencesService _preferencesService;
     private readonly IServerPackageService _serverPackageService;
+    private readonly ILocalizationService _localizationService;
     private readonly DispatcherTimer _blinkTimer;
 
     private readonly List<LanguageOption> _languageOptions =
@@ -65,23 +68,28 @@ public partial class FirstLaunchGuideWindow : Window
     private bool _isApplyingUi;
     private bool _versionsLoaded;
     private bool _isChinese;
+    private bool _languageRefreshQueued;
 
     public FirstLaunchGuideWindow()
         : this(
             ServiceLocator.GetRequiredService<ILauncherPreferencesService>(),
-            ServiceLocator.GetRequiredService<IServerPackageService>())
+            ServiceLocator.GetRequiredService<IServerPackageService>(),
+            ServiceLocator.GetRequiredService<ILocalizationService>())
     {
     }
 
     public FirstLaunchGuideWindow(
         ILauncherPreferencesService preferencesService,
-        IServerPackageService serverPackageService)
+        IServerPackageService serverPackageService,
+        ILocalizationService? localizationService = null)
     {
         _preferencesService = preferencesService;
         _serverPackageService = serverPackageService;
+        _localizationService = localizationService ?? new LocalizationService();
 
         InitializeComponent();
         AddHandler(InputElement.PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        _localizationService.LanguageChanged += OnLanguageChanged;
 
         WelcomeBlinkTextBlock.Text = BlinkTexts[0];
         _blinkIndex = 1;
@@ -104,6 +112,7 @@ public partial class FirstLaunchGuideWindow : Window
         Closed += (_, _) =>
         {
             _blinkTimer.Stop();
+            _localizationService.LanguageChanged -= OnLanguageChanged;
         };
     }
 
@@ -203,8 +212,23 @@ public partial class FirstLaunchGuideWindow : Window
 
         var code = _languageOptions[index].Code;
         _isChinese = code.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
-        ApplyCulture(code);
-        ApplyLocalizedTexts();
+        _localizationService.SetLanguage(code);
+    }
+
+    private void OnLanguageChanged(object? sender, LanguageChangedEventArgs e)
+    {
+        if (_languageRefreshQueued)
+        {
+            return;
+        }
+
+        _languageRefreshQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _languageRefreshQueued = false;
+            _isChinese = _localizationService.CurrentCulture.Name.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
+            ApplyLocalizedTexts();
+        }, DispatcherPriority.Render);
     }
 
     private void OnAppearanceSelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -424,7 +448,7 @@ public partial class FirstLaunchGuideWindow : Window
             : _preferences.Language.Trim();
 
         _isChinese = languageCode.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
-        ApplyCulture(languageCode);
+        _localizationService.SetLanguage(languageCode);
 
         LanguageComboBox.ItemsSource = _languageOptions.Select(option => option.ZhLabel).ToList();
         LanguageComboBox.SelectedIndex = _isChinese ? 0 : 1;
@@ -461,18 +485,7 @@ public partial class FirstLaunchGuideWindow : Window
         DownloadTitleTextBlock.Text = T("下载", "Download");
         DownloadHintTextBlock.Text = T("从版本列表中下载服务端，也可以导入已有服务端压缩包。", "Download from the version list, or import an existing server package.");
         ImportPackageButton.Content = T("导入服务端文件", "Import Server Package");
-        ServerVanillaSourceItem.Content = T("游戏服务端", "Game Server");
-        ServerStratumSourceItem.Content = T("Stratum 服务端", "Stratum Server");
-        ServerStratumSourceItem.IsVisible = ServerFeatureFlags.StratumServerSupportEnabled;
-        if (!ServerFeatureFlags.StratumServerSupportEnabled)
-        {
-            ServerSourceComboBox.Items.Remove(ServerStratumSourceItem);
-            ServerSourceComboBox.SelectedIndex = 0;
-        }
-        else if (ServerSourceComboBox.SelectedIndex < 0)
-        {
-            ServerSourceComboBox.SelectedIndex = 0;
-        }
+        RefreshServerSourceOptions();
 
         CompleteTitleTextBlock.Text = T("完成", "Done");
         CompleteHintTextBlock.Text = T("恭喜你完成了全部初始启动设置，快使用LauncherGo创建服务器吧！", "Congratulations! Initial setup is complete. Start creating your server with LauncherGo.");
@@ -616,13 +629,40 @@ public partial class FirstLaunchGuideWindow : Window
 
     private void OnServerSourceSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
+        if (_isApplyingUi)
+        {
+            return;
+        }
+
         RebuildCatalogDisplay();
     }
 
     private ServerSourceKind GetSelectedServerSourceKind() =>
-        ServerFeatureFlags.StratumServerSupportEnabled && ServerSourceComboBox.SelectedIndex == 1
+        ServerFeatureFlags.StratumServerSupportEnabled &&
+        ServerSourceComboBox.SelectedIndex == 1
             ? ServerSourceKind.Stratum
             : ServerSourceKind.Vanilla;
+
+    private void RefreshServerSourceOptions()
+    {
+        var selectedSource = GetSelectedServerSourceKind();
+        var labels = new List<string> { T("游戏服务端", "Game Server") };
+        if (ServerFeatureFlags.StratumServerSupportEnabled)
+        {
+            labels.Add(T("Stratum 服务端", "Stratum Server"));
+        }
+
+        ServerSourceComboBox.Items.Clear();
+        foreach (var label in labels)
+        {
+            ServerSourceComboBox.Items.Add(label);
+        }
+        ServerSourceComboBox.SelectedIndex = 0;
+        if (selectedSource == ServerSourceKind.Stratum && labels.Count > 1)
+        {
+            ServerSourceComboBox.SelectedIndex = 1;
+        }
+    }
 
     private void SetDownloadStatus(string message)
     {
@@ -687,7 +727,7 @@ public partial class FirstLaunchGuideWindow : Window
         _preferencesService.Save(updated);
         _preferences = updated;
 
-        ApplyCulture(updated.Language);
+        _localizationService.SetLanguage(updated.Language);
         ApplyTheme(updated.ThemeMode);
 
         if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
@@ -715,22 +755,6 @@ public partial class FirstLaunchGuideWindow : Window
             ThemeMode.Light => ThemeVariant.Light,
             _ => ThemeVariant.Default
         };
-    }
-
-    private static void ApplyCulture(string languageCode)
-    {
-        try
-        {
-            var culture = CultureInfo.GetCultureInfo(languageCode);
-            CultureInfo.CurrentCulture = culture;
-            CultureInfo.CurrentUICulture = culture;
-            CultureInfo.DefaultThreadCurrentCulture = culture;
-            CultureInfo.DefaultThreadCurrentUICulture = culture;
-        }
-        catch
-        {
-            // ignore invalid culture code
-        }
     }
 
     private static string NormalizeDirectoryInput(string? input, string fallback)
@@ -769,7 +793,7 @@ public partial class FirstLaunchGuideWindow : Window
 
     private string T(string zh, string en)
     {
-        return _isChinese ? zh : en;
+        return _localizationService.Resolve(zh, en);
     }
 
     private sealed record LanguageOption(string Code, string ZhLabel, string EnLabel);

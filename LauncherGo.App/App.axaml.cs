@@ -47,16 +47,8 @@ public partial class App : Application
             var preferencesService = ServiceLocator.GetRequiredService<ILauncherPreferencesService>();
             var preferences = preferencesService.Load();
 
-            ApplyCulture(preferences.Language);
-            try
-            {
-                ServiceLocator.GetRequiredService<ILocalizationService>().CurrentCulture =
-                    CultureInfo.GetCultureInfo(preferences.Language);
-            }
-            catch
-            {
-                // Ignore invalid culture or service initialization errors.
-            }
+            var localizationService = ServiceLocator.GetRequiredService<ILocalizationService>();
+            localizationService.SetLanguage(preferences.Language);
 
             ApplyTheme(preferences.ThemeMode);
 
@@ -76,22 +68,6 @@ public partial class App : Application
             ThemeMode.Light => ThemeVariant.Light,
             _ => ThemeVariant.Default
         };
-    }
-
-    private static void ApplyCulture(string languageCode)
-    {
-        try
-        {
-            var culture = CultureInfo.GetCultureInfo(languageCode);
-            CultureInfo.CurrentCulture = culture;
-            CultureInfo.CurrentUICulture = culture;
-            CultureInfo.DefaultThreadCurrentCulture = culture;
-            CultureInfo.DefaultThreadCurrentUICulture = culture;
-        }
-        catch
-        {
-            // Ignore invalid culture name.
-        }
     }
 
     private void OnTrayIconClicked(object? sender, EventArgs e)

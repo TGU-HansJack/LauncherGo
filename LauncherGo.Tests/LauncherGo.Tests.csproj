@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\LauncherGo.Services\LauncherGo.Services.csproj" />
+    <ProjectReference Include="..\LauncherGo.Ui\LauncherGo.Ui.csproj" />
   </ItemGroup>
 
 </Project>

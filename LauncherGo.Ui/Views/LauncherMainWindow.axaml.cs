@@ -31,6 +31,7 @@ using LauncherGo.Domains.Models;
 using LauncherGo.Ui;
 using LauncherGo.Ui.Converters;
 using LauncherGo.Ui.Platform;
+using LauncherGo.Ui.Services.I18n;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -143,6 +144,9 @@ public partial class LauncherMainWindow : Window
         ("停止", "Stop"),
         ("配置", "Config"),
         ("下载版本", "Downloads"),
+        ("游戏服务端", "Game Server"),
+        ("Stratum 服务端", "Stratum Server"),
+        ("直连", "Direct"),
         ("日志", "Logs"),
         ("实例", "Instance"),
         ("模组", "Mods"),
@@ -283,6 +287,7 @@ public partial class LauncherMainWindow : Window
     private readonly IServerAuthService _serverAuthService;
     private readonly ICommandBridgeService _commandBridgeService;
     private readonly ILauncherUpdateService _launcherUpdateService;
+    private readonly ILocalizationService _localizationService;
     private readonly ILogger<LauncherMainWindow> _logger;
     private readonly DispatcherTimer _dataTimer;
     private readonly DispatcherTimer _tickerTimer;
@@ -392,6 +397,8 @@ public partial class LauncherMainWindow : Window
     private bool _isExitRequested;
     private bool _isExitConfirmationOpen;
     private bool _staticUiTranslationQueued;
+    private bool _languageRefreshQueued;
+    private bool _isApplyingLocalizedOptions;
     private bool _isRefreshingAutomation;
     private bool _isRefreshingMods;
     private bool _isUpdatingModSelectAll;
@@ -436,7 +443,8 @@ public partial class LauncherMainWindow : Window
             ServiceLocator.GetRequiredService<IServerAuthService>(),
             ServiceLocator.GetRequiredService<ICommandBridgeService>(),
             ServiceLocator.GetRequiredService<ILauncherUpdateService>(),
-            ServiceLocator.GetRequiredService<ILogger<LauncherMainWindow>>())
+            ServiceLocator.GetRequiredService<ILogger<LauncherMainWindow>>(),
+            ServiceLocator.GetRequiredService<ILocalizationService>())
     {
     }
 
@@ -461,7 +469,8 @@ public partial class LauncherMainWindow : Window
         IServerAuthService serverAuthService,
         ICommandBridgeService commandBridgeService,
         ILauncherUpdateService launcherUpdateService,
-        ILogger<LauncherMainWindow>? logger = null)
+        ILogger<LauncherMainWindow>? logger = null,
+        ILocalizationService? localizationService = null)
     {
         _preferencesService = preferencesService;
         _serverPackageService = serverPackageService;
@@ -483,13 +492,16 @@ public partial class LauncherMainWindow : Window
         _serverAuthService = serverAuthService;
         _commandBridgeService = commandBridgeService;
         _launcherUpdateService = launcherUpdateService;
+        _localizationService = localizationService ?? new LocalizationService();
         _logger = logger ?? NullLogger<LauncherMainWindow>.Instance;
 
         InitializeComponent();
         AddHandler(InputElement.PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        _localizationService.LanguageChanged += OnLanguageChanged;
 
         var launcherPreferences = _preferencesService.Load();
-        _isChinese = launcherPreferences.Language.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
+        _localizationService.SetLanguage(launcherPreferences.Language);
+        _isChinese = _localizationService.CurrentCulture.Name.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
 
         _dataTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _dataTimer.Tick += OnDataTimerTick;
@@ -553,6 +565,7 @@ public partial class LauncherMainWindow : Window
             _easyTierService.StatusChanged -= OnEasyTierStatusChanged;
             _tcpGatewayService.StatusChanged -= OnTcpGatewayStatusChanged;
             _openServerQueryService.OutputReceived -= OnOpenServerQueryOutputReceived;
+            _localizationService.LanguageChanged -= OnLanguageChanged;
             _ = _logTailService.StopAsync();
             _ = _openServerQueryService.StopAsync(TimeSpan.FromSeconds(2));
             _ = _robotService.StopAsync(TimeSpan.FromSeconds(2));
@@ -855,14 +868,7 @@ public partial class LauncherMainWindow : Window
         RefreshSavesButton.Content = T("刷新", "Refresh");
         InitializeAutomationStaticTexts();
         InitializeModStaticTexts();
-        DownloadVanillaSourceItem.Content = T("游戏服务端", "Game Server");
-        DownloadStratumSourceItem.Content = T("Stratum 服务端", "Stratum Server");
-        DownloadStratumSourceItem.IsVisible = ServerFeatureFlags.StratumServerSupportEnabled;
-        if (!ServerFeatureFlags.StratumServerSupportEnabled)
-        {
-            DownloadSourceComboBox.Items.Remove(DownloadStratumSourceItem);
-            DownloadSourceComboBox.SelectedIndex = 0;
-        }
+        RefreshDownloadSourceOptions();
         DownloadVersionSearchTextBox.PlaceholderText = T("搜索版本号", "Search version");
         ImportServerPackageButton.Content = T("导入", "Import");
         RefreshDownloadVersionsButton.Content = T("刷新", "Refresh");
@@ -972,16 +978,10 @@ public partial class LauncherMainWindow : Window
 
         foreach (var (zh, en) in StaticUiTranslations)
         {
-            if (_isChinese)
+            if (value.Equals(zh, StringComparison.Ordinal) ||
+                value.Equals(en, StringComparison.Ordinal))
             {
-                if (value.Equals(en, StringComparison.Ordinal))
-                {
-                    return zh;
-                }
-            }
-            else if (value.Equals(zh, StringComparison.Ordinal))
-            {
-                return en;
+                return _localizationService.Resolve(zh, en);
             }
         }
 
@@ -1141,6 +1141,7 @@ public partial class LauncherMainWindow : Window
         SettingsDownloadChunkCountLabelTextBlock.Text = T("分片数量", "Chunk count");
         SettingsDownloadThreadCountLabelTextBlock.Text = T("下载线程数", "Download threads");
         SettingsCheckUpdatesButton.Content = T("检查最新版本", "Check latest version");
+        EnsureGitHubProxyOptions();
     }
 
     private void InitializeAdvancedSettingsStaticTexts()
@@ -3341,6 +3342,11 @@ public partial class LauncherMainWindow : Window
 
     private void OnDownloadSourceSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
+        if (_isApplyingLocalizedOptions)
+        {
+            return;
+        }
+
         RebuildDownloadVersionItems();
     }
 
@@ -3350,9 +3356,31 @@ public partial class LauncherMainWindow : Window
     }
 
     private ServerSourceKind GetSelectedDownloadSourceKind() =>
-        ServerFeatureFlags.StratumServerSupportEnabled && DownloadSourceComboBox.SelectedIndex == 1
+        ServerFeatureFlags.StratumServerSupportEnabled &&
+        DownloadSourceComboBox.SelectedIndex == 1
             ? ServerSourceKind.Stratum
             : ServerSourceKind.Vanilla;
+
+    private void RefreshDownloadSourceOptions()
+    {
+        var selectedSource = GetSelectedDownloadSourceKind();
+        var labels = new List<string> { T("游戏服务端", "Game Server") };
+        if (ServerFeatureFlags.StratumServerSupportEnabled)
+        {
+            labels.Add(T("Stratum 服务端", "Stratum Server"));
+        }
+
+        DownloadSourceComboBox.Items.Clear();
+        foreach (var label in labels)
+        {
+            DownloadSourceComboBox.Items.Add(label);
+        }
+        DownloadSourceComboBox.SelectedIndex = 0;
+        if (selectedSource == ServerSourceKind.Stratum && labels.Count > 1)
+        {
+            DownloadSourceComboBox.SelectedIndex = 1;
+        }
+    }
 
     private void SetDownloadStatus(string message, bool notify = true)
     {
@@ -5959,42 +5987,62 @@ public partial class LauncherMainWindow : Window
         preferences.Language = languageCode;
         _preferencesService.Save(preferences);
 
-        ApplyCulture(languageCode);
+        _localizationService.SetLanguage(languageCode);
+    }
+
+    private void OnLanguageChanged(object? sender, LanguageChangedEventArgs e)
+    {
+        // Coalesce changes until the render queue. A rapid selection sequence only
+        // renders the final culture, so no intermediate/blank language is visible.
+        if (_languageRefreshQueued)
+        {
+            return;
+        }
+
+        _languageRefreshQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _languageRefreshQueued = false;
+            ApplyCommittedLanguage();
+        }, DispatcherPriority.Render);
+    }
+
+    private void ApplyCommittedLanguage()
+    {
+        _isChinese = _localizationService.CurrentCulture.Name.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
+
+        _isApplyingLocalizedOptions = true;
         try
         {
-            ServiceLocator.GetRequiredService<ILocalizationService>().CurrentCulture = CultureInfo.GetCultureInfo(languageCode);
-        }
-        catch
-        {
-            // ignore localization service failures
-        }
+            _aboutIntroductionLoaded = false;
+            InitializeStaticTexts();
+            RequestStaticUiTranslations();
+            _ = RefreshSavesAsync();
+            _ = RefreshDownloadVersionsAsync(forceReload: false);
+            if (_selectedInstanceManageTab == InstanceManageTab.Mods)
+            {
+                _ = LoadModsForSelectedProfileAsync();
+            }
 
-        _isChinese = languageCode.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
+            if (_selectedConnectionTab == ConnectionTab.Auth)
+            {
+                _ = RefreshAuthProfilesAsync();
+            }
 
-        _aboutIntroductionLoaded = false;
-        InitializeStaticTexts();
-        RequestStaticUiTranslations();
-        _ = RefreshSavesAsync();
-        _ = RefreshDownloadVersionsAsync(forceReload: false);
-        if (_selectedInstanceManageTab == InstanceManageTab.Mods)
-        {
-            _ = LoadModsForSelectedProfileAsync();
+            if (_selectedInstanceManageTab == InstanceManageTab.CommandBridge)
+            {
+                _ = RefreshCommandBridgeProfilesAsync();
+            }
+
+            RefreshAppearanceSettingsEditor();
+            if (_selectedSettingsTab == SettingsTab.About)
+            {
+                LoadAboutIntroduction();
+            }
         }
-
-        if (_selectedConnectionTab == ConnectionTab.Auth)
+        finally
         {
-            _ = RefreshAuthProfilesAsync();
-        }
-
-        if (_selectedInstanceManageTab == InstanceManageTab.CommandBridge)
-        {
-            _ = RefreshCommandBridgeProfilesAsync();
-        }
-
-        RefreshAppearanceSettingsEditor();
-        if (_selectedSettingsTab == SettingsTab.About)
-        {
-            LoadAboutIntroduction();
+            _isApplyingLocalizedOptions = false;
         }
     }
 
@@ -6033,22 +6081,6 @@ public partial class LauncherMainWindow : Window
             ThemeMode.Light => ThemeVariant.Light,
             _ => ThemeVariant.Default
         };
-    }
-
-    private static void ApplyCulture(string languageCode)
-    {
-        try
-        {
-            var culture = CultureInfo.GetCultureInfo(languageCode);
-            CultureInfo.CurrentCulture = culture;
-            CultureInfo.CurrentUICulture = culture;
-            CultureInfo.DefaultThreadCurrentCulture = culture;
-            CultureInfo.DefaultThreadCurrentUICulture = culture;
-        }
-        catch
-        {
-            // ignore invalid culture code
-        }
     }
 
     private static void SetSelectedClass(StyledElement element, bool selected)
@@ -6686,7 +6718,7 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private string T(string zh, string en) => _isChinese ? zh : en;
+    private string T(string zh, string en) => _localizationService.Resolve(zh, en);
 
     private string GetExceptionMessage(Exception exception)
     {
@@ -7501,15 +7533,28 @@ public partial class LauncherMainWindow : Window
 
     private void EnsureGitHubProxyOptions()
     {
-        if (_gitHubProxyOptions.Count > 0)
-            return;
-        _gitHubProxyOptions.Add(new ConfigChoiceOption(GitHubProxyKind.Direct.ToString(), T("直连", "Direct")));
-        _gitHubProxyOptions.Add(new ConfigChoiceOption(GitHubProxyKind.GhProxy.ToString(), "gh-proxy.com"));
-        _gitHubProxyOptions.Add(new ConfigChoiceOption(GitHubProxyKind.GhProxyV6.ToString(), "v6.gh-proxy.com"));
-        _gitHubProxyOptions.Add(new ConfigChoiceOption(GitHubProxyKind.GhProxyHk.ToString(), "hk.gh-proxy.com"));
-        _gitHubProxyOptions.Add(new ConfigChoiceOption(GitHubProxyKind.GhProxyCdn.ToString(), "cdn.gh-proxy.com"));
-        _gitHubProxyOptions.Add(new ConfigChoiceOption(GitHubProxyKind.GhProxyEdgeOne.ToString(), "edgeone.gh-proxy.com"));
-        SettingsGitHubProxyComboBox.ItemsSource = _gitHubProxyOptions;
+        var selectedValue = (SettingsGitHubProxyComboBox.SelectedItem as ConfigChoiceOption)?.Value;
+        var wasApplyingLocalizedOptions = _isApplyingLocalizedOptions;
+        _isApplyingLocalizedOptions = true;
+        try
+        {
+            _gitHubProxyOptions.Clear();
+            _gitHubProxyOptions.Add(new ConfigChoiceOption(GitHubProxyKind.Direct.ToString(), T("直连", "Direct")));
+            _gitHubProxyOptions.Add(new ConfigChoiceOption(GitHubProxyKind.GhProxy.ToString(), "gh-proxy.com"));
+            _gitHubProxyOptions.Add(new ConfigChoiceOption(GitHubProxyKind.GhProxyV6.ToString(), "v6.gh-proxy.com"));
+            _gitHubProxyOptions.Add(new ConfigChoiceOption(GitHubProxyKind.GhProxyHk.ToString(), "hk.gh-proxy.com"));
+            _gitHubProxyOptions.Add(new ConfigChoiceOption(GitHubProxyKind.GhProxyCdn.ToString(), "cdn.gh-proxy.com"));
+            _gitHubProxyOptions.Add(new ConfigChoiceOption(GitHubProxyKind.GhProxyEdgeOne.ToString(), "edgeone.gh-proxy.com"));
+            SettingsGitHubProxyComboBox.ItemsSource = _gitHubProxyOptions;
+            SelectConfigChoiceByValue(
+                SettingsGitHubProxyComboBox,
+                _gitHubProxyOptions,
+                selectedValue ?? GitHubProxyKind.Direct.ToString());
+        }
+        finally
+        {
+            _isApplyingLocalizedOptions = wasApplyingLocalizedOptions;
+        }
     }
 
     private GitHubProxyKind GetSelectedGitHubProxy()
@@ -7520,7 +7565,7 @@ public partial class LauncherMainWindow : Window
 
     private void OnGitHubProxySelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (!_isApplyingNetworkSettings)
+        if (!_isApplyingNetworkSettings && !_isApplyingLocalizedOptions)
             SaveNetworkSettings(refreshEditor: false);
     }
 
@@ -8598,7 +8643,7 @@ public partial class LauncherMainWindow : Window
 
     private void OnConnectionThirdPartyFrpcModeSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_isApplyingConnectionSettings)
+        if (_isApplyingConnectionSettings || _isApplyingLocalizedOptions)
         {
             return;
         }

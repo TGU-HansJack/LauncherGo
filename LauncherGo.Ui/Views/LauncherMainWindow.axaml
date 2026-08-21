@@ -2178,10 +2178,7 @@
 
                                     <Grid x:Name="DownloadVersionsPanel" RowDefinitions="Auto,*,Auto" RowSpacing="10" IsVisible="False">
                                         <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
-                                            <ComboBox x:Name="DownloadSourceComboBox" Grid.Column="0" Classes="CompactCombo" MinWidth="142" SelectionChanged="OnDownloadSourceSelectionChanged">
-                                                <ComboBoxItem x:Name="DownloadVanillaSourceItem" Content="游戏服务端" />
-                                                <ComboBoxItem x:Name="DownloadStratumSourceItem" Content="Stratum 服务端" />
-                                            </ComboBox>
+                                            <ComboBox x:Name="DownloadSourceComboBox" Grid.Column="0" Classes="CompactCombo" MinWidth="142" SelectionChanged="OnDownloadSourceSelectionChanged" />
                                             <TextBox x:Name="DownloadVersionSearchTextBox" Grid.Column="1" Classes="CompactInput" PlaceholderText="搜索版本号" TextChanged="OnDownloadVersionSearchTextChanged" />
                                             <Button x:Name="ImportServerPackageButton" Grid.Column="2" Classes="SecondaryActionButton" Content="导入" Click="OnImportServerPackageClick" />
                                             <Button x:Name="RefreshDownloadVersionsButton" Grid.Column="3" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshDownloadVersionsClick" />
