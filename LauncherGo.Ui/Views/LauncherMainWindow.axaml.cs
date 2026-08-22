@@ -5947,7 +5947,7 @@ public partial class LauncherMainWindow : Window
             SettingsThemeLabelTextBlock.Text = T("主题", "Theme");
 
             SettingsLanguageComboBox.ItemsSource = AppearanceLanguageOptions
-                .Select(option => _isChinese ? option.ChineseName : option.NativeName)
+                .Select(option => option.NativeName)
                 .ToList();
             SettingsThemeComboBox.ItemsSource = AppearanceThemeOptions
                 .Select(option => _isChinese ? option.Zh : option.En)

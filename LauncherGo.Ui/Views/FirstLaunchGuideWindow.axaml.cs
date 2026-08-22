@@ -446,7 +446,7 @@ public partial class FirstLaunchGuideWindow : Window
         _isChinese = languageCode.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
         _localizationService.SetLanguage(languageCode);
 
-        LanguageComboBox.ItemsSource = _languageOptions.Select(option => option.ChineseName).ToList();
+        LanguageComboBox.ItemsSource = _languageOptions.Select(option => option.NativeName).ToList();
         LanguageComboBox.SelectedIndex = SupportedLanguages.FindIndex(languageCode);
 
         AppearanceComboBox.ItemsSource = _themeOptions.Select(option => option.ZhLabel).ToList();
@@ -491,7 +491,7 @@ public partial class FirstLaunchGuideWindow : Window
         NextArrowIcon.IsVisible = _currentStep < 4;
 
         LanguageComboBox.ItemsSource = _languageOptions
-            .Select(option => _isChinese ? option.ChineseName : option.NativeName)
+            .Select(option => option.NativeName)
             .ToList();
 
         AppearanceComboBox.ItemsSource = _themeOptions

@@ -1,9 +1,9 @@
 namespace LauncherGo.Abstractions.Services.I18n;
 
 /// <summary>
-/// Languages supported by the launcher UI.  Names are kept in both Chinese
-/// and the language's native spelling so the selector remains understandable
-/// before and after a language change.
+/// Languages supported by the launcher UI. The selector uses each language's
+/// native name, so users can identify their language regardless of the
+/// currently active UI culture.
 /// </summary>
 public sealed record SupportedLanguageOption(
     string Code,

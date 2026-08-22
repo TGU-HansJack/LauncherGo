@@ -1,4 +1,5 @@
 using System.Globalization;
+using LauncherGo.Abstractions.Services.I18n;
 using LauncherGo.Ui.Services.I18n;
 using Xunit;
 
@@ -66,6 +67,14 @@ public sealed class LocalizationServiceTests
 
         Assert.True(service.SetLanguage("fr-FR"));
         Assert.Equal("Informations sur le projet", service["AboutProjectInfoTitle"]);
+    }
+
+    [Fact]
+    public void UsesNativeNamesInLanguageSelector()
+    {
+        Assert.Equal(
+            ["中文（简体）", "English", "Русский", "Deutsch", "Français", "Español", "Polski", "Português (Brasil)"],
+            SupportedLanguages.All.Select(language => language.NativeName));
     }
 
     private sealed class CultureScope : IDisposable
