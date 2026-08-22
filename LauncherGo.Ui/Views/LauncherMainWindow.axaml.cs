@@ -833,6 +833,10 @@ public partial class LauncherMainWindow : Window
 
     private void InitializeStaticTexts()
     {
+        ServerNavSectionTitleTextBlock.Text = T("服务器", "Server");
+        ManageNavSectionTitleTextBlock.Text = T("管理", "Manage");
+        ConnectionNavSectionTitleTextBlock.Text = T("连接", "Connections");
+        SettingsNavSectionTitleTextBlock.Text = T("设置", "Settings");
         MonitorNavButton.Content = T("仪表盘", "Dashboard");
         ConsoleNavButton.Content = T("控制台", "Console");
         LogsNavButton.Content = T("日志", "Logs");

@@ -1139,11 +1139,11 @@
                         <Border Grid.Column="0" Background="{DynamicResource FooterBackgroundBrush}" BorderBrush="{DynamicResource SplitLineBrush}" BorderThickness="0,0,1,0">
                             <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                                 <StackPanel Margin="14,10,14,14" Spacing="4">
-                                    <TextBlock Classes="SidebarSectionTitle" Text="服务器" Margin="0,0,0,2" />
+                                    <TextBlock x:Name="ServerNavSectionTitleTextBlock" Classes="SidebarSectionTitle" Text="服务器" Margin="0,0,0,2" />
                                     <Button x:Name="MonitorNavButton" Classes="SidebarNavButton" Click="OnMonitorNavClick" />
                                     <Button x:Name="ConsoleNavButton" Classes="SidebarNavButton" Click="OnConsoleNavClick" />
 
-                                    <TextBlock Classes="SidebarSectionTitle" Text="管理" />
+                                    <TextBlock x:Name="ManageNavSectionTitleTextBlock" Classes="SidebarSectionTitle" Text="管理" />
                                     <Button x:Name="ProfilesTabButton" Classes="SidebarNavButton" Content="实例" Click="OnProfilesSubTabClick" />
                                     <Button x:Name="SavesTabButton" Classes="SidebarNavButton" Content="存档" Click="OnSavesSubTabClick" />
                                     <Button x:Name="ModsTabButton" Classes="SidebarNavButton" Content="模组" Click="OnModsSubTabClick" />
@@ -1153,14 +1153,14 @@
                                     <Button x:Name="LogsNavButton" Classes="SidebarNavButton" Content="日志" Click="OnLogsNavClick" />
                                     <Button x:Name="DownloadVersionsNavButton" Classes="SidebarNavButton" Content="下载版本" Click="OnDownloadVersionsSubTabClick" />
 
-                                    <TextBlock Classes="SidebarSectionTitle" Text="连接" />
+                                    <TextBlock x:Name="ConnectionNavSectionTitleTextBlock" Classes="SidebarSectionTitle" Text="连接" />
                                     <Button x:Name="ConnectionOpenInfoTabButton" Classes="SidebarNavButton" Content="开放API" Click="OnConnectionOpenInfoTabClick" />
                                     <Button x:Name="ConnectionRobotTabButton" Classes="SidebarNavButton" Content="OneBot" Click="OnConnectionRobotTabClick" />
                                     <Button x:Name="ConnectionFrpTabButton" Classes="SidebarNavButton" Content="FRP" Click="OnConnectionFrpTabClick" />
                                     <Button x:Name="ConnectionEasyTierTabButton" Classes="SidebarNavButton" Content="EasyTier" Click="OnConnectionEasyTierTabClick" />
                                     <Button x:Name="ConnectionGatewayTabButton" Classes="SidebarNavButton" Content="网关" Click="OnConnectionGatewayTabClick" />
 
-                                    <TextBlock Classes="SidebarSectionTitle" Text="设置" />
+                                    <TextBlock x:Name="SettingsNavSectionTitleTextBlock" Classes="SidebarSectionTitle" Text="设置" />
                                     <Button x:Name="ServerSettingsTabButton" Classes="SidebarNavButton" Content="服务器设置" Click="OnServerSettingsTabClick" />
                                     <Button x:Name="AppearanceSettingsTabButton" Classes="SidebarNavButton" Content="外观" Click="OnAppearanceSettingsTabClick" />
                                     <Button x:Name="NetworkSettingsTabButton" Classes="SidebarNavButton" Content="网络" Click="OnNetworkSettingsTabClick" />
