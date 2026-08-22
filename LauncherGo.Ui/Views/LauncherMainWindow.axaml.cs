@@ -95,6 +95,8 @@ public partial class LauncherMainWindow : Window
         ("配置路径", "Config Path"),
         ("启用", "Enabled"),
         ("模式", "Mode"),
+        ("匹配模式", "Match mode"),
+        ("匹配内容", "Match pattern"),
         ("开始条件", "Start condition"),
         ("结束条件", "End condition"),
         ("开始", "Start time"),
@@ -344,10 +346,13 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<InstanceProfile> _launchAddProfileItems = [];
     private readonly ObservableCollection<LaunchTargetItem> _settingsAutoStartTargetItems = [];
     private readonly ObservableCollection<InstanceProfile> _settingsAutoStartAddProfileItems = [];
+    private readonly ObservableCollection<ConsoleLogFilterRuleItem> _consoleLogFilterRuleItems = [];
+    private readonly ObservableCollection<ConsoleLogFilterRuleItem> _visibleConsoleLogFilterRuleItems = [];
     private readonly ObservableCollection<ConsoleServerItem> _consoleServerItems = [];
     private readonly List<ServerDownloadEntry> _catalogEntries = [];
     private readonly Dictionary<string, string> _configGameLanguageZh = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<string>> _consoleLinesByProfile = new(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyList<ConsoleLogFilterRule> _consoleLogFilterRules = [];
     private readonly HashSet<string> _consoleReplayLoadedProfileIds = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _tailedProfileIds = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _replayedLogProfileIds = new(StringComparer.OrdinalIgnoreCase);
@@ -1104,6 +1109,20 @@ public partial class LauncherMainWindow : Window
         SettingsCompressExistingBackupsButton.Content = T("立即压缩已有备份", "Compress existing backups");
         RebuildSaveCompressionUpdateModeOptions();
         SettingsQuickCommandsTitleTextBlock.Text = T("快捷命令", "Quick Commands");
+        SettingsConsoleLogFiltersTitleTextBlock.Text = T("控制台日志过滤", "Console Log Filters");
+        SettingsConsoleLogFiltersSearchTextBox.PlaceholderText = T("搜索过滤规则", "Search filters");
+        SettingsConsoleLogFiltersHintTextBlock.Text = T(
+            "默认过滤规则始终生效；启用下方规则后，匹配的日志不会显示在控制台。",
+            "Built-in filters always remain active. Enabled rules below hide matching lines from the console.");
+        SettingsAddConsoleLogFilterButton.Content = T("添加", "Add");
+        SettingsConsoleLogFiltersEnabledHeaderTextBlock.Text = T("启用", "Enabled");
+        SettingsConsoleLogFiltersModeHeaderTextBlock.Text = T("匹配模式", "Match mode");
+        SettingsConsoleLogFiltersPatternHeaderTextBlock.Text = T("匹配内容", "Match pattern");
+        SettingsConsoleLogFiltersActionsHeaderTextBlock.Text = T("操作", "Actions");
+        foreach (var item in _consoleLogFilterRuleItems)
+        {
+            item.SetLanguage(_isChinese, T);
+        }
         SettingsServerAutomationTitleTextBlock.Text = T("启动与托盘", "Startup & Tray");
         SettingsStartWithWindowsLabelTextBlock.Text = T("开机启动启动器", "Start launcher with Windows");
         SettingsCloseToTrayLabelTextBlock.Text = T("关闭时隐藏到托盘，不直接退出", "Hide to tray on close instead of exiting");
@@ -1348,6 +1367,7 @@ public partial class LauncherMainWindow : Window
         ConnectionThirdPartyFrpcModeComboBox.ItemsSource = _thirdPartyFrpcModeOptions;
         SettingsContributorsItemsControl.ItemsSource = _settingsContributorItems;
         SettingsSponsorsItemsControl.ItemsSource = _settingsSponsorItems;
+        SettingsConsoleLogFiltersItemsControl.ItemsSource = _visibleConsoleLogFilterRuleItems;
         AutomationConfigItemsControl.ItemsSource = _automationConfigItems;
         AutomationProfileComboBox.ItemsSource = _automationProfileItems;
         AutomationActionsItemsControl.ItemsSource = _automationActionWindowItems;
@@ -3710,6 +3730,82 @@ public partial class LauncherMainWindow : Window
         SaveServerSettings(refreshEditor: false);
     }
 
+    private void OnConsoleLogFilterRulePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_isApplyingServerSettings || _isApplyingLocalizedOptions)
+        {
+            return;
+        }
+
+        if (e.PropertyName == nameof(ConsoleLogFilterRuleItem.Pattern))
+        {
+            return;
+        }
+
+        SaveServerSettings(refreshEditor: false);
+    }
+
+    private void OnConsoleLogFilterPatternLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (_isApplyingServerSettings || _isApplyingLocalizedOptions)
+        {
+            return;
+        }
+
+        SaveServerSettings(refreshEditor: false);
+    }
+
+    private void OnConsoleLogFiltersSearchTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        RefreshVisibleConsoleLogFilterItems();
+    }
+
+    private void OnSettingsAddConsoleLogFilterClick(object? sender, RoutedEventArgs e)
+    {
+        if (_isApplyingServerSettings || _isApplyingLocalizedOptions)
+        {
+            return;
+        }
+
+        var item = new ConsoleLogFilterRuleItem(_isChinese, T);
+        item.PropertyChanged += OnConsoleLogFilterRulePropertyChanged;
+        _consoleLogFilterRuleItems.Add(item);
+        RefreshVisibleConsoleLogFilterItems();
+        SaveServerSettings(refreshEditor: false);
+    }
+
+    private void OnSettingsRemoveConsoleLogFilterClick(object? sender, RoutedEventArgs e)
+    {
+        if (_isApplyingServerSettings || _isApplyingLocalizedOptions)
+        {
+            return;
+        }
+
+        if (sender is not Button { Tag: ConsoleLogFilterRuleItem item })
+        {
+            return;
+        }
+
+        item.PropertyChanged -= OnConsoleLogFilterRulePropertyChanged;
+        _consoleLogFilterRuleItems.Remove(item);
+        RefreshVisibleConsoleLogFilterItems();
+        SaveServerSettings(refreshEditor: false);
+    }
+
+    private void RefreshVisibleConsoleLogFilterItems()
+    {
+        var search = SettingsConsoleLogFiltersSearchTextBox?.Text?.Trim();
+        _visibleConsoleLogFilterRuleItems.Clear();
+        foreach (var item in _consoleLogFilterRuleItems)
+        {
+            if (string.IsNullOrWhiteSpace(search) ||
+                item.Pattern.Contains(search, StringComparison.OrdinalIgnoreCase))
+            {
+                _visibleConsoleLogFilterRuleItems.Add(item);
+            }
+        }
+    }
+
     private void OnNetworkSettingsAutoSaveChanged(object? sender, RoutedEventArgs e)
     {
         if (_isApplyingNetworkSettings)
@@ -3807,6 +3903,21 @@ public partial class LauncherMainWindow : Window
             var profiles = _profileService.GetProfiles();
             SettingsWorkspaceDirectoryTextBox.Text = preferences.WorkspaceRoot;
             SettingsQuickCommandsTextBox.Text = FormatQuickCommands(preferences.QuickCommands);
+            foreach (var item in _consoleLogFilterRuleItems)
+            {
+                item.PropertyChanged -= OnConsoleLogFilterRulePropertyChanged;
+            }
+
+            _consoleLogFilterRuleItems.Clear();
+            foreach (var rule in preferences.ConsoleLogFilters ?? [])
+            {
+                var item = ConsoleLogFilterRuleItem.FromModel(rule, _isChinese, T);
+                item.PropertyChanged += OnConsoleLogFilterRulePropertyChanged;
+                _consoleLogFilterRuleItems.Add(item);
+            }
+            RefreshVisibleConsoleLogFilterItems();
+
+            RefreshConsoleLogFilterSnapshot(preferences.ConsoleLogFilters);
             var saveCompression = preferences.SaveCompression ?? new SaveCompressionSettings();
             SettingsSaveCompressionEnabledCheckBox.IsChecked = saveCompression.Enabled;
             SetNumericValue(SettingsSaveCompressionLevelNumericUpDown, Math.Clamp(saveCompression.CompressionLevel, 1, 22));
@@ -3849,6 +3960,8 @@ public partial class LauncherMainWindow : Window
         var autoStartIds = LoadAutoStartProfileIds().ToList();
         preferences.WorkspaceRoot = SettingsWorkspaceDirectoryTextBox.Text?.Trim() ?? string.Empty;
         preferences.QuickCommands = ParseQuickCommands(SettingsQuickCommandsTextBox.Text);
+        preferences.ConsoleLogFilters = ConsoleLogFilterRuleRules.NormalizeMany(
+            _consoleLogFilterRuleItems.Select(item => item.ToModel()));
         preferences.SaveCompression = new SaveCompressionSettings
         {
             Enabled = SettingsSaveCompressionEnabledCheckBox.IsChecked == true,
@@ -3871,7 +3984,9 @@ public partial class LauncherMainWindow : Window
         preferences.AutoStartEasyTierOnLaunch = SettingsAutoStartEasyTierCheckBox.IsChecked == true;
         preferences.AutoStartGatewayOnLaunch = SettingsAutoStartGatewayCheckBox.IsChecked == true;
         _preferencesService.Save(preferences);
+        RefreshConsoleLogFilterSnapshot(preferences.ConsoleLogFilters);
         RefreshQuickCommandItems(preferences.QuickCommands);
+        RefreshConsoleText();
         try
         {
             ApplyWindowsStartupRegistration(preferences.StartWithWindows);
@@ -6370,12 +6485,16 @@ public partial class LauncherMainWindow : Window
         if (string.IsNullOrWhiteSpace(_selectedConsoleProfileId) ||
             !_consoleLinesByProfile.TryGetValue(_selectedConsoleProfileId, out var lines))
         {
-            ConsoleOutputTextBlock.Text = string.Join(Environment.NewLine, _consoleLines);
+            ConsoleOutputTextBlock.Text = string.Join(
+                Environment.NewLine,
+                _consoleLines.Where(line => !ConsoleLogFilterRuleRules.MatchesAny(_consoleLogFilterRules, line)));
             return;
         }
 
         var shouldAutoScroll = _consoleAutoScroll || IsConsoleScrolledToBottom();
-        ConsoleOutputTextBlock.Text = string.Join(Environment.NewLine, lines);
+        ConsoleOutputTextBlock.Text = string.Join(
+            Environment.NewLine,
+            lines.Where(line => !ConsoleLogFilterRuleRules.MatchesAny(_consoleLogFilterRules, line)));
         if (shouldAutoScroll)
         {
             Dispatcher.UIThread.Post(() =>
@@ -6427,7 +6546,7 @@ public partial class LauncherMainWindow : Window
         });
     }
 
-    private static IReadOnlyList<string> ReadConsoleProfileReplayLines(InstanceProfile profile)
+    private IReadOnlyList<string> ReadConsoleProfileReplayLines(InstanceProfile profile)
     {
         var logsPath = Path.Combine(profile.DirectoryPath, "Logs");
         var paths = new[]
@@ -6492,7 +6611,12 @@ public partial class LauncherMainWindow : Window
                line.TrimStart().StartsWith("[system]", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool ShouldSuppressConsoleLineForUi(string? line)
+    private void RefreshConsoleLogFilterSnapshot(IEnumerable<ConsoleLogFilterRule>? rules)
+    {
+        _consoleLogFilterRules = ConsoleLogFilterRuleRules.NormalizeMany(rules);
+    }
+
+    private bool ShouldSuppressConsoleLineForUi(string? line)
     {
         if (string.IsNullOrWhiteSpace(line))
         {
@@ -6503,6 +6627,11 @@ public partial class LauncherMainWindow : Window
         if (normalized.Length == 0)
         {
             return false;
+        }
+
+        if (ConsoleLogFilterRuleRules.MatchesAny(_consoleLogFilterRules, normalized))
+        {
+            return true;
         }
 
         var lower = normalized.ToLowerInvariant();
@@ -13298,6 +13427,116 @@ public partial class LauncherMainWindow : Window
         public string Name { get; init; } = string.Empty;
 
         public string UptimeText { get; init; } = string.Empty;
+    }
+
+    public sealed class ConsoleLogFilterRuleItem : INotifyPropertyChanged
+    {
+        private bool _enabled = true;
+        private ConsoleLogFilterMode _mode = ConsoleLogFilterMode.Contains;
+        private string _pattern = string.Empty;
+
+        public ConsoleLogFilterRuleItem(bool isChinese = true, Func<string, string, string>? translate = null)
+        {
+            SetLanguage(isChinese, translate);
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public ObservableCollection<ConfigChoiceOption> ModeOptions { get; } = [];
+
+        public string DeleteLabel { get; private set; } = "删除";
+
+        public bool Enabled
+        {
+            get => _enabled;
+            set => SetField(ref _enabled, value);
+        }
+
+        public string Pattern
+        {
+            get => _pattern;
+            set => SetField(ref _pattern, value ?? string.Empty);
+        }
+
+        public ConfigChoiceOption SelectedMode
+        {
+            get => ModeOptions.First(option => option.Value.Equals(_mode.ToString(), StringComparison.OrdinalIgnoreCase));
+            set
+            {
+                if (value is null ||
+                    !Enum.TryParse(value.Value, true, out ConsoleLogFilterMode mode) ||
+                    !Enum.IsDefined(mode) ||
+                    _mode == mode)
+                {
+                    return;
+                }
+
+                _mode = mode;
+                OnPropertyChanged();
+            }
+        }
+
+        public void SetLanguage(bool isChinese, Func<string, string, string>? translate = null)
+        {
+            string Translate(string zh, string en) => translate?.Invoke(zh, en) ?? (isChinese ? zh : en);
+
+            ModeOptions.Clear();
+            ModeOptions.Add(new ConfigChoiceOption(
+                ConsoleLogFilterMode.Contains.ToString(),
+                Translate("包含", "Contains")));
+            ModeOptions.Add(new ConfigChoiceOption(
+                ConsoleLogFilterMode.Exact.ToString(),
+                Translate("完全匹配", "Exact")));
+            ModeOptions.Add(new ConfigChoiceOption(
+                ConsoleLogFilterMode.Regex.ToString(),
+                Translate("正则表达式", "Regex")));
+            DeleteLabel = Translate("删除", "Delete");
+            OnPropertyChanged(nameof(ModeOptions));
+            OnPropertyChanged(nameof(SelectedMode));
+            OnPropertyChanged(nameof(DeleteLabel));
+        }
+
+        public ConsoleLogFilterRule ToModel()
+        {
+            return new ConsoleLogFilterRule
+            {
+                Enabled = _enabled,
+                Mode = _mode,
+                Pattern = _pattern
+            };
+        }
+
+        public static ConsoleLogFilterRuleItem FromModel(
+            ConsoleLogFilterRule model,
+            bool isChinese,
+            Func<string, string, string>? translate = null)
+        {
+            var item = new ConsoleLogFilterRuleItem(isChinese, translate)
+            {
+                _enabled = model.Enabled,
+                _mode = Enum.IsDefined(model.Mode) ? model.Mode : ConsoleLogFilterMode.Contains,
+                _pattern = model.Pattern ?? string.Empty
+            };
+            item.OnPropertyChanged(nameof(item.SelectedMode));
+            return item;
+        }
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+            {
+                return false;
+            }
+
+            field = value;
+            OnPropertyChanged(propertyName);
+            return true;
+        }
     }
 
     public sealed class ConsoleServerItem

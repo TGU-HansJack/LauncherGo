@@ -96,6 +96,7 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             DefaultLaunchProfileIds = defaultLaunchProfileIds,
             DefaultLaunchSaveFile = NormalizeFilePathOrEmpty(source.DefaultLaunchSaveFile),
             QuickCommands = NormalizeQuickCommands(source.QuickCommands),
+            ConsoleLogFilters = ConsoleLogFilterRuleRules.NormalizeMany(source.ConsoleLogFilters),
             StartWithWindows = source.StartWithWindows,
             CloseToTrayOnExit = source.CloseToTrayOnExit,
             StartHiddenOnLaunch = source.StartHiddenOnLaunch,

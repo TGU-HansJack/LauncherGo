@@ -2359,6 +2359,49 @@
                                                 </StackPanel>
                                             </Border>
                                             <Border Classes="ConfigCard">
+                                                <StackPanel Spacing="8">
+                                                    <Grid ColumnDefinitions="Auto,*,220,Auto" ColumnSpacing="10">
+                                                        <TextBlock x:Name="SettingsConsoleLogFiltersTitleTextBlock" Classes="ConfigSectionTitle" Text="控制台日志过滤" />
+                                                        <TextBox
+                                                            x:Name="SettingsConsoleLogFiltersSearchTextBox"
+                                                            Grid.Column="2"
+                                                            Classes="CompactInput"
+                                                            PlaceholderText="搜索过滤规则"
+                                                            TextChanged="OnConsoleLogFiltersSearchTextChanged" />
+                                                        <Button x:Name="SettingsAddConsoleLogFilterButton" Grid.Column="3" Classes="SecondaryActionButton" HorizontalAlignment="Right" Content="添加" Click="OnSettingsAddConsoleLogFilterClick" />
+                                                    </Grid>
+                                                    <TextBlock x:Name="SettingsConsoleLogFiltersHintTextBlock" Classes="ConfigHintText" TextWrapping="Wrap" Text="默认过滤规则始终生效；启用下方规则后，匹配的日志不会显示在控制台。" />
+                                                    <Grid RowDefinitions="Auto,*">
+                                                        <Border Grid.Row="0" Classes="TableHeader">
+                                                            <Grid ColumnDefinitions="54,150,*,Auto" ColumnSpacing="8">
+                                                                <TextBlock x:Name="SettingsConsoleLogFiltersEnabledHeaderTextBlock" Classes="TableHeaderText" Text="启用" HorizontalAlignment="Center" />
+                                                                <TextBlock x:Name="SettingsConsoleLogFiltersModeHeaderTextBlock" Grid.Column="1" Classes="TableHeaderText" Text="匹配模式" />
+                                                                <TextBlock x:Name="SettingsConsoleLogFiltersPatternHeaderTextBlock" Grid.Column="2" Classes="TableHeaderText" Text="匹配内容" />
+                                                                <TextBlock x:Name="SettingsConsoleLogFiltersActionsHeaderTextBlock" Grid.Column="3" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                            </Grid>
+                                                        </Border>
+                                                        <Border Grid.Row="1" Classes="TableBody" Height="320">
+                                                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                                                <ItemsControl x:Name="SettingsConsoleLogFiltersItemsControl">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Border Classes="TableRow">
+                                                                                <Grid ColumnDefinitions="54,150,*,Auto" ColumnSpacing="8" MinHeight="38">
+                                                                                    <ToggleSwitch Classes="TableSwitch" IsChecked="{Binding Enabled, Mode=TwoWay}" HorizontalAlignment="Center" />
+                                                                                    <ComboBox Grid.Column="1" Classes="CompactCombo" ItemsSource="{Binding ModeOptions}" SelectedItem="{Binding SelectedMode, Mode=TwoWay}" />
+                                                                                    <TextBox Grid.Column="2" Classes="CompactInput" Text="{Binding Pattern, Mode=TwoWay}" LostFocus="OnConsoleLogFilterPatternLostFocus" />
+                                                                                    <Button Grid.Column="3" Classes="SecondaryActionButton DangerButton" Tag="{Binding}" Content="{Binding DeleteLabel}" Click="OnSettingsRemoveConsoleLogFilterClick" />
+                                                                                </Grid>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                            </ScrollViewer>
+                                                        </Border>
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Classes="ConfigCard">
                                                 <StackPanel Spacing="10">
                                                     <TextBlock x:Name="SettingsServerAutomationTitleTextBlock" Classes="ConfigSectionTitle" Text="启动与托盘" />
                                                     <WrapPanel Orientation="Horizontal">

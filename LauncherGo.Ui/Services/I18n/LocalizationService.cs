@@ -277,6 +277,16 @@ public sealed class LocalizationService : ILocalizationService
         Add("下载", "Download", "Загрузка", "Download", "Téléchargement", "Descargas", "Pobieranie", "Downloads");
         Add("下载版本", "Downloads", "Загрузки", "Downloads", "Téléchargements", "Descargas", "Pobieranie", "Downloads");
         Add("日志", "Logs", "Журналы", "Protokolle", "Journaux", "Registros", "Dzienniki", "Registros");
+        Add("控制台日志过滤", "Console Log Filters", "Фильтры日志 консоли", "Konsolenprotokollfilter", "Filtres des journaux de la console", "Filtros de registros de consola", "Filtry dziennika konsoli", "Filtros de log do console");
+        Add("默认过滤规则始终生效；启用下方规则后，匹配的日志不会显示在控制台。", "Built-in filters always remain active. Enabled rules below hide matching lines from the console.", "Встроенные фильтры действуют всегда. Включённые правила ниже скрывают совпадающие строки в консоли.", "Integrierte Filter bleiben immer aktiv. Aktivierte Regeln unten blenden passende Zeilen in der Konsole aus.", "Les filtres intégrés restent toujours actifs. Les règles activées ci-dessous masquent les lignes correspondantes dans la console.", "Los filtros integrados siempre están activos. Las reglas activadas ocultan las líneas coincidentes de la consola.", "Wbudowane filtry są zawsze aktywne. Włączone reguły ukrywają pasujące wiersze w konsoli.", "Os filtros integrados permanecem ativos. As regras ativadas abaixo ocultam as linhas correspondentes do console.");
+        Add("搜索过滤规则", "Search filters", "Поиск фильтров", "Filter suchen", "Rechercher des filtres", "Buscar filtros", "Szukaj filtrów", "Pesquisar filtros");
+        Add("启用", "Enabled", "Включено", "Aktiviert", "Activé", "Activado", "Włączone", "Ativado");
+        Add("匹配模式", "Match mode", "Режим сопоставления", "Abgleichmodus", "Mode de correspondance", "Modo de coincidencia", "Tryb dopasowania", "Modo de correspondência");
+        Add("匹配内容", "Match pattern", "Шаблон", "Muster", "Motif", "Patrón", "Wzorzec", "Padrão");
+        Add("操作", "Actions", "Действия", "Aktionen", "Actions", "Acciones", "Akcje", "Ações");
+        Add("包含", "Contains", "Содержит", "Enthält", "Contient", "Contiene", "Zawiera", "Contém");
+        Add("完全匹配", "Exact", "Точное совпадение", "Exakte Übereinstimmung", "Correspondance exacte", "Coincidencia exacta", "Dokładne dopasowanie", "Correspondência exata");
+        Add("正则表达式", "Regex", "Регулярное выражение", "Regulärer Ausdruck", "Expression régulière", "Expresión regular", "Wyrażenie regularne", "Expressão regular");
         Add("存档", "Saves", "Сохранения", "Spielstände", "Sauvegardes", "Partidas guardadas", "Zapisy", "Salvamentos");
         Add("自动化", "Automation", "Автоматизация", "Automatisierung", "Automatisation", "Automatización", "Automatyzacja", "Automação");
         Add("模组", "Mods", "Моды", "Mods", "Mods", "Mods", "Mody", "Mods");

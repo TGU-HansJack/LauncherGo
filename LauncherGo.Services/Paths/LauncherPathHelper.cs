@@ -72,6 +72,7 @@ public static class LauncherPathHelper
             DefaultLaunchProfileId = string.Empty,
             DefaultLaunchSaveFile = string.Empty,
             QuickCommands = [],
+            ConsoleLogFilters = [],
             AutoStartServerOnLaunch = false,
             AutoRestartServerAfterCrash = false,
             AutoStartServerProfileId = string.Empty,

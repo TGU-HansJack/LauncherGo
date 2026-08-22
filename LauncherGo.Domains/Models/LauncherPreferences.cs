@@ -49,6 +49,8 @@ public class LauncherPreferences
 
     public List<string> QuickCommands { get; set; } = [];
 
+    public List<ConsoleLogFilterRule> ConsoleLogFilters { get; set; } = [];
+
     public bool StartWithWindows { get; set; }
 
     public bool CloseToTrayOnExit { get; set; }
