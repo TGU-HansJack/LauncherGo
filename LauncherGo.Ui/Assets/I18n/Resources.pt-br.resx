@@ -1,0 +1,1471 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!--Generated from Resources.en-us.resx; keep keys and format placeholders aligned.-->
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>1.3</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Greeting" xml:space="preserve">
+    <value>Olá, Avalônia</value>
+  </data>
+  <data name="AppName" xml:space="preserve">
+    <value>LauncherGo - servidor Vintage Story</value>
+  </data>
+  <data name="HomeMenuTitle" xml:space="preserve">
+    <value>Dashboard</value>
+  </data>
+  <data name="AboutMenuTitle" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="MenuSearchPlaceholder" xml:space="preserve">
+    <value>Pesquisar menus...</value>
+  </data>
+  <data name="MenuAreaPlaceholder" xml:space="preserve">
+    <value>Submenus...</value>
+  </data>
+  <data name="ExitButtonText" xml:space="preserve">
+    <value>Exit</value>
+  </data>
+  <data name="LanguageButtonText" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="ThemesButtonText" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="LightThemeName" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="DarkThemeName" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="OverviewMenuTitle" xml:space="preserve">
+    <value>Dashboard</value>
+  </data>
+  <data name="ProjectInfoMenuTitle" xml:space="preserve">
+    <value>Informações do projeto</value>
+  </data>
+  <data name="WorkspaceMenuTitle" xml:space="preserve">
+    <value>Console</value>
+  </data>
+  <data name="BugReportMenuTitle" xml:space="preserve">
+    <value>Feedback</value>
+  </data>
+  <data name="InstanceMenuTitle" xml:space="preserve">
+    <value>Instance</value>
+  </data>
+  <data name="InstanceDownloadMenuTitle" xml:space="preserve">
+    <value>Download</value>
+  </data>
+  <data name="InstanceCreateMenuTitle" xml:space="preserve">
+    <value>Create</value>
+  </data>
+  <data name="InstanceManageMenuTitle" xml:space="preserve">
+    <value>Manage</value>
+  </data>
+  <data name="ConfigMenuTitle" xml:space="preserve">
+    <value>Config</value>
+  </data>
+  <data name="SaveMenuTitle" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="ModMenuTitle" xml:space="preserve">
+    <value>Mod</value>
+  </data>
+  <data name="RobotMenuTitle" xml:space="preserve">
+    <value>Robot</value>
+  </data>
+  <data name="RobotConfigMenuTitle" xml:space="preserve">
+    <value>Config</value>
+  </data>
+  <data name="RobotConsoleMenuTitle" xml:space="preserve">
+    <value>Console</value>
+  </data>
+  <data name="ZhLanguageOptionName" xml:space="preserve">
+    <value>Chinês simplificado</value>
+  </data>
+  <data name="EnLanguageOptionName" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="AboutRepositoryButtonText" xml:space="preserve">
+    <value>Repository</value>
+  </data>
+  <data name="AboutCommunityButtonText" xml:space="preserve">
+    <value>Community</value>
+  </data>
+  <data name="AboutIssuesButtonText" xml:space="preserve">
+    <value>Problemas do GitHub</value>
+  </data>
+  <data name="AboutProjectInfoTitle" xml:space="preserve">
+    <value>Informações do projeto</value>
+  </data>
+  <data name="AboutFeedbackText" xml:space="preserve">
+    <value>Feedback: https://vintagestory.top/ ou problemas do GitHub</value>
+  </data>
+  <data name="AboutCurrentVersionLabel" xml:space="preserve">
+    <value>Versão atual:</value>
+  </data>
+  <data name="AboutCheckUpdatesButtonText" xml:space="preserve">
+    <value>Verifique as atualizações</value>
+  </data>
+  <data name="AboutUpdateNowButtonText" xml:space="preserve">
+    <value>Atualizar agora</value>
+  </data>
+  <data name="AboutUpdateStatusIdle" xml:space="preserve">
+    <value>Clique em "Verificar atualizações" para obter a versão mais recente.</value>
+  </data>
+  <data name="AboutUpdateStatusChecking" xml:space="preserve">
+    <value>Verificando atualizações...</value>
+  </data>
+  <data name="AboutUpdateStatusAvailableFormat" xml:space="preserve">
+    <value>Nova versão disponível: {0} (atual {1}).</value>
+  </data>
+  <data name="AboutUpdateStatusLatestFormat" xml:space="preserve">
+    <value>Você está atualizado ({0}).</value>
+  </data>
+  <data name="AboutUpdateStatusFailedFormat" xml:space="preserve">
+    <value>Falha na verificação de atualização: {0}</value>
+  </data>
+  <data name="CommonCreateButtonText" xml:space="preserve">
+    <value>Create</value>
+  </data>
+  <data name="CommonDeleteButtonText" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="CommonRefreshButtonText" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="CommonCancelButtonText" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="CommonSaveButtonText" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="CommonBrowseButtonText" xml:space="preserve">
+    <value>Browse</value>
+  </data>
+  <data name="CommonImportButtonText" xml:space="preserve">
+    <value>Import</value>
+  </data>
+  <data name="CommonStartButtonText" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="CommonStopButtonText" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="CommonClearButtonText" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="CommonFollowLabel" xml:space="preserve">
+    <value>Follow</value>
+  </data>
+  <data name="CommonExportButtonText" xml:space="preserve">
+    <value>Export</value>
+  </data>
+  <data name="CommonSearchTooltip" xml:space="preserve">
+    <value>Search</value>
+  </data>
+  <data name="CommonRunningState" xml:space="preserve">
+    <value>Running</value>
+  </data>
+  <data name="CommonStoppedState" xml:space="preserve">
+    <value>Stopped</value>
+  </data>
+  <data name="ConfigAdvancedJsonButtonText" xml:space="preserve">
+    <value>JSON avançado</value>
+  </data>
+  <data name="ConfigServerSectionTitle" xml:space="preserve">
+    <value>Informações básicas</value>
+  </data>
+  <data name="ConfigServerNameLabel" xml:space="preserve">
+    <value>Nome do servidor</value>
+  </data>
+  <data name="ConfigServerDescriptionLabel" xml:space="preserve">
+    <value>Descrição do servidor</value>
+  </data>
+  <data name="ConfigServerUrlLabel" xml:space="preserve">
+    <value>URL do servidor</value>
+  </data>
+  <data name="ConfigNetworkPublicSectionTitle" xml:space="preserve">
+    <value>Rede e listagem</value>
+  </data>
+  <data name="ConfigSecurityMaintenanceSectionTitle" xml:space="preserve">
+    <value>Segurança e Manutenção</value>
+  </data>
+  <data name="ConfigIpLabel" xml:space="preserve">
+    <value>IP</value>
+  </data>
+  <data name="ConfigPortLabel" xml:space="preserve">
+    <value>Port</value>
+  </data>
+  <data name="ConfigMaxPlayersLabel" xml:space="preserve">
+    <value>Máximo de jogadores</value>
+  </data>
+  <data name="ConfigMaxClientsInQueueLabel" xml:space="preserve">
+    <value>Limite de fila</value>
+  </data>
+  <data name="ConfigPasswordLabel" xml:space="preserve">
+    <value>Senha de adesão</value>
+  </data>
+  <data name="ConfigPasswordHintText" xml:space="preserve">
+    <value>Os jogadores com senha precisam entrar no servidor. Deixe em branco para não ter senha.</value>
+  </data>
+  <data name="ConfigWhitelistModeLabel" xml:space="preserve">
+    <value>Modo de lista branca</value>
+  </data>
+  <data name="ConfigAdvertiseServerLabel" xml:space="preserve">
+    <value>Lista no navegador do servidor público</value>
+  </data>
+  <data name="ConfigUpnpLabel" xml:space="preserve">
+    <value>Habilitar mapeamento de porta UPnP</value>
+  </data>
+  <data name="ConfigAllowPvpLabel" xml:space="preserve">
+    <value>Permitir PvP</value>
+  </data>
+  <data name="ConfigAllowFireSpreadLabel" xml:space="preserve">
+    <value>Permitir propagação de fogo</value>
+  </data>
+  <data name="ConfigAllowFallingBlocksLabel" xml:space="preserve">
+    <value>Permitir queda de blocos</value>
+  </data>
+  <data name="ConfigPassTimeWhenEmptyLabel" xml:space="preserve">
+    <value>Passe o tempo quando estiver vazio</value>
+  </data>
+  <data name="ConfigWarnAfkSecondsLabel" xml:space="preserve">
+    <value>Segundos de aviso AFK</value>
+  </data>
+  <data name="ConfigKickAfkSecondsLabel" xml:space="preserve">
+    <value>Segundos de chute AFK</value>
+  </data>
+  <data name="ConfigClientConnectionTimeoutLabel" xml:space="preserve">
+    <value>Segundos de tempo limite de conexão</value>
+  </data>
+  <data name="ConfigMaxChunkRadiusLabel" xml:space="preserve">
+    <value>Raio máximo de visualização do pedaço</value>
+  </data>
+  <data name="ConfigDieBelowDiskSpaceMbLabel" xml:space="preserve">
+    <value>Desligamento abaixo do espaço em disco (MB)</value>
+  </data>
+  <data name="ConfigCorruptionProtectionLabel" xml:space="preserve">
+    <value>Ativar proteção contra corrupção</value>
+  </data>
+  <data name="ConfigRegenerateCorruptChunksLabel" xml:space="preserve">
+    <value>Regenerar pedaços corrompidos</value>
+  </data>
+  <data name="ConfigStartupCommandsLabel" xml:space="preserve">
+    <value>Comandos de inicialização</value>
+  </data>
+  <data name="ConfigVerifyPlayerAuthLabel" xml:space="preserve">
+    <value>Habilitar autenticação oficial</value>
+  </data>
+  <data name="ConfigServerLanguageLabel" xml:space="preserve">
+    <value>Idioma do servidor</value>
+  </data>
+  <data name="ConfigDefaultRoleCodeLabel" xml:space="preserve">
+    <value>Código de função padrão</value>
+  </data>
+  <data name="ConfigWelcomeMessageLabel" xml:space="preserve">
+    <value>Mensagem de boas-vindas</value>
+  </data>
+  <data name="ConfigWorldSectionTitle" xml:space="preserve">
+    <value>World</value>
+  </data>
+  <data name="ConfigSeedLabel" xml:space="preserve">
+    <value>Seed</value>
+  </data>
+  <data name="ConfigWorldNameLabel" xml:space="preserve">
+    <value>Nome Mundial</value>
+  </data>
+  <data name="ConfigSaveFileLabel" xml:space="preserve">
+    <value>Salvar arquivo</value>
+  </data>
+  <data name="ConfigPlayStyleLabel" xml:space="preserve">
+    <value>Estilo de jogo</value>
+  </data>
+  <data name="ConfigWorldTypeLabel" xml:space="preserve">
+    <value>Tipo de mundo</value>
+  </data>
+  <data name="ConfigWorldHeightLabel" xml:space="preserve">
+    <value>Altura Mundial</value>
+  </data>
+  <data name="ConfigWorldRulesSectionTitle" xml:space="preserve">
+    <value>Regras Mundiais</value>
+  </data>
+  <data name="ConfigSaveFilePlaceholder" xml:space="preserve">
+    <value>Selecione salvar arquivo</value>
+  </data>
+  <data name="ConfigPlayStylePlaceholder" xml:space="preserve">
+    <value>Selecione o estilo de jogo</value>
+  </data>
+  <data name="ConfigWorldTypePlaceholder" xml:space="preserve">
+    <value>Selecione o tipo de mundo</value>
+  </data>
+  <data name="ConfigWorldGeneratedLockNotice" xml:space="preserve">
+    <value>Este salvamento já tem um mundo gerado: semente, estilo de jogo, tipo de mundo, altura do mundo e regras somente para criação de mundo (como largura/comprimento do mundo) estão bloqueadas.</value>
+  </data>
+  <data name="ConfigServerImagesSectionTitle" xml:space="preserve">
+    <value>Imagens do servidor</value>
+  </data>
+  <data name="ConfigServerImagesRootLabel" xml:space="preserve">
+    <value>Pasta de imagens</value>
+  </data>
+  <data name="ConfigServerImagesCoverTitle" xml:space="preserve">
+    <value>Imagem da capa</value>
+  </data>
+  <data name="ConfigServerImagesShowcaseTitle" xml:space="preserve">
+    <value>Mostrar imagens</value>
+  </data>
+  <data name="ConfigServerImagesShowcaseHintText" xml:space="preserve">
+    <value>Clique em um item para visualizá-lo.</value>
+  </data>
+  <data name="ConfigServerImagesNoShowcaseText" xml:space="preserve">
+    <value>Ainda não há imagens de demonstração.</value>
+  </data>
+  <data name="ConfigServerImagesNoCoverText" xml:space="preserve">
+    <value>Nenhuma imagem de capa ainda.</value>
+  </data>
+  <data name="ConfigServerImagesPreviewButtonText" xml:space="preserve">
+    <value>Preview</value>
+  </data>
+  <data name="ConfigServerImagesAddButtonText" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="ConfigImageBrowseDialogTitle" xml:space="preserve">
+    <value>Selecione a imagem</value>
+  </data>
+  <data name="ConfigImageBrowseFilterName" xml:space="preserve">
+    <value>Arquivos de imagem</value>
+  </data>
+  <data name="ConfigImageImportFolderDialogTitle" xml:space="preserve">
+    <value>Selecione a pasta de imagens</value>
+  </data>
+  <data name="ConfigImagePreviewDialogTitleFormat" xml:space="preserve">
+    <value>Visualização: {0}</value>
+  </data>
+  <data name="ConfigImageStatusSelectedImportFileFormat" xml:space="preserve">
+    <value>Imagem selecionada: {0}</value>
+  </data>
+  <data name="ConfigImageStatusCoverImportedFormat" xml:space="preserve">
+    <value>Imagem de capa importada: {0}</value>
+  </data>
+  <data name="ConfigImageStatusCoverDeleted" xml:space="preserve">
+    <value>Imagem da capa excluída.</value>
+  </data>
+  <data name="ConfigImageStatusShowcaseAddedFormat" xml:space="preserve">
+    <value>Imagem de demonstração adicionada: {0}</value>
+  </data>
+  <data name="ConfigImageStatusShowcaseImportedFormat" xml:space="preserve">
+    <value>{0} imagens de demonstração importadas.</value>
+  </data>
+  <data name="ConfigImageStatusShowcaseDeletedFormat" xml:space="preserve">
+    <value>Imagem de demonstração excluída: {0}</value>
+  </data>
+  <data name="ConfigImageStatusNoImportFiles" xml:space="preserve">
+    <value>Nenhum arquivo de imagem encontrado na pasta selecionada.</value>
+  </data>
+  <data name="ConfigImageStatusSelectShowcaseFirst" xml:space="preserve">
+    <value>Selecione uma imagem de demonstração primeiro.</value>
+  </data>
+  <data name="ConfigImageStatusSelectFileFirst" xml:space="preserve">
+    <value>Selecione um arquivo de imagem primeiro.</value>
+  </data>
+  <data name="ConfigImageStatusFileNotFound" xml:space="preserve">
+    <value>O arquivo de imagem não existe.</value>
+  </data>
+  <data name="ConfigImageStatusUnsupportedFormat" xml:space="preserve">
+    <value>Somente imagens png/jpg/jpeg/webp/gif/bmp são suportadas.</value>
+  </data>
+  <data name="ConfigImageStatusPreviewFailedFormat" xml:space="preserve">
+    <value>Falha ao visualizar a imagem: {0}</value>
+  </data>
+  <data name="ConfigNoProfileText" xml:space="preserve">
+    <value>Nenhum perfil encontrado. Por favor, crie um primeiro.</value>
+  </data>
+  <data name="ConfigAdvancedJsonDialogTitle" xml:space="preserve">
+    <value>Editar JSON avançado</value>
+  </data>
+  <data name="ConfigStatusSaved" xml:space="preserve">
+    <value>Configuração salva.</value>
+  </data>
+  <data name="ConfigStatusSaveFailedFormat" xml:space="preserve">
+    <value>Falha ao salvar a configuração: {0}</value>
+  </data>
+  <data name="ConfigStatusAdvancedJsonCanceled" xml:space="preserve">
+    <value>Edição JSON avançada cancelada.</value>
+  </data>
+  <data name="ConfigStatusAdvancedJsonSaved" xml:space="preserve">
+    <value>JSON avançado salvo.</value>
+  </data>
+  <data name="ConfigStatusAdvancedJsonSaveFailedFormat" xml:space="preserve">
+    <value>Falha ao salvar JSON avançado: {0}</value>
+  </data>
+  <data name="ConfigStatusLoadedProfileConfigFormat" xml:space="preserve">
+    <value>Configuração carregada: {0}</value>
+  </data>
+  <data name="ConfigStatusLoadFailedFormat" xml:space="preserve">
+    <value>Falha ao carregar a configuração: {0}</value>
+  </data>
+  <data name="StatusSelectProfileFirst" xml:space="preserve">
+    <value>Selecione um perfil primeiro.</value>
+  </data>
+  <data name="StatusNoProfileCreateFirst" xml:space="preserve">
+    <value>Nenhum perfil encontrado. Crie um em Instância/Criar primeiro.</value>
+  </data>
+  <data name="StatusLoadedProfilesFormat" xml:space="preserve">
+    <value>{0} perfis carregados.</value>
+  </data>
+  <data name="StatusRefreshProfilesFailedFormat" xml:space="preserve">
+    <value>Falha ao atualizar perfis: {0}</value>
+  </data>
+  <data name="InstanceCreateVersionTooltip" xml:space="preserve">
+    <value>Versões instaladas detectadas em pacotes (vs_server_win-x64_*.zip)</value>
+  </data>
+  <data name="InstanceCreateNameWatermark" xml:space="preserve">
+    <value>Nome do perfil</value>
+  </data>
+  <data name="InstanceCreateHeaderName" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="InstanceCreateHeaderVersion" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="InstanceCreateHeaderDirectory" xml:space="preserve">
+    <value>Directory</value>
+  </data>
+  <data name="InstanceCreateHeaderTime" xml:space="preserve">
+    <value>Hora de criação</value>
+  </data>
+  <data name="InstanceCreateNoProfilesText" xml:space="preserve">
+    <value>Ainda não há perfis.</value>
+  </data>
+  <data name="InstanceCreateImportButtonText" xml:space="preserve">
+    <value>Importar Existente</value>
+  </data>
+  <data name="InstanceCreateDeleteRegistrationButtonText" xml:space="preserve">
+    <value>Remover registro</value>
+  </data>
+  <data name="InstanceCreateDeleteDataButtonText" xml:space="preserve">
+    <value>Excluir perfil + dados</value>
+  </data>
+  <data name="InstanceCreateImportPickerTitle" xml:space="preserve">
+    <value>Selecione um diretório de perfil em workspace/data</value>
+  </data>
+  <data name="InstanceCreateImportConfirmTitle" xml:space="preserve">
+    <value>Confirmar importação de perfil</value>
+  </data>
+  <data name="InstanceCreateImportConfirmMessage" xml:space="preserve">
+    <value>Isso registra apenas o diretório em profiles.json. Ele não copiará arquivos nem assumirá o controle de outros diretórios.</value>
+  </data>
+  <data name="InstanceCreateImportConfirmButtonText" xml:space="preserve">
+    <value>Import</value>
+  </data>
+  <data name="InstanceCreateDeleteRegistrationConfirmTitle" xml:space="preserve">
+    <value>Confirmar remoção de registro</value>
+  </data>
+  <data name="InstanceCreateDeleteRegistrationConfirmHint" xml:space="preserve">
+    <value>Isso remove apenas o registro profiles.json. Nenhum arquivo físico será excluído.</value>
+  </data>
+  <data name="InstanceCreateDeleteDataConfirmTitle" xml:space="preserve">
+    <value>Confirmar perfil e exclusão de dados</value>
+  </data>
+  <data name="InstanceCreateDeleteDataConfirmHint" xml:space="preserve">
+    <value>Isso remove o registro e exclui o diretório de dados de propriedade do perfil. Confirme os caminhos de destino reais abaixo.</value>
+  </data>
+  <data name="InstanceCreatePreviewNameFormat" xml:space="preserve">
+    <value>Perfil: {0}</value>
+  </data>
+  <data name="InstanceCreatePreviewVersionFormat" xml:space="preserve">
+    <value>Versão do servidor: {0}</value>
+  </data>
+  <data name="InstanceCreatePreviewDataDirectoryFormat" xml:space="preserve">
+    <value>Diretório de dados: {0}</value>
+  </data>
+  <data name="InstanceCreatePreviewSaveDirectoryFormat" xml:space="preserve">
+    <value>Salvar diretório: {0}</value>
+  </data>
+  <data name="InstanceCreatePreviewActiveSaveFormat" xml:space="preserve">
+    <value>Salvamento ativo: {0}</value>
+  </data>
+  <data name="InstanceCreatePreviewSaveStateFormat" xml:space="preserve">
+    <value>Salvar estado: {0}</value>
+  </data>
+  <data name="InstanceCreateImportSaveExistsText" xml:space="preserve">
+    <value>Found</value>
+  </data>
+  <data name="InstanceCreateImportSaveMissingText" xml:space="preserve">
+    <value>Ainda não encontrado; o servidor irá criá-lo no início</value>
+  </data>
+  <data name="InstanceCreateStatusEnterProfileName" xml:space="preserve">
+    <value>Insira um nome de perfil.</value>
+  </data>
+  <data name="InstanceCreateStatusSelectVersionFirst" xml:space="preserve">
+    <value>Selecione uma versão do servidor primeiro.</value>
+  </data>
+  <data name="InstanceCreateStatusProfileCreatedFormat" xml:space="preserve">
+    <value>Perfil criado: {0}</value>
+  </data>
+  <data name="InstanceCreateStatusCreateFailedFormat" xml:space="preserve">
+    <value>Falha ao criar perfil: {0}</value>
+  </data>
+  <data name="InstanceCreateStatusSelectProfilesToDelete" xml:space="preserve">
+    <value>Selecione os perfis a serem excluídos.</value>
+  </data>
+  <data name="InstanceCreateStatusRemovedProfilesFormat" xml:space="preserve">
+    <value>{0} registros de perfil removidos. Arquivos físicos foram mantidos.</value>
+  </data>
+  <data name="InstanceCreateStatusDeletedProfilesAndDataFormat" xml:space="preserve">
+    <value>{0} registros de perfil e dados de propriedade foram excluídos.</value>
+  </data>
+  <data name="InstanceCreateStatusNoProfilesDeleted" xml:space="preserve">
+    <value>Nenhum perfil foi excluído.</value>
+  </data>
+  <data name="InstanceCreateStatusDeleteFailedFormat" xml:space="preserve">
+    <value>Falha ao excluir perfil(s): {0}</value>
+  </data>
+  <data name="InstanceCreateStatusDeleteCanceled" xml:space="preserve">
+    <value>Exclusão cancelada.</value>
+  </data>
+  <data name="InstanceCreateStatusImportCanceled" xml:space="preserve">
+    <value>Importação cancelada.</value>
+  </data>
+  <data name="InstanceCreateStatusImportInvalidFormat" xml:space="preserve">
+    <value>Não é possível importar: {0}</value>
+  </data>
+  <data name="InstanceCreateStatusImportedProfileFormat" xml:space="preserve">
+    <value>Perfil importado: {0}</value>
+  </data>
+  <data name="InstanceCreateStatusImportFailedFormat" xml:space="preserve">
+    <value>Falha ao importar perfil: {0}</value>
+  </data>
+  <data name="InstanceCreateStatusNoVersionsFound" xml:space="preserve">
+    <value>Nenhuma versão de servidor instalada encontrada nos pacotes.</value>
+  </data>
+  <data name="InstanceCreateStatusDetectedVersionsFormat" xml:space="preserve">
+    <value>Foram detectadas {0} versões de servidor instaladas.</value>
+  </data>
+  <data name="InstanceCreateStatusDefaultWorkspaceFormat" xml:space="preserve">
+    <value>Espaço de trabalho: {0}</value>
+  </data>
+  <data name="InstanceDownloadShowDownloadedOnlyLabel" xml:space="preserve">
+    <value>Somente baixado</value>
+  </data>
+  <data name="InstanceDownloadSearchWatermark" xml:space="preserve">
+    <value>Pesquisar versão ou nome do arquivo</value>
+  </data>
+  <data name="InstanceDownloadHeaderVersion" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="InstanceDownloadHeaderPlatform" xml:space="preserve">
+    <value>Platform</value>
+  </data>
+  <data name="InstanceDownloadHeaderSize" xml:space="preserve">
+    <value>Size</value>
+  </data>
+  <data name="InstanceDownloadHeaderFilePath" xml:space="preserve">
+    <value>Caminho do arquivo</value>
+  </data>
+  <data name="InstanceDownloadHeaderAction" xml:space="preserve">
+    <value>Action</value>
+  </data>
+  <data name="InstanceDownloadNoContentText" xml:space="preserve">
+    <value>Nenhum pacote de servidor para download.</value>
+  </data>
+  <data name="InstanceDownloadStatusDownloadingFormat" xml:space="preserve">
+    <value>Baixando {0}...</value>
+  </data>
+  <data name="InstanceDownloadStatusCompletedFormat" xml:space="preserve">
+    <value>Download concluído: {0}</value>
+  </data>
+  <data name="InstanceDownloadStatusFailedSimpleFormat" xml:space="preserve">
+    <value>Falha no download: {0}</value>
+  </data>
+  <data name="InstanceDownloadStatusFailedFormat" xml:space="preserve">
+    <value>Falha no download ({0}): {1}</value>
+  </data>
+  <data name="InstanceDownloadStatusLoadingList" xml:space="preserve">
+    <value>Carregando lista de versões do servidor...</value>
+  </data>
+  <data name="InstanceDownloadStatusNoEntries" xml:space="preserve">
+    <value>Nenhuma entrada encontrada.</value>
+  </data>
+  <data name="InstanceDownloadStatusLoadedEntriesFormat" xml:space="preserve">
+    <value>Carregadas {0} entradas. Diretório de download: {1}</value>
+  </data>
+  <data name="InstanceDownloadStatusLoadFailedFormat" xml:space="preserve">
+    <value>Falha ao carregar a lista de downloads: {0}</value>
+  </data>
+  <data name="InstanceDownloadImportDialogTitle" xml:space="preserve">
+    <value>Selecione o pacote do servidor</value>
+  </data>
+  <data name="InstanceDownloadImportFilterName" xml:space="preserve">
+    <value>Pacote de Servidor</value>
+  </data>
+  <data name="InstanceDownloadStatusImportingFormat" xml:space="preserve">
+    <value>Importando: {0}</value>
+  </data>
+  <data name="InstanceDownloadStatusImportedFormat" xml:space="preserve">
+    <value>Importação concluída: {0}</value>
+  </data>
+  <data name="InstanceDownloadStatusImportFailedFormat" xml:space="preserve">
+    <value>Falha na importação: {0}</value>
+  </data>
+  <data name="SaveNameWatermark" xml:space="preserve">
+    <value>Salvar nome</value>
+  </data>
+  <data name="SaveCurrentProfileVersionFormat" xml:space="preserve">
+    <value>Versão atual do perfil: {0}</value>
+  </data>
+  <data name="SaveHeaderName" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="SaveHeaderDirectory" xml:space="preserve">
+    <value>Directory</value>
+  </data>
+  <data name="SaveHeaderSize" xml:space="preserve">
+    <value>Size</value>
+  </data>
+  <data name="SaveHeaderTime" xml:space="preserve">
+    <value>Time</value>
+  </data>
+  <data name="SaveHeaderCurrent" xml:space="preserve">
+    <value>Current</value>
+  </data>
+  <data name="SaveHeaderAction" xml:space="preserve">
+    <value>Action</value>
+  </data>
+  <data name="SaveSetActiveButtonText" xml:space="preserve">
+    <value>Use</value>
+  </data>
+  <data name="SaveNoSavesText" xml:space="preserve">
+    <value>Ainda não há salvamentos.</value>
+  </data>
+  <data name="SaveStatusCreatedFormat" xml:space="preserve">
+    <value>Salvar criado: {0}</value>
+  </data>
+  <data name="SaveStatusCreateFailedFormat" xml:space="preserve">
+    <value>Falha ao salvar: {0}</value>
+  </data>
+  <data name="SaveStatusSelectSavesToDelete" xml:space="preserve">
+    <value>Por favor selecione salvar(ões) para excluir.</value>
+  </data>
+  <data name="SaveStatusDeletedFormat" xml:space="preserve">
+    <value>{0} salvamentos excluídos.</value>
+  </data>
+  <data name="SaveStatusNoDeletes" xml:space="preserve">
+    <value>Nenhum salvamento foi excluído.</value>
+  </data>
+  <data name="SaveStatusDeleteFailedFormat" xml:space="preserve">
+    <value>Falha ao excluir salvamentos: {0}</value>
+  </data>
+  <data name="SaveStatusSetActiveFormat" xml:space="preserve">
+    <value>Conjunto salvo ativo: {0}</value>
+  </data>
+  <data name="SaveStatusSetActiveFailedFormat" xml:space="preserve">
+    <value>Falha ao definir salvamento ativo: {0}</value>
+  </data>
+  <data name="SaveStatusSetActiveOutOfProfileDenied" xml:space="preserve">
+    <value>Negado: este salvamento não está no diretório de perfil atual.</value>
+  </data>
+  <data name="SaveStatusLoadedFormat" xml:space="preserve">
+    <value>Carregados {0} salvamentos para a versão {1}.</value>
+  </data>
+  <data name="SaveStatusLoadFailedFormat" xml:space="preserve">
+    <value>Falha ao carregar salvamentos: {0}</value>
+  </data>
+  <data name="SaveStatusDirectoryNotFound" xml:space="preserve">
+    <value>O arquivo salvo não existe.</value>
+  </data>
+  <data name="SaveStatusOpenDirectoryFailedFormat" xml:space="preserve">
+    <value>Falha ao abrir o local de salvamento: {0}</value>
+  </data>
+  <data name="ModZipPathWatermark" xml:space="preserve">
+    <value>Caminho zip do mod</value>
+  </data>
+  <data name="ModBrowseDialogTitle" xml:space="preserve">
+    <value>Selecione Mod Zip</value>
+  </data>
+  <data name="ModBrowseFilterName" xml:space="preserve">
+    <value>Arquivo Zip modificado</value>
+  </data>
+  <data name="ModHeaderModId" xml:space="preserve">
+    <value>ID do mod</value>
+  </data>
+  <data name="ModHeaderVersion" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="ModHeaderStatus" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="ModHeaderDependencies" xml:space="preserve">
+    <value>Dependencies</value>
+  </data>
+  <data name="ModHeaderDependencyCheck" xml:space="preserve">
+    <value>Verificação de dependência</value>
+  </data>
+  <data name="ModHeaderPath" xml:space="preserve">
+    <value>Path</value>
+  </data>
+  <data name="ModHeaderAction" xml:space="preserve">
+    <value>Action</value>
+  </data>
+  <data name="ModToggleButtonText" xml:space="preserve">
+    <value>Toggle</value>
+  </data>
+  <data name="ModNoModsText" xml:space="preserve">
+    <value>Nenhum mod encontrado.</value>
+  </data>
+  <data name="ModEnabledLabel" xml:space="preserve">
+    <value>Enabled</value>
+  </data>
+  <data name="ModDisabledLabel" xml:space="preserve">
+    <value>Disabled</value>
+  </data>
+  <data name="ModStatusEnterZipPath" xml:space="preserve">
+    <value>Por favor, insira um caminho zip mod.</value>
+  </data>
+  <data name="ModStatusImportedFormat" xml:space="preserve">
+    <value>Mod importado: {0} ({1})</value>
+  </data>
+  <data name="ModStatusImportFailedFormat" xml:space="preserve">
+    <value>Falha ao importar mod: {0}</value>
+  </data>
+  <data name="ModStatusToggledFormat" xml:space="preserve">
+    <value>Modificação {0} alterada para {1}.</value>
+  </data>
+  <data name="ModStatusToggleFailedFormat" xml:space="preserve">
+    <value>Falha ao alterar o status do mod: {0}</value>
+  </data>
+  <data name="ModStatusLoadedFormat" xml:space="preserve">
+    <value>{0} mod(s) carregado(s).</value>
+  </data>
+  <data name="ModStatusLoadFailedFormat" xml:space="preserve">
+    <value>Falha ao carregar mods: {0}</value>
+  </data>
+  <data name="RobotOneBotWsLabel" xml:space="preserve">
+    <value>OneBot WebSocket</value>
+  </data>
+  <data name="RobotAccessTokenLabel" xml:space="preserve">
+    <value>Token de acesso</value>
+  </data>
+  <data name="RobotReconnectIntervalLabel" xml:space="preserve">
+    <value>Intervalo(s) de reconexão</value>
+  </data>
+  <data name="RobotDatabasePathLabel" xml:space="preserve">
+    <value>Caminho do banco de dados</value>
+  </data>
+  <data name="RobotPollingIntervalLabel" xml:space="preserve">
+    <value>Intervalo(s) de votação</value>
+  </data>
+  <data name="RobotDefaultEncodingLabel" xml:space="preserve">
+    <value>Codificação padrão</value>
+  </data>
+  <data name="RobotFallbackEncodingLabel" xml:space="preserve">
+    <value>Codificação substituta</value>
+  </data>
+  <data name="RobotSuperUsersLabel" xml:space="preserve">
+    <value>Superadministradores (um por linha)</value>
+  </data>
+  <data name="RobotOwnersLabel" xml:space="preserve">
+    <value>Associações de proprietário (uma por linha: host/ip QQ)</value>
+  </data>
+  <data name="RobotOsqPollIntervalLabel" xml:space="preserve">
+    <value>Intervalo(s) de pesquisa OSQ</value>
+  </data>
+  <data name="RobotOsqRequestTimeoutLabel" xml:space="preserve">
+    <value>Tempo limite de solicitação OSQ</value>
+  </data>
+  <data name="RobotOsqAllowInsecureHttpLabel" xml:space="preserve">
+    <value>Permitir HTTP OSQ</value>
+  </data>
+  <data name="RobotOsqListenPrefixLabel" xml:space="preserve">
+    <value>Prefixo de escuta OSQ</value>
+  </data>
+  <data name="RobotConfigStatusLoaded" xml:space="preserve">
+    <value>Configuração do robô carregada.</value>
+  </data>
+  <data name="RobotConfigStatusLoadFailedFormat" xml:space="preserve">
+    <value>Falha ao carregar a configuração do robô: {0}</value>
+  </data>
+  <data name="RobotConfigStatusSaved" xml:space="preserve">
+    <value>Configuração do robô salva.</value>
+  </data>
+  <data name="RobotConfigStatusSaveFailedFormat" xml:space="preserve">
+    <value>Falha ao salvar a configuração do robô: {0}</value>
+  </data>
+  <data name="RobotConsoleRuntimeRunningFormat" xml:space="preserve">
+    <value>Em execução (WS: {0}, Iniciado: {1})</value>
+  </data>
+  <data name="RobotConsoleStatusRefreshFailedFormat" xml:space="preserve">
+    <value>Falha ao atualizar o console do robô: {0}</value>
+  </data>
+  <data name="RobotConsoleStatusStarted" xml:space="preserve">
+    <value>Robô iniciado.</value>
+  </data>
+  <data name="RobotConsoleStatusStartFailedFormat" xml:space="preserve">
+    <value>Falha ao iniciar o robô: {0}</value>
+  </data>
+  <data name="RobotConsoleStatusStopped" xml:space="preserve">
+    <value>Robô parou.</value>
+  </data>
+  <data name="RobotConsoleStatusStopFailedFormat" xml:space="preserve">
+    <value>Falha ao parar o robô: {0}</value>
+  </data>
+  <data name="RobotConsoleStatusCleared" xml:space="preserve">
+    <value>Log do console do robô limpo.</value>
+  </data>
+  <data name="WorkspaceStartServerButtonText" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="WorkspaceStopServerButtonText" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="WorkspaceRefreshProfilesButtonText" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="WorkspaceSendCommandButtonText" xml:space="preserve">
+    <value>Send</value>
+  </data>
+  <data name="WorkspaceQuickVersionLabel" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="WorkspaceQuickNameLabel" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="WorkspaceQuickNameWatermark" xml:space="preserve">
+    <value>Deixe em branco para o nome automático</value>
+  </data>
+  <data name="WorkspaceQuickCreateAndStartButtonText" xml:space="preserve">
+    <value>Criar e iniciar</value>
+  </data>
+  <data name="WorkspaceStartFrpButtonText" xml:space="preserve">
+    <value>Iniciar FRP</value>
+  </data>
+  <data name="WorkspaceStopFrpButtonText" xml:space="preserve">
+    <value>Pare o FRP</value>
+  </data>
+  <data name="WorkspaceQuickNoVersionText" xml:space="preserve">
+    <value>Baixe uma versão do servidor em Instância/Baixar primeiro.</value>
+  </data>
+  <data name="WorkspaceQuickNoProfileTip" xml:space="preserve">
+    <value>Nenhum perfil ainda. Use a criação rápida acima.</value>
+  </data>
+  <data name="WorkspaceQuickCreatingText" xml:space="preserve">
+    <value>Criando perfil e iniciando servidor...</value>
+  </data>
+  <data name="WorkspaceQuickCreatedFormat" xml:space="preserve">
+    <value>Perfil criado: {0}</value>
+  </data>
+  <data name="WorkspaceQuickCreateFailedFormat" xml:space="preserve">
+    <value>Falha ao criar e iniciar: {0}</value>
+  </data>
+  <data name="WorkspaceQuickDefaultProfileNameFormat" xml:space="preserve">
+    <value>Servidor-{0:yyyyMMdd-HHmm}</value>
+  </data>
+  <data name="WorkspaceQuickCommandsAddButtonText" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="WorkspaceQuickCommandsDialogTitle" xml:space="preserve">
+    <value>Gerenciar comandos rápidos</value>
+  </data>
+  <data name="ConsoleNoOutputText" xml:space="preserve">
+    <value>Nenhuma saída ainda.</value>
+  </data>
+  <data name="WorkspaceRuntimeRunningFormat" xml:space="preserve">
+    <value>Em execução (PID: {0}, Jogadores: {1}, Iniciados: {2})</value>
+  </data>
+  <data name="WorkspaceRuntimeReadOnlySuffix" xml:space="preserve">
+    <value>(controle somente leitura)</value>
+  </data>
+  <data name="WorkspaceControlReadyText" xml:space="preserve">
+    <value>O canal de controle está conectado.</value>
+  </data>
+  <data name="WorkspaceControlReadOnlyText" xml:space="preserve">
+    <value>Apenas o estado de tempo de execução foi anexado; a entrada do comando não estará disponível até que o servidor seja reiniciado por esta versão do LauncherGo.</value>
+  </data>
+  <data name="WorkspaceStartupProgressFormat" xml:space="preserve">
+    <value>Progresso de inicialização: {0:0}%</value>
+  </data>
+  <data name="WorkspaceStatusStarting" xml:space="preserve">
+    <value>Iniciando servidor...</value>
+  </data>
+  <data name="WorkspaceStatusStarted" xml:space="preserve">
+    <value>Servidor iniciado.</value>
+  </data>
+  <data name="WorkspaceStatusStartFailedFormat" xml:space="preserve">
+    <value>Falha ao iniciar o servidor: {0}</value>
+  </data>
+  <data name="WorkspaceStatusStopping" xml:space="preserve">
+    <value>Parando o servidor...</value>
+  </data>
+  <data name="WorkspaceStatusStopped" xml:space="preserve">
+    <value>Servidor parou.</value>
+  </data>
+  <data name="WorkspaceStatusStopFailedFormat" xml:space="preserve">
+    <value>Falha ao parar o servidor: {0}</value>
+  </data>
+  <data name="WorkspaceStatusFrpAlreadyRunning" xml:space="preserve">
+    <value>O FRP já está em execução.</value>
+  </data>
+  <data name="WorkspaceStatusFrpAlreadyStopped" xml:space="preserve">
+    <value>O FRP não está em execução.</value>
+  </data>
+  <data name="WorkspaceStatusFrpStarted" xml:space="preserve">
+    <value>FRP iniciado.</value>
+  </data>
+  <data name="WorkspaceStatusFrpStopped" xml:space="preserve">
+    <value>FRP parou.</value>
+  </data>
+  <data name="WorkspaceStatusFrpStartFailedFormat" xml:space="preserve">
+    <value>Falha ao iniciar o FRP: {0}</value>
+  </data>
+  <data name="WorkspaceStatusFrpStopFailedFormat" xml:space="preserve">
+    <value>Falha ao interromper o FRP: {0}</value>
+  </data>
+  <data name="WorkspaceStartThirdPartyFrpcButtonText" xml:space="preserve">
+    <value>Iniciar FRPC de terceiros</value>
+  </data>
+  <data name="WorkspaceStopThirdPartyFrpcButtonText" xml:space="preserve">
+    <value>Interromper FRPC de terceiros</value>
+  </data>
+  <data name="WorkspaceStatusThirdPartyFrpcAlreadyRunning" xml:space="preserve">
+    <value>O FRPC de terceiros já está em execução.</value>
+  </data>
+  <data name="WorkspaceStatusThirdPartyFrpcAlreadyStopped" xml:space="preserve">
+    <value>O FRPC de terceiros não está em execução.</value>
+  </data>
+  <data name="WorkspaceStatusThirdPartyFrpcStarted" xml:space="preserve">
+    <value>FRPC de terceiros iniciado.</value>
+  </data>
+  <data name="WorkspaceStatusThirdPartyFrpcStopped" xml:space="preserve">
+    <value>O FRPC de terceiros foi interrompido.</value>
+  </data>
+  <data name="WorkspaceStatusThirdPartyFrpcStartFailedFormat" xml:space="preserve">
+    <value>Falha ao iniciar FRPC de terceiros: {0}</value>
+  </data>
+  <data name="WorkspaceStatusThirdPartyFrpcStopFailedFormat" xml:space="preserve">
+    <value>Falha ao interromper FRPC de terceiros: {0}</value>
+  </data>
+  <data name="WorkspaceStatusSendCommandFailedFormat" xml:space="preserve">
+    <value>Falha ao enviar comando: {0}</value>
+  </data>
+  <data name="WorkspaceStatusNoExportLogs" xml:space="preserve">
+    <value>Não há registros para exportar.</value>
+  </data>
+  <data name="WorkspaceStatusExportedFormat" xml:space="preserve">
+    <value>Registro exportado: {0}</value>
+  </data>
+  <data name="WorkspaceStatusExportFailedFormat" xml:space="preserve">
+    <value>Falha ao exportar registro: {0}</value>
+  </data>
+  <data name="WorkspaceStatusLoadSavesFailedFormat" xml:space="preserve">
+    <value>Falha ao carregar salvamentos: {0}</value>
+  </data>
+  <data name="WorkspaceStatusActiveSaveSwitchedFormat" xml:space="preserve">
+    <value>Salvamento ativo alterado: {0}</value>
+  </data>
+  <data name="WorkspaceStatusSwitchSaveFailedFormat" xml:space="preserve">
+    <value>Falha ao alternar para salvar: {0}</value>
+  </data>
+  <data name="WorkspaceStatusSwitchSaveOutOfProfileDenied" xml:space="preserve">
+    <value>Negado: este salvamento não está no diretório de perfil atual.</value>
+  </data>
+  <data name="WorkspaceSaveSourceInstance" xml:space="preserve">
+    <value>Fonte de salvamento: diretório do perfil atual</value>
+  </data>
+  <data name="WorkspaceSaveSourceCrossProfile" xml:space="preserve">
+    <value>Fonte de salvamento: outro diretório de perfil (arriscado)</value>
+  </data>
+  <data name="WorkspaceSaveSourceExternal" xml:space="preserve">
+    <value>Fonte de salvamento: diretório externo (arriscado)</value>
+  </data>
+  <data name="WorkspaceSaveSourceUnknown" xml:space="preserve">
+    <value>Salvar fonte: desconhecido</value>
+  </data>
+  <data name="WorkspaceSaveWarningFormat" xml:space="preserve">
+    <value>Aviso: {0}</value>
+  </data>
+  <data name="WorkspaceStartMissingSaveConfirmTitle" xml:space="preserve">
+    <value>Confirme a criação de salvamento inicial</value>
+  </data>
+  <data name="WorkspaceStartMissingSaveConfirmButtonText" xml:space="preserve">
+    <value>Confirme e comece</value>
+  </data>
+  <data name="WorkspaceStartMissingSaveHint" xml:space="preserve">
+    <value>O arquivo salvo de destino ainda não existe. Vintage Story irá criá-lo na primeira inicialização.</value>
+  </data>
+  <data name="WorkspaceStartRiskySaveConfirmTitle" xml:space="preserve">
+    <value>Confirmar inicialização de salvamento entre diretórios</value>
+  </data>
+  <data name="WorkspaceStartRiskySaveConfirmButtonText" xml:space="preserve">
+    <value>Comece de qualquer maneira</value>
+  </data>
+  <data name="WorkspaceStartRiskySaveHint" xml:space="preserve">
+    <value>O caminho de salvamento atual não está neste diretório de perfil e pode iniciar um mundo de perfil diferente.</value>
+  </data>
+  <data name="WorkspaceStartCanceled" xml:space="preserve">
+    <value>Início do servidor cancelado.</value>
+  </data>
+  <data name="HomeServerCardTitle" xml:space="preserve">
+    <value>Server</value>
+  </data>
+  <data name="HomeRobotCardTitle" xml:space="preserve">
+    <value>Robot</value>
+  </data>
+  <data name="HomeOnlinePlayersCardTitle" xml:space="preserve">
+    <value>Jogadores on-line</value>
+  </data>
+  <data name="HomeSamplingWindowCardTitle" xml:space="preserve">
+    <value>Sampling</value>
+  </data>
+  <data name="HomeSamplingWindowLine1" xml:space="preserve">
+    <value>Últimas 60 amostras</value>
+  </data>
+  <data name="HomeSamplingWindowLine2" xml:space="preserve">
+    <value>Atualize manualmente para atualizar</value>
+  </data>
+  <data name="HomeMemoryTrendTitle" xml:space="preserve">
+    <value>Tendência de memória</value>
+  </data>
+  <data name="HomeServerMemoryLegend" xml:space="preserve">
+    <value>Memória do servidor</value>
+  </data>
+  <data name="HomeRobotMemoryLegend" xml:space="preserve">
+    <value>Memória do Robô</value>
+  </data>
+  <data name="HomeSamplesAxisLabel" xml:space="preserve">
+    <value>Samples</value>
+  </data>
+  <data name="HomePlayerTrendTitle" xml:space="preserve">
+    <value>Tendência do jogador</value>
+  </data>
+  <data name="HomeOnlinePlayersLegend" xml:space="preserve">
+    <value>Jogadores on-line</value>
+  </data>
+  <data name="HomePlayersAxisLabel" xml:space="preserve">
+    <value>Players</value>
+  </data>
+  <data name="HomeMemoryFormat" xml:space="preserve">
+    <value>Memória: {0}</value>
+  </data>
+  <data name="HomeUptimeFormat" xml:space="preserve">
+    <value>Tempo de atividade: {0}</value>
+  </data>
+  <data name="InstanceManageTitle" xml:space="preserve">
+    <value>Instância / Gerenciar</value>
+  </data>
+  <data name="InstanceManageDescription" xml:space="preserve">
+    <value>Gerencie o conteúdo da página em breve.</value>
+  </data>
+  <data name="MapPreviewMenuTitle" xml:space="preserve">
+    <value>Pré-visualização do mapa</value>
+  </data>
+  <data name="MapPreviewProfileLabel" xml:space="preserve">
+    <value>Profile:</value>
+  </data>
+  <data name="MapPreviewSaveLabel" xml:space="preserve">
+    <value>Save:</value>
+  </data>
+  <data name="MapPreviewLoadButtonText" xml:space="preserve">
+    <value>Pré-visualização de carregamento</value>
+  </data>
+  <data name="MapPreviewRefreshProfilesButtonText" xml:space="preserve">
+    <value>Atualizar perfis</value>
+  </data>
+  <data name="MapPreviewRefreshSavesButtonText" xml:space="preserve">
+    <value>Atualizar salvamentos</value>
+  </data>
+  <data name="MapPreviewColorTabTitle" xml:space="preserve">
+    <value>Mapa de cores</value>
+  </data>
+  <data name="MapPreviewGrayscaleTabTitle" xml:space="preserve">
+    <value>Mapa em escala de cinza</value>
+  </data>
+  <data name="MapPreviewNoPreviewText" xml:space="preserve">
+    <value>Nenhuma visualização do mapa ainda. Clique em Carregar visualização.</value>
+  </data>
+  <data name="MapPreviewCoordinatePlaceholder" xml:space="preserve">
+    <value>Coordenadas: -</value>
+  </data>
+  <data name="MapPreviewCoordinateFormat" xml:space="preserve">
+    <value>Escurecer {0} | X:{1} Z:{2} | Pedaço:{3},{4}</value>
+  </data>
+  <data name="MapPreviewSourcePathFormat" xml:space="preserve">
+    <value>Fonte: {0}</value>
+  </data>
+  <data name="MapPreviewSummaryEmpty" xml:space="preserve">
+    <value>Nenhuma visualização do mapa carregada.</value>
+  </data>
+  <data name="MapPreviewSummaryFormat" xml:space="preserve">
+    <value>Escurecer {0} | Pedaços {1} | X[{2},{3}] Z[{4},{5}] | Resolução {6}x{7} | Altura {8}-{9} | Amostragem x{10}</value>
+  </data>
+  <data name="MapPreviewStatusNoProfile" xml:space="preserve">
+    <value>Nenhum perfil encontrado. Por favor, crie um primeiro.</value>
+  </data>
+  <data name="MapPreviewStatusLoading" xml:space="preserve">
+    <value>Carregando mapa e gerando visualização...</value>
+  </data>
+  <data name="MapPreviewStatusLoaded" xml:space="preserve">
+    <value>Visualização do mapa carregada.</value>
+  </data>
+  <data name="MapPreviewStatusLoadFailedFormat" xml:space="preserve">
+    <value>Falha ao carregar a visualização do mapa: {0}</value>
+  </data>
+  <data name="MapPreviewStatusRefreshProfilesFailedFormat" xml:space="preserve">
+    <value>Falha ao atualizar perfis: {0}</value>
+  </data>
+  <data name="MapPreviewStatusRefreshSavesFailedFormat" xml:space="preserve">
+    <value>Falha ao atualizar os salvamentos: {0}</value>
+  </data>
+  <data name="MapPreviewStatusLoadedProfilesFormat" xml:space="preserve">
+    <value>{0} perfis carregados.</value>
+  </data>
+  <data name="MapPreviewStatusLoadedSavesFormat" xml:space="preserve">
+    <value>Carregados {0} arquivos salvos.</value>
+  </data>
+  <data name="MapPreviewStatusInvalidPixels" xml:space="preserve">
+    <value>Dados de pixel do mapa inválidos.</value>
+  </data>
+  <data name="AutomationHintText" xml:space="preserve">
+    <value>Semanalmente usa 1-7, o intervalo de datas usa aaaa-MM-dd, o tempo usa HH:mm.</value>
+  </data>
+  <data name="AutomationModeLabel" xml:space="preserve">
+    <value>Mode</value>
+  </data>
+  <data name="AutomationDayStartLabel" xml:space="preserve">
+    <value>Início do dia</value>
+  </data>
+  <data name="AutomationDayEndLabel" xml:space="preserve">
+    <value>Fim do dia</value>
+  </data>
+  <data name="AutomationDateStartLabel" xml:space="preserve">
+    <value>Data de início</value>
+  </data>
+  <data name="AutomationDateEndLabel" xml:space="preserve">
+    <value>Data final</value>
+  </data>
+  <data name="AutomationTimeStartLabel" xml:space="preserve">
+    <value>Início da hora</value>
+  </data>
+  <data name="AutomationTimeEndLabel" xml:space="preserve">
+    <value>Fim do tempo</value>
+  </data>
+  <data name="AutomationActionLabel" xml:space="preserve">
+    <value>Action</value>
+  </data>
+  <data name="DirectorySettingsMenuTitle" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="DirectorySettingsTitle" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="DirectorySettingsDescription" xml:space="preserve">
+    <value>As configurações aqui afetam o caminho do espaço de trabalho, as opções de inicialização, o comportamento da bandeja e o comportamento de inicialização automática para servidor, FRP e bot QQ.</value>
+  </data>
+  <data name="DirectorySettingsWorkspaceLabel" xml:space="preserve">
+    <value>Raiz do espaço de trabalho</value>
+  </data>
+  <data name="DirectorySettingsStartWithWindows" xml:space="preserve">
+    <value>Comece com o Windows</value>
+  </data>
+  <data name="DirectorySettingsStartHiddenOnLaunch" xml:space="preserve">
+    <value>Comece escondido na bandeja</value>
+  </data>
+  <data name="DirectorySettingsCloseToTrayOnExit" xml:space="preserve">
+    <value>Perto da bandeja em vez de sair</value>
+  </data>
+  <data name="DirectorySettingsAutoStartRobotOnLaunch" xml:space="preserve">
+    <value>Iniciar automaticamente o bot QQ no lançamento</value>
+  </data>
+  <data name="DirectorySettingsAutoStartFrpOnLaunch" xml:space="preserve">
+    <value>Iniciar automaticamente o FRP no lançamento</value>
+  </data>
+  <data name="DirectorySettingsAutoStartServerOnLaunch" xml:space="preserve">
+    <value>Servidor de inicialização automática na inicialização</value>
+  </data>
+  <data name="DirectorySettingsAutoStartServerProfileLabel" xml:space="preserve">
+    <value>Perfil do servidor de inicialização automática</value>
+  </data>
+  <data name="DirectorySettingsFrpConfigButtonText" xml:space="preserve">
+    <value>Editar configuração</value>
+  </data>
+  <data name="DirectorySettingsImportFrpExecutableButtonText" xml:space="preserve">
+    <value>Importar executável FRP</value>
+  </data>
+  <data name="DirectorySettingsCustomFrpCommandLabel" xml:space="preserve">
+    <value>Comando FRP personalizado</value>
+  </data>
+  <data name="DirectorySettingsImportFrpExecutableDialogTitle" xml:space="preserve">
+    <value>Selecione o executável FRP</value>
+  </data>
+  <data name="DirectorySettingsImportFrpExecutableFilterName" xml:space="preserve">
+    <value>Executável FRP</value>
+  </data>
+  <data name="DirectorySettingsFrpConfigDialogTitle" xml:space="preserve">
+    <value>Editar configuração de FRP</value>
+  </data>
+  <data name="DirectorySettingsStatusFrpConfigCanceled" xml:space="preserve">
+    <value>Edição de configuração FRP cancelada.</value>
+  </data>
+  <data name="DirectorySettingsStatusFrpConfigSaved" xml:space="preserve">
+    <value>Configuração FRP salva.</value>
+  </data>
+  <data name="DirectorySettingsStatusFrpConfigSaveFailedFormat" xml:space="preserve">
+    <value>Falha ao salvar a configuração do FRP: {0}</value>
+  </data>
+  <data name="DirectorySettingsStatusFrpExecutableImportedFormat" xml:space="preserve">
+    <value>Executável FRP importado: {0}</value>
+  </data>
+  <data name="DirectorySettingsStatusFrpExecutableImportFailedFormat" xml:space="preserve">
+    <value>Falha ao importar o executável FRP: {0}</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcTitle" xml:space="preserve">
+    <value>FRPC de terceiros</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcDescription" xml:space="preserve">
+    <value>Para clientes FRPC independentes, como Sakura FRP. Você pode usar o modo de arquivo de configuração ou o modo somente comando.</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcAutoStart" xml:space="preserve">
+    <value>Iniciar automaticamente FRPC de terceiros no lançamento</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcImportButtonText" xml:space="preserve">
+    <value>Importar arquivo FRPC de terceiros</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcConfigButtonText" xml:space="preserve">
+    <value>Editar configuração</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcModeLabel" xml:space="preserve">
+    <value>Modo de inicialização</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcCommandLabel" xml:space="preserve">
+    <value>Comando de lançamento</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcImportDialogTitle" xml:space="preserve">
+    <value>Selecione arquivo FRPC de terceiros</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcImportFilterName" xml:space="preserve">
+    <value>Arquivo FRPC de terceiros</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcConfigDialogTitle" xml:space="preserve">
+    <value>Editar configuração de FRPC de terceiros</value>
+  </data>
+  <data name="DirectorySettingsStatusThirdPartyFrpcConfigModeOnly" xml:space="preserve">
+    <value>Esta ação está disponível apenas no modo de arquivo de configuração.</value>
+  </data>
+  <data name="DirectorySettingsStatusThirdPartyFrpcConfigCanceled" xml:space="preserve">
+    <value>Edição de configuração de terceiros cancelada.</value>
+  </data>
+  <data name="DirectorySettingsStatusThirdPartyFrpcConfigSaved" xml:space="preserve">
+    <value>Configuração de terceiros salva.</value>
+  </data>
+  <data name="DirectorySettingsStatusThirdPartyFrpcConfigSaveFailedFormat" xml:space="preserve">
+    <value>Falha ao salvar a configuração de terceiros: {0}</value>
+  </data>
+  <data name="DirectorySettingsStatusThirdPartyFrpcExecutableImportedFormat" xml:space="preserve">
+    <value>Arquivo FRPC de terceiros importado: {0}</value>
+  </data>
+  <data name="DirectorySettingsStatusThirdPartyFrpcExecutableImportFailedFormat" xml:space="preserve">
+    <value>Falha ao importar arquivo FRPC de terceiros: {0}</value>
+  </data>
+  <data name="DirectorySettingsSaveButtonText" xml:space="preserve">
+    <value>Salvar configurações</value>
+  </data>
+  <data name="ConfigImportDialogTitle" xml:space="preserve">
+    <value>Selecione o arquivo de configuração do servidor</value>
+  </data>
+  <data name="ConfigImportFilterName" xml:space="preserve">
+    <value>JSON de configuração do servidor</value>
+  </data>
+  <data name="ConfigStatusImportedFormat" xml:space="preserve">
+    <value>Configuração importada: {0}</value>
+  </data>
+  <data name="ConfigStatusImportFailedFormat" xml:space="preserve">
+    <value>Falha ao importar configuração: {0}</value>
+  </data>
+  <data name="DirectorySettingsResetButtonText" xml:space="preserve">
+    <value>Redefinir padrão</value>
+  </data>
+  <data name="TrayShowWindowText" xml:space="preserve">
+    <value>Mostrar janela</value>
+  </data>
+  <data name="TrayStartServerText" xml:space="preserve">
+    <value>Iniciar servidor</value>
+  </data>
+  <data name="TrayStopServerText" xml:space="preserve">
+    <value>Parar servidor</value>
+  </data>
+  <data name="TrayStartRobotText" xml:space="preserve">
+    <value>Inicie o QQ Bot</value>
+  </data>
+  <data name="TrayStopRobotText" xml:space="preserve">
+    <value>Pare o bot QQ</value>
+  </data>
+  <data name="TrayExitText" xml:space="preserve">
+    <value>Exit</value>
+  </data>
+  <data name="OverviewAuthMenuTitle" xml:space="preserve">
+    <value>Auth</value>
+  </data>
+  <data name="AuthProfileLabel" xml:space="preserve">
+    <value>Profile</value>
+  </data>
+  <data name="AuthModStateLabel" xml:space="preserve">
+    <value>Mod de autenticação</value>
+  </data>
+  <data name="AuthModStateEnabled" xml:space="preserve">
+    <value>Deployed</value>
+  </data>
+  <data name="AuthModStateMissing" xml:space="preserve">
+    <value>Missing</value>
+  </data>
+  <data name="AuthEnabledLabel" xml:space="preserve">
+    <value>Habilitar autenticação</value>
+  </data>
+  <data name="AuthLoginTimeoutLabel" xml:space="preserve">
+    <value>Tempo limite(s)</value>
+  </data>
+  <data name="AuthRememberMinutesLabel" xml:space="preserve">
+    <value>Lembre-se (min)</value>
+  </data>
+  <data name="AuthDiscourseEnabledLabel" xml:space="preserve">
+    <value>Modo Somente Discurso</value>
+  </data>
+  <data name="AuthDiscourseBaseUrlLabel" xml:space="preserve">
+    <value>URL base do discurso</value>
+  </data>
+  <data name="AuthDiscourseSecretLabel" xml:space="preserve">
+    <value>Segredo Compartilhado</value>
+  </data>
+  <data name="AuthDiscoursePublicCallbackLabel" xml:space="preserve">
+    <value>Base de retorno de chamada pública</value>
+  </data>
+  <data name="AuthDiscourseListenPrefixLabel" xml:space="preserve">
+    <value>Prefixo de escuta</value>
+  </data>
+  <data name="AuthPlayersHeaderName" xml:space="preserve">
+    <value>Player</value>
+  </data>
+  <data name="AuthPlayersHeaderRegistered" xml:space="preserve">
+    <value>Registered</value>
+  </data>
+  <data name="AuthPlayersHeaderLastLogin" xml:space="preserve">
+    <value>Último login</value>
+  </data>
+  <data name="AuthPlayersHeaderPassword" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="AuthPlayersHeaderDiscourse" xml:space="preserve">
+    <value>Discourse</value>
+  </data>
+  <data name="AuthPlayersHeaderAction" xml:space="preserve">
+    <value>Action</value>
+  </data>
+  <data name="AuthNoPlayersText" xml:space="preserve">
+    <value>Nenhum registro do player de autenticação.</value>
+  </data>
+  <data name="AuthClearPasswordButtonText" xml:space="preserve">
+    <value>Limpar senha</value>
+  </data>
+  <data name="AuthPasswordStateSet" xml:space="preserve">
+    <value>Set</value>
+  </data>
+  <data name="AuthPasswordStateEmpty" xml:space="preserve">
+    <value>Empty</value>
+  </data>
+  <data name="AuthPasswordStateResetRequired" xml:space="preserve">
+    <value>Redefinir obrigatório</value>
+  </data>
+  <data name="AuthStatusLoadedFormat" xml:space="preserve">
+    <value>Carregados {0} registros de jogador para {1}.</value>
+  </data>
+  <data name="AuthStatusLoadFailedFormat" xml:space="preserve">
+    <value>Falha ao carregar dados da central de autenticação: {0}</value>
+  </data>
+  <data name="AuthStatusSaved" xml:space="preserve">
+    <value>Configurações de autenticação salvas.</value>
+  </data>
+  <data name="AuthStatusSaveFailedFormat" xml:space="preserve">
+    <value>Falha ao salvar as configurações de autenticação: {0}</value>
+  </data>
+  <data name="AuthStatusSelectPlayerFirst" xml:space="preserve">
+    <value>Selecione um jogador primeiro.</value>
+  </data>
+  <data name="AuthStatusPasswordClearedFormat" xml:space="preserve">
+    <value>Senha apagada: {0}</value>
+  </data>
+  <data name="AuthStatusPlayerNotFoundFormat" xml:space="preserve">
+    <value>Jogador não encontrado: {0}</value>
+  </data>
+  <data name="AuthStatusClearPasswordFailedFormat" xml:space="preserve">
+    <value>Falha ao limpar a senha do jogador: {0}</value>
+  </data>
+  <data name="ModStatusSelectModsToDelete" xml:space="preserve">
+    <value>Selecione mod(s) para excluir.</value>
+  </data>
+  <data name="ModStatusDeletedFormat" xml:space="preserve">
+    <value>Excluídos {0} mod(s).</value>
+  </data>
+  <data name="ModStatusNoDeletes" xml:space="preserve">
+    <value>Nenhum mod foi excluído.</value>
+  </data>
+  <data name="ModStatusDeleteFailedFormat" xml:space="preserve">
+    <value>Falha ao excluir mod(s): {0}</value>
+  </data>
+  <data name="AutomationMenuTitle" xml:space="preserve">
+    <value>Automation</value>
+  </data>
+  <data name="AutomationTitle" xml:space="preserve">
+    <value>Automation</value>
+  </data>
+  <data name="AutomationDescription" xml:space="preserve">
+    <value>Agende janelas de reinicialização, mensagens de transmissão e exportações de log.</value>
+  </data>
+  <data name="AutomationTargetProfileLabel" xml:space="preserve">
+    <value>Perfil alvo</value>
+  </data>
+  <data name="AutomationRestartSectionTitle" xml:space="preserve">
+    <value>Reinicialização do servidor</value>
+  </data>
+  <data name="AutomationBackupSectionTitle" xml:space="preserve">
+    <value>Backup cronometrado</value>
+  </data>
+  <data name="AutomationBroadcastSectionTitle" xml:space="preserve">
+    <value>Broadcast</value>
+  </data>
+  <data name="AutomationExportSectionTitle" xml:space="preserve">
+    <value>Exportação de registros</value>
+  </data>
+  <data name="AutomationWarnMessageFormat" xml:space="preserve">
+    <value>O servidor será reiniciado ou encerrado em {0} minutos.</value>
+  </data>
+  <data name="AutomationBrowseFolderButtonText" xml:space="preserve">
+    <value>Navegar na pasta</value>
+  </data>
+  <data name="AutomationResetFolderButtonText" xml:space="preserve">
+    <value>Redefinir padrão</value>
+  </data>
+  <data name="AutomationSaveButtonText" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="AutomationExportBeforeShutdownLabel" xml:space="preserve">
+    <value>Exportar antes do desligamento</value>
+  </data>
+  <data name="AutomationBackupBeforeShutdownLabel" xml:space="preserve">
+    <value>Backup antes do desligamento</value>
+  </data>
+  <data name="AutomationExportIncludeChatLabel" xml:space="preserve">
+    <value>Incluir bate-papo do jogador</value>
+  </data>
+  <data name="AutomationExportIncludeServerLabel" xml:space="preserve">
+    <value>Incluir informações do servidor</value>
+  </data>
+  <data name="AutomationBackupHintText" xml:space="preserve">
+    <value>Faz backup do savegame ativo. Os servidores online usam /genbackup, os servidores offline copiam os vcdbs atuais.</value>
+  </data>
+</root>

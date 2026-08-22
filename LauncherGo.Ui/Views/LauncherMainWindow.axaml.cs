@@ -197,11 +197,7 @@ public partial class LauncherMainWindow : Window
         ("启动时自动启动网关", "Auto-start Gateway on launch")
     ];
 
-    private static readonly (string Code, string Zh, string En)[] AppearanceLanguageOptions =
-    [
-        ("zh-CN", "中文", "Chinese"),
-        ("en-US", "英文", "English")
-    ];
+    private static IReadOnlyList<SupportedLanguageOption> AppearanceLanguageOptions => SupportedLanguages.All;
 
     private static readonly (ThemeMode Mode, string Zh, string En)[] AppearanceThemeOptions =
     [
@@ -5951,14 +5947,13 @@ public partial class LauncherMainWindow : Window
             SettingsThemeLabelTextBlock.Text = T("主题", "Theme");
 
             SettingsLanguageComboBox.ItemsSource = AppearanceLanguageOptions
-                .Select(option => _isChinese ? option.Zh : option.En)
+                .Select(option => _isChinese ? option.ChineseName : option.NativeName)
                 .ToList();
             SettingsThemeComboBox.ItemsSource = AppearanceThemeOptions
                 .Select(option => _isChinese ? option.Zh : option.En)
                 .ToList();
 
-            SettingsLanguageComboBox.SelectedIndex =
-                preferences.Language.StartsWith("zh", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+            SettingsLanguageComboBox.SelectedIndex = SupportedLanguages.FindIndex(preferences.Language);
 
             var themeIndex = Array.FindIndex(AppearanceThemeOptions, option => option.Mode == preferences.ThemeMode);
             SettingsThemeComboBox.SelectedIndex = themeIndex >= 0 ? themeIndex : 0;
@@ -5977,7 +5972,7 @@ public partial class LauncherMainWindow : Window
         }
 
         var index = SettingsLanguageComboBox.SelectedIndex;
-        if (index < 0 || index >= AppearanceLanguageOptions.Length)
+        if (index < 0 || index >= AppearanceLanguageOptions.Count)
         {
             return;
         }

@@ -40,6 +40,34 @@ public sealed class LocalizationServiceTests
         Assert.Equal("zh-CN", service.CurrentCulture.Name);
     }
 
+    [Theory]
+    [InlineData("ru-RU", "Язык")]
+    [InlineData("de-DE", "Sprache")]
+    [InlineData("fr-FR", "Langue")]
+    [InlineData("es-ES", "Idioma")]
+    [InlineData("pl-PL", "Język")]
+    [InlineData("pt-BR", "Idioma")]
+    public void SupportsAdditionalLauncherLanguages(string languageCode, string expectedLanguageLabel)
+    {
+        using var cultureScope = new CultureScope();
+        var service = new LocalizationService();
+
+        Assert.True(service.SetLanguage(languageCode));
+        Assert.Equal(languageCode, service.CurrentCulture.Name);
+        Assert.Equal(expectedLanguageLabel, service.Resolve("语言", "Language"));
+        Assert.Equal(expectedLanguageLabel, service["LanguageButtonText"]);
+    }
+
+    [Fact]
+    public void UsesTranslatedResourceForAdditionalCulture()
+    {
+        using var cultureScope = new CultureScope();
+        var service = new LocalizationService();
+
+        Assert.True(service.SetLanguage("fr-FR"));
+        Assert.Equal("Informations sur le projet", service["AboutProjectInfoTitle"]);
+    }
+
     private sealed class CultureScope : IDisposable
     {
         private readonly CultureInfo _current = CultureInfo.CurrentCulture;

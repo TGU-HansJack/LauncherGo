@@ -12,10 +12,11 @@ every language file. A missing translation falls back to the invariant
 English resource and finally to the key, so a partial translation never
 produces an empty control.
 
-The application accepts `en-US` and `zh-CN` for the launcher language. The
-localization service maps `zh-CN` to the `zh-Hans` resource assembly. Adding a
-new language only requires adding another `Resources.<culture>.resx` file and
-including the culture in the appearance language list.
+The launcher supports `zh-CN`, `en-US`, `ru-RU`, `de-DE`, `fr-FR`, `es-ES`,
+`pl-PL`, and `pt-BR`. `zh-CN` uses the `zh-Hans` resource file; the other
+cultures use their matching `Resources.<culture>.resx` file. The language
+selector is defined once in `SupportedLanguages`, so adding another language
+keeps the first-launch and settings selectors in sync.
 
 Language changes are committed by `ILocalizationService.SetLanguage` and are
 published through `LanguageChanged` after the culture and resource lookup are

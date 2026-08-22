@@ -1,0 +1,1471 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!--Generated from Resources.en-us.resx; keep keys and format placeholders aligned.-->
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>1.3</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Greeting" xml:space="preserve">
+    <value>Привет, Авалония</value>
+  </data>
+  <data name="AppName" xml:space="preserve">
+    <value>Программа запуска сервера Vintage Story</value>
+  </data>
+  <data name="HomeMenuTitle" xml:space="preserve">
+    <value>Dashboard</value>
+  </data>
+  <data name="AboutMenuTitle" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="MenuSearchPlaceholder" xml:space="preserve">
+    <value>Поиск в меню...</value>
+  </data>
+  <data name="MenuAreaPlaceholder" xml:space="preserve">
+    <value>Подменю...</value>
+  </data>
+  <data name="ExitButtonText" xml:space="preserve">
+    <value>Exit</value>
+  </data>
+  <data name="LanguageButtonText" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="ThemesButtonText" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="LightThemeName" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="DarkThemeName" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="OverviewMenuTitle" xml:space="preserve">
+    <value>Dashboard</value>
+  </data>
+  <data name="ProjectInfoMenuTitle" xml:space="preserve">
+    <value>Информация о проекте</value>
+  </data>
+  <data name="WorkspaceMenuTitle" xml:space="preserve">
+    <value>Console</value>
+  </data>
+  <data name="BugReportMenuTitle" xml:space="preserve">
+    <value>Feedback</value>
+  </data>
+  <data name="InstanceMenuTitle" xml:space="preserve">
+    <value>Instance</value>
+  </data>
+  <data name="InstanceDownloadMenuTitle" xml:space="preserve">
+    <value>Download</value>
+  </data>
+  <data name="InstanceCreateMenuTitle" xml:space="preserve">
+    <value>Create</value>
+  </data>
+  <data name="InstanceManageMenuTitle" xml:space="preserve">
+    <value>Manage</value>
+  </data>
+  <data name="ConfigMenuTitle" xml:space="preserve">
+    <value>Config</value>
+  </data>
+  <data name="SaveMenuTitle" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="ModMenuTitle" xml:space="preserve">
+    <value>Mod</value>
+  </data>
+  <data name="RobotMenuTitle" xml:space="preserve">
+    <value>Robot</value>
+  </data>
+  <data name="RobotConfigMenuTitle" xml:space="preserve">
+    <value>Config</value>
+  </data>
+  <data name="RobotConsoleMenuTitle" xml:space="preserve">
+    <value>Console</value>
+  </data>
+  <data name="ZhLanguageOptionName" xml:space="preserve">
+    <value>Упрощенный китайский</value>
+  </data>
+  <data name="EnLanguageOptionName" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="AboutRepositoryButtonText" xml:space="preserve">
+    <value>Repository</value>
+  </data>
+  <data name="AboutCommunityButtonText" xml:space="preserve">
+    <value>Community</value>
+  </data>
+  <data name="AboutIssuesButtonText" xml:space="preserve">
+    <value>Проблемы с GitHub</value>
+  </data>
+  <data name="AboutProjectInfoTitle" xml:space="preserve">
+    <value>Информация о проекте</value>
+  </data>
+  <data name="AboutFeedbackText" xml:space="preserve">
+    <value>Обратная связь: https://vintagestory.top/ или проблемы с GitHub.</value>
+  </data>
+  <data name="AboutCurrentVersionLabel" xml:space="preserve">
+    <value>Текущая версия:</value>
+  </data>
+  <data name="AboutCheckUpdatesButtonText" xml:space="preserve">
+    <value>Проверить обновления</value>
+  </data>
+  <data name="AboutUpdateNowButtonText" xml:space="preserve">
+    <value>Обновить сейчас</value>
+  </data>
+  <data name="AboutUpdateStatusIdle" xml:space="preserve">
+    <value>Нажмите «Проверить обновления», чтобы получить последнюю версию.</value>
+  </data>
+  <data name="AboutUpdateStatusChecking" xml:space="preserve">
+    <value>Проверяем наличие обновлений...</value>
+  </data>
+  <data name="AboutUpdateStatusAvailableFormat" xml:space="preserve">
+    <value>Доступна новая версия: {0} (текущая {1}).</value>
+  </data>
+  <data name="AboutUpdateStatusLatestFormat" xml:space="preserve">
+    <value>Вы в курсе событий ({0}).</value>
+  </data>
+  <data name="AboutUpdateStatusFailedFormat" xml:space="preserve">
+    <value>Проверка обновлений не удалась: {0}</value>
+  </data>
+  <data name="CommonCreateButtonText" xml:space="preserve">
+    <value>Create</value>
+  </data>
+  <data name="CommonDeleteButtonText" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="CommonRefreshButtonText" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="CommonCancelButtonText" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="CommonSaveButtonText" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="CommonBrowseButtonText" xml:space="preserve">
+    <value>Browse</value>
+  </data>
+  <data name="CommonImportButtonText" xml:space="preserve">
+    <value>Import</value>
+  </data>
+  <data name="CommonStartButtonText" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="CommonStopButtonText" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="CommonClearButtonText" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="CommonFollowLabel" xml:space="preserve">
+    <value>Follow</value>
+  </data>
+  <data name="CommonExportButtonText" xml:space="preserve">
+    <value>Export</value>
+  </data>
+  <data name="CommonSearchTooltip" xml:space="preserve">
+    <value>Search</value>
+  </data>
+  <data name="CommonRunningState" xml:space="preserve">
+    <value>Running</value>
+  </data>
+  <data name="CommonStoppedState" xml:space="preserve">
+    <value>Stopped</value>
+  </data>
+  <data name="ConfigAdvancedJsonButtonText" xml:space="preserve">
+    <value>Расширенный JSON</value>
+  </data>
+  <data name="ConfigServerSectionTitle" xml:space="preserve">
+    <value>Основная информация</value>
+  </data>
+  <data name="ConfigServerNameLabel" xml:space="preserve">
+    <value>Имя сервера</value>
+  </data>
+  <data name="ConfigServerDescriptionLabel" xml:space="preserve">
+    <value>Описание сервера</value>
+  </data>
+  <data name="ConfigServerUrlLabel" xml:space="preserve">
+    <value>URL-адрес сервера</value>
+  </data>
+  <data name="ConfigNetworkPublicSectionTitle" xml:space="preserve">
+    <value>Сеть и листинг</value>
+  </data>
+  <data name="ConfigSecurityMaintenanceSectionTitle" xml:space="preserve">
+    <value>Безопасность и обслуживание</value>
+  </data>
+  <data name="ConfigIpLabel" xml:space="preserve">
+    <value>IP</value>
+  </data>
+  <data name="ConfigPortLabel" xml:space="preserve">
+    <value>Port</value>
+  </data>
+  <data name="ConfigMaxPlayersLabel" xml:space="preserve">
+    <value>Максимальное количество игроков</value>
+  </data>
+  <data name="ConfigMaxClientsInQueueLabel" xml:space="preserve">
+    <value>Ограничение очереди</value>
+  </data>
+  <data name="ConfigPasswordLabel" xml:space="preserve">
+    <value>Пароль для входа</value>
+  </data>
+  <data name="ConfigPasswordHintText" xml:space="preserve">
+    <value>Игрокам, использующим пароли, необходимо присоединиться к серверу. Оставьте пустым, если пароль отсутствует.</value>
+  </data>
+  <data name="ConfigWhitelistModeLabel" xml:space="preserve">
+    <value>Режим белого списка</value>
+  </data>
+  <data name="ConfigAdvertiseServerLabel" xml:space="preserve">
+    <value>Список в браузере общедоступного сервера</value>
+  </data>
+  <data name="ConfigUpnpLabel" xml:space="preserve">
+    <value>Включить сопоставление портов UPnP</value>
+  </data>
+  <data name="ConfigAllowPvpLabel" xml:space="preserve">
+    <value>Разрешить PvP</value>
+  </data>
+  <data name="ConfigAllowFireSpreadLabel" xml:space="preserve">
+    <value>Разрешить распространение огня</value>
+  </data>
+  <data name="ConfigAllowFallingBlocksLabel" xml:space="preserve">
+    <value>Разрешить падающие блоки</value>
+  </data>
+  <data name="ConfigPassTimeWhenEmptyLabel" xml:space="preserve">
+    <value>Пропустить время, когда оно пусто</value>
+  </data>
+  <data name="ConfigWarnAfkSecondsLabel" xml:space="preserve">
+    <value>Секунды предупреждения AFK</value>
+  </data>
+  <data name="ConfigKickAfkSecondsLabel" xml:space="preserve">
+    <value>АФК Кик Секунды</value>
+  </data>
+  <data name="ConfigClientConnectionTimeoutLabel" xml:space="preserve">
+    <value>Таймаут соединения (секунды)</value>
+  </data>
+  <data name="ConfigMaxChunkRadiusLabel" xml:space="preserve">
+    <value>Макс. радиус просмотра фрагментов</value>
+  </data>
+  <data name="ConfigDieBelowDiskSpaceMbLabel" xml:space="preserve">
+    <value>Выключение ниже дискового пространства (МБ)</value>
+  </data>
+  <data name="ConfigCorruptionProtectionLabel" xml:space="preserve">
+    <value>Включить защиту от коррупции</value>
+  </data>
+  <data name="ConfigRegenerateCorruptChunksLabel" xml:space="preserve">
+    <value>Регенерировать поврежденные куски</value>
+  </data>
+  <data name="ConfigStartupCommandsLabel" xml:space="preserve">
+    <value>Команды запуска</value>
+  </data>
+  <data name="ConfigVerifyPlayerAuthLabel" xml:space="preserve">
+    <value>Включить официальную аутентификацию</value>
+  </data>
+  <data name="ConfigServerLanguageLabel" xml:space="preserve">
+    <value>Язык сервера</value>
+  </data>
+  <data name="ConfigDefaultRoleCodeLabel" xml:space="preserve">
+    <value>Код роли по умолчанию</value>
+  </data>
+  <data name="ConfigWelcomeMessageLabel" xml:space="preserve">
+    <value>Приветственное сообщение</value>
+  </data>
+  <data name="ConfigWorldSectionTitle" xml:space="preserve">
+    <value>World</value>
+  </data>
+  <data name="ConfigSeedLabel" xml:space="preserve">
+    <value>Seed</value>
+  </data>
+  <data name="ConfigWorldNameLabel" xml:space="preserve">
+    <value>Мировое имя</value>
+  </data>
+  <data name="ConfigSaveFileLabel" xml:space="preserve">
+    <value>Сохранить файл</value>
+  </data>
+  <data name="ConfigPlayStyleLabel" xml:space="preserve">
+    <value>Стиль игры</value>
+  </data>
+  <data name="ConfigWorldTypeLabel" xml:space="preserve">
+    <value>Тип мира</value>
+  </data>
+  <data name="ConfigWorldHeightLabel" xml:space="preserve">
+    <value>Мировая высота</value>
+  </data>
+  <data name="ConfigWorldRulesSectionTitle" xml:space="preserve">
+    <value>Мировые правила</value>
+  </data>
+  <data name="ConfigSaveFilePlaceholder" xml:space="preserve">
+    <value>Выберите файл сохранения</value>
+  </data>
+  <data name="ConfigPlayStylePlaceholder" xml:space="preserve">
+    <value>Выберите стиль игры</value>
+  </data>
+  <data name="ConfigWorldTypePlaceholder" xml:space="preserve">
+    <value>Выберите тип мира</value>
+  </data>
+  <data name="ConfigWorldGeneratedLockNotice" xml:space="preserve">
+    <value>В этом сохранении уже есть сгенерированный мир: начальное число, стиль игры, тип мира, высота мира и правила только создания мира (например, ширина/длина мира) заблокированы.</value>
+  </data>
+  <data name="ConfigServerImagesSectionTitle" xml:space="preserve">
+    <value>Изображения сервера</value>
+  </data>
+  <data name="ConfigServerImagesRootLabel" xml:space="preserve">
+    <value>Папка изображений</value>
+  </data>
+  <data name="ConfigServerImagesCoverTitle" xml:space="preserve">
+    <value>Обложка</value>
+  </data>
+  <data name="ConfigServerImagesShowcaseTitle" xml:space="preserve">
+    <value>Изображения для витрины</value>
+  </data>
+  <data name="ConfigServerImagesShowcaseHintText" xml:space="preserve">
+    <value>Нажмите на элемент, чтобы просмотреть его.</value>
+  </data>
+  <data name="ConfigServerImagesNoShowcaseText" xml:space="preserve">
+    <value>Витринных изображений пока нет.</value>
+  </data>
+  <data name="ConfigServerImagesNoCoverText" xml:space="preserve">
+    <value>Обложки пока нет.</value>
+  </data>
+  <data name="ConfigServerImagesPreviewButtonText" xml:space="preserve">
+    <value>Preview</value>
+  </data>
+  <data name="ConfigServerImagesAddButtonText" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="ConfigImageBrowseDialogTitle" xml:space="preserve">
+    <value>Выберите изображение</value>
+  </data>
+  <data name="ConfigImageBrowseFilterName" xml:space="preserve">
+    <value>Файлы изображений</value>
+  </data>
+  <data name="ConfigImageImportFolderDialogTitle" xml:space="preserve">
+    <value>Выберите папку с изображениями</value>
+  </data>
+  <data name="ConfigImagePreviewDialogTitleFormat" xml:space="preserve">
+    <value>Предварительный просмотр: {0}</value>
+  </data>
+  <data name="ConfigImageStatusSelectedImportFileFormat" xml:space="preserve">
+    <value>Выбранное изображение: {0}</value>
+  </data>
+  <data name="ConfigImageStatusCoverImportedFormat" xml:space="preserve">
+    <value>Импортировано изображение обложки: {0}</value>
+  </data>
+  <data name="ConfigImageStatusCoverDeleted" xml:space="preserve">
+    <value>Обложка удалена.</value>
+  </data>
+  <data name="ConfigImageStatusShowcaseAddedFormat" xml:space="preserve">
+    <value>Добавлено изображение для демонстрации: {0}</value>
+  </data>
+  <data name="ConfigImageStatusShowcaseImportedFormat" xml:space="preserve">
+    <value>Импортированы изображения витрин ({0}).</value>
+  </data>
+  <data name="ConfigImageStatusShowcaseDeletedFormat" xml:space="preserve">
+    <value>Изображение витрины удалено: {0}</value>
+  </data>
+  <data name="ConfigImageStatusNoImportFiles" xml:space="preserve">
+    <value>В выбранной папке не найдены файлы изображений.</value>
+  </data>
+  <data name="ConfigImageStatusSelectShowcaseFirst" xml:space="preserve">
+    <value>Сначала выберите изображение для витрины.</value>
+  </data>
+  <data name="ConfigImageStatusSelectFileFirst" xml:space="preserve">
+    <value>Пожалуйста, сначала выберите файл изображения.</value>
+  </data>
+  <data name="ConfigImageStatusFileNotFound" xml:space="preserve">
+    <value>Файл изображения не существует.</value>
+  </data>
+  <data name="ConfigImageStatusUnsupportedFormat" xml:space="preserve">
+    <value>Поддерживаются только изображения в формате PNG/jpg/jpeg/webp/gif/bmp.</value>
+  </data>
+  <data name="ConfigImageStatusPreviewFailedFormat" xml:space="preserve">
+    <value>Не удалось просмотреть изображение: {0}</value>
+  </data>
+  <data name="ConfigNoProfileText" xml:space="preserve">
+    <value>Профиль не найден. Пожалуйста, сначала создайте его.</value>
+  </data>
+  <data name="ConfigAdvancedJsonDialogTitle" xml:space="preserve">
+    <value>Редактировать расширенный JSON</value>
+  </data>
+  <data name="ConfigStatusSaved" xml:space="preserve">
+    <value>Конфигурация сохранена.</value>
+  </data>
+  <data name="ConfigStatusSaveFailedFormat" xml:space="preserve">
+    <value>Не удалось сохранить конфигурацию: {0}</value>
+  </data>
+  <data name="ConfigStatusAdvancedJsonCanceled" xml:space="preserve">
+    <value>Расширенное редактирование JSON отменено.</value>
+  </data>
+  <data name="ConfigStatusAdvancedJsonSaved" xml:space="preserve">
+    <value>Расширенный JSON сохранен.</value>
+  </data>
+  <data name="ConfigStatusAdvancedJsonSaveFailedFormat" xml:space="preserve">
+    <value>Не удалось сохранить расширенный JSON: {0}.</value>
+  </data>
+  <data name="ConfigStatusLoadedProfileConfigFormat" xml:space="preserve">
+    <value>Загруженная конфигурация: {0}</value>
+  </data>
+  <data name="ConfigStatusLoadFailedFormat" xml:space="preserve">
+    <value>Не удалось загрузить конфигурацию: {0}.</value>
+  </data>
+  <data name="StatusSelectProfileFirst" xml:space="preserve">
+    <value>Пожалуйста, сначала выберите профиль.</value>
+  </data>
+  <data name="StatusNoProfileCreateFirst" xml:space="preserve">
+    <value>Профиль не найден. Сначала создайте его в Instance/Create.</value>
+  </data>
+  <data name="StatusLoadedProfilesFormat" xml:space="preserve">
+    <value>Загружено профилей: {0}.</value>
+  </data>
+  <data name="StatusRefreshProfilesFailedFormat" xml:space="preserve">
+    <value>Не удалось обновить профили: {0}</value>
+  </data>
+  <data name="InstanceCreateVersionTooltip" xml:space="preserve">
+    <value>Установленные версии, обнаруженные из пакетов (vs_server_win-x64_*.zip)</value>
+  </data>
+  <data name="InstanceCreateNameWatermark" xml:space="preserve">
+    <value>Имя профиля</value>
+  </data>
+  <data name="InstanceCreateHeaderName" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="InstanceCreateHeaderVersion" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="InstanceCreateHeaderDirectory" xml:space="preserve">
+    <value>Directory</value>
+  </data>
+  <data name="InstanceCreateHeaderTime" xml:space="preserve">
+    <value>Время создания</value>
+  </data>
+  <data name="InstanceCreateNoProfilesText" xml:space="preserve">
+    <value>Профилей пока нет.</value>
+  </data>
+  <data name="InstanceCreateImportButtonText" xml:space="preserve">
+    <value>Импортировать существующие</value>
+  </data>
+  <data name="InstanceCreateDeleteRegistrationButtonText" xml:space="preserve">
+    <value>Удалить регистрацию</value>
+  </data>
+  <data name="InstanceCreateDeleteDataButtonText" xml:space="preserve">
+    <value>Удалить профиль + данные</value>
+  </data>
+  <data name="InstanceCreateImportPickerTitle" xml:space="preserve">
+    <value>Выберите каталог профиля в разделе «Рабочая область/данные».</value>
+  </data>
+  <data name="InstanceCreateImportConfirmTitle" xml:space="preserve">
+    <value>Подтвердить импорт профиля</value>
+  </data>
+  <data name="InstanceCreateImportConfirmMessage" xml:space="preserve">
+    <value>При этом каталог регистрируется только в Profiles.json. Он не будет копировать файлы или захватывать другие каталоги.</value>
+  </data>
+  <data name="InstanceCreateImportConfirmButtonText" xml:space="preserve">
+    <value>Import</value>
+  </data>
+  <data name="InstanceCreateDeleteRegistrationConfirmTitle" xml:space="preserve">
+    <value>Подтвердить удаление регистрации</value>
+  </data>
+  <data name="InstanceCreateDeleteRegistrationConfirmHint" xml:space="preserve">
+    <value>При этом будет удалена только регистрация Profiles.json. Никакие физические файлы не будут удалены.</value>
+  </data>
+  <data name="InstanceCreateDeleteDataConfirmTitle" xml:space="preserve">
+    <value>Подтвердить удаление профиля и данных</value>
+  </data>
+  <data name="InstanceCreateDeleteDataConfirmHint" xml:space="preserve">
+    <value>При этом регистрация и каталог данных, принадлежащий профилю, удаляются. Подтвердите реальные целевые пути ниже.</value>
+  </data>
+  <data name="InstanceCreatePreviewNameFormat" xml:space="preserve">
+    <value>Профиль: {0}</value>
+  </data>
+  <data name="InstanceCreatePreviewVersionFormat" xml:space="preserve">
+    <value>Версия сервера: {0}</value>
+  </data>
+  <data name="InstanceCreatePreviewDataDirectoryFormat" xml:space="preserve">
+    <value>Каталог данных: {0}</value>
+  </data>
+  <data name="InstanceCreatePreviewSaveDirectoryFormat" xml:space="preserve">
+    <value>Каталог сохранения: {0}</value>
+  </data>
+  <data name="InstanceCreatePreviewActiveSaveFormat" xml:space="preserve">
+    <value>Активное сохранение: {0}</value>
+  </data>
+  <data name="InstanceCreatePreviewSaveStateFormat" xml:space="preserve">
+    <value>Сохранить состояние: {0}</value>
+  </data>
+  <data name="InstanceCreateImportSaveExistsText" xml:space="preserve">
+    <value>Found</value>
+  </data>
+  <data name="InstanceCreateImportSaveMissingText" xml:space="preserve">
+    <value>Пока не найден; сервер создаст его при запуске</value>
+  </data>
+  <data name="InstanceCreateStatusEnterProfileName" xml:space="preserve">
+    <value>Пожалуйста, введите имя профиля.</value>
+  </data>
+  <data name="InstanceCreateStatusSelectVersionFirst" xml:space="preserve">
+    <value>Сначала выберите версию сервера.</value>
+  </data>
+  <data name="InstanceCreateStatusProfileCreatedFormat" xml:space="preserve">
+    <value>Профиль создан: {0}</value>
+  </data>
+  <data name="InstanceCreateStatusCreateFailedFormat" xml:space="preserve">
+    <value>Не удалось создать профиль: {0}</value>
+  </data>
+  <data name="InstanceCreateStatusSelectProfilesToDelete" xml:space="preserve">
+    <value>Пожалуйста, выберите профиль(и) для удаления.</value>
+  </data>
+  <data name="InstanceCreateStatusRemovedProfilesFormat" xml:space="preserve">
+    <value>Удалены регистрации профиля ({0}). Физические файлы сохранились.</value>
+  </data>
+  <data name="InstanceCreateStatusDeletedProfilesAndDataFormat" xml:space="preserve">
+    <value>Удалены регистрации профиля ({0}) и принадлежащие ему данные.</value>
+  </data>
+  <data name="InstanceCreateStatusNoProfilesDeleted" xml:space="preserve">
+    <value>Ни один профиль не был удален.</value>
+  </data>
+  <data name="InstanceCreateStatusDeleteFailedFormat" xml:space="preserve">
+    <value>Не удалось удалить профили: {0}.</value>
+  </data>
+  <data name="InstanceCreateStatusDeleteCanceled" xml:space="preserve">
+    <value>Удаление отменено.</value>
+  </data>
+  <data name="InstanceCreateStatusImportCanceled" xml:space="preserve">
+    <value>Импорт отменен.</value>
+  </data>
+  <data name="InstanceCreateStatusImportInvalidFormat" xml:space="preserve">
+    <value>Невозможно импортировать: {0}</value>
+  </data>
+  <data name="InstanceCreateStatusImportedProfileFormat" xml:space="preserve">
+    <value>Импортированный профиль: {0}</value>
+  </data>
+  <data name="InstanceCreateStatusImportFailedFormat" xml:space="preserve">
+    <value>Не удалось импортировать профиль: {0}</value>
+  </data>
+  <data name="InstanceCreateStatusNoVersionsFound" xml:space="preserve">
+    <value>В пакетах не обнаружено установленных версий серверов.</value>
+  </data>
+  <data name="InstanceCreateStatusDetectedVersionsFormat" xml:space="preserve">
+    <value>Обнаружено {0} установленных версий сервера.</value>
+  </data>
+  <data name="InstanceCreateStatusDefaultWorkspaceFormat" xml:space="preserve">
+    <value>Рабочая область: {0}</value>
+  </data>
+  <data name="InstanceDownloadShowDownloadedOnlyLabel" xml:space="preserve">
+    <value>Только скачанные</value>
+  </data>
+  <data name="InstanceDownloadSearchWatermark" xml:space="preserve">
+    <value>Поиск версии или имени файла</value>
+  </data>
+  <data name="InstanceDownloadHeaderVersion" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="InstanceDownloadHeaderPlatform" xml:space="preserve">
+    <value>Platform</value>
+  </data>
+  <data name="InstanceDownloadHeaderSize" xml:space="preserve">
+    <value>Size</value>
+  </data>
+  <data name="InstanceDownloadHeaderFilePath" xml:space="preserve">
+    <value>Путь к файлу</value>
+  </data>
+  <data name="InstanceDownloadHeaderAction" xml:space="preserve">
+    <value>Action</value>
+  </data>
+  <data name="InstanceDownloadNoContentText" xml:space="preserve">
+    <value>Нет загружаемых серверных пакетов.</value>
+  </data>
+  <data name="InstanceDownloadStatusDownloadingFormat" xml:space="preserve">
+    <value>Загрузка {0}...</value>
+  </data>
+  <data name="InstanceDownloadStatusCompletedFormat" xml:space="preserve">
+    <value>Загрузка завершена: {0}</value>
+  </data>
+  <data name="InstanceDownloadStatusFailedSimpleFormat" xml:space="preserve">
+    <value>Загрузка не удалась: {0}</value>
+  </data>
+  <data name="InstanceDownloadStatusFailedFormat" xml:space="preserve">
+    <value>Загрузка не удалась ({0}): {1}</value>
+  </data>
+  <data name="InstanceDownloadStatusLoadingList" xml:space="preserve">
+    <value>Загрузка списка версий сервера...</value>
+  </data>
+  <data name="InstanceDownloadStatusNoEntries" xml:space="preserve">
+    <value>Записи не найдены.</value>
+  </data>
+  <data name="InstanceDownloadStatusLoadedEntriesFormat" xml:space="preserve">
+    <value>Загружено записей: {0}. Каталог загрузки: {1}</value>
+  </data>
+  <data name="InstanceDownloadStatusLoadFailedFormat" xml:space="preserve">
+    <value>Не удалось загрузить список загрузок: {0}.</value>
+  </data>
+  <data name="InstanceDownloadImportDialogTitle" xml:space="preserve">
+    <value>Выберите серверный пакет</value>
+  </data>
+  <data name="InstanceDownloadImportFilterName" xml:space="preserve">
+    <value>Серверный пакет</value>
+  </data>
+  <data name="InstanceDownloadStatusImportingFormat" xml:space="preserve">
+    <value>Импорт: {0}</value>
+  </data>
+  <data name="InstanceDownloadStatusImportedFormat" xml:space="preserve">
+    <value>Импорт завершен: {0}</value>
+  </data>
+  <data name="InstanceDownloadStatusImportFailedFormat" xml:space="preserve">
+    <value>Не удалось импортировать: {0}</value>
+  </data>
+  <data name="SaveNameWatermark" xml:space="preserve">
+    <value>Сохранить имя</value>
+  </data>
+  <data name="SaveCurrentProfileVersionFormat" xml:space="preserve">
+    <value>Текущая версия профиля: {0}</value>
+  </data>
+  <data name="SaveHeaderName" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="SaveHeaderDirectory" xml:space="preserve">
+    <value>Directory</value>
+  </data>
+  <data name="SaveHeaderSize" xml:space="preserve">
+    <value>Size</value>
+  </data>
+  <data name="SaveHeaderTime" xml:space="preserve">
+    <value>Time</value>
+  </data>
+  <data name="SaveHeaderCurrent" xml:space="preserve">
+    <value>Current</value>
+  </data>
+  <data name="SaveHeaderAction" xml:space="preserve">
+    <value>Action</value>
+  </data>
+  <data name="SaveSetActiveButtonText" xml:space="preserve">
+    <value>Use</value>
+  </data>
+  <data name="SaveNoSavesText" xml:space="preserve">
+    <value>Сохранений пока нет.</value>
+  </data>
+  <data name="SaveStatusCreatedFormat" xml:space="preserve">
+    <value>Сохранение создано: {0}</value>
+  </data>
+  <data name="SaveStatusCreateFailedFormat" xml:space="preserve">
+    <value>Не удалось создать сохранение: {0}</value>
+  </data>
+  <data name="SaveStatusSelectSavesToDelete" xml:space="preserve">
+    <value>Пожалуйста, выберите сохранения для удаления.</value>
+  </data>
+  <data name="SaveStatusDeletedFormat" xml:space="preserve">
+    <value>Удалены сохранения: {0}.</value>
+  </data>
+  <data name="SaveStatusNoDeletes" xml:space="preserve">
+    <value>Никакие сохранения не удалялись.</value>
+  </data>
+  <data name="SaveStatusDeleteFailedFormat" xml:space="preserve">
+    <value>Не удалось удалить сохранения: {0}</value>
+  </data>
+  <data name="SaveStatusSetActiveFormat" xml:space="preserve">
+    <value>Активный набор сохранений: {0}</value>
+  </data>
+  <data name="SaveStatusSetActiveFailedFormat" xml:space="preserve">
+    <value>Не удалось установить активное сохранение: {0}.</value>
+  </data>
+  <data name="SaveStatusSetActiveOutOfProfileDenied" xml:space="preserve">
+    <value>Отказано: это сохранение не находится в текущем каталоге профиля.</value>
+  </data>
+  <data name="SaveStatusLoadedFormat" xml:space="preserve">
+    <value>Загружено сохранений: {0} для версии {1}.</value>
+  </data>
+  <data name="SaveStatusLoadFailedFormat" xml:space="preserve">
+    <value>Не удалось загрузить сохранения: {0}</value>
+  </data>
+  <data name="SaveStatusDirectoryNotFound" xml:space="preserve">
+    <value>Файл сохранения не существует.</value>
+  </data>
+  <data name="SaveStatusOpenDirectoryFailedFormat" xml:space="preserve">
+    <value>Не удалось открыть место сохранения: {0}.</value>
+  </data>
+  <data name="ModZipPathWatermark" xml:space="preserve">
+    <value>Почтовый путь мода</value>
+  </data>
+  <data name="ModBrowseDialogTitle" xml:space="preserve">
+    <value>Выберите мод ZIP</value>
+  </data>
+  <data name="ModBrowseFilterName" xml:space="preserve">
+    <value>ZIP-файл мода</value>
+  </data>
+  <data name="ModHeaderModId" xml:space="preserve">
+    <value>Идентификатор мода</value>
+  </data>
+  <data name="ModHeaderVersion" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="ModHeaderStatus" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="ModHeaderDependencies" xml:space="preserve">
+    <value>Dependencies</value>
+  </data>
+  <data name="ModHeaderDependencyCheck" xml:space="preserve">
+    <value>Проверка зависимостей</value>
+  </data>
+  <data name="ModHeaderPath" xml:space="preserve">
+    <value>Path</value>
+  </data>
+  <data name="ModHeaderAction" xml:space="preserve">
+    <value>Action</value>
+  </data>
+  <data name="ModToggleButtonText" xml:space="preserve">
+    <value>Toggle</value>
+  </data>
+  <data name="ModNoModsText" xml:space="preserve">
+    <value>Модов не найдено.</value>
+  </data>
+  <data name="ModEnabledLabel" xml:space="preserve">
+    <value>Enabled</value>
+  </data>
+  <data name="ModDisabledLabel" xml:space="preserve">
+    <value>Disabled</value>
+  </data>
+  <data name="ModStatusEnterZipPath" xml:space="preserve">
+    <value>Пожалуйста, введите путь к почтовому индексу мода.</value>
+  </data>
+  <data name="ModStatusImportedFormat" xml:space="preserve">
+    <value>Мод импортирован: {0} ({1})</value>
+  </data>
+  <data name="ModStatusImportFailedFormat" xml:space="preserve">
+    <value>Не удалось импортировать мод: {0}</value>
+  </data>
+  <data name="ModStatusToggledFormat" xml:space="preserve">
+    <value>Мод {0} переключился на {1}.</value>
+  </data>
+  <data name="ModStatusToggleFailedFormat" xml:space="preserve">
+    <value>Не удалось переключить статус мода: {0}</value>
+  </data>
+  <data name="ModStatusLoadedFormat" xml:space="preserve">
+    <value>Загружено модов: {0}.</value>
+  </data>
+  <data name="ModStatusLoadFailedFormat" xml:space="preserve">
+    <value>Не удалось загрузить моды: {0}</value>
+  </data>
+  <data name="RobotOneBotWsLabel" xml:space="preserve">
+    <value>OneBot WebSocket</value>
+  </data>
+  <data name="RobotAccessTokenLabel" xml:space="preserve">
+    <value>Токен доступа</value>
+  </data>
+  <data name="RobotReconnectIntervalLabel" xml:space="preserve">
+    <value>Интервал повторного подключения (с)</value>
+  </data>
+  <data name="RobotDatabasePathLabel" xml:space="preserve">
+    <value>Путь к базе данных</value>
+  </data>
+  <data name="RobotPollingIntervalLabel" xml:space="preserve">
+    <value>Интервал опроса (с)</value>
+  </data>
+  <data name="RobotDefaultEncodingLabel" xml:space="preserve">
+    <value>Кодировка по умолчанию</value>
+  </data>
+  <data name="RobotFallbackEncodingLabel" xml:space="preserve">
+    <value>Резервное кодирование</value>
+  </data>
+  <data name="RobotSuperUsersLabel" xml:space="preserve">
+    <value>Суперадминистраторы (по одному на строку)</value>
+  </data>
+  <data name="RobotOwnersLabel" xml:space="preserve">
+    <value>Привязки владельца (по одной на строку: хост/ip QQ)</value>
+  </data>
+  <data name="RobotOsqPollIntervalLabel" xml:space="preserve">
+    <value>Интервал опроса OSQ (с)</value>
+  </data>
+  <data name="RobotOsqRequestTimeoutLabel" xml:space="preserve">
+    <value>Тайм-аут запроса OSQ (с)</value>
+  </data>
+  <data name="RobotOsqAllowInsecureHttpLabel" xml:space="preserve">
+    <value>Разрешить HTTP OSQ</value>
+  </data>
+  <data name="RobotOsqListenPrefixLabel" xml:space="preserve">
+    <value>Префикс прослушивания OSQ</value>
+  </data>
+  <data name="RobotConfigStatusLoaded" xml:space="preserve">
+    <value>Конфигурация робота загружена.</value>
+  </data>
+  <data name="RobotConfigStatusLoadFailedFormat" xml:space="preserve">
+    <value>Не удалось загрузить конфигурацию робота: {0}.</value>
+  </data>
+  <data name="RobotConfigStatusSaved" xml:space="preserve">
+    <value>Конфигурация робота сохранена.</value>
+  </data>
+  <data name="RobotConfigStatusSaveFailedFormat" xml:space="preserve">
+    <value>Не удалось сохранить конфигурацию робота: {0}</value>
+  </data>
+  <data name="RobotConsoleRuntimeRunningFormat" xml:space="preserve">
+    <value>Выполняется (WS: {0}, Начато: {1})</value>
+  </data>
+  <data name="RobotConsoleStatusRefreshFailedFormat" xml:space="preserve">
+    <value>Не удалось обновить консоль робота: {0}</value>
+  </data>
+  <data name="RobotConsoleStatusStarted" xml:space="preserve">
+    <value>Робот запустился.</value>
+  </data>
+  <data name="RobotConsoleStatusStartFailedFormat" xml:space="preserve">
+    <value>Не удалось запустить робота: {0}</value>
+  </data>
+  <data name="RobotConsoleStatusStopped" xml:space="preserve">
+    <value>Робот остановился.</value>
+  </data>
+  <data name="RobotConsoleStatusStopFailedFormat" xml:space="preserve">
+    <value>Не удалось остановить робота: {0}</value>
+  </data>
+  <data name="RobotConsoleStatusCleared" xml:space="preserve">
+    <value>Журнал консоли робота очищен.</value>
+  </data>
+  <data name="WorkspaceStartServerButtonText" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="WorkspaceStopServerButtonText" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="WorkspaceRefreshProfilesButtonText" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="WorkspaceSendCommandButtonText" xml:space="preserve">
+    <value>Send</value>
+  </data>
+  <data name="WorkspaceQuickVersionLabel" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="WorkspaceQuickNameLabel" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="WorkspaceQuickNameWatermark" xml:space="preserve">
+    <value>Оставьте пустым для автоматического имени</value>
+  </data>
+  <data name="WorkspaceQuickCreateAndStartButtonText" xml:space="preserve">
+    <value>Создать и начать</value>
+  </data>
+  <data name="WorkspaceStartFrpButtonText" xml:space="preserve">
+    <value>Запустить ФРП</value>
+  </data>
+  <data name="WorkspaceStopFrpButtonText" xml:space="preserve">
+    <value>Остановить ФРП</value>
+  </data>
+  <data name="WorkspaceQuickNoVersionText" xml:space="preserve">
+    <value>Сначала загрузите версию сервера в разделе «Экземпляр/Загрузка».</value>
+  </data>
+  <data name="WorkspaceQuickNoProfileTip" xml:space="preserve">
+    <value>Профиля пока нет. Используйте быстрое создание выше.</value>
+  </data>
+  <data name="WorkspaceQuickCreatingText" xml:space="preserve">
+    <value>Создание профиля и запуск сервера...</value>
+  </data>
+  <data name="WorkspaceQuickCreatedFormat" xml:space="preserve">
+    <value>Профиль создан: {0}</value>
+  </data>
+  <data name="WorkspaceQuickCreateFailedFormat" xml:space="preserve">
+    <value>Не удалось создать и запустить: {0}</value>
+  </data>
+  <data name="WorkspaceQuickDefaultProfileNameFormat" xml:space="preserve">
+    <value>Сервер-{0:yyyyMMdd-HHmm}</value>
+  </data>
+  <data name="WorkspaceQuickCommandsAddButtonText" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="WorkspaceQuickCommandsDialogTitle" xml:space="preserve">
+    <value>Управление быстрыми командами</value>
+  </data>
+  <data name="ConsoleNoOutputText" xml:space="preserve">
+    <value>Выхода пока нет.</value>
+  </data>
+  <data name="WorkspaceRuntimeRunningFormat" xml:space="preserve">
+    <value>Выполняется (PID: {0}, Игроки: {1}, Начато: {2})</value>
+  </data>
+  <data name="WorkspaceRuntimeReadOnlySuffix" xml:space="preserve">
+    <value>(управление только для чтения)</value>
+  </data>
+  <data name="WorkspaceControlReadyText" xml:space="preserve">
+    <value>Канал управления подключен.</value>
+  </data>
+  <data name="WorkspaceControlReadOnlyText" xml:space="preserve">
+    <value>Было прикреплено только состояние времени выполнения; ввод команды недоступен до тех пор, пока сервер не будет перезапущен этой версией LauncherGo.</value>
+  </data>
+  <data name="WorkspaceStartupProgressFormat" xml:space="preserve">
+    <value>Прогресс запуска: {0:0}%</value>
+  </data>
+  <data name="WorkspaceStatusStarting" xml:space="preserve">
+    <value>Запускаем сервер...</value>
+  </data>
+  <data name="WorkspaceStatusStarted" xml:space="preserve">
+    <value>Сервер запущен.</value>
+  </data>
+  <data name="WorkspaceStatusStartFailedFormat" xml:space="preserve">
+    <value>Не удалось запустить сервер: {0}</value>
+  </data>
+  <data name="WorkspaceStatusStopping" xml:space="preserve">
+    <value>Остановка сервера...</value>
+  </data>
+  <data name="WorkspaceStatusStopped" xml:space="preserve">
+    <value>Сервер остановлен.</value>
+  </data>
+  <data name="WorkspaceStatusStopFailedFormat" xml:space="preserve">
+    <value>Не удалось остановить сервер: {0}</value>
+  </data>
+  <data name="WorkspaceStatusFrpAlreadyRunning" xml:space="preserve">
+    <value>FRP уже работает.</value>
+  </data>
+  <data name="WorkspaceStatusFrpAlreadyStopped" xml:space="preserve">
+    <value>FRP не работает.</value>
+  </data>
+  <data name="WorkspaceStatusFrpStarted" xml:space="preserve">
+    <value>ФРП запустился.</value>
+  </data>
+  <data name="WorkspaceStatusFrpStopped" xml:space="preserve">
+    <value>ФРП остановился.</value>
+  </data>
+  <data name="WorkspaceStatusFrpStartFailedFormat" xml:space="preserve">
+    <value>Не удалось запустить FRP: {0}</value>
+  </data>
+  <data name="WorkspaceStatusFrpStopFailedFormat" xml:space="preserve">
+    <value>Не удалось остановить FRP: {0}</value>
+  </data>
+  <data name="WorkspaceStartThirdPartyFrpcButtonText" xml:space="preserve">
+    <value>Запустить сторонний FRPC</value>
+  </data>
+  <data name="WorkspaceStopThirdPartyFrpcButtonText" xml:space="preserve">
+    <value>Остановить сторонний FRPC</value>
+  </data>
+  <data name="WorkspaceStatusThirdPartyFrpcAlreadyRunning" xml:space="preserve">
+    <value>Сторонний FRPC уже запущен.</value>
+  </data>
+  <data name="WorkspaceStatusThirdPartyFrpcAlreadyStopped" xml:space="preserve">
+    <value>Сторонний FRPC не запускается.</value>
+  </data>
+  <data name="WorkspaceStatusThirdPartyFrpcStarted" xml:space="preserve">
+    <value>Сторонний FRPC запустился.</value>
+  </data>
+  <data name="WorkspaceStatusThirdPartyFrpcStopped" xml:space="preserve">
+    <value>Сторонний FRPC остановлен.</value>
+  </data>
+  <data name="WorkspaceStatusThirdPartyFrpcStartFailedFormat" xml:space="preserve">
+    <value>Не удалось запустить сторонний FRPC: {0}</value>
+  </data>
+  <data name="WorkspaceStatusThirdPartyFrpcStopFailedFormat" xml:space="preserve">
+    <value>Не удалось остановить сторонний FRPC: {0}</value>
+  </data>
+  <data name="WorkspaceStatusSendCommandFailedFormat" xml:space="preserve">
+    <value>Не удалось отправить команду: {0}</value>
+  </data>
+  <data name="WorkspaceStatusNoExportLogs" xml:space="preserve">
+    <value>Нет журналов для экспорта.</value>
+  </data>
+  <data name="WorkspaceStatusExportedFormat" xml:space="preserve">
+    <value>Журнал экспортирован: {0}</value>
+  </data>
+  <data name="WorkspaceStatusExportFailedFormat" xml:space="preserve">
+    <value>Не удалось экспортировать журнал: {0}</value>
+  </data>
+  <data name="WorkspaceStatusLoadSavesFailedFormat" xml:space="preserve">
+    <value>Не удалось загрузить сохранения: {0}</value>
+  </data>
+  <data name="WorkspaceStatusActiveSaveSwitchedFormat" xml:space="preserve">
+    <value>Активное сохранение переключено: {0}</value>
+  </data>
+  <data name="WorkspaceStatusSwitchSaveFailedFormat" xml:space="preserve">
+    <value>Не удалось переключить сохранение: {0}</value>
+  </data>
+  <data name="WorkspaceStatusSwitchSaveOutOfProfileDenied" xml:space="preserve">
+    <value>Отказано: это сохранение не находится в текущем каталоге профиля.</value>
+  </data>
+  <data name="WorkspaceSaveSourceInstance" xml:space="preserve">
+    <value>Источник сохранения: текущий каталог профиля.</value>
+  </data>
+  <data name="WorkspaceSaveSourceCrossProfile" xml:space="preserve">
+    <value>Источник сохранения: другой каталог профиля (рискованно)</value>
+  </data>
+  <data name="WorkspaceSaveSourceExternal" xml:space="preserve">
+    <value>Источник сохранения: внешний каталог (рискованно)</value>
+  </data>
+  <data name="WorkspaceSaveSourceUnknown" xml:space="preserve">
+    <value>Источник сохранения: неизвестен</value>
+  </data>
+  <data name="WorkspaceSaveWarningFormat" xml:space="preserve">
+    <value>Предупреждение: {0}</value>
+  </data>
+  <data name="WorkspaceStartMissingSaveConfirmTitle" xml:space="preserve">
+    <value>Подтвердите создание первого сохранения</value>
+  </data>
+  <data name="WorkspaceStartMissingSaveConfirmButtonText" xml:space="preserve">
+    <value>Подтвердите и начните</value>
+  </data>
+  <data name="WorkspaceStartMissingSaveHint" xml:space="preserve">
+    <value>Целевой файл сохранения еще не существует. Vintage Story создаст его при первом запуске.</value>
+  </data>
+  <data name="WorkspaceStartRiskySaveConfirmTitle" xml:space="preserve">
+    <value>Подтвердите запуск межкаталогового сохранения</value>
+  </data>
+  <data name="WorkspaceStartRiskySaveConfirmButtonText" xml:space="preserve">
+    <value>Все равно начать</value>
+  </data>
+  <data name="WorkspaceStartRiskySaveHint" xml:space="preserve">
+    <value>Текущий путь сохранения не находится в этом каталоге профиля и может начинать мир другого профиля.</value>
+  </data>
+  <data name="WorkspaceStartCanceled" xml:space="preserve">
+    <value>Запуск сервера отменен.</value>
+  </data>
+  <data name="HomeServerCardTitle" xml:space="preserve">
+    <value>Server</value>
+  </data>
+  <data name="HomeRobotCardTitle" xml:space="preserve">
+    <value>Robot</value>
+  </data>
+  <data name="HomeOnlinePlayersCardTitle" xml:space="preserve">
+    <value>Онлайн-игроки</value>
+  </data>
+  <data name="HomeSamplingWindowCardTitle" xml:space="preserve">
+    <value>Sampling</value>
+  </data>
+  <data name="HomeSamplingWindowLine1" xml:space="preserve">
+    <value>Последние 60 образцов</value>
+  </data>
+  <data name="HomeSamplingWindowLine2" xml:space="preserve">
+    <value>Обновите вручную, чтобы обновить</value>
+  </data>
+  <data name="HomeMemoryTrendTitle" xml:space="preserve">
+    <value>Тренд памяти</value>
+  </data>
+  <data name="HomeServerMemoryLegend" xml:space="preserve">
+    <value>Серверная память</value>
+  </data>
+  <data name="HomeRobotMemoryLegend" xml:space="preserve">
+    <value>Память робота</value>
+  </data>
+  <data name="HomeSamplesAxisLabel" xml:space="preserve">
+    <value>Samples</value>
+  </data>
+  <data name="HomePlayerTrendTitle" xml:space="preserve">
+    <value>Тренд игрока</value>
+  </data>
+  <data name="HomeOnlinePlayersLegend" xml:space="preserve">
+    <value>Онлайн-игроки</value>
+  </data>
+  <data name="HomePlayersAxisLabel" xml:space="preserve">
+    <value>Players</value>
+  </data>
+  <data name="HomeMemoryFormat" xml:space="preserve">
+    <value>Память: {0}</value>
+  </data>
+  <data name="HomeUptimeFormat" xml:space="preserve">
+    <value>Время работы: {0}</value>
+  </data>
+  <data name="InstanceManageTitle" xml:space="preserve">
+    <value>Экземпляр/Управление</value>
+  </data>
+  <data name="InstanceManageDescription" xml:space="preserve">
+    <value>Управление содержимым страницы появится в ближайшее время.</value>
+  </data>
+  <data name="MapPreviewMenuTitle" xml:space="preserve">
+    <value>Предварительный просмотр карты</value>
+  </data>
+  <data name="MapPreviewProfileLabel" xml:space="preserve">
+    <value>Profile:</value>
+  </data>
+  <data name="MapPreviewSaveLabel" xml:space="preserve">
+    <value>Save:</value>
+  </data>
+  <data name="MapPreviewLoadButtonText" xml:space="preserve">
+    <value>Загрузить предварительный просмотр</value>
+  </data>
+  <data name="MapPreviewRefreshProfilesButtonText" xml:space="preserve">
+    <value>Обновить профили</value>
+  </data>
+  <data name="MapPreviewRefreshSavesButtonText" xml:space="preserve">
+    <value>Обновить сохранения</value>
+  </data>
+  <data name="MapPreviewColorTabTitle" xml:space="preserve">
+    <value>Карта цветов</value>
+  </data>
+  <data name="MapPreviewGrayscaleTabTitle" xml:space="preserve">
+    <value>Карта оттенков серого</value>
+  </data>
+  <data name="MapPreviewNoPreviewText" xml:space="preserve">
+    <value>Предварительного просмотра карты пока нет. Нажмите «Загрузить предварительный просмотр».</value>
+  </data>
+  <data name="MapPreviewCoordinatePlaceholder" xml:space="preserve">
+    <value>Координаты: -</value>
+  </data>
+  <data name="MapPreviewCoordinateFormat" xml:space="preserve">
+    <value>Тусклый {0} | Х:{1} З:{2} | Чанк:{3},{4}</value>
+  </data>
+  <data name="MapPreviewSourcePathFormat" xml:space="preserve">
+    <value>Источник: {0}</value>
+  </data>
+  <data name="MapPreviewSummaryEmpty" xml:space="preserve">
+    <value>Предварительный просмотр карты не загружен.</value>
+  </data>
+  <data name="MapPreviewSummaryFormat" xml:space="preserve">
+    <value>Тусклый {0} | Куски {1} | X[{2},{3}] Z[{4},{5}] | Разрешение {6}x{7} | Высота {8}-{9} | Выборка x{10}</value>
+  </data>
+  <data name="MapPreviewStatusNoProfile" xml:space="preserve">
+    <value>Профиль не найден. Пожалуйста, сначала создайте его.</value>
+  </data>
+  <data name="MapPreviewStatusLoading" xml:space="preserve">
+    <value>Загрузка карты и создание предварительного просмотра...</value>
+  </data>
+  <data name="MapPreviewStatusLoaded" xml:space="preserve">
+    <value>Предварительный просмотр карты загружен.</value>
+  </data>
+  <data name="MapPreviewStatusLoadFailedFormat" xml:space="preserve">
+    <value>Не удалось загрузить предварительный просмотр карты: {0}</value>
+  </data>
+  <data name="MapPreviewStatusRefreshProfilesFailedFormat" xml:space="preserve">
+    <value>Не удалось обновить профили: {0}</value>
+  </data>
+  <data name="MapPreviewStatusRefreshSavesFailedFormat" xml:space="preserve">
+    <value>Не удалось обновить сохранения: {0}</value>
+  </data>
+  <data name="MapPreviewStatusLoadedProfilesFormat" xml:space="preserve">
+    <value>Загружено профилей: {0}.</value>
+  </data>
+  <data name="MapPreviewStatusLoadedSavesFormat" xml:space="preserve">
+    <value>Загружено файлов сохранения: {0}.</value>
+  </data>
+  <data name="MapPreviewStatusInvalidPixels" xml:space="preserve">
+    <value>Неверные данные пикселей карты.</value>
+  </data>
+  <data name="AutomationHintText" xml:space="preserve">
+    <value>Еженедельные значения – 1–7, диапазон дат – гггг-ММ-дд, время – ЧЧ: мм.</value>
+  </data>
+  <data name="AutomationModeLabel" xml:space="preserve">
+    <value>Mode</value>
+  </data>
+  <data name="AutomationDayStartLabel" xml:space="preserve">
+    <value>Начало дня</value>
+  </data>
+  <data name="AutomationDayEndLabel" xml:space="preserve">
+    <value>Конец дня</value>
+  </data>
+  <data name="AutomationDateStartLabel" xml:space="preserve">
+    <value>Дата начала</value>
+  </data>
+  <data name="AutomationDateEndLabel" xml:space="preserve">
+    <value>Дата окончания</value>
+  </data>
+  <data name="AutomationTimeStartLabel" xml:space="preserve">
+    <value>Время начала</value>
+  </data>
+  <data name="AutomationTimeEndLabel" xml:space="preserve">
+    <value>Конец времени</value>
+  </data>
+  <data name="AutomationActionLabel" xml:space="preserve">
+    <value>Action</value>
+  </data>
+  <data name="DirectorySettingsMenuTitle" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="DirectorySettingsTitle" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="DirectorySettingsDescription" xml:space="preserve">
+    <value>Настройки здесь влияют на путь к рабочей области, параметры запуска, поведение лотка и поведение автоматического запуска сервера, FRP и бота QQ.</value>
+  </data>
+  <data name="DirectorySettingsWorkspaceLabel" xml:space="preserve">
+    <value>Корень рабочей области</value>
+  </data>
+  <data name="DirectorySettingsStartWithWindows" xml:space="preserve">
+    <value>Начните с Windows</value>
+  </data>
+  <data name="DirectorySettingsStartHiddenOnLaunch" xml:space="preserve">
+    <value>Начало скрыто в трее</value>
+  </data>
+  <data name="DirectorySettingsCloseToTrayOnExit" xml:space="preserve">
+    <value>Рядом с лотком вместо выхода</value>
+  </data>
+  <data name="DirectorySettingsAutoStartRobotOnLaunch" xml:space="preserve">
+    <value>Автоматический запуск бота QQ при запуске</value>
+  </data>
+  <data name="DirectorySettingsAutoStartFrpOnLaunch" xml:space="preserve">
+    <value>Автозапуск FRP при запуске</value>
+  </data>
+  <data name="DirectorySettingsAutoStartServerOnLaunch" xml:space="preserve">
+    <value>Автозапуск сервера при запуске</value>
+  </data>
+  <data name="DirectorySettingsAutoStartServerProfileLabel" xml:space="preserve">
+    <value>Автозапуск профиля сервера</value>
+  </data>
+  <data name="DirectorySettingsFrpConfigButtonText" xml:space="preserve">
+    <value>Изменить конфигурацию</value>
+  </data>
+  <data name="DirectorySettingsImportFrpExecutableButtonText" xml:space="preserve">
+    <value>Импортировать исполняемый файл FRP</value>
+  </data>
+  <data name="DirectorySettingsCustomFrpCommandLabel" xml:space="preserve">
+    <value>Пользовательская команда FRP</value>
+  </data>
+  <data name="DirectorySettingsImportFrpExecutableDialogTitle" xml:space="preserve">
+    <value>Выберите исполняемый файл FRP</value>
+  </data>
+  <data name="DirectorySettingsImportFrpExecutableFilterName" xml:space="preserve">
+    <value>Исполняемый файл FRP</value>
+  </data>
+  <data name="DirectorySettingsFrpConfigDialogTitle" xml:space="preserve">
+    <value>Изменить конфигурацию FRP</value>
+  </data>
+  <data name="DirectorySettingsStatusFrpConfigCanceled" xml:space="preserve">
+    <value>Изменение конфигурации FRP отменено.</value>
+  </data>
+  <data name="DirectorySettingsStatusFrpConfigSaved" xml:space="preserve">
+    <value>Конфигурация FRP сохранена.</value>
+  </data>
+  <data name="DirectorySettingsStatusFrpConfigSaveFailedFormat" xml:space="preserve">
+    <value>Не удалось сохранить конфигурацию FRP: {0}.</value>
+  </data>
+  <data name="DirectorySettingsStatusFrpExecutableImportedFormat" xml:space="preserve">
+    <value>Импортирован исполняемый файл FRP: {0}</value>
+  </data>
+  <data name="DirectorySettingsStatusFrpExecutableImportFailedFormat" xml:space="preserve">
+    <value>Не удалось импортировать исполняемый файл FRP: {0}.</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcTitle" xml:space="preserve">
+    <value>Сторонний FRPC</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcDescription" xml:space="preserve">
+    <value>Для автономных клиентов FRPC, таких как Sakura FRP. Вы можете использовать режим файла конфигурации или режим только команд.</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcAutoStart" xml:space="preserve">
+    <value>Автоматический запуск стороннего FRPC при запуске</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcImportButtonText" xml:space="preserve">
+    <value>Импортировать сторонний файл FRPC</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcConfigButtonText" xml:space="preserve">
+    <value>Изменить конфигурацию</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcModeLabel" xml:space="preserve">
+    <value>Режим запуска</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcCommandLabel" xml:space="preserve">
+    <value>Команда запуска</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcImportDialogTitle" xml:space="preserve">
+    <value>Выберите сторонний файл FRPC</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcImportFilterName" xml:space="preserve">
+    <value>Сторонний файл FRPC</value>
+  </data>
+  <data name="DirectorySettingsThirdPartyFrpcConfigDialogTitle" xml:space="preserve">
+    <value>Изменение конфигурации стороннего FRPC</value>
+  </data>
+  <data name="DirectorySettingsStatusThirdPartyFrpcConfigModeOnly" xml:space="preserve">
+    <value>Это действие доступно только в режиме файла конфигурации.</value>
+  </data>
+  <data name="DirectorySettingsStatusThirdPartyFrpcConfigCanceled" xml:space="preserve">
+    <value>Стороннее изменение конфигурации отменено.</value>
+  </data>
+  <data name="DirectorySettingsStatusThirdPartyFrpcConfigSaved" xml:space="preserve">
+    <value>Сторонняя конфигурация сохранена.</value>
+  </data>
+  <data name="DirectorySettingsStatusThirdPartyFrpcConfigSaveFailedFormat" xml:space="preserve">
+    <value>Не удалось сохранить стороннюю конфигурацию: {0}.</value>
+  </data>
+  <data name="DirectorySettingsStatusThirdPartyFrpcExecutableImportedFormat" xml:space="preserve">
+    <value>Импортирован сторонний файл FRPC: {0}.</value>
+  </data>
+  <data name="DirectorySettingsStatusThirdPartyFrpcExecutableImportFailedFormat" xml:space="preserve">
+    <value>Не удалось импортировать сторонний файл FRPC: {0}</value>
+  </data>
+  <data name="DirectorySettingsSaveButtonText" xml:space="preserve">
+    <value>Сохранить настройки</value>
+  </data>
+  <data name="ConfigImportDialogTitle" xml:space="preserve">
+    <value>Выберите файл конфигурации сервера</value>
+  </data>
+  <data name="ConfigImportFilterName" xml:space="preserve">
+    <value>Конфигурация сервера JSON</value>
+  </data>
+  <data name="ConfigStatusImportedFormat" xml:space="preserve">
+    <value>Импортирована конфигурация: {0}</value>
+  </data>
+  <data name="ConfigStatusImportFailedFormat" xml:space="preserve">
+    <value>Не удалось импортировать конфигурацию: {0}.</value>
+  </data>
+  <data name="DirectorySettingsResetButtonText" xml:space="preserve">
+    <value>Сбросить настройки по умолчанию</value>
+  </data>
+  <data name="TrayShowWindowText" xml:space="preserve">
+    <value>Показать окно</value>
+  </data>
+  <data name="TrayStartServerText" xml:space="preserve">
+    <value>Запустить сервер</value>
+  </data>
+  <data name="TrayStopServerText" xml:space="preserve">
+    <value>Остановить сервер</value>
+  </data>
+  <data name="TrayStartRobotText" xml:space="preserve">
+    <value>Запустить QQ-бота</value>
+  </data>
+  <data name="TrayStopRobotText" xml:space="preserve">
+    <value>Остановить QQ-бота</value>
+  </data>
+  <data name="TrayExitText" xml:space="preserve">
+    <value>Exit</value>
+  </data>
+  <data name="OverviewAuthMenuTitle" xml:space="preserve">
+    <value>Auth</value>
+  </data>
+  <data name="AuthProfileLabel" xml:space="preserve">
+    <value>Profile</value>
+  </data>
+  <data name="AuthModStateLabel" xml:space="preserve">
+    <value>Мод аутентификации</value>
+  </data>
+  <data name="AuthModStateEnabled" xml:space="preserve">
+    <value>Deployed</value>
+  </data>
+  <data name="AuthModStateMissing" xml:space="preserve">
+    <value>Missing</value>
+  </data>
+  <data name="AuthEnabledLabel" xml:space="preserve">
+    <value>Включить аутентификацию</value>
+  </data>
+  <data name="AuthLoginTimeoutLabel" xml:space="preserve">
+    <value>Тайм-аут (с)</value>
+  </data>
+  <data name="AuthRememberMinutesLabel" xml:space="preserve">
+    <value>Помните (мин)</value>
+  </data>
+  <data name="AuthDiscourseEnabledLabel" xml:space="preserve">
+    <value>Режим «Только беседа»</value>
+  </data>
+  <data name="AuthDiscourseBaseUrlLabel" xml:space="preserve">
+    <value>URL-адрес базы дискурса</value>
+  </data>
+  <data name="AuthDiscourseSecretLabel" xml:space="preserve">
+    <value>Общий секрет</value>
+  </data>
+  <data name="AuthDiscoursePublicCallbackLabel" xml:space="preserve">
+    <value>Публичная база обратного вызова</value>
+  </data>
+  <data name="AuthDiscourseListenPrefixLabel" xml:space="preserve">
+    <value>Префикс прослушивания</value>
+  </data>
+  <data name="AuthPlayersHeaderName" xml:space="preserve">
+    <value>Player</value>
+  </data>
+  <data name="AuthPlayersHeaderRegistered" xml:space="preserve">
+    <value>Registered</value>
+  </data>
+  <data name="AuthPlayersHeaderLastLogin" xml:space="preserve">
+    <value>Последний вход</value>
+  </data>
+  <data name="AuthPlayersHeaderPassword" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="AuthPlayersHeaderDiscourse" xml:space="preserve">
+    <value>Discourse</value>
+  </data>
+  <data name="AuthPlayersHeaderAction" xml:space="preserve">
+    <value>Action</value>
+  </data>
+  <data name="AuthNoPlayersText" xml:space="preserve">
+    <value>Нет записей авторизации игрока.</value>
+  </data>
+  <data name="AuthClearPasswordButtonText" xml:space="preserve">
+    <value>Очистить пароль</value>
+  </data>
+  <data name="AuthPasswordStateSet" xml:space="preserve">
+    <value>Set</value>
+  </data>
+  <data name="AuthPasswordStateEmpty" xml:space="preserve">
+    <value>Empty</value>
+  </data>
+  <data name="AuthPasswordStateResetRequired" xml:space="preserve">
+    <value>Требуется сброс</value>
+  </data>
+  <data name="AuthStatusLoadedFormat" xml:space="preserve">
+    <value>Загружено записей игрока ({0}) для {1}.</value>
+  </data>
+  <data name="AuthStatusLoadFailedFormat" xml:space="preserve">
+    <value>Не удалось загрузить данные центра аутентификации: {0}.</value>
+  </data>
+  <data name="AuthStatusSaved" xml:space="preserve">
+    <value>Настройки аутентификации сохранены.</value>
+  </data>
+  <data name="AuthStatusSaveFailedFormat" xml:space="preserve">
+    <value>Не удалось сохранить настройки аутентификации: {0}</value>
+  </data>
+  <data name="AuthStatusSelectPlayerFirst" xml:space="preserve">
+    <value>Пожалуйста, сначала выберите игрока.</value>
+  </data>
+  <data name="AuthStatusPasswordClearedFormat" xml:space="preserve">
+    <value>Пароль удален: {0}</value>
+  </data>
+  <data name="AuthStatusPlayerNotFoundFormat" xml:space="preserve">
+    <value>Игрок не найден: {0}</value>
+  </data>
+  <data name="AuthStatusClearPasswordFailedFormat" xml:space="preserve">
+    <value>Не удалось очистить пароль игрока: {0}</value>
+  </data>
+  <data name="ModStatusSelectModsToDelete" xml:space="preserve">
+    <value>Пожалуйста, выберите моды, которые нужно удалить.</value>
+  </data>
+  <data name="ModStatusDeletedFormat" xml:space="preserve">
+    <value>Удалены мод(ы): {0}.</value>
+  </data>
+  <data name="ModStatusNoDeletes" xml:space="preserve">
+    <value>Никакие моды не удалялись.</value>
+  </data>
+  <data name="ModStatusDeleteFailedFormat" xml:space="preserve">
+    <value>Не удалось удалить моды: {0}.</value>
+  </data>
+  <data name="AutomationMenuTitle" xml:space="preserve">
+    <value>Automation</value>
+  </data>
+  <data name="AutomationTitle" xml:space="preserve">
+    <value>Automation</value>
+  </data>
+  <data name="AutomationDescription" xml:space="preserve">
+    <value>Запланируйте окна перезапуска, широковещательные сообщения и экспорт журналов.</value>
+  </data>
+  <data name="AutomationTargetProfileLabel" xml:space="preserve">
+    <value>Целевой профиль</value>
+  </data>
+  <data name="AutomationRestartSectionTitle" xml:space="preserve">
+    <value>Перезапуск сервера</value>
+  </data>
+  <data name="AutomationBackupSectionTitle" xml:space="preserve">
+    <value>Временное резервное копирование</value>
+  </data>
+  <data name="AutomationBroadcastSectionTitle" xml:space="preserve">
+    <value>Broadcast</value>
+  </data>
+  <data name="AutomationExportSectionTitle" xml:space="preserve">
+    <value>Экспорт журналов</value>
+  </data>
+  <data name="AutomationWarnMessageFormat" xml:space="preserve">
+    <value>Сервер перезапустится или отключится через {0} минут.</value>
+  </data>
+  <data name="AutomationBrowseFolderButtonText" xml:space="preserve">
+    <value>Обзор папки</value>
+  </data>
+  <data name="AutomationResetFolderButtonText" xml:space="preserve">
+    <value>Сбросить настройки по умолчанию</value>
+  </data>
+  <data name="AutomationSaveButtonText" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="AutomationExportBeforeShutdownLabel" xml:space="preserve">
+    <value>Экспорт перед выключением</value>
+  </data>
+  <data name="AutomationBackupBeforeShutdownLabel" xml:space="preserve">
+    <value>Резервное копирование перед выключением</value>
+  </data>
+  <data name="AutomationExportIncludeChatLabel" xml:space="preserve">
+    <value>Включить чат игрока</value>
+  </data>
+  <data name="AutomationExportIncludeServerLabel" xml:space="preserve">
+    <value>Включить информацию о сервере</value>
+  </data>
+  <data name="AutomationBackupHintText" xml:space="preserve">
+    <value>Создает резервную копию активного сохранения. Онлайн-серверы используют /genbackup, автономные серверы копируют текущие файлы vcdbs.</value>
+  </data>
+</root>

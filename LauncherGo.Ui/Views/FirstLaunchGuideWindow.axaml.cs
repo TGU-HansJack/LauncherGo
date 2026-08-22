@@ -45,11 +45,7 @@ public partial class FirstLaunchGuideWindow : Window
     private readonly ILocalizationService _localizationService;
     private readonly DispatcherTimer _blinkTimer;
 
-    private readonly List<LanguageOption> _languageOptions =
-    [
-        new("zh-CN", "中文", "Chinese"),
-        new("en-US", "英文", "English")
-    ];
+    private IReadOnlyList<SupportedLanguageOption> _languageOptions => SupportedLanguages.All;
 
     private readonly List<ThemeOption> _themeOptions =
     [
@@ -450,8 +446,8 @@ public partial class FirstLaunchGuideWindow : Window
         _isChinese = languageCode.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
         _localizationService.SetLanguage(languageCode);
 
-        LanguageComboBox.ItemsSource = _languageOptions.Select(option => option.ZhLabel).ToList();
-        LanguageComboBox.SelectedIndex = _isChinese ? 0 : 1;
+        LanguageComboBox.ItemsSource = _languageOptions.Select(option => option.ChineseName).ToList();
+        LanguageComboBox.SelectedIndex = SupportedLanguages.FindIndex(languageCode);
 
         AppearanceComboBox.ItemsSource = _themeOptions.Select(option => option.ZhLabel).ToList();
         AppearanceComboBox.SelectedIndex = GetThemeOptionIndex(_preferences.ThemeMode);
@@ -495,14 +491,14 @@ public partial class FirstLaunchGuideWindow : Window
         NextArrowIcon.IsVisible = _currentStep < 4;
 
         LanguageComboBox.ItemsSource = _languageOptions
-            .Select(option => _isChinese ? option.ZhLabel : option.EnLabel)
+            .Select(option => _isChinese ? option.ChineseName : option.NativeName)
             .ToList();
 
         AppearanceComboBox.ItemsSource = _themeOptions
             .Select(option => _isChinese ? option.ZhLabel : option.EnLabel)
             .ToList();
 
-        LanguageComboBox.SelectedIndex = _isChinese ? 0 : 1;
+        LanguageComboBox.SelectedIndex = SupportedLanguages.FindIndex(_localizationService.CurrentCulture.Name);
         AppearanceComboBox.SelectedIndex = GetThemeOptionIndex(GetSelectedThemeMode());
 
         RebuildCatalogDisplay();
@@ -713,7 +709,10 @@ public partial class FirstLaunchGuideWindow : Window
 
     private void SaveAndClose()
     {
-        var selectedLanguage = _isChinese ? "zh-CN" : "en-US";
+        var selectedLanguage = LanguageComboBox.SelectedIndex >= 0 &&
+                               LanguageComboBox.SelectedIndex < _languageOptions.Count
+            ? _languageOptions[LanguageComboBox.SelectedIndex].Code
+            : _localizationService.CurrentCulture.Name;
         var selectedTheme = GetSelectedThemeMode();
 
         var updated = new LauncherPreferences
@@ -795,8 +794,6 @@ public partial class FirstLaunchGuideWindow : Window
     {
         return _localizationService.Resolve(zh, en);
     }
-
-    private sealed record LanguageOption(string Code, string ZhLabel, string EnLabel);
 
     private sealed record ThemeOption(ThemeMode Mode, string ZhLabel, string EnLabel);
 

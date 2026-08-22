@@ -6,6 +6,8 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Interactivity;
 using AvaloniaEdit.Highlighting;
+using LauncherGo.Abstractions.Services.I18n;
+using LauncherGo.Ui;
 
 namespace LauncherGo.Ui.Views;
 
@@ -247,7 +249,17 @@ public partial class ModConfigEditorWindow : Window
             : $"{name} - {T("模组配置", "Mod Configuration")}";
     }
 
-    private string T(string zh, string en) => _isChinese ? zh : en;
+    private string T(string zh, string en)
+    {
+        try
+        {
+            return ServiceLocator.GetRequiredService<ILocalizationService>().Resolve(zh, en);
+        }
+        catch (InvalidOperationException)
+        {
+            return _isChinese ? zh : en;
+        }
+    }
 
     private static Encoding DetectTextEncoding(string filePath)
     {

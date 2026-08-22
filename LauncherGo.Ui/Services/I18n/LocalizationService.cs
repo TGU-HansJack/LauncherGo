@@ -11,6 +11,12 @@ public sealed class LocalizationService : ILocalizationService
     private static readonly CultureInfo EnglishCulture = CultureInfo.GetCultureInfo("en-US");
     private static readonly CultureInfo SimplifiedChineseCulture = CultureInfo.GetCultureInfo("zh-CN");
     private static readonly CultureInfo SimplifiedChineseResourceCulture = CultureInfo.GetCultureInfo("zh-Hans");
+    private static readonly CultureInfo RussianCulture = CultureInfo.GetCultureInfo("ru-RU");
+    private static readonly CultureInfo GermanCulture = CultureInfo.GetCultureInfo("de-DE");
+    private static readonly CultureInfo FrenchCulture = CultureInfo.GetCultureInfo("fr-FR");
+    private static readonly CultureInfo SpanishCulture = CultureInfo.GetCultureInfo("es-ES");
+    private static readonly CultureInfo PolishCulture = CultureInfo.GetCultureInfo("pl-PL");
+    private static readonly CultureInfo BrazilianPortugueseCulture = CultureInfo.GetCultureInfo("pt-BR");
 
     private readonly ResourceManager _resourceManager = new(
         "LauncherGo.Ui.Assets.I18n.Resources",
@@ -18,11 +24,14 @@ public sealed class LocalizationService : ILocalizationService
 
     private readonly object _sync = new();
     private readonly Lazy<IReadOnlyDictionary<string, string>> _legacyPairKeys;
+    private readonly Lazy<IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>> _legacyKeyTranslations;
+    private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> LegacyTranslations = BuildLegacyTranslations();
     private CultureInfo _currentCulture = CultureInfo.InvariantCulture;
 
     public LocalizationService()
     {
         _legacyPairKeys = new Lazy<IReadOnlyDictionary<string, string>>(BuildLegacyPairKeys, true);
+        _legacyKeyTranslations = new Lazy<IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>>(BuildLegacyKeyTranslations, true);
         SetCulture(CultureInfo.CurrentUICulture);
     }
 
@@ -55,9 +64,21 @@ public sealed class LocalizationService : ILocalizationService
             }
 
             var resourceCulture = GetResourceCulture(_currentCulture);
-            return _resourceManager.GetString(key, resourceCulture)
-                   ?? _resourceManager.GetString(key, CultureInfo.InvariantCulture)
-                   ?? key;
+            var localized = _resourceManager.GetString(key, resourceCulture)
+                            ?? _resourceManager.GetString(key, CultureInfo.InvariantCulture)
+                            ?? key;
+            if (_legacyKeyTranslations.Value.TryGetValue(key, out var translations))
+            {
+                var language = translations.Keys.FirstOrDefault(code =>
+                    string.Equals(code, _currentCulture.Name, StringComparison.OrdinalIgnoreCase) ||
+                    _currentCulture.Name.StartsWith(code[..2], StringComparison.OrdinalIgnoreCase));
+                if (language is not null)
+                {
+                    return translations[language];
+                }
+            }
+
+            return localized;
         }
     }
 
@@ -70,6 +91,17 @@ public sealed class LocalizationService : ILocalizationService
     public string Resolve(string simplifiedChinese, string english)
     {
         var pair = MakePairKey(simplifiedChinese, english);
+        if (LegacyTranslations.TryGetValue(pair, out var translations))
+        {
+            var language = translations.Keys.FirstOrDefault(code =>
+                string.Equals(code, _currentCulture.Name, StringComparison.OrdinalIgnoreCase) ||
+                _currentCulture.Name.StartsWith(code[..2], StringComparison.OrdinalIgnoreCase));
+            if (language is not null)
+            {
+                return translations[language];
+            }
+        }
+
         if (_legacyPairKeys.Value.TryGetValue(pair, out var key))
         {
             return this[key];
@@ -109,14 +141,45 @@ public sealed class LocalizationService : ILocalizationService
 
     private static CultureInfo NormalizeCulture(CultureInfo culture)
     {
-        if (culture.Name.StartsWith("zh", StringComparison.OrdinalIgnoreCase))
+        var name = culture.Name;
+        if (name.StartsWith("zh", StringComparison.OrdinalIgnoreCase))
         {
             return SimplifiedChineseCulture;
         }
 
-        if (culture.Name.StartsWith("en", StringComparison.OrdinalIgnoreCase))
+        if (name.StartsWith("en", StringComparison.OrdinalIgnoreCase))
         {
             return EnglishCulture;
+        }
+
+        if (name.StartsWith("ru", StringComparison.OrdinalIgnoreCase))
+        {
+            return RussianCulture;
+        }
+
+        if (name.StartsWith("de", StringComparison.OrdinalIgnoreCase))
+        {
+            return GermanCulture;
+        }
+
+        if (name.StartsWith("fr", StringComparison.OrdinalIgnoreCase))
+        {
+            return FrenchCulture;
+        }
+
+        if (name.StartsWith("es", StringComparison.OrdinalIgnoreCase))
+        {
+            return SpanishCulture;
+        }
+
+        if (name.StartsWith("pl", StringComparison.OrdinalIgnoreCase))
+        {
+            return PolishCulture;
+        }
+
+        if (name.StartsWith("pt", StringComparison.OrdinalIgnoreCase))
+        {
+            return BrazilianPortugueseCulture;
         }
 
         return culture;
@@ -179,6 +242,95 @@ public sealed class LocalizationService : ILocalizationService
         return result;
     }
 
+    private IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> BuildLegacyKeyTranslations()
+    {
+        var result = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal);
+        foreach (var (pair, translations) in LegacyTranslations)
+        {
+            if (_legacyPairKeys.Value.TryGetValue(pair, out var key))
+            {
+                result[key] = translations;
+            }
+        }
+
+        return result;
+    }
+
     private static string MakePairKey(string simplifiedChinese, string english) =>
         $"{simplifiedChinese}\u001f{english}";
+
+    private static IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> BuildLegacyTranslations()
+    {
+        // A small compatibility catalog for older views that still pass a
+        // Chinese/English pair instead of a resource key. New UI strings
+        // should be added to the RESX files, not to this fallback list.
+        var result = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal);
+
+        Add("仪表盘", "Dashboard", "Панель управления", "Dashboard", "Tableau de bord", "Panel", "Panel główny", "Painel");
+        Add("关于", "About", "О программе", "Über", "À propos", "Acerca de", "Informacje", "Sobre");
+        Add("退出", "Exit", "Выход", "Beenden", "Quitter", "Salir", "Wyjście", "Sair");
+        Add("语言", "Language", "Язык", "Sprache", "Langue", "Idioma", "Język", "Idioma");
+        Add("主题", "Theme", "Тема", "Design", "Thème", "Tema", "Motyw", "Tema");
+        Add("控制台", "Console", "Консоль", "Konsole", "Console", "Consola", "Konsola", "Console");
+        Add("反馈", "Feedback", "Обратная связь", "Feedback", "Commentaires", "Comentarios", "Opinie", "Feedback");
+        Add("实例", "Instance", "Экземпляр", "Instanz", "Instance", "Instancia", "Instancja", "Instância");
+        Add("下载", "Download", "Загрузка", "Download", "Téléchargement", "Descargas", "Pobieranie", "Downloads");
+        Add("下载版本", "Downloads", "Загрузки", "Downloads", "Téléchargements", "Descargas", "Pobieranie", "Downloads");
+        Add("日志", "Logs", "Журналы", "Protokolle", "Journaux", "Registros", "Dzienniki", "Registros");
+        Add("存档", "Saves", "Сохранения", "Spielstände", "Sauvegardes", "Partidas guardadas", "Zapisy", "Salvamentos");
+        Add("自动化", "Automation", "Автоматизация", "Automatisierung", "Automatisation", "Automatización", "Automatyzacja", "Automação");
+        Add("模组", "Mods", "Моды", "Mods", "Mods", "Mods", "Mody", "Mods");
+        Add("启动服务器", "Start Server", "Запустить сервер", "Server starten", "Démarrer le serveur", "Iniciar servidor", "Uruchom serwer", "Iniciar servidor");
+        Add("停止服务器", "Stop Server", "Остановить сервер", "Server stoppen", "Arrêter le serveur", "Detener servidor", "Zatrzymaj serwer", "Parar servidor");
+        Add("在线玩家", "Online Players", "Игроки онлайн", "Online-Spieler", "Joueurs en ligne", "Jugadores en línea", "Gracze online", "Jogadores online");
+        Add("创建", "Create", "Создать", "Erstellen", "Créer", "Crear", "Utwórz", "Criar");
+        Add("管理", "Manage", "Управление", "Verwalten", "Gérer", "Administrar", "Zarządzaj", "Gerenciar");
+        Add("配置", "Config", "Настройки", "Konfiguration", "Configuration", "Configuración", "Konfiguracja", "Configuração");
+        Add("存档", "Save", "Сохранение", "Speichern", "Sauvegarde", "Guardado", "Zapis", "Salvar");
+        Add("模组", "Mod", "Моды", "Mod", "Mods", "Mods", "Mody", "Mods");
+        Add("机器人", "Robot", "Бот", "Bot", "Robot", "Bot", "Bot", "Robô");
+        Add("仓库", "Repository", "Репозиторий", "Repository", "Dépôt", "Repositorio", "Repozytorium", "Repositório");
+        Add("社区", "Community", "Сообщество", "Community", "Communauté", "Comunidad", "Społeczność", "Comunidade");
+        Add("删除", "Delete", "Удалить", "Löschen", "Supprimer", "Eliminar", "Usuń", "Excluir");
+        Add("刷新", "Refresh", "Обновить", "Aktualisieren", "Actualiser", "Actualizar", "Odśwież", "Atualizar");
+        Add("取消", "Cancel", "Отмена", "Abbrechen", "Annuler", "Cancelar", "Anuluj", "Cancelar");
+        Add("保存", "Save", "Сохранить", "Speichern", "Enregistrer", "Guardar", "Zapisz", "Salvar");
+        Add("浏览", "Browse", "Обзор", "Durchsuchen", "Parcourir", "Examinar", "Przeglądaj", "Procurar");
+        Add("导入", "Import", "Импорт", "Importieren", "Importer", "Importar", "Importuj", "Importar");
+        Add("启动", "Start", "Запустить", "Starten", "Démarrer", "Iniciar", "Uruchom", "Iniciar");
+        Add("停止", "Stop", "Остановить", "Stoppen", "Arrêter", "Detener", "Zatrzymaj", "Parar");
+        Add("清空", "Clear", "Очистить", "Leeren", "Effacer", "Limpiar", "Wyczyść", "Limpar");
+        Add("运行中", "Running", "Запущено", "Läuft", "En cours", "En ejecución", "Uruchomiono", "Em execução");
+        Add("已停止", "Stopped", "Остановлено", "Gestoppt", "Arrêté", "Detenido", "Zatrzymano", "Parado");
+        Add("服务器", "Server", "Сервер", "Server", "Serveur", "Servidor", "Serwer", "Servidor");
+        Add("端口", "Port", "Порт", "Port", "Port", "Puerto", "Port", "Porta");
+        Add("状态", "Status", "Статус", "Status", "État", "Estado", "Stan", "Status");
+        Add("错误", "Error", "Ошибка", "Fehler", "Erreur", "Error", "Błąd", "Erro");
+        Add("游戏服务端", "Game Server", "Игровой сервер", "Spielserver", "Serveur de jeu", "Servidor de juego", "Serwer gry", "Servidor de jogo");
+        Add("Stratum 服务端", "Stratum Server", "Сервер Stratum", "Stratum-Server", "Serveur Stratum", "Servidor Stratum", "Serwer Stratum", "Servidor Stratum");
+        Add("直连", "Direct", "Прямое подключение", "Direkt", "Direct", "Directo", "Bezpośrednio", "Direto");
+
+        return result;
+
+        void Add(
+            string simplifiedChinese,
+            string english,
+            string russian,
+            string german,
+            string french,
+            string spanish,
+            string polish,
+            string portuguese)
+        {
+            result[MakePairKey(simplifiedChinese, english)] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["ru-RU"] = russian,
+                ["de-DE"] = german,
+                ["fr-FR"] = french,
+                ["es-ES"] = spanish,
+                ["pl-PL"] = polish,
+                ["pt-BR"] = portuguese
+            };
+        }
+    }
 }

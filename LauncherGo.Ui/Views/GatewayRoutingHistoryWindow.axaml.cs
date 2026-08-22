@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using LauncherGo.Domains.Models;
+using LauncherGo.Abstractions.Services.I18n;
+using LauncherGo.Ui;
 
 namespace LauncherGo.Ui.Views;
 
@@ -114,7 +116,17 @@ public partial class GatewayRoutingHistoryWindow : Window
         _ => state
     };
 
-    private string T(string zh, string en) => _isChinese ? zh : en;
+    private string T(string zh, string en)
+    {
+        try
+        {
+            return ServiceLocator.GetRequiredService<ILocalizationService>().Resolve(zh, en);
+        }
+        catch (InvalidOperationException)
+        {
+            return _isChinese ? zh : en;
+        }
+    }
 }
 
 public sealed record GatewayRoutingHistoryItem(

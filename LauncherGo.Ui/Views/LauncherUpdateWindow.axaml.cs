@@ -7,8 +7,10 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using LauncherGo.Abstractions.Services;
+using LauncherGo.Abstractions.Services.I18n;
 using LauncherGo.Domains.Enums;
 using LauncherGo.Domains.Models;
+using LauncherGo.Ui;
 
 namespace LauncherGo.Ui.Views;
 
@@ -333,5 +335,15 @@ public partial class LauncherUpdateWindow : Window
         _ => T("未知安装方式", "Unknown package")
     };
 
-    private string T(string zh, string en) => _isChinese ? zh : en;
+    private string T(string zh, string en)
+    {
+        try
+        {
+            return ServiceLocator.GetRequiredService<ILocalizationService>().Resolve(zh, en);
+        }
+        catch (InvalidOperationException)
+        {
+            return _isChinese ? zh : en;
+        }
+    }
 }
