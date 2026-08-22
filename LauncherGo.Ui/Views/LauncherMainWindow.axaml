@@ -2380,7 +2380,7 @@
                                                                 <TextBlock x:Name="SettingsConsoleLogFiltersActionsHeaderTextBlock" Grid.Column="3" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
                                                             </Grid>
                                                         </Border>
-                                                        <Border Grid.Row="1" Classes="TableBody" Height="320">
+                                                        <Border Grid.Row="1" Classes="TableBody" MaxHeight="320">
                                                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                                                 <ItemsControl x:Name="SettingsConsoleLogFiltersItemsControl">
                                                                     <ItemsControl.ItemTemplate>
