@@ -29,6 +29,7 @@ public sealed partial class ServerProcessService : IServerProcessService
     private readonly ILauncherPreferencesService? _preferencesService;
     private readonly IServerAuthService? _serverAuthService;
     private readonly ICommandBridgeService? _commandBridgeService;
+    private readonly IAutomationLifecycleService? _automationLifecycleService;
     private readonly ILogger<ServerProcessService> _logger;
     private string _activeProfileId = string.Empty;
 
@@ -42,12 +43,14 @@ public sealed partial class ServerProcessService : IServerProcessService
         IServerAuthService? serverAuthService = null,
         ILogger<ServerProcessService>? logger = null,
         ILauncherPreferencesService? preferencesService = null,
-        ICommandBridgeService? commandBridgeService = null)
+        ICommandBridgeService? commandBridgeService = null,
+        IAutomationLifecycleService? automationLifecycleService = null)
     {
         _profileService = profileService;
         _preferencesService = preferencesService;
         _serverAuthService = serverAuthService;
         _commandBridgeService = commandBridgeService;
+        _automationLifecycleService = automationLifecycleService;
         _logger = logger ?? NullLogger<ServerProcessService>.Instance;
     }
 
@@ -295,7 +298,8 @@ public sealed partial class ServerProcessService : IServerProcessService
                 _serverAuthService,
                 _logger,
                 _preferencesService,
-                _commandBridgeService);
+                _commandBridgeService,
+                _automationLifecycleService);
             _controllers[profile.Id] = controller;
             _controllerProfiles[profile.Id] = profile;
             _statuses[profile.Id] = new ServerRuntimeStatus { ProfileId = profile.Id };
@@ -401,6 +405,7 @@ internal sealed partial class SingleServerProcessController
     private readonly ILauncherPreferencesService? _preferencesService;
     private readonly IServerAuthService? _serverAuthService;
     private readonly ICommandBridgeService? _commandBridgeService;
+    private readonly IAutomationLifecycleService? _automationLifecycleService;
     private readonly ILogger<ServerProcessService> _logger;
     private Process? _process;
     private InstanceProfile? _currentProfile;
@@ -432,12 +437,14 @@ internal sealed partial class SingleServerProcessController
         IServerAuthService? serverAuthService = null,
         ILogger<ServerProcessService>? logger = null,
         ILauncherPreferencesService? preferencesService = null,
-        ICommandBridgeService? commandBridgeService = null)
+        ICommandBridgeService? commandBridgeService = null,
+        IAutomationLifecycleService? automationLifecycleService = null)
     {
         _profileService = profileService;
         _preferencesService = preferencesService;
         _serverAuthService = serverAuthService;
         _commandBridgeService = commandBridgeService;
+        _automationLifecycleService = automationLifecycleService;
         _logger = logger ?? NullLogger<ServerProcessService>.Instance;
     }
 
@@ -573,6 +580,13 @@ internal sealed partial class SingleServerProcessController
             if (!File.Exists(serverExe))
                 throw new InvalidOperationException($"未找到服务端程序：{serverExe}");
 
+            if (_automationLifecycleService is not null)
+            {
+                await _automationLifecycleService
+                    .ExecuteAsync(profile, AutomationScriptTrigger.BeforeStart, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
             _logger.LogInformation(
                 "Starting Vintage Story server. ProfileId={ProfileId}, ProfileName={ProfileName}, Version={Version}, DataPath={DataPath}.",
                 profile.Id,
@@ -593,6 +607,13 @@ internal sealed partial class SingleServerProcessController
 
             var relayState = await StartRelayAsync(profile, serverExe, installPath, cancellationToken);
             AttachToRelayState(relayState, profile, emitOutput: false);
+
+            if (_automationLifecycleService is not null)
+            {
+                await _automationLifecycleService
+                    .ExecuteAsync(profile, AutomationScriptTrigger.AfterStart, cancellationToken)
+                    .ConfigureAwait(false);
+            }
 
             OutputReceived?.Invoke(this,
                 $"[system] 服务器进程已通过后台控制通道启动，PID={relayState.ServerProcessId}，Relay PID={relayState.RelayProcessId}");
@@ -734,6 +755,13 @@ internal sealed partial class SingleServerProcessController
             if (_relayState is not null)
                 _manualStopRequested = true;
 
+            if (_automationLifecycleService is not null)
+            {
+                await _automationLifecycleService
+                    .ExecuteAsync(_currentProfile ?? preferredProfile ?? new InstanceProfile { DirectoryPath = targetDataPath }, AutomationScriptTrigger.BeforeStop, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
             try
             {
                 await SendCommandInternalAsync("/stop", cancellationToken);
@@ -795,6 +823,13 @@ internal sealed partial class SingleServerProcessController
 
             ClearTrackedProcessIfTerminated();
             _canWriteStandardInput = false;
+
+            if (_automationLifecycleService is not null && _currentProfile is not null)
+            {
+                await _automationLifecycleService
+                    .ExecuteAsync(_currentProfile, AutomationScriptTrigger.AfterStop, cancellationToken)
+                    .ConfigureAwait(false);
+            }
         }
         finally
         {

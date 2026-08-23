@@ -130,6 +130,9 @@ public class AutomationSettingsService : IAutomationSettingsService
             ExportBeforeShutdown = true,
             ExportIncludeChat = true,
             ExportIncludeServerInfo = true,
+            ClearCacheBeforeStart = false,
+            AutomationScriptsEnabled = false,
+            AutomationScripts = [],
             ActionWindows =
             [
                 new AutomationActionWindow
@@ -272,6 +275,23 @@ public class AutomationSettingsService : IAutomationSettingsService
             .Order(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        var normalizedScripts = (settings.AutomationScripts ?? [])
+            .Where(script => script is not null)
+            .Select(script => new AutomationScript
+            {
+                Enabled = script.Enabled,
+                Trigger = Enum.IsDefined(script.Trigger)
+                    ? script.Trigger
+                    : AutomationScriptTrigger.BeforeStart,
+                ScriptPath = script.ScriptPath?.Trim() ?? string.Empty
+            })
+            .Where(script => !string.IsNullOrWhiteSpace(script.ScriptPath))
+            .Where(script => script.ScriptPath.EndsWith(".bat", StringComparison.OrdinalIgnoreCase) ||
+                             script.ScriptPath.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase))
+            .GroupBy(script => $"{script.Trigger}|{script.ScriptPath}", StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
+
         return new AutomationSettings
         {
             TargetProfileId = settings.TargetProfileId?.Trim() ?? string.Empty,
@@ -291,7 +311,10 @@ public class AutomationSettingsService : IAutomationSettingsService
             ExportTimes = normalizedExportTimes,
             ExportBeforeShutdown = settings.ExportBeforeShutdown,
             ExportIncludeChat = settings.ExportIncludeChat,
-            ExportIncludeServerInfo = settings.ExportIncludeServerInfo
+            ExportIncludeServerInfo = settings.ExportIncludeServerInfo,
+            ClearCacheBeforeStart = settings.ClearCacheBeforeStart,
+            AutomationScriptsEnabled = settings.AutomationScriptsEnabled,
+            AutomationScripts = normalizedScripts
         };
     }
 

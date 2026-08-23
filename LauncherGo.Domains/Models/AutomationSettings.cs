@@ -49,5 +49,17 @@ public class AutomationSettings
     public bool ExportIncludeChat { get; set; } = true;
 
     public bool ExportIncludeServerInfo { get; set; } = true;
+
+    /// <summary>
+    ///     启动服务端前清理当前实例的 Cache 目录内容。
+    /// </summary>
+    public bool ClearCacheBeforeStart { get; set; }
+
+    /// <summary>
+    ///     是否启用生命周期脚本。
+    /// </summary>
+    public bool AutomationScriptsEnabled { get; set; }
+
+    public List<AutomationScript> AutomationScripts { get; set; } = [];
 }
 

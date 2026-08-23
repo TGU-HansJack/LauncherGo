@@ -56,4 +56,85 @@ public sealed class AutomationSettingsMigrationTests
         Assert.False(string.IsNullOrWhiteSpace(schedule.Id));
         Assert.False(string.IsNullOrWhiteSpace(schedule.AnchorDate));
     }
+
+    [Fact]
+    public void AutomationScriptsKeepSupportedTriggersAndDropInvalidFiles()
+    {
+        var settings = AutomationSettingsService.Normalize(new AutomationSettings
+        {
+            AutomationScriptsEnabled = true,
+            AutomationScripts =
+            [
+                new AutomationScript
+                {
+                    Trigger = AutomationScriptTrigger.BeforeStart,
+                    ScriptPath = "  C:\\scripts\\clear.bat  "
+                },
+                new AutomationScript
+                {
+                    Trigger = AutomationScriptTrigger.BeforeStart,
+                    ScriptPath = "C:\\scripts\\clear.bat"
+                },
+                new AutomationScript
+                {
+                    Trigger = (AutomationScriptTrigger)999,
+                    ScriptPath = "C:\\scripts\\stop.cmd"
+                },
+                new AutomationScript
+                {
+                    ScriptPath = "C:\\scripts\\readme.txt"
+                }
+            ]
+        });
+
+        Assert.True(settings.AutomationScriptsEnabled);
+        Assert.Equal(2, settings.AutomationScripts.Count);
+        Assert.Contains(settings.AutomationScripts, script =>
+            script.Trigger == AutomationScriptTrigger.BeforeStart &&
+            script.ScriptPath == "C:\\scripts\\clear.bat");
+        Assert.Contains(settings.AutomationScripts, script =>
+            script.Trigger == AutomationScriptTrigger.BeforeStart &&
+            script.ScriptPath == "C:\\scripts\\stop.cmd");
+    }
+
+    [Fact]
+    public void ClearProfileCacheOnlyRemovesCacheContents()
+    {
+        using var root = new TempDirectory();
+        var profilePath = Directory.CreateDirectory(Path.Combine(root.Path, "profile")).FullName;
+        Directory.CreateDirectory(Path.Combine(profilePath, "Mods"));
+        Directory.CreateDirectory(Path.Combine(profilePath, "Cache", "nested"));
+        File.WriteAllText(Path.Combine(profilePath, "Cache", "stale.txt"), "stale");
+        File.WriteAllText(Path.Combine(profilePath, "Cache", "nested", "stale.bin"), "stale");
+        File.WriteAllText(Path.Combine(profilePath, "Mods", "keep.txt"), "keep");
+
+        AutomationLifecycleService.ClearProfileCache(new InstanceProfile { DirectoryPath = profilePath });
+
+        Assert.True(Directory.Exists(Path.Combine(profilePath, "Cache")));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Path.Combine(profilePath, "Cache")));
+        Assert.True(File.Exists(Path.Combine(profilePath, "Mods", "keep.txt")));
+    }
+
+    private sealed class TempDirectory : IDisposable
+    {
+        public TempDirectory()
+        {
+            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "LauncherGo.Tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Path);
+        }
+
+        public string Path { get; }
+
+        public void Dispose()
+        {
+            try
+            {
+                Directory.Delete(Path, recursive: true);
+            }
+            catch
+            {
+                // Best effort cleanup for test artifacts.
+            }
+        }
+    }
 }

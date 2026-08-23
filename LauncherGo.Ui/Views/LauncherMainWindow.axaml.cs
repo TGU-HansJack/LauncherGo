@@ -91,6 +91,7 @@ public partial class LauncherMainWindow : Window
         ("大小", "Size"),
         ("修改时间", "Modified"),
         ("路径", "Path"),
+        ("脚本路径", "Script path"),
         ("服务器名称", "Server Name"),
         ("配置路径", "Config Path"),
         ("启用", "Enabled"),
@@ -323,6 +324,7 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<ScheduledBroadcastItem> _automationBroadcastItems = [];
     private readonly ObservableCollection<ScheduledCommandItem> _automationCommandItems = [];
     private readonly ObservableCollection<AutomationTimeItem> _automationExportTimeItems = [];
+    private readonly ObservableCollection<AutomationScriptItem> _automationScriptItems = [];
     private readonly ObservableCollection<ProfileLogListItem> _logItems = [];
     private readonly ObservableCollection<InstanceProfile> _modProfileItems = [];
     private readonly ObservableCollection<ModListItem> _modItems = [];
@@ -1009,6 +1011,10 @@ public partial class LauncherMainWindow : Window
         AutomationExportBeforeShutdownLabelTextBlock.Text = T("关服前导出日志", "Export before shutdown");
         AutomationExportIncludeChatLabelTextBlock.Text = T("导出聊天", "Export chat");
         AutomationExportIncludeServerLabelTextBlock.Text = T("导出服务端信息", "Export server info");
+        AutomationClearCacheBeforeStartLabelTextBlock.Text = T("开服前清理缓存", "Clear cache before start");
+        AutomationScriptsEnabledLabelTextBlock.Text = T("启用自动化脚本", "Enable automation scripts");
+        AutomationScriptsTitleTextBlock.Text = T("自动化脚本", "Automation scripts");
+        AutomationAddScriptButton.Content = T("添加", "Add");
         AutomationActionTitleTextBlock.Text = T("定时开关服", "Scheduled Start/Stop");
         AutomationAddActionButton.Content = T("添加", "Add");
         AutomationAddBackupScheduleButton.Content = T("添加", "Add");
@@ -1024,6 +1030,10 @@ public partial class LauncherMainWindow : Window
             item.SetLanguage(_isChinese);
         }
         foreach (var item in _automationBackupScheduleItems)
+        {
+            item.SetLanguage(_isChinese);
+        }
+        foreach (var item in _automationScriptItems)
         {
             item.SetLanguage(_isChinese);
         }
@@ -1379,6 +1389,7 @@ public partial class LauncherMainWindow : Window
         AutomationBroadcastsItemsControl.ItemsSource = _automationBroadcastItems;
         AutomationCommandsItemsControl.ItemsSource = _automationCommandItems;
         AutomationExportTimesItemsControl.ItemsSource = _automationExportTimeItems;
+        AutomationScriptsItemsControl.ItemsSource = _automationScriptItems;
         LogsItemsControl.ItemsSource = _logItems;
         ModProfileComboBox.ItemsSource = _modProfileItems;
         ModsListBox.ItemsSource = _modItems;
@@ -1421,6 +1432,7 @@ public partial class LauncherMainWindow : Window
             _automationBroadcastItems,
             _automationCommandItems,
             _automationExportTimeItems,
+            _automationScriptItems,
             _logItems,
             _modItems,
             _authConfigItems,
@@ -2535,6 +2547,8 @@ public partial class LauncherMainWindow : Window
         AutomationExportBeforeShutdownCheckBox.IsChecked = settings.ExportBeforeShutdown;
         AutomationExportIncludeChatCheckBox.IsChecked = settings.ExportIncludeChat;
         AutomationExportIncludeServerCheckBox.IsChecked = settings.ExportIncludeServerInfo;
+        AutomationClearCacheBeforeStartCheckBox.IsChecked = settings.ClearCacheBeforeStart;
+        AutomationScriptsEnabledCheckBox.IsChecked = settings.AutomationScriptsEnabled;
 
         _automationActionWindowItems.Clear();
         foreach (var window in settings.ActionWindows ?? [])
@@ -2585,6 +2599,12 @@ public partial class LauncherMainWindow : Window
         {
             _automationExportTimeItems.Add(new AutomationTimeItem("12:00"));
         }
+
+        _automationScriptItems.Clear();
+        foreach (var script in settings.AutomationScripts ?? [])
+        {
+            _automationScriptItems.Add(AutomationScriptItem.FromModel(script, _isChinese));
+        }
     }
 
     private AutomationSettings CollectAutomationSettings()
@@ -2602,6 +2622,8 @@ public partial class LauncherMainWindow : Window
             ExportBeforeShutdown = AutomationExportBeforeShutdownCheckBox.IsChecked == true,
             ExportIncludeChat = AutomationExportIncludeChatCheckBox.IsChecked == true,
             ExportIncludeServerInfo = AutomationExportIncludeServerCheckBox.IsChecked == true,
+            ClearCacheBeforeStart = AutomationClearCacheBeforeStartCheckBox.IsChecked == true,
+            AutomationScriptsEnabled = AutomationScriptsEnabledCheckBox.IsChecked == true,
             ActionWindows = _automationActionWindowItems.Select(item => item.ToModel()).ToList(),
             BackupSchedules = _automationBackupScheduleItems.Select(item => item.ToModel()).ToList(),
             BackupRetentionCount = Math.Clamp(GetNumericValue(AutomationBackupRetentionNumericUpDown, 0), 0, 100_000),
@@ -2618,6 +2640,10 @@ public partial class LauncherMainWindow : Window
                 .Select(item => item.Time?.Trim() ?? string.Empty)
                 .Where(value => !string.IsNullOrWhiteSpace(value))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+            AutomationScripts = _automationScriptItems
+                .Select(item => item.ToModel())
+                .Where(item => !string.IsNullOrWhiteSpace(item.ScriptPath))
                 .ToList()
         };
     }
@@ -2888,6 +2914,9 @@ public partial class LauncherMainWindow : Window
             ExportBeforeShutdown = false,
             ExportIncludeChat = false,
             ExportIncludeServerInfo = false,
+            ClearCacheBeforeStart = false,
+            AutomationScriptsEnabled = false,
+            AutomationScripts = [],
             ActionWindows = [],
             BackupSchedules = [],
             BackupRetentionCount = 0,
@@ -8083,6 +8112,46 @@ public partial class LauncherMainWindow : Window
         }
     }
 
+    private void OnAutomationAddScriptClick(object? sender, RoutedEventArgs e)
+    {
+        _automationScriptItems.Add(new AutomationScriptItem(_isChinese));
+    }
+
+    private void OnAutomationRemoveScriptClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: AutomationScriptItem item })
+        {
+            _automationScriptItems.Remove(item);
+        }
+    }
+
+    private async void OnAutomationBrowseScriptClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: AutomationScriptItem item })
+        {
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = T("选择自动化脚本", "Select automation script"),
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType(T("批处理脚本", "Batch scripts"))
+                {
+                    Patterns = ["*.bat", "*.cmd"]
+                }
+            ]
+        });
+
+        var path = TryGetLocalPath(files.FirstOrDefault());
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            item.ScriptPath = path;
+        }
+    }
+
     private void OnAutomationAddBackupScheduleClick(object? sender, RoutedEventArgs e)
     {
         _automationBackupScheduleItems.Add(new AutomationBackupScheduleItem(_isChinese));
@@ -12997,6 +13066,117 @@ public partial class LauncherMainWindow : Window
             field = value;
             OnPropertyChanged(propertyName);
             RefreshPreview();
+            return true;
+        }
+    }
+
+    public sealed class AutomationScriptItem : INotifyPropertyChanged
+    {
+        private bool _isChinese;
+        private bool _enabled = true;
+        private AutomationScriptTrigger _trigger = AutomationScriptTrigger.BeforeStart;
+        private string _scriptPath = string.Empty;
+
+        public AutomationScriptItem(bool isChinese = true)
+        {
+            _isChinese = isChinese;
+            RebuildTriggerOptions();
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public ObservableCollection<ConfigChoiceOption> TriggerOptions { get; } = [];
+
+        public bool Enabled
+        {
+            get => _enabled;
+            set => SetField(ref _enabled, value);
+        }
+
+        public string ScriptPath
+        {
+            get => _scriptPath;
+            set => SetField(ref _scriptPath, value ?? string.Empty);
+        }
+
+        public ConfigChoiceOption SelectedTrigger
+        {
+            get => TriggerOptions.First(option =>
+                option.Value.Equals(_trigger.ToString(), StringComparison.OrdinalIgnoreCase));
+            set
+            {
+                if (value is null ||
+                    !Enum.TryParse(value.Value, true, out AutomationScriptTrigger trigger) ||
+                    !Enum.IsDefined(trigger) ||
+                    _trigger == trigger)
+                {
+                    return;
+                }
+
+                _trigger = trigger;
+                OnPropertyChanged();
+            }
+        }
+
+        public void SetLanguage(bool isChinese)
+        {
+            _isChinese = isChinese;
+            RebuildTriggerOptions();
+            OnPropertyChanged(nameof(TriggerOptions));
+            OnPropertyChanged(nameof(SelectedTrigger));
+        }
+
+        public AutomationScript ToModel() => new()
+        {
+            Enabled = _enabled,
+            Trigger = _trigger,
+            ScriptPath = _scriptPath.Trim()
+        };
+
+        public static AutomationScriptItem FromModel(AutomationScript model, bool isChinese)
+        {
+            var trigger = Enum.IsDefined(model.Trigger)
+                ? model.Trigger
+                : AutomationScriptTrigger.BeforeStart;
+            return new AutomationScriptItem(isChinese)
+            {
+                _enabled = model.Enabled,
+                _trigger = trigger,
+                _scriptPath = model.ScriptPath?.Trim() ?? string.Empty
+            };
+        }
+
+        private void RebuildTriggerOptions()
+        {
+            TriggerOptions.Clear();
+            TriggerOptions.Add(new ConfigChoiceOption(
+                AutomationScriptTrigger.BeforeStart.ToString(),
+                _isChinese ? "实例启动前" : "Before instance start"));
+            TriggerOptions.Add(new ConfigChoiceOption(
+                AutomationScriptTrigger.AfterStart.ToString(),
+                _isChinese ? "实例启动后" : "After instance start"));
+            TriggerOptions.Add(new ConfigChoiceOption(
+                AutomationScriptTrigger.BeforeStop.ToString(),
+                _isChinese ? "关服前" : "Before server stop"));
+            TriggerOptions.Add(new ConfigChoiceOption(
+                AutomationScriptTrigger.AfterStop.ToString(),
+                _isChinese ? "关服后" : "After server stop"));
+        }
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+            {
+                return false;
+            }
+
+            field = value;
+            OnPropertyChanged(propertyName);
             return true;
         }
     }

@@ -17,6 +17,7 @@ public static class ServiceCollectionExtension
         services.AddSingleton<IServerTransport, LocalServerTransport>();
         services.AddSingleton<ILogTailService, LogTailService>();
         services.AddSingleton<IAutomationSettingsService, AutomationSettingsService>();
+        services.AddSingleton<IAutomationLifecycleService, AutomationLifecycleService>();
         services.AddSingleton<IAutomationService, AutomationService>();
         services.AddSingleton<IFrpService, FrpService>();
         services.AddSingleton<IThirdPartyFrpcService, ThirdPartyFrpcService>();

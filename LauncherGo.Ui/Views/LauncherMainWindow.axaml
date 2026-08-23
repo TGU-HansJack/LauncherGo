@@ -1849,7 +1849,53 @@
                                                                 <TextBlock x:Name="AutomationExportIncludeServerLabelTextBlock" Classes="ConfigFieldLabel" Text="导出服务端信息" />
                                                                 <ToggleSwitch x:Name="AutomationExportIncludeServerCheckBox" Classes="LabelledToggle" />
                                                             </StackPanel>
+                                                            <StackPanel Classes="ToggleField">
+                                                                <TextBlock x:Name="AutomationClearCacheBeforeStartLabelTextBlock" Classes="ConfigFieldLabel" Text="开服前清理缓存" />
+                                                                <ToggleSwitch x:Name="AutomationClearCacheBeforeStartCheckBox" Classes="LabelledToggle" />
+                                                            </StackPanel>
+                                                            <StackPanel Classes="ToggleField">
+                                                                <TextBlock x:Name="AutomationScriptsEnabledLabelTextBlock" Classes="ConfigFieldLabel" Text="启用自动化脚本" />
+                                                                <ToggleSwitch x:Name="AutomationScriptsEnabledCheckBox" Classes="LabelledToggle" />
+                                                            </StackPanel>
                                                         </WrapPanel>
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <Border Classes="ConfigCard">
+                                                    <StackPanel Spacing="8">
+                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                                            <TextBlock x:Name="AutomationScriptsTitleTextBlock" Classes="ConfigSectionTitle" Text="自动化脚本" />
+                                                            <Button x:Name="AutomationAddScriptButton" Grid.Column="1" Classes="SecondaryActionButton" HorizontalAlignment="Right" Content="添加" Click="OnAutomationAddScriptClick" />
+                                                        </Grid>
+                                                        <Grid RowDefinitions="Auto,*">
+                                                            <Border Grid.Row="0" Classes="TableHeader">
+                                                                <Grid ColumnDefinitions="50,170,*,Auto" ColumnSpacing="8">
+                                                                    <TextBlock Classes="TableHeaderText" Text="启用" HorizontalAlignment="Center" />
+                                                                    <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="模式" />
+                                                                    <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="脚本路径" />
+                                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                                </Grid>
+                                                            </Border>
+                                                            <Border Grid.Row="1" Classes="TableBody">
+                                                                <ItemsControl x:Name="AutomationScriptsItemsControl">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Border Classes="TableRow">
+                                                                                <Grid ColumnDefinitions="50,170,*,Auto" ColumnSpacing="8">
+                                                                                    <ToggleSwitch Classes="TableSwitch" IsChecked="{Binding Enabled, Mode=TwoWay}" />
+                                                                                    <ComboBox Grid.Column="1" Classes="CompactCombo" ItemsSource="{Binding TriggerOptions}" SelectedItem="{Binding SelectedTrigger, Mode=TwoWay}" />
+                                                                                    <Grid Grid.Column="2" ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                                                                        <TextBox Classes="CompactInput" Text="{Binding ScriptPath, Mode=TwoWay}" ToolTip.Tip="{Binding ScriptPath}" />
+                                                                                        <Button Grid.Column="1" Classes="SecondaryActionButton" Tag="{Binding}" Content="浏览" Click="OnAutomationBrowseScriptClick" />
+                                                                                    </Grid>
+                                                                                    <Button Grid.Column="3" Classes="SecondaryActionButton DangerButton" Tag="{Binding}" Content="删除" Click="OnAutomationRemoveScriptClick" />
+                                                                                </Grid>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </Border>
+                                                        </Grid>
                                                     </StackPanel>
                                                 </Border>
 
