@@ -26,7 +26,6 @@ using Avalonia.VisualTree;
 using LauncherGo.Abstractions.Services;
 using LauncherGo.Abstractions.Services.I18n;
 using LauncherGo.Domains.Enums;
-using LauncherGo.Domains.Features;
 using LauncherGo.Domains.Models;
 using LauncherGo.Ui;
 using LauncherGo.Ui.Converters;
@@ -56,7 +55,6 @@ public partial class LauncherMainWindow : Window
     private const double OsqEndpointTokenColumnWidth = 365;
     private const double OsqEndpointColumnSpacing = 10;
     private const string DefaultServerDownloadCatalogUrl = "https://cdn.vintagestory.top/stable-unstable.json";
-    private const string DefaultStratumServerDownloadCatalogUrl = "https://cdn.vintagestory.top/stratum.json";
     private const string GitHubContributorsApiUrl = "https://api.github.com/repos/vscn-studio/LauncherGo/contributors?per_page=100";
     private const string SponsorApiUrl = "https://vscn.studio/api/afdian/sponsors";
     private const string LaunchStartIconData =
@@ -148,7 +146,6 @@ public partial class LauncherMainWindow : Window
         ("配置", "Config"),
         ("下载版本", "Downloads"),
         ("游戏服务端", "Game Server"),
-        ("Stratum 服务端", "Stratum Server"),
         ("直连", "Direct"),
         ("日志", "Logs"),
         ("实例", "Instance"),
@@ -530,7 +527,6 @@ public partial class LauncherMainWindow : Window
         _openServerQueryService.OutputReceived += OnOpenServerQueryOutputReceived;
 
         InitializeStaticTexts();
-        DownloadSourceComboBox.SelectedIndex = 0;
         RefreshAppearanceSettingsEditor();
         InitializeCollections();
         InitializeSeries();
@@ -875,7 +871,6 @@ public partial class LauncherMainWindow : Window
         RefreshSavesButton.Content = T("刷新", "Refresh");
         InitializeAutomationStaticTexts();
         InitializeModStaticTexts();
-        RefreshDownloadSourceOptions();
         DownloadVersionSearchTextBox.PlaceholderText = T("搜索版本号", "Search version");
         ImportServerPackageButton.Content = T("导入", "Import");
         RefreshDownloadVersionsButton.Content = T("刷新", "Refresh");
@@ -1041,13 +1036,14 @@ public partial class LauncherMainWindow : Window
 
     private void InitializeModStaticTexts()
     {
-        ModZipPathTextBox.PlaceholderText = T("Mod ZIP/文件夹路径", "Mod ZIP/folder path");
+        ModZipPathTextBox.PlaceholderText = T("Mod ZIP", "Mod ZIP");
         BrowseModZipButton.Content = T("浏览", "Browse");
-        BrowseModFolderButton.Content = T("文件夹", "Folder");
         ToolTip.SetTip(ModSelectAllCheckBox, T("全选/取消全选模组", "Select or clear all mods"));
         ImportModZipButton.Content = T("导入", "Import");
         DeleteSelectedModsButton.Content = T("删除", "Delete");
         RefreshModsButton.Content = T("刷新", "Refresh");
+        ModNameHeaderTextBlock.Text = T("名称", "Name");
+        ModSideHeaderTextBlock.Text = T("端", "Side");
         ModEditConfigHeaderTextBlock.Text = T("编辑配置", "Edit Config");
     }
 
@@ -1159,9 +1155,6 @@ public partial class LauncherMainWindow : Window
     {
         SettingsNetworkDownloadTitleTextBlock.Text = T("下载网络", "Download Network");
         SettingsThirdPartyServerLabelTextBlock.Text = T("游戏服务端", "Game Server");
-        SettingsStratumServerLabelTextBlock.Text = T("Stratum 服务端", "Stratum Server");
-        SettingsStratumServerLabelTextBlock.IsVisible = ServerFeatureFlags.StratumServerSupportEnabled;
-        SettingsStratumServerTextBox.IsVisible = ServerFeatureFlags.StratumServerSupportEnabled;
         SettingsUpdateTitleTextBlock.Text = T("LauncherGo 更新", "LauncherGo Updates");
         SettingsGitHubProxyLabelTextBlock.Text = T("GitHub 代理", "GitHub Proxy");
         SettingsAutoCheckUpdatesLabelTextBlock.Text = T("启动时自动检查", "Check on startup");
@@ -1244,7 +1237,7 @@ public partial class LauncherMainWindow : Window
         EasyTierCopyGameAddressButton.Content = T("复制", "Copy");
         EasyTierRoomPrefixLabelTextBlock.Text = T("房间前缀", "Room Prefix");
         EasyTierGamePortLabelTextBlock.Text = T("游戏端口", "Game Port");
-        EasyTierPeerNodesLabelTextBlock.Text = T("引导/中继节点", "Bootstrap / Relay Nodes");
+        EasyTierPeerNodesLabelTextBlock.Text = T("引导/中继节点（支持 JSON 订阅链接）", "Bootstrap / Relay Nodes (JSON subscriptions supported)");
         EasyTierNetworkNameLabelTextBlock.Text = T("自定义网络名称", "Custom Network Name");
         EasyTierNetworkSecretLabelTextBlock.Text = T("自定义网络密钥", "Custom Network Secret");
         EasyTierUdpLabelTextBlock.Text = T("UDP 游戏端口", "UDP game port");
@@ -3364,15 +3357,8 @@ public partial class LauncherMainWindow : Window
         var installedVersions = _profileService.GetInstalledVersions().ToHashSet(StringComparer.OrdinalIgnoreCase);
         _downloadVersionItems.Clear();
         var searchKeyword = DownloadVersionSearchTextBox.Text?.Trim() ?? string.Empty;
-        var sourceKind = GetSelectedDownloadSourceKind();
-
         foreach (var entry in _catalogEntries)
         {
-            if (entry.SourceKind != sourceKind)
-            {
-                continue;
-            }
-
             if (!string.IsNullOrWhiteSpace(searchKeyword)
                 && !entry.Version.Contains(searchKeyword, StringComparison.OrdinalIgnoreCase))
             {
@@ -3389,46 +3375,9 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private void OnDownloadSourceSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_isApplyingLocalizedOptions)
-        {
-            return;
-        }
-
-        RebuildDownloadVersionItems();
-    }
-
     private void OnDownloadVersionSearchTextChanged(object? sender, TextChangedEventArgs e)
     {
         RebuildDownloadVersionItems();
-    }
-
-    private ServerSourceKind GetSelectedDownloadSourceKind() =>
-        ServerFeatureFlags.StratumServerSupportEnabled &&
-        DownloadSourceComboBox.SelectedIndex == 1
-            ? ServerSourceKind.Stratum
-            : ServerSourceKind.Vanilla;
-
-    private void RefreshDownloadSourceOptions()
-    {
-        var selectedSource = GetSelectedDownloadSourceKind();
-        var labels = new List<string> { T("游戏服务端", "Game Server") };
-        if (ServerFeatureFlags.StratumServerSupportEnabled)
-        {
-            labels.Add(T("Stratum 服务端", "Stratum Server"));
-        }
-
-        DownloadSourceComboBox.Items.Clear();
-        foreach (var label in labels)
-        {
-            DownloadSourceComboBox.Items.Add(label);
-        }
-        DownloadSourceComboBox.SelectedIndex = 0;
-        if (selectedSource == ServerSourceKind.Stratum && labels.Count > 1)
-        {
-            DownloadSourceComboBox.SelectedIndex = 1;
-        }
     }
 
     private void SetDownloadStatus(string message, bool notify = true)
@@ -3705,7 +3654,6 @@ public partial class LauncherMainWindow : Window
         SettingsSaveCompressionUpdateModeComboBox.SelectionChanged += OnServerSettingsAutoSaveChanged;
 
         SettingsThirdPartyServerTextBox.LostFocus += OnNetworkSettingsAutoSaveChanged;
-        SettingsStratumServerTextBox.LostFocus += OnNetworkSettingsAutoSaveChanged;
         SettingsDownloadChunkCountTextBox.LostFocus += OnNetworkSettingsAutoSaveChanged;
         SettingsDownloadThreadCountTextBox.LostFocus += OnNetworkSettingsAutoSaveChanged;
         SettingsChunkedDownloadToggleSwitch.IsCheckedChanged += OnNetworkSettingsAutoSaveChanged;
@@ -4044,9 +3992,6 @@ public partial class LauncherMainWindow : Window
             SettingsThirdPartyServerTextBox.Text = string.IsNullOrWhiteSpace(preferences.ServerDownloadCatalogUrl)
                 ? DefaultServerDownloadCatalogUrl
                 : preferences.ServerDownloadCatalogUrl;
-            SettingsStratumServerTextBox.Text = string.IsNullOrWhiteSpace(preferences.StratumServerDownloadCatalogUrl)
-                ? DefaultStratumServerDownloadCatalogUrl
-                : preferences.StratumServerDownloadCatalogUrl;
             SettingsChunkedDownloadToggleSwitch.IsChecked = preferences.EnableChunkedDownloads;
             SettingsDownloadChunkCountTextBox.Text = Math.Clamp(preferences.DownloadChunkCount, 1, 32).ToString(CultureInfo.InvariantCulture);
             SettingsDownloadThreadCountTextBox.Text = Math.Clamp(preferences.DownloadThreadCount, 1, 32).ToString(CultureInfo.InvariantCulture);
@@ -4067,7 +4012,6 @@ public partial class LauncherMainWindow : Window
     {
         var preferences = _preferencesService.Load();
         preferences.ServerDownloadCatalogUrl = SettingsThirdPartyServerTextBox.Text?.Trim() ?? string.Empty;
-        preferences.StratumServerDownloadCatalogUrl = SettingsStratumServerTextBox.Text?.Trim() ?? string.Empty;
         preferences.EnableChunkedDownloads = SettingsChunkedDownloadToggleSwitch.IsChecked == true;
         preferences.DownloadChunkCount = ParseClampedInt(SettingsDownloadChunkCountTextBox.Text, 4, 1, 32);
         preferences.DownloadThreadCount = ParseClampedInt(SettingsDownloadThreadCountTextBox.Text, 4, 1, 32);
@@ -4139,20 +4083,7 @@ public partial class LauncherMainWindow : Window
             return false;
         }
 
-        if (entry.SourceKind != ServerSourceKind.Stratum)
-        {
-            return true;
-        }
-
-        var baseEntry = FindBaseServerEntry(entry);
-        return baseEntry is not null && File.Exists(Path.Combine(serverDirectory, baseEntry.FileName));
-    }
-
-    private ServerDownloadEntry? FindBaseServerEntry(ServerDownloadEntry stratumEntry)
-    {
-        return _catalogEntries.FirstOrDefault(entry =>
-            entry.SourceKind == ServerSourceKind.Vanilla &&
-            entry.Version.Equals(stratumEntry.BaseVersion, StringComparison.OrdinalIgnoreCase));
+        return true;
     }
 
     private void SetAboutFallbackText(string text)
@@ -6902,7 +6833,6 @@ public partial class LauncherMainWindow : Window
             "档案名称不能为空。" => "Profile name is required.",
             "请先选择服务端版本。" => "Select a server version first.",
             "服务端版本不能为空。" => "Server version is required.",
-            "Stratum 服务端支持当前已关闭。" => "Stratum server support is currently disabled.",
             "压缩包内未找到 VintagestoryServer.exe。" => "VintagestoryServer.exe was not found in the package.",
             "无法识别服务端目录。" => "Unable to identify the server directory.",
             "生成 serverconfig 超时。" => "Timed out while generating serverconfig.",
@@ -6940,13 +6870,6 @@ public partial class LauncherMainWindow : Window
         {
             var version = message[missingVersionPrefix.Length..^officialPackageSuffix.Length];
             return $"The official server package for version {version} was not found. Download or import it first.";
-        }
-
-        const string stratumPackageSuffix = " 的 Stratum 压缩包，请先下载或导入。";
-        if (message.StartsWith(missingVersionPrefix, StringComparison.Ordinal) && message.EndsWith(stratumPackageSuffix, StringComparison.Ordinal))
-        {
-            var version = message[missingVersionPrefix.Length..^stratumPackageSuffix.Length];
-            return $"The Stratum package for version {version} was not found. Download or import it first.";
         }
 
         const string missingServerExecutablePrefix = "未找到服务端程序：";
@@ -8294,19 +8217,6 @@ public partial class LauncherMainWindow : Window
             SetModImportPaths(paths);
     }
 
-    private async void OnBrowseModFolderClick(object? sender, RoutedEventArgs e)
-    {
-        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = T("选择模组文件夹", "Select mod folder"),
-            AllowMultiple = false
-        });
-
-        var path = TryGetLocalPath(folders.FirstOrDefault());
-        if (!string.IsNullOrWhiteSpace(path))
-            SetModImportPaths([path]);
-    }
-
     private async void OnImportModZipClick(object? sender, RoutedEventArgs e)
     {
         if (ModProfileComboBox.SelectedItem is not InstanceProfile profile)
@@ -8318,7 +8228,7 @@ public partial class LauncherMainWindow : Window
         var paths = GetModImportPaths();
         if (paths.Count == 0)
         {
-            SetModStatus(T("请选择 Mod ZIP 文件或模组文件夹。", "Select Mod ZIP files or a mod folder."));
+            SetModStatus(T("请选择 Mod ZIP 文件。", "Select Mod ZIP files."));
             return;
         }
 
@@ -8348,12 +8258,9 @@ public partial class LauncherMainWindow : Window
             .Where(static path => !string.IsNullOrWhiteSpace(path))
             .Select(static path => path.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase));
-        ModZipPathTextBox.Text = _modImportPaths.Count switch
-        {
-            0 => string.Empty,
-            1 => _modImportPaths[0],
-            _ => T($"已选择 {_modImportPaths.Count} 个来源", $"{_modImportPaths.Count} sources selected")
-        };
+        ModZipPathTextBox.Text = _modImportPaths.Count == 1
+            ? _modImportPaths[0]
+            : string.Join(" ", _modImportPaths.Select(QuoteModPath));
     }
 
     private IReadOnlyList<string> GetModImportPaths()
@@ -8362,19 +8269,59 @@ public partial class LauncherMainWindow : Window
         if (string.IsNullOrWhiteSpace(raw))
             return [];
 
-        var selectedSummary = _modImportPaths.Count switch
-        {
-            0 => string.Empty,
-            1 => _modImportPaths[0],
-            _ => T($"已选择 {_modImportPaths.Count} 个来源", $"{_modImportPaths.Count} sources selected")
-        };
-        if (_modImportPaths.Count > 0 && string.Equals(raw, selectedSummary, StringComparison.Ordinal))
-            return _modImportPaths.ToList();
+        return ParseModImportPaths(raw);
+    }
 
-        return raw
-            .Split([Environment.NewLine, ";", "|"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+    private static string QuoteModPath(string path) =>
+        $"\"{path.Replace("\"", "\"\"")}\"";
+
+    private static IReadOnlyList<string> ParseModImportPaths(string raw)
+    {
+        var paths = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var index = 0;
+
+        while (index < raw.Length)
+        {
+            while (index < raw.Length && (char.IsWhiteSpace(raw[index]) || raw[index] is ';' or '|'))
+                index++;
+            if (index >= raw.Length)
+                break;
+
+            var value = new System.Text.StringBuilder();
+            if (raw[index] == '\"')
+            {
+                index++;
+                while (index < raw.Length)
+                {
+                    if (raw[index] == '\"')
+                    {
+                        if (index + 1 < raw.Length && raw[index + 1] == '\"')
+                        {
+                            value.Append('\"');
+                            index += 2;
+                            continue;
+                        }
+
+                        index++;
+                        break;
+                    }
+
+                    value.Append(raw[index++]);
+                }
+            }
+            else
+            {
+                while (index < raw.Length && !char.IsWhiteSpace(raw[index]) && raw[index] is not (';' or '|'))
+                    value.Append(raw[index++]);
+            }
+
+            var path = value.ToString().Trim();
+            if (path.Length > 0 && seen.Add(path))
+                paths.Add(path);
+        }
+
+        return paths;
     }
 
     private async void OnDeleteSelectedModsClick(object? sender, RoutedEventArgs e)
@@ -11476,7 +11423,6 @@ public partial class LauncherMainWindow : Window
         try
         {
             DownloadVersionsListBox.IsEnabled = false;
-            DownloadSourceComboBox.IsEnabled = false;
             await DownloadCatalogEntryAsync(item.Entry, preferences.ServerDirectory);
             SetDownloadStatus(T($"下载完成：{item.Entry.Version}", $"Download completed: {item.Entry.Version}"));
             RefreshProfiles();
@@ -11489,24 +11435,12 @@ public partial class LauncherMainWindow : Window
         finally
         {
             DownloadVersionsListBox.IsEnabled = true;
-            DownloadSourceComboBox.IsEnabled = true;
         }
     }
 
     private async Task DownloadCatalogEntryAsync(ServerDownloadEntry entry, string serverDirectory)
     {
-        var entries = new List<ServerDownloadEntry>();
-        if (entry.SourceKind == ServerSourceKind.Stratum)
-        {
-            var baseEntry = FindBaseServerEntry(entry)
-                            ?? throw new InvalidOperationException(T(
-                                $"未找到 Stratum 基础版本 {entry.BaseVersion} 的游戏服务端下载项。",
-                                $"Game server download entry for Stratum base version {entry.BaseVersion} was not found."));
-            entries.Add(baseEntry);
-        }
-
-        entries.Add(entry);
-        foreach (var current in entries)
+        foreach (var current in new[] { entry })
         {
             var targetPath = Path.Combine(serverDirectory, current.FileName);
             if (File.Exists(targetPath))
@@ -13348,9 +13282,13 @@ public partial class LauncherMainWindow : Window
     {
         private bool _isSelected;
 
+        public required string Name { get; init; }
+
         public required string ModId { get; init; }
 
         public required string Version { get; init; }
+
+        public required string Side { get; init; }
 
         public required string FilePath { get; init; }
 
@@ -13380,8 +13318,10 @@ public partial class LauncherMainWindow : Window
         {
             return new ModListItem
             {
+                Name = model.Name,
                 ModId = model.ModId,
                 Version = model.Version,
+                Side = model.Side,
                 FilePath = model.FilePath,
                 ConfigPath = model.ConfigPath,
                 EditConfigText = isChinese ? "编辑" : "Edit",
@@ -13395,8 +13335,10 @@ public partial class LauncherMainWindow : Window
         {
             return new ModEntry
             {
+                Name = item.Name,
                 ModId = item.ModId,
                 Version = item.Version,
+                Side = item.Side,
                 FilePath = item.FilePath,
                 ConfigPath = item.ConfigPath,
                 Status = item.IsDisabled ? "Disabled" : "OK",

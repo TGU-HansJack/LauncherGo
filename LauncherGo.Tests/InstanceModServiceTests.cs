@@ -23,6 +23,7 @@ public sealed class InstanceModServiceTests
                   "TextureSize": 32,
                   "Name": "Clayworks",
                   "Version": "0.6.0",
+                  "Side": "Server",
                   "NetworkVersion": null,
                   "ModID": "clayworks",
                   "Dependencies": [
@@ -35,8 +36,10 @@ public sealed class InstanceModServiceTests
             var mods = await service.GetModsAsync(new InstanceProfile { DirectoryPath = directory.FullName });
 
             var mod = Assert.Single(mods);
+            Assert.Equal("Clayworks", mod.Name);
             Assert.Equal("clayworks", mod.ModId);
             Assert.Equal("0.6.0", mod.Version);
+            Assert.Equal("Server", mod.Side);
             var dependency = Assert.Single(mod.Dependencies);
             Assert.Equal("game", dependency.ModId);
             Assert.Equal("1.20.0", dependency.Version);
@@ -48,7 +51,7 @@ public sealed class InstanceModServiceTests
     }
 
     [Fact]
-    public async Task ImportModsAsync_DiscoversZipFilesAndModDirectoriesRecursively()
+    public async Task ImportModsAsync_ImportsZipFilesAndIgnoresDirectories()
     {
         var directory = Directory.CreateTempSubdirectory("launchergo-mod-import-");
         try
@@ -74,11 +77,10 @@ public sealed class InstanceModServiceTests
                 new InstanceProfile { DirectoryPath = directory.FullName },
                 [source.FullName, zipPath]);
 
-            Assert.Equal(2, imported.Count);
-            Assert.Contains(imported, mod => mod.ModId == "foldermod");
-            Assert.Contains(imported, mod => mod.ModId == "zipmod");
+            var mod = Assert.Single(imported);
+            Assert.Equal("zipmod", mod.ModId);
             Assert.True(File.Exists(Path.Combine(directory.FullName, "Mods", "zip-mod.zip")));
-            Assert.True(File.Exists(Path.Combine(directory.FullName, "Mods", "folder-mod", "modinfo.json")));
+            Assert.False(Directory.Exists(Path.Combine(directory.FullName, "Mods", "folder-mod")));
         }
         finally
         {

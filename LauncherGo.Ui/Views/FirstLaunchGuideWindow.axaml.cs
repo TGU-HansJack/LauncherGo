@@ -14,7 +14,6 @@ using Avalonia.VisualTree;
 using LauncherGo.Abstractions.Services;
 using LauncherGo.Abstractions.Services.I18n;
 using LauncherGo.Domains.Enums;
-using LauncherGo.Domains.Features;
 using LauncherGo.Domains.Models;
 using LauncherGo.Ui;
 using LauncherGo.Ui.Platform;
@@ -318,18 +317,7 @@ public partial class FirstLaunchGuideWindow : Window
 
     private async Task DownloadCatalogEntryAsync(ServerDownloadEntry entry, string serverDirectory)
     {
-        var entries = new List<ServerDownloadEntry>();
-        if (entry.SourceKind == ServerSourceKind.Stratum)
-        {
-            var baseEntry = FindBaseServerEntry(entry)
-                            ?? throw new InvalidOperationException(T(
-                                $"未找到 Stratum 基础版本 {entry.BaseVersion} 的游戏服务端下载项。",
-                                $"Game server download entry for Stratum base version {entry.BaseVersion} was not found."));
-            entries.Add(baseEntry);
-        }
-
-        entries.Add(entry);
-        foreach (var current in entries)
+        foreach (var current in new[] { entry })
         {
             var targetPath = Path.Combine(serverDirectory, current.FileName);
             if (File.Exists(targetPath))
@@ -346,13 +334,6 @@ public partial class FirstLaunchGuideWindow : Window
 
             await _serverPackageService.DownloadByCdnAsync(current.CdnUrl, targetPath, progress);
         }
-    }
-
-    private ServerDownloadEntry? FindBaseServerEntry(ServerDownloadEntry stratumEntry)
-    {
-        return _catalogEntries.FirstOrDefault(entry =>
-            entry.SourceKind == ServerSourceKind.Vanilla &&
-            entry.Version.Equals(stratumEntry.BaseVersion, StringComparison.OrdinalIgnoreCase));
     }
 
     private bool CloseOpenComboBoxDropDowns()
@@ -481,7 +462,6 @@ public partial class FirstLaunchGuideWindow : Window
         DownloadTitleTextBlock.Text = T("下载", "Download");
         DownloadHintTextBlock.Text = T("从版本列表中下载服务端，也可以导入已有服务端压缩包。", "Download from the version list, or import an existing server package.");
         ImportPackageButton.Content = T("导入服务端文件", "Import Server Package");
-        RefreshServerSourceOptions();
 
         CompleteTitleTextBlock.Text = T("完成", "Done");
         CompleteHintTextBlock.Text = T("恭喜你完成了全部初始启动设置，快使用LauncherGo创建服务器吧！", "Congratulations! Initial setup is complete. Start creating your server with LauncherGo.");
@@ -606,57 +586,14 @@ public partial class FirstLaunchGuideWindow : Window
     private void RebuildCatalogDisplay()
     {
         _serverVersionItems.Clear();
-        var sourceKind = GetSelectedServerSourceKind();
         foreach (var entry in _catalogEntries)
         {
-            if (entry.SourceKind != sourceKind)
-            {
-                continue;
-            }
-
             _serverVersionItems.Add(new ServerVersionListItem(
                 entry,
                 entry.Version,
                 IsDownloadedInServerDirectory(entry),
                 T("已下载", "Downloaded"),
                 T("下载", "Download")));
-        }
-    }
-
-    private void OnServerSourceSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_isApplyingUi)
-        {
-            return;
-        }
-
-        RebuildCatalogDisplay();
-    }
-
-    private ServerSourceKind GetSelectedServerSourceKind() =>
-        ServerFeatureFlags.StratumServerSupportEnabled &&
-        ServerSourceComboBox.SelectedIndex == 1
-            ? ServerSourceKind.Stratum
-            : ServerSourceKind.Vanilla;
-
-    private void RefreshServerSourceOptions()
-    {
-        var selectedSource = GetSelectedServerSourceKind();
-        var labels = new List<string> { T("游戏服务端", "Game Server") };
-        if (ServerFeatureFlags.StratumServerSupportEnabled)
-        {
-            labels.Add(T("Stratum 服务端", "Stratum Server"));
-        }
-
-        ServerSourceComboBox.Items.Clear();
-        foreach (var label in labels)
-        {
-            ServerSourceComboBox.Items.Add(label);
-        }
-        ServerSourceComboBox.SelectedIndex = 0;
-        if (selectedSource == ServerSourceKind.Stratum && labels.Count > 1)
-        {
-            ServerSourceComboBox.SelectedIndex = 1;
         }
     }
 
@@ -685,7 +622,6 @@ public partial class FirstLaunchGuideWindow : Window
     private void ToggleDownloadActions(bool enabled)
     {
         ServerVersionsListBox.IsEnabled = enabled;
-        ServerSourceComboBox.IsEnabled = enabled;
         ImportPackageButton.IsEnabled = enabled;
     }
 
@@ -698,13 +634,7 @@ public partial class FirstLaunchGuideWindow : Window
             return false;
         }
 
-        if (entry.SourceKind != ServerSourceKind.Stratum)
-        {
-            return true;
-        }
-
-        var baseEntry = FindBaseServerEntry(entry);
-        return baseEntry is not null && File.Exists(Path.Combine(serverDirectory, baseEntry.FileName));
+        return true;
     }
 
     private void SaveAndClose()

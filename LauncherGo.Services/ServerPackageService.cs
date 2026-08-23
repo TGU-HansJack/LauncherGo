@@ -1,8 +1,6 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
 using LauncherGo.Abstractions.Services;
-using LauncherGo.Domains.Enums;
-using LauncherGo.Domains.Features;
 using LauncherGo.Domains.Models;
 using LauncherGo.Services.Paths;
 
@@ -26,25 +24,18 @@ public sealed partial class ServerPackageService : IServerPackageService
         var result = new List<ServerDownloadEntry>();
         var errors = new List<string>();
 
-        var sources = new List<(ServerSourceKind SourceKind, string Url)>
-        {
-            (ServerSourceKind.Vanilla, preferences.ServerDownloadCatalogUrl)
-        };
-        if (ServerFeatureFlags.StratumServerSupportEnabled)
-        {
-            sources.Add((ServerSourceKind.Stratum, preferences.StratumServerDownloadCatalogUrl));
-        }
+        var sources = new[] { preferences.ServerDownloadCatalogUrl };
 
         foreach (var source in sources)
         {
-            if (string.IsNullOrWhiteSpace(source.Url))
+            if (string.IsNullOrWhiteSpace(source))
             {
                 continue;
             }
 
             try
             {
-                result.AddRange(await LoadCatalogEntriesAsync(source.Url, source.SourceKind, cancellationToken));
+                result.AddRange(await LoadCatalogEntriesAsync(source, cancellationToken));
             }
             catch (OperationCanceledException)
             {
@@ -52,7 +43,7 @@ public sealed partial class ServerPackageService : IServerPackageService
             }
             catch (Exception ex)
             {
-                errors.Add($"{source.SourceKind}: {ex.Message}");
+                errors.Add(ex.Message);
             }
         }
 
@@ -60,7 +51,6 @@ public sealed partial class ServerPackageService : IServerPackageService
         {
             return result
                 .OrderByDescending(entry => entry.Version, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(entry => entry.SourceKind)
                 .ToList();
         }
 
@@ -69,7 +59,6 @@ public sealed partial class ServerPackageService : IServerPackageService
 
     private static async Task<IReadOnlyList<ServerDownloadEntry>> LoadCatalogEntriesAsync(
         string catalogUrl,
-        ServerSourceKind sourceKind,
         CancellationToken cancellationToken)
     {
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -107,8 +96,6 @@ public sealed partial class ServerPackageService : IServerPackageService
                 var fileName = artifactObject["filename"]?.GetValue<string>();
                 var fileSize = FormatCatalogFileSize(artifactObject["filesize"]?.GetValue<string>());
                 var cdnUrl = artifactObject["urls"]?["cdn"]?.GetValue<string>();
-                var baseVersion = artifactObject["baseVersion"]?.GetValue<string>() ?? string.Empty;
-
                 if (string.IsNullOrWhiteSpace(fileName) || string.IsNullOrWhiteSpace(cdnUrl))
                 {
                     continue;
@@ -121,12 +108,6 @@ public sealed partial class ServerPackageService : IServerPackageService
                     FileSize = fileSize,
                     FileName = fileName,
                     CdnUrl = cdnUrl,
-                    SourceKind = sourceKind,
-                    BaseVersion = string.IsNullOrWhiteSpace(baseVersion)
-                        ? sourceKind == ServerSourceKind.Stratum
-                            ? LauncherWorkspacePathHelper.TryExtractStratumBaseVersion(versionNode.Key) ?? string.Empty
-                            : versionNode.Key
-                        : baseVersion
                 });
             }
         }
@@ -404,9 +385,7 @@ public sealed partial class ServerPackageService : IServerPackageService
         var fileName = Path.GetFileName(sourceFullPath);
         if (!IsServerZipFileName(fileName))
         {
-            throw new InvalidOperationException(ServerFeatureFlags.StratumServerSupportEnabled
-                ? "仅支持导入官方或 Stratum Windows 服务端压缩包（vs_server_win-x64_*.zip / stratum-*-win-x64.zip）。"
-                : "仅支持导入官方 Windows 服务端压缩包（vs_server_win-x64_*.zip）。");
+            throw new InvalidOperationException("仅支持导入官方 Windows 服务端压缩包（vs_server_win-x64_*.zip）。");
         }
 
         var targetRoot = Path.GetFullPath(targetDirectory.Trim());
@@ -429,7 +408,6 @@ public sealed partial class ServerPackageService : IServerPackageService
         }
 
         var version = LauncherWorkspacePathHelper.TryExtractVersionFromPackageName(fileName);
-        return !string.IsNullOrWhiteSpace(version) &&
-               (ServerFeatureFlags.StratumServerSupportEnabled || LauncherWorkspacePathHelper.TryExtractStratumBaseVersion(version) is null);
+        return !string.IsNullOrWhiteSpace(version);
     }
 }

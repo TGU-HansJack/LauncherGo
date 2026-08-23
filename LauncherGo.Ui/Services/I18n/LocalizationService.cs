@@ -317,7 +317,6 @@ public sealed class LocalizationService : ILocalizationService
         Add("状态", "Status", "Статус", "Status", "État", "Estado", "Stan", "Status");
         Add("错误", "Error", "Ошибка", "Fehler", "Erreur", "Error", "Błąd", "Erro");
         Add("游戏服务端", "Game Server", "Игровой сервер", "Spielserver", "Serveur de jeu", "Servidor de juego", "Serwer gry", "Servidor de jogo");
-        Add("Stratum 服务端", "Stratum Server", "Сервер Stratum", "Stratum-Server", "Serveur Stratum", "Servidor Stratum", "Serwer Stratum", "Servidor Stratum");
         Add("直连", "Direct", "Прямое подключение", "Direkt", "Direct", "Directo", "Bezpośrednio", "Direto");
 
         return result;

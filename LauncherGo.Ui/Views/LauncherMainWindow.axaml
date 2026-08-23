@@ -2168,7 +2168,7 @@
                                     </Grid>
 
                                     <Grid x:Name="ModsPanel" RowDefinitions="Auto,Auto,*" RowSpacing="8" IsVisible="False">
-                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="8">
                                             <ComboBox x:Name="ModProfileComboBox" Grid.Column="0" Classes="CompactCombo" SelectionChanged="OnModProfileSelectionChanged">
                                                 <ComboBox.ItemTemplate>
                                                     <DataTemplate>
@@ -2176,44 +2176,47 @@
                                                     </DataTemplate>
                                                 </ComboBox.ItemTemplate>
                                             </ComboBox>
-                                            <TextBox x:Name="ModZipPathTextBox" Grid.Column="1" Classes="CompactInput" PlaceholderText="Mod ZIP/文件夹路径" />
+                                            <TextBox x:Name="ModZipPathTextBox" Grid.Column="1" Classes="CompactInput" PlaceholderText="Mod ZIP" />
                                             <Button x:Name="BrowseModZipButton" Grid.Column="2" Classes="SecondaryActionButton" Content="浏览" Click="OnBrowseModZipClick" />
-                                            <Button x:Name="BrowseModFolderButton" Grid.Column="3" Classes="SecondaryActionButton" Content="文件夹" Click="OnBrowseModFolderClick" />
-                                            <Button x:Name="ImportModZipButton" Grid.Column="4" Classes="SecondaryActionButton" Content="导入" Click="OnImportModZipClick" />
-                                            <Button x:Name="DeleteSelectedModsButton" Grid.Column="5" Classes="SecondaryActionButton DangerButton" Content="删除" Click="OnDeleteSelectedModsClick" />
-                                            <Button x:Name="RefreshModsButton" Grid.Column="6" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshModsClick" />
+                                            <Button x:Name="ImportModZipButton" Grid.Column="3" Classes="SecondaryActionButton" Content="导入" Click="OnImportModZipClick" />
+                                            <Button x:Name="DeleteSelectedModsButton" Grid.Column="4" Classes="SecondaryActionButton DangerButton" Content="删除" Click="OnDeleteSelectedModsClick" />
+                                            <Button x:Name="RefreshModsButton" Grid.Column="5" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshModsClick" />
                                         </Grid>
                                         <TextBlock x:Name="ModStatusTextBlock" Grid.Row="1" Classes="ConfigHintText" TextWrapping="Wrap" />
                                         <Grid Grid.Row="2" RowDefinitions="Auto,*">
                                             <Border Grid.Row="0" Classes="TableHeader">
-                                                <Grid ColumnDefinitions="44,1.1*,.7*,1.1*,1.1*,1.8*,2.2*,58,96" ColumnSpacing="8">
+                                                <Grid ColumnDefinitions="44,1.15*,1.1*,.7*,.7*,1.1*,1.1*,1.8*,2.2*,58,96" ColumnSpacing="8">
                                                     <CheckBox x:Name="ModSelectAllCheckBox" Classes="TableSelectCheck" IsThreeState="True" Click="OnModSelectAllClick" />
-                                                    <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="Mod ID" />
-                                                    <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="版本" />
-                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="依赖" />
-                                                    <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="问题" />
-                                                    <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="配置路径" />
-                                                    <TextBlock Grid.Column="6" Classes="TableHeaderText" Text="文件" />
-                                                    <TextBlock Grid.Column="7" Classes="TableHeaderText" Text="启用" HorizontalAlignment="Center" />
-                                                    <TextBlock x:Name="ModEditConfigHeaderTextBlock" Grid.Column="8" Classes="TableHeaderText" Text="编辑配置" HorizontalAlignment="Center" />
+                                                    <TextBlock x:Name="ModNameHeaderTextBlock" Grid.Column="1" Classes="TableHeaderText" Text="名称" />
+                                                    <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="Mod ID" />
+                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="版本" />
+                                                    <TextBlock x:Name="ModSideHeaderTextBlock" Grid.Column="4" Classes="TableHeaderText" Text="端" />
+                                                    <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="依赖" />
+                                                    <TextBlock Grid.Column="6" Classes="TableHeaderText" Text="问题" />
+                                                    <TextBlock Grid.Column="7" Classes="TableHeaderText" Text="配置路径" />
+                                                    <TextBlock Grid.Column="8" Classes="TableHeaderText" Text="文件" />
+                                                    <TextBlock Grid.Column="9" Classes="TableHeaderText" Text="启用" HorizontalAlignment="Center" />
+                                                    <TextBlock x:Name="ModEditConfigHeaderTextBlock" Grid.Column="10" Classes="TableHeaderText" Text="编辑配置" HorizontalAlignment="Center" />
                                                 </Grid>
                                             </Border>
                                             <Border Grid.Row="1" Classes="TableBody">
                                                 <ListBox x:Name="ModsListBox" Classes="FlatList TableList" SelectionMode="Multiple" SelectionChanged="OnModsSelectionChanged">
                                                     <ListBox.ItemTemplate>
                                                         <DataTemplate>
-                                                            <Grid ColumnDefinitions="44,1.1*,.7*,1.1*,1.1*,1.8*,2.2*,58,96" ColumnSpacing="8" MinHeight="36">
+                                                            <Grid ColumnDefinitions="44,1.15*,1.1*,.7*,.7*,1.1*,1.1*,1.8*,2.2*,58,96" ColumnSpacing="8" MinHeight="36">
                                                                 <CheckBox Classes="TableSelectCheck" IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}, Mode=TwoWay}" />
-                                                                <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding ModId}" FontWeight="SemiBold" />
-                                                                <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding Version}" />
-                                                                <TextBlock Grid.Column="3" Classes="TableCellText" Text="{Binding DependenciesText}" />
-                                                                <TextBlock Grid.Column="4" Classes="TableCellText" Text="{Binding IssuesText}" />
-                                                                <Button Grid.Column="5" Classes="DownloadTextButton TablePathButton" Tag="{Binding ConfigPath}" HorizontalAlignment="Stretch" Click="OnOpenModConfigPathClick">
+                                                                <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding Name}" />
+                                                                <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding ModId}" FontWeight="SemiBold" />
+                                                                <TextBlock Grid.Column="3" Classes="TableCellText" Text="{Binding Version}" />
+                                                                <TextBlock Grid.Column="4" Classes="TableCellText" Text="{Binding Side}" />
+                                                                <TextBlock Grid.Column="5" Classes="TableCellText" Text="{Binding DependenciesText}" />
+                                                                <TextBlock Grid.Column="6" Classes="TableCellText" Text="{Binding IssuesText}" />
+                                                                <Button Grid.Column="7" Classes="DownloadTextButton TablePathButton" Tag="{Binding ConfigPath}" HorizontalAlignment="Stretch" Click="OnOpenModConfigPathClick">
                                                                     <TextBlock Classes="TableCellText TablePathText" Text="{Binding ConfigPath}" Foreground="{DynamicResource DownloadActionTextBrush}" />
                                                                 </Button>
-                                                                <TextBlock Grid.Column="6" Classes="TableCellText" Text="{Binding FilePath}" />
-                                                                <ToggleSwitch Grid.Column="7" Classes="TableSwitch" IsChecked="{Binding ModEnabled, Mode=OneWay}" Tag="{Binding}" Click="OnModEnabledSwitchClick" />
-                                                                <Button Grid.Column="8" Classes="SecondaryActionButton" Tag="{Binding}" Content="{Binding EditConfigText}" IsEnabled="{Binding CanEditConfig}" Click="OnEditModConfigClick" />
+                                                                <TextBlock Grid.Column="8" Classes="TableCellText" Text="{Binding FilePath}" />
+                                                                <ToggleSwitch Grid.Column="9" Classes="TableSwitch" IsChecked="{Binding ModEnabled, Mode=OneWay}" Tag="{Binding}" Click="OnModEnabledSwitchClick" />
+                                                                <Button Grid.Column="10" Classes="SecondaryActionButton" Tag="{Binding}" Content="{Binding EditConfigText}" IsEnabled="{Binding CanEditConfig}" Click="OnEditModConfigClick" />
                                                             </Grid>
                                                         </DataTemplate>
                                                     </ListBox.ItemTemplate>
@@ -2223,11 +2226,10 @@
                                     </Grid>
 
                                     <Grid x:Name="DownloadVersionsPanel" RowDefinitions="Auto,*,Auto" RowSpacing="10" IsVisible="False">
-                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
-                                            <ComboBox x:Name="DownloadSourceComboBox" Grid.Column="0" Classes="CompactCombo" MinWidth="142" SelectionChanged="OnDownloadSourceSelectionChanged" />
-                                            <TextBox x:Name="DownloadVersionSearchTextBox" Grid.Column="1" Classes="CompactInput" PlaceholderText="搜索版本号" TextChanged="OnDownloadVersionSearchTextChanged" />
-                                            <Button x:Name="ImportServerPackageButton" Grid.Column="2" Classes="SecondaryActionButton" Content="导入" Click="OnImportServerPackageClick" />
-                                            <Button x:Name="RefreshDownloadVersionsButton" Grid.Column="3" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshDownloadVersionsClick" />
+                                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                            <TextBox x:Name="DownloadVersionSearchTextBox" Grid.Column="0" Classes="CompactInput" PlaceholderText="搜索版本号" TextChanged="OnDownloadVersionSearchTextChanged" />
+                                            <Button x:Name="ImportServerPackageButton" Grid.Column="1" Classes="SecondaryActionButton" Content="导入" Click="OnImportServerPackageClick" />
+                                            <Button x:Name="RefreshDownloadVersionsButton" Grid.Column="2" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshDownloadVersionsClick" />
                                         </Grid>
                                         <Grid Grid.Row="1" RowDefinitions="Auto,*">
                                             <Border Grid.Row="0" Classes="TableHeader">
@@ -2557,10 +2559,6 @@
                                                         <StackPanel Classes="ConfigFormFieldWide">
                                                             <TextBlock x:Name="SettingsThirdPartyServerLabelTextBlock" Classes="ConfigFieldLabel" Text="第三方服务端" />
                                                             <TextBox x:Name="SettingsThirdPartyServerTextBox" Classes="CompactInput" />
-                                                        </StackPanel>
-                                                        <StackPanel Classes="ConfigFormFieldWide">
-                                                            <TextBlock x:Name="SettingsStratumServerLabelTextBlock" Classes="ConfigFieldLabel" Text="Stratum 服务端" />
-                                                            <TextBox x:Name="SettingsStratumServerTextBox" Classes="CompactInput" />
                                                         </StackPanel>
                                                     </WrapPanel>
                                                 </StackPanel>

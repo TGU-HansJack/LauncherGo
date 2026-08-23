@@ -8,8 +8,6 @@ public sealed class ServerPackagePathTests
 {
     [Theory]
     [InlineData("vs_server_win-x64_1.22.6.zip", "1.22.6")]
-    [InlineData("stratum-1.22.6-stratum.2-win-x64.zip", "1.22.6-stratum.2")]
-    [InlineData("stratum-1.22.6-stratum.2-rc.1-win-x64.zip", "1.22.6-stratum.2-rc.1")]
     public void TryExtractVersionFromPackageName_RecognizesSupportedWindowsPackages(
         string fileName,
         string expectedVersion)
@@ -20,15 +18,11 @@ public sealed class ServerPackagePathTests
     }
 
     [Theory]
-    [InlineData("1.22.6-stratum.2", "1.22.6")]
-    [InlineData("1.22.6-stratum.2-rc.1", "1.22.6")]
-    public void TryExtractStratumBaseVersion_ReturnsGameVersion(
-        string version,
-        string expectedBaseVersion)
+    [InlineData("custom-server-1.22.6-win-x64.zip")]
+    [InlineData("vs_server_linux-x64_1.22.6.tar.gz")]
+    public void TryExtractVersionFromPackageName_RejectsUnsupportedPackages(string fileName)
     {
-        Assert.Equal(
-            expectedBaseVersion,
-            LauncherWorkspacePathHelper.TryExtractStratumBaseVersion(version));
+        Assert.Null(LauncherWorkspacePathHelper.TryExtractVersionFromPackageName(fileName));
     }
 
     [Theory]

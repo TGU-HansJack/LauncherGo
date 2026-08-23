@@ -100,6 +100,10 @@ public sealed class EasyTierService : IEasyTierService
             }
 
             var settings = GetCurrentSettings();
+            var peerNodes = await EasyTierPeerNodeResolver.ResolveAsync(
+                settings.PeerNodesText,
+                cancellationToken,
+                message => _logger.LogWarning("{Message}", message)).ConfigureAwait(false);
             var gamePort = Math.Clamp(settings.GamePort, 1, ushort.MaxValue);
             var hasCustomNetworkName = !string.IsNullOrWhiteSpace(settings.NetworkName);
             var hasCustomNetworkSecret = !string.IsNullOrWhiteSpace(settings.NetworkSecret);
@@ -129,7 +133,8 @@ public sealed class EasyTierService : IEasyTierService
                 hostName,
                 rpcPort,
                 controlPort,
-                gamePort);
+                gamePort,
+                peerNodes);
             process.OutputDataReceived += OnProcessOutput;
             process.ErrorDataReceived += OnProcessOutput;
             process.Exited += OnProcessExited;
@@ -285,7 +290,8 @@ public sealed class EasyTierService : IEasyTierService
         string hostName,
         int rpcPort,
         int controlPort,
-        int gamePort)
+        int gamePort,
+        IReadOnlyList<string> peerNodes)
     {
         var process = new Process
         {
@@ -344,7 +350,7 @@ public sealed class EasyTierService : IEasyTierService
             arguments.Add($"--udp-whitelist={gamePort}");
         }
 
-        foreach (var peer in ParsePeerNodes(settings.PeerNodesText))
+        foreach (var peer in peerNodes)
         {
             arguments.Add("-p");
             arguments.Add(peer);
@@ -559,12 +565,6 @@ public sealed class EasyTierService : IEasyTierService
 
         return _preferencesService.Load().EasyTier ?? new EasyTierIntegrationSettings();
     }
-
-    private static IEnumerable<string> ParsePeerNodes(string? text) =>
-        (text ?? string.Empty)
-        .Split(['\r', '\n', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-        .Where(static peer => !string.IsNullOrWhiteSpace(peer) && !peer.StartsWith('#'))
-        .Distinct(StringComparer.OrdinalIgnoreCase);
 
     private static int GetAvailablePort(int excludedPort = 0)
     {

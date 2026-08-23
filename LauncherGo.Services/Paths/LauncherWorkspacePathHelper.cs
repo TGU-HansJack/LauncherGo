@@ -33,12 +33,7 @@ internal static partial class LauncherWorkspacePathHelper
         Path.Combine(InstalledServerRoot(preferences), SanitizeFileName(version));
 
     public static string ResolveServerExecutablePath(string installPath)
-    {
-        var stratumExecutable = Path.Combine(installPath, "StratumServer.exe");
-        return File.Exists(stratumExecutable)
-            ? stratumExecutable
-            : Path.Combine(installPath, "VintagestoryServer.exe");
-    }
+        => Path.Combine(installPath, "VintagestoryServer.exe");
 
     public static void EnsureWorkspace(LauncherPreferences preferences)
     {
@@ -61,26 +56,8 @@ internal static partial class LauncherWorkspacePathHelper
             return null;
         }
 
-        var normalized = fileName.Trim();
-        var vanillaMatch = VanillaServerPackageVersionRegex().Match(normalized);
-        if (vanillaMatch.Success)
-        {
-            return vanillaMatch.Groups["version"].Value.Trim();
-        }
-
-        var stratumMatch = StratumServerPackageVersionRegex().Match(normalized);
-        return stratumMatch.Success ? stratumMatch.Groups["version"].Value.Trim() : null;
-    }
-
-    public static string? TryExtractStratumBaseVersion(string? version)
-    {
-        if (string.IsNullOrWhiteSpace(version))
-        {
-            return null;
-        }
-
-        var match = StratumVersionRegex().Match(version.Trim());
-        return match.Success ? match.Groups["baseVersion"].Value.Trim() : null;
+        var match = VanillaServerPackageVersionRegex().Match(fileName.Trim());
+        return match.Success ? match.Groups["version"].Value.Trim() : null;
     }
 
     public static bool IsSameOrChildPath(string? candidatePath, string? rootPath)
@@ -118,9 +95,4 @@ internal static partial class LauncherWorkspacePathHelper
     [GeneratedRegex(@"^vs_server_win-x64_(?<version>.+)\.zip$", RegexOptions.IgnoreCase)]
     private static partial Regex VanillaServerPackageVersionRegex();
 
-    [GeneratedRegex(@"^stratum-(?<version>.+)-win-x64\.zip$", RegexOptions.IgnoreCase)]
-    private static partial Regex StratumServerPackageVersionRegex();
-
-    [GeneratedRegex(@"^(?<baseVersion>.+)-stratum\..+$", RegexOptions.IgnoreCase)]
-    private static partial Regex StratumVersionRegex();
 }

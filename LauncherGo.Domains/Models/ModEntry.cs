@@ -5,9 +5,13 @@ namespace LauncherGo.Domains.Models;
 /// </summary>
 public class ModEntry
 {
+    public required string Name { get; init; }
+
     public required string ModId { get; init; }
 
     public required string Version { get; init; }
+
+    public required string Side { get; init; }
 
     public required string FilePath { get; init; }
 

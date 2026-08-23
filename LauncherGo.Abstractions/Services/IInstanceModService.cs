@@ -17,7 +17,7 @@ public interface IInstanceModService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    ///     导入一个或多个模组来源。来源可以是 ZIP 文件、模组目录，或包含这些来源的目录。
+    ///     导入一个或多个 Mod ZIP 文件。
     /// </summary>
     Task<IReadOnlyList<ModEntry>> ImportModsAsync(
         InstanceProfile profile,

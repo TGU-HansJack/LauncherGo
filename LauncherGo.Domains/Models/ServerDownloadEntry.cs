@@ -1,5 +1,3 @@
-using LauncherGo.Domains.Enums;
-
 namespace LauncherGo.Domains.Models;
 
 public sealed class ServerDownloadEntry
@@ -13,10 +11,6 @@ public sealed class ServerDownloadEntry
     public required string FileName { get; init; }
 
     public required string CdnUrl { get; init; }
-
-    public ServerSourceKind SourceKind { get; init; }
-
-    public string BaseVersion { get; init; } = string.Empty;
 
     public override string ToString()
     {

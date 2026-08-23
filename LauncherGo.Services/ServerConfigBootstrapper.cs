@@ -76,7 +76,6 @@ internal static class ServerConfigBootstrapper
         process.BeginErrorReadLine();
 
         var timeoutMilliseconds = Path.GetFileName(serverExe).Equals(
-            "StratumServer.exe",
             StringComparison.OrdinalIgnoreCase)
             ? 60_000
             : 30_000;

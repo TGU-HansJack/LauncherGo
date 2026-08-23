@@ -64,8 +64,10 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
             var status = issues.Count > 0 ? "MissingDependency" : mod.Status;
             return new ModEntry
             {
+                Name = mod.Name,
                 ModId = mod.ModId,
                 Version = mod.Version,
+                Side = mod.Side,
                 FilePath = mod.FilePath,
                 ConfigPath = mod.ConfigPath,
                 Status = status,
@@ -123,33 +125,10 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
         foreach (var sourcePath in candidates)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (File.Exists(sourcePath))
-            {
-                var destination = Path.Combine(modsPath, WorkspacePathHelper.SanitizeFileName(Path.GetFileName(sourcePath)));
-                if (!PathsEqual(sourcePath, destination))
-                    File.Copy(sourcePath, destination, overwrite: true);
-                imported.Add(ReadModFromZip(destination, disabledSet, modConfigPath));
-                continue;
-            }
-
-            if (!Directory.Exists(sourcePath))
-                continue;
-
-            var folderName = WorkspacePathHelper.SanitizeFileName(Path.GetFileName(sourcePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
-            if (string.IsNullOrWhiteSpace(folderName))
-                continue;
-
-            var sourceFullPath = Path.GetFullPath(sourcePath);
-            var destinationPath = Path.Combine(modsPath, folderName);
-            if (!PathsEqual(sourceFullPath, destinationPath) && !IsPathWithin(destinationPath, sourceFullPath))
-            {
-                CopyDirectory(sourceFullPath, destinationPath);
-            }
-
-            imported.Add(ReadModFromDirectory(
-                IsPathWithin(destinationPath, sourceFullPath) ? sourceFullPath : destinationPath,
-                disabledSet,
-                modConfigPath));
+            var destination = Path.Combine(modsPath, WorkspacePathHelper.SanitizeFileName(Path.GetFileName(sourcePath)));
+            if (!PathsEqual(sourcePath, destination))
+                File.Copy(sourcePath, destination, overwrite: true);
+            imported.Add(ReadModFromZip(destination, disabledSet, modConfigPath));
         }
 
         return imported;
@@ -297,14 +276,18 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
             return BuildFallbackEntry(filePath, "InvalidMetadata", disabledSet, modConfigPath);
 
         var modId = GetMetadataProperty(node, "modid")?.GetValue<string>() ?? Path.GetFileNameWithoutExtension(filePath);
+        var name = GetMetadataProperty(node, "name")?.GetValue<string>();
         var version = GetMetadataProperty(node, "version")?.GetValue<string>() ?? "unknown";
+        var side = GetMetadataProperty(node, "side")?.GetValue<string>();
         var dependencies = ReadDependencies(GetMetadataProperty(node, "dependencies"));
         var disabled = disabledSet.Contains(modId) || disabledSet.Contains($"{modId}@{version}");
 
         return new ModEntry
         {
+            Name = string.IsNullOrWhiteSpace(name) ? modId : name.Trim(),
             ModId = modId,
             Version = version,
+            Side = NormalizeModSide(side),
             FilePath = filePath,
             ConfigPath = ResolveModConfigPath(modConfigPath, modId),
             Status = "OK",
@@ -323,8 +306,10 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
         var fallbackId = Path.GetFileNameWithoutExtension(filePath);
         return new ModEntry
         {
+            Name = fallbackId,
             ModId = fallbackId,
             Version = "unknown",
+            Side = "Universal",
             FilePath = filePath,
             ConfigPath = ResolveModConfigPath(modConfigPath, fallbackId),
             Status = status,
@@ -371,6 +356,14 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
         return dependencies;
     }
 
+    private static string NormalizeModSide(string? side) => side?.Trim().ToLowerInvariant() switch
+    {
+        "client" => "Client",
+        "server" => "Server",
+        "universal" or "both" => "Universal",
+        _ => "Universal"
+    };
+
     private static List<string> DiscoverModSources(
         IEnumerable<string> sourcePaths,
         CancellationToken cancellationToken)
@@ -396,76 +389,28 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
 
             if (File.Exists(path))
             {
-                if (Path.GetExtension(path).Equals(".zip", StringComparison.OrdinalIgnoreCase) && HasModInfo(path))
+                if (Path.GetExtension(path).Equals(".zip", StringComparison.OrdinalIgnoreCase) && HasModInfoInZip(path))
                     AddCandidate(path, candidates, seen);
                 continue;
             }
 
-            if (!Directory.Exists(path))
-                continue;
-
-            AddModSourcesFromDirectory(path, candidates, seen, cancellationToken);
         }
 
         return candidates;
     }
 
-    private static void AddModSourcesFromDirectory(
-        string directoryPath,
-        List<string> candidates,
-        HashSet<string> seen,
-        CancellationToken cancellationToken)
+    private static bool HasModInfoInZip(string zipPath)
     {
-        if (HasModInfo(directoryPath))
-        {
-            AddCandidate(directoryPath, candidates, seen);
-            return;
-        }
-
-        IEnumerable<string> files;
-        IEnumerable<string> directories;
         try
         {
-            files = Directory.EnumerateFiles(directoryPath, "*.zip", SearchOption.AllDirectories);
-            directories = Directory.EnumerateDirectories(directoryPath, "*", SearchOption.AllDirectories);
+            using var archive = ZipFile.OpenRead(zipPath);
+            return archive.Entries.Any(entry =>
+                entry.FullName.TrimEnd('/').EndsWith("modinfo.json", StringComparison.OrdinalIgnoreCase));
         }
         catch
         {
-            return;
+            return false;
         }
-
-        foreach (var file in files)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (HasModInfo(file))
-                AddCandidate(file, candidates, seen);
-        }
-
-        foreach (var directory in directories)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (HasModInfo(directory))
-                AddCandidate(directory, candidates, seen);
-        }
-    }
-
-    private static bool HasModInfo(string path)
-    {
-        if (File.Exists(path))
-        {
-            try
-            {
-                using var archive = ZipFile.OpenRead(path);
-                return archive.Entries.Any(entry =>
-                    entry.FullName.TrimEnd('/').EndsWith("modinfo.json", StringComparison.OrdinalIgnoreCase));
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        return Directory.Exists(path) && File.Exists(Path.Combine(path, "modinfo.json"));
     }
 
     private static void AddCandidate(string path, List<string> candidates, HashSet<string> seen)
@@ -475,35 +420,11 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
             candidates.Add(fullPath);
     }
 
-    private static void CopyDirectory(string sourcePath, string destinationPath)
-    {
-        if (Directory.Exists(destinationPath))
-            Directory.Delete(destinationPath, recursive: true);
-
-        Directory.CreateDirectory(destinationPath);
-        foreach (var sourceFile in Directory.EnumerateFiles(sourcePath, "*", SearchOption.AllDirectories))
-        {
-            var relativePath = Path.GetRelativePath(sourcePath, sourceFile);
-            var destinationFile = Path.Combine(destinationPath, relativePath);
-            Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
-            File.Copy(sourceFile, destinationFile, overwrite: true);
-        }
-    }
-
     private static bool PathsEqual(string left, string right) =>
         string.Equals(
             Path.GetFullPath(left).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
             Path.GetFullPath(right).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
             StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsPathWithin(string candidatePath, string rootPath)
-    {
-        var candidate = Path.GetFullPath(candidatePath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var root = Path.GetFullPath(rootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        return candidate.Equals(root, StringComparison.OrdinalIgnoreCase) ||
-               candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
-               candidate.StartsWith(root + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
-    }
 
     private static JsonNode? GetMetadataProperty(JsonObject node, string propertyName)
     {

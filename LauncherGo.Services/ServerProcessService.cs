@@ -9,7 +9,6 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using LauncherGo.Abstractions.Services;
-using LauncherGo.Domains.Features;
 using LauncherGo.Domains.Models;
 using LauncherGo.Services.Paths;
 
@@ -205,12 +204,6 @@ public sealed partial class ServerProcessService : IServerProcessService
         if (profile is null)
         {
             throw new ArgumentNullException(nameof(profile));
-        }
-
-        if (!ServerFeatureFlags.StratumServerSupportEnabled &&
-            LauncherWorkspacePathHelper.TryExtractStratumBaseVersion(profile.Version) is not null)
-        {
-            throw new InvalidOperationException("Stratum 服务端支持当前已关闭。");
         }
 
         _activeProfileId = profile.Id;
@@ -3117,9 +3110,7 @@ internal sealed partial class SingleServerProcessController
 
     private static Process[] GetServerProcessCandidates()
     {
-        return Process.GetProcessesByName("VintagestoryServer")
-            .Concat(Process.GetProcessesByName("StratumServer"))
-            .ToArray();
+        return Process.GetProcessesByName("VintagestoryServer");
     }
 
     private static bool IsWorkspaceServerProcess(Process process, string serversRoot)

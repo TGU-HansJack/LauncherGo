@@ -352,7 +352,6 @@
                         <Button x:Name="ImportPackageButton" Grid.Column="1" Theme="{DynamicResource SolidButton}" Classes="Secondary" Height="34" MinWidth="92" FontSize="13" Click="OnImportPackageClick" />
                     </Grid>
                     <TextBlock x:Name="DownloadHintTextBlock" FontSize="14" Opacity="0.8" TextWrapping="Wrap" />
-                    <ComboBox x:Name="ServerSourceComboBox" Classes="Bordered Large CompactCombo" Height="34" FontSize="14" SelectionChanged="OnServerSourceSelectionChanged" />
                     <ListBox x:Name="ServerVersionsListBox" Classes="Large" Height="178" ScrollViewer.VerticalScrollBarVisibility="Hidden" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
