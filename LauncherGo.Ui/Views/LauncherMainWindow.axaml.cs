@@ -281,6 +281,7 @@ public partial class LauncherMainWindow : Window
     private readonly ITcpGatewayService _tcpGatewayService;
     private readonly IGatewayRedirectModService _gatewayRedirectModService;
     private readonly IInstanceModService _instanceModService;
+    private readonly IModUpdateService _modUpdateService;
     private readonly IServerAuthService _serverAuthService;
     private readonly ICommandBridgeService _commandBridgeService;
     private readonly ILauncherUpdateService _launcherUpdateService;
@@ -402,6 +403,7 @@ public partial class LauncherMainWindow : Window
     private bool _isApplyingLocalizedOptions;
     private bool _isRefreshingAutomation;
     private bool _isRefreshingMods;
+    private bool _isCheckingModUpdates;
     private bool _isUpdatingModSelectAll;
     private readonly List<string> _modImportPaths = [];
     private bool _isRefreshingAuth;
@@ -441,6 +443,7 @@ public partial class LauncherMainWindow : Window
             ServiceLocator.GetRequiredService<ITcpGatewayService>(),
             ServiceLocator.GetRequiredService<IGatewayRedirectModService>(),
             ServiceLocator.GetRequiredService<IInstanceModService>(),
+            ServiceLocator.GetRequiredService<IModUpdateService>(),
             ServiceLocator.GetRequiredService<IServerAuthService>(),
             ServiceLocator.GetRequiredService<ICommandBridgeService>(),
             ServiceLocator.GetRequiredService<ILauncherUpdateService>(),
@@ -467,6 +470,7 @@ public partial class LauncherMainWindow : Window
         ITcpGatewayService tcpGatewayService,
         IGatewayRedirectModService gatewayRedirectModService,
         IInstanceModService instanceModService,
+        IModUpdateService modUpdateService,
         IServerAuthService serverAuthService,
         ICommandBridgeService commandBridgeService,
         ILauncherUpdateService launcherUpdateService,
@@ -490,6 +494,7 @@ public partial class LauncherMainWindow : Window
         _tcpGatewayService = tcpGatewayService;
         _gatewayRedirectModService = gatewayRedirectModService;
         _instanceModService = instanceModService;
+        _modUpdateService = modUpdateService;
         _serverAuthService = serverAuthService;
         _commandBridgeService = commandBridgeService;
         _launcherUpdateService = launcherUpdateService;
@@ -1043,9 +1048,15 @@ public partial class LauncherMainWindow : Window
         ImportModZipButton.Content = T("导入", "Import");
         DeleteSelectedModsButton.Content = T("删除", "Delete");
         RefreshModsButton.Content = T("刷新", "Refresh");
+        UpdateCheckModButtonText();
         ModNameHeaderTextBlock.Text = T("名称", "Name");
         ModSideHeaderTextBlock.Text = T("端", "Side");
         ModEditConfigHeaderTextBlock.Text = T("编辑配置", "Edit Config");
+        ModUpdateHeaderTextBlock.Text = T("更新", "Update");
+        foreach (var item in _modItems)
+        {
+            item.SetLanguage(_isChinese);
+        }
     }
 
     private void InitializeConfigStaticTexts()
@@ -3022,23 +3033,124 @@ public partial class LauncherMainWindow : Window
         {
             _modItems.Clear();
             UpdateModSelectAllState();
+            UpdateCheckModButtonText();
             SetModStatus(T("暂无档案，请先创建档案。", "No profile found. Create a profile first."), notify: false);
             return;
         }
 
         var mods = await _instanceModService.GetModsAsync(profile);
+        var cachedChecks = _preferencesService.Load().ModUpdateChecks.Values.ToList();
         _modItems.Clear();
         foreach (var mod in mods)
         {
-            _modItems.Add(ModListItem.FromModel(mod, _isChinese));
+            _modItems.Add(ModListItem.FromModel(
+                mod,
+                _isChinese,
+                FindCachedModUpdate(cachedChecks, profile.Id, mod.ModId, mod.Version)));
         }
         UpdateModSelectAllState();
+        UpdateCheckModButtonText(profile.Id);
 
         var enabledCount = mods.Count(static mod => !mod.IsDisabled);
         var disabledCount = mods.Count - enabledCount;
         SetModStatus(T(
             $"已加载 {mods.Count} 个模组，启用 {enabledCount} 个，关闭 {disabledCount} 个。",
             $"Loaded {mods.Count} mods, {enabledCount} enabled, {disabledCount} disabled."), notify: false);
+    }
+
+    private void UpdateCheckModButtonText(string? profileId = null)
+    {
+        if (CheckModUpdatesButton is null)
+            return;
+
+        profileId ??= (ModProfileComboBox.SelectedItem as InstanceProfile)?.Id;
+        var lastCheckedAt = string.IsNullOrWhiteSpace(profileId)
+            ? null
+            : _preferencesService.Load().ModUpdateChecks.Values
+                .Where(entry => entry.ProfileId.Equals(profileId, StringComparison.OrdinalIgnoreCase))
+                .Select(static entry => (DateTimeOffset?)entry.CheckedAtUtc)
+                .OrderByDescending(static value => value)
+                .FirstOrDefault();
+
+        if (lastCheckedAt is null || lastCheckedAt.Value == default)
+        {
+            CheckModUpdatesButton.Content = T("检查更新", "Check updates");
+            return;
+        }
+
+        var dateText = lastCheckedAt.Value.ToLocalTime().ToString("yyyy/M/d", CultureInfo.InvariantCulture);
+        CheckModUpdatesButton.Content = T(
+            $"检查更新（{dateText}）",
+            $"Check updates ({dateText})");
+    }
+
+    private static ModUpdateCheckCacheEntry? FindCachedModUpdate(
+        IEnumerable<ModUpdateCheckCacheEntry> entries,
+        string profileId,
+        string modId,
+        string version)
+    {
+        return entries
+            .Where(entry =>
+                entry.ProfileId.Equals(profileId, StringComparison.OrdinalIgnoreCase) &&
+                entry.ModId.Equals(modId, StringComparison.OrdinalIgnoreCase) &&
+                entry.CurrentVersion.Equals(version, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(static entry => entry.CheckedAtUtc)
+            .FirstOrDefault();
+    }
+
+    private void PersistModUpdateChecks(
+        InstanceProfile profile,
+        IEnumerable<(ModListItem Item, ModUpdateCheckResult? Result)> entries,
+        DateTimeOffset checkedAtUtc)
+    {
+        var preferences = _preferencesService.Load();
+        preferences.ModUpdateChecks ??= new Dictionary<string, ModUpdateCheckCacheEntry>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in entries)
+        {
+            var model = ModListItem.ToModel(entry.Item);
+            foreach (var key in preferences.ModUpdateChecks
+                         .Where(pair =>
+                             pair.Value.ProfileId.Equals(profile.Id, StringComparison.OrdinalIgnoreCase) &&
+                             pair.Value.ModId.Equals(model.ModId, StringComparison.OrdinalIgnoreCase))
+                         .Select(static pair => pair.Key)
+                         .ToList())
+            {
+                preferences.ModUpdateChecks.Remove(key);
+            }
+
+            var status = entry.Result is null
+                ? "Failed"
+                : entry.Result.IsUpdateAvailable
+                    ? "Available"
+                    : "Latest";
+            preferences.ModUpdateChecks[BuildModUpdateCacheKey(profile.Id, model.ModId)] = new ModUpdateCheckCacheEntry
+            {
+                ProfileId = profile.Id,
+                ModId = model.ModId,
+                CurrentVersion = model.Version,
+                Status = status,
+                Result = entry.Result,
+                CheckedAtUtc = checkedAtUtc
+            };
+        }
+
+        try
+        {
+            _preferencesService.Save(preferences);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist mod update check results for profile {ProfileId}", profile.Id);
+        }
+
+        UpdateCheckModButtonText(profile.Id);
+    }
+
+    private static string BuildModUpdateCacheKey(string profileId, string modId)
+    {
+        return $"{profileId.Trim()}|{modId.Trim()}";
     }
 
     private async Task RefreshAuthProfilesAsync()
@@ -8306,6 +8418,136 @@ public partial class LauncherMainWindow : Window
         await RefreshModsAsync();
     }
 
+    private async void OnCheckModUpdatesClick(object? sender, RoutedEventArgs e)
+    {
+        await CheckModUpdatesAsync();
+    }
+
+    private async Task CheckModUpdatesAsync()
+    {
+        if (_isCheckingModUpdates)
+            return;
+
+        if (ModProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            SetModStatus(T("请先选择档案。", "Select a profile first."));
+            return;
+        }
+
+        if (_modItems.Count == 0)
+        {
+            SetModStatus(T("当前档案没有可检查的模组。", "The selected profile has no mods to check."));
+            return;
+        }
+
+        _isCheckingModUpdates = true;
+        CheckModUpdatesButton.IsEnabled = false;
+        RefreshModsButton.IsEnabled = false;
+        ModProfileComboBox.IsEnabled = false;
+        foreach (var item in _modItems)
+            item.SetUpdateChecking(_isChinese);
+
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var concurrency = new SemaphoreSlim(4);
+            var tasks = _modItems.Select(async item =>
+            {
+                await concurrency.WaitAsync(cts.Token);
+                try
+                {
+                    var result = await _modUpdateService.CheckAsync(ModListItem.ToModel(item), cts.Token);
+                    return (Item: item, Result: result, Error: string.Empty);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    return (Item: item, Result: (ModUpdateCheckResult?)null, Error: GetExceptionMessage(ex));
+                }
+                finally
+                {
+                    concurrency.Release();
+                }
+            });
+            var checkedItems = await Task.WhenAll(tasks);
+
+            var updateCount = 0;
+            var latestCount = 0;
+            var failedCount = 0;
+            foreach (var checkedItem in checkedItems)
+            {
+                if (checkedItem.Result is null)
+                {
+                    checkedItem.Item.SetUpdateCheckFailed(_isChinese);
+                    failedCount++;
+                    continue;
+                }
+
+                checkedItem.Item.SetUpdateResult(checkedItem.Result, _isChinese);
+                if (checkedItem.Result.IsUpdateAvailable)
+                    updateCount++;
+                else
+                    latestCount++;
+            }
+
+            PersistModUpdateChecks(
+                profile,
+                checkedItems.Select(static checkedItem => (checkedItem.Item, checkedItem.Result)),
+                DateTimeOffset.UtcNow);
+
+            SetModStatus(T(
+                $"更新检查完成：{updateCount} 个可更新，{latestCount} 个已是最新，{failedCount} 个检查失败。",
+                $"Update check complete: {updateCount} available, {latestCount} up to date, {failedCount} failed."));
+        }
+        catch (OperationCanceledException)
+        {
+            foreach (var item in _modItems)
+                item.SetUpdateCheckFailed(_isChinese);
+            PersistModUpdateChecks(
+                profile,
+                _modItems.Select(static item => (item, (ModUpdateCheckResult?)null)),
+                DateTimeOffset.UtcNow);
+            SetModStatus(T("模组更新检查超时。", "Mod update check timed out."));
+        }
+        finally
+        {
+            _isCheckingModUpdates = false;
+            CheckModUpdatesButton.IsEnabled = true;
+            RefreshModsButton.IsEnabled = true;
+            ModProfileComboBox.IsEnabled = true;
+        }
+    }
+
+    private async void OnModUpdateClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ModListItem item } ||
+            item.UpdateInfo is not ModUpdateCheckResult update ||
+            ModProfileComboBox.SelectedItem is not InstanceProfile profile)
+            return;
+
+        var window = new ModUpdateWindow(
+            ModListItem.ToModel(item),
+            update,
+            _isChinese,
+            async cancellationToken =>
+            {
+                await _instanceModService.UpdateModAsync(
+                    profile,
+                    ModListItem.ToModel(item),
+                    update.DownloadUrl,
+                    cancellationToken);
+            });
+        var updated = await window.ShowDialog<bool?>(this);
+        if (updated == true)
+        {
+            await LoadModsForSelectedProfileAsync();
+            SetModStatus(T("模组已更新。", "Mod updated."));
+        }
+    }
+
     private void OnOpenModConfigPathClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string path } || string.IsNullOrWhiteSpace(path))
@@ -13227,7 +13469,13 @@ public partial class LauncherMainWindow : Window
 
     public sealed class ModListItem : INotifyPropertyChanged
     {
+        private static readonly IBrush UpdateAvailableBrush = new SolidColorBrush(Color.Parse("#2196F3"));
+        private static readonly IBrush UpdateLatestBrush = new SolidColorBrush(Color.Parse("#4CAF50"));
+        private static readonly IBrush UpdateFailedBrush = new SolidColorBrush(Color.Parse("#F44336"));
+        private static readonly IBrush UpdateNeutralBrush = new SolidColorBrush(Color.Parse("#8A8A8A"));
         private bool _isSelected;
+        private bool _isChinese;
+        private ModUpdateState _updateState;
 
         public required string Name { get; init; }
 
@@ -13253,6 +13501,18 @@ public partial class LauncherMainWindow : Window
 
         public required string IssuesText { get; init; }
 
+        public ModUpdateCheckResult? UpdateInfo { get; private set; }
+
+        public string UpdateButtonText { get; private set; } = "更新";
+
+        public string UpdateStatusText { get; private set; } = "未检查";
+
+        public IBrush UpdateStatusBrush { get; private set; } = UpdateNeutralBrush;
+
+        public bool IsUpdateButtonVisible => _updateState == ModUpdateState.Available;
+
+        public bool IsUpdateStatusVisible => _updateState != ModUpdateState.Available;
+
         public bool IsSelected
         {
             get => _isSelected;
@@ -13261,9 +13521,12 @@ public partial class LauncherMainWindow : Window
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        public static ModListItem FromModel(ModEntry model, bool isChinese)
+        public static ModListItem FromModel(
+            ModEntry model,
+            bool isChinese,
+            ModUpdateCheckCacheEntry? cachedUpdate = null)
         {
-            return new ModListItem
+            var item = new ModListItem
             {
                 Name = model.Name,
                 ModId = model.ModId,
@@ -13276,6 +13539,81 @@ public partial class LauncherMainWindow : Window
                 DependenciesText = model.DependenciesText,
                 IssuesText = BuildModIssuesText(model, isChinese)
             };
+            item.SetLanguage(isChinese);
+            item.ApplyCachedUpdate(cachedUpdate, isChinese);
+            return item;
+        }
+
+        private void ApplyCachedUpdate(ModUpdateCheckCacheEntry? cachedUpdate, bool isChinese)
+        {
+            if (cachedUpdate is null ||
+                !cachedUpdate.CurrentVersion.Equals(Version, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            if (cachedUpdate.Status.Equals("Failed", StringComparison.OrdinalIgnoreCase))
+            {
+                SetUpdateCheckFailed(isChinese);
+            }
+            else if (cachedUpdate.Result is not null &&
+                     cachedUpdate.Status.Equals(
+                         cachedUpdate.Result.IsUpdateAvailable ? "Available" : "Latest",
+                         StringComparison.OrdinalIgnoreCase))
+            {
+                SetUpdateResult(cachedUpdate.Result, isChinese);
+            }
+        }
+
+        public void SetLanguage(bool isChinese)
+        {
+            _isChinese = isChinese;
+            UpdateDisplayText();
+        }
+
+        public void SetUpdateChecking(bool isChinese)
+        {
+            _updateState = ModUpdateState.Checking;
+            UpdateInfo = null;
+            SetLanguage(isChinese);
+        }
+
+        public void SetUpdateCheckFailed(bool isChinese)
+        {
+            _updateState = ModUpdateState.Failed;
+            UpdateInfo = null;
+            SetLanguage(isChinese);
+        }
+
+        public void SetUpdateResult(ModUpdateCheckResult result, bool isChinese)
+        {
+            UpdateInfo = result;
+            _updateState = result.IsUpdateAvailable ? ModUpdateState.Available : ModUpdateState.Latest;
+            SetLanguage(isChinese);
+        }
+
+        private void UpdateDisplayText()
+        {
+            UpdateButtonText = _isChinese ? "更新" : "Update";
+            UpdateStatusText = _updateState switch
+            {
+                ModUpdateState.Checking => _isChinese ? "检查中..." : "Checking...",
+                ModUpdateState.Failed => _isChinese ? "检查失败" : "Check failed",
+                ModUpdateState.Latest => _isChinese ? "最新" : "Latest",
+                _ => _isChinese ? "未检查" : "Not checked"
+            };
+            UpdateStatusBrush = _updateState switch
+            {
+                ModUpdateState.Available => UpdateAvailableBrush,
+                ModUpdateState.Latest => UpdateLatestBrush,
+                ModUpdateState.Failed => UpdateFailedBrush,
+                _ => UpdateNeutralBrush
+            };
+            OnPropertyChanged(nameof(UpdateButtonText));
+            OnPropertyChanged(nameof(UpdateStatusText));
+            OnPropertyChanged(nameof(UpdateStatusBrush));
+            OnPropertyChanged(nameof(IsUpdateButtonVisible));
+            OnPropertyChanged(nameof(IsUpdateStatusVisible));
         }
 
         public static ModEntry ToModel(ModListItem item)
@@ -13351,6 +13689,15 @@ public partial class LauncherMainWindow : Window
             field = value;
             OnPropertyChanged(propertyName);
             return true;
+        }
+
+        private enum ModUpdateState
+        {
+            NotChecked,
+            Checking,
+            Available,
+            Latest,
+            Failed
         }
     }
 

@@ -1,0 +1,62 @@
+<Window
+    x:Class="LauncherGo.Ui.Views.ModUpdateWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Width="560"
+    MaxWidth="720"
+    SizeToContent="Height"
+    CanResize="False"
+    WindowStartupLocation="CenterOwner"
+    Icon="avares://LauncherGo.Ui/Assets/app-icon.ico">
+    <Window.Styles>
+        <Style Selector="Button.ModUpdateButton">
+            <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#2196F3" />
+        </Style>
+        <Style Selector="Button.ModUpdateButton:pointerover">
+            <Setter Property="Foreground" Value="#2196F3" />
+        </Style>
+        <Style Selector="Button.ModUpdateButton:pressed">
+            <Setter Property="Foreground" Value="#2196F3" />
+        </Style>
+    </Window.Styles>
+    <Grid Margin="22" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
+        <StackPanel Spacing="4">
+            <TextBlock x:Name="TitleTextBlock" FontSize="20" FontWeight="SemiBold" />
+            <TextBlock x:Name="SummaryTextBlock" Opacity="0.76" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="6">
+            <TextBlock x:Name="CurrentVersionLabelTextBlock" FontWeight="SemiBold" />
+            <TextBlock x:Name="CurrentVersionTextBlock" Grid.Column="1" />
+            <TextBlock x:Name="LatestVersionLabelTextBlock" Grid.Row="1" FontWeight="SemiBold" />
+            <TextBlock x:Name="LatestVersionTextBlock" Grid.Row="1" Grid.Column="1" />
+            <TextBlock x:Name="ReleaseDateLabelTextBlock" Grid.Row="2" FontWeight="SemiBold" />
+            <TextBlock x:Name="ReleaseDateTextBlock" Grid.Row="2" Grid.Column="1" />
+        </Grid>
+
+        <StackPanel Grid.Row="2" Spacing="5">
+            <TextBlock x:Name="ChangelogLabelTextBlock" FontWeight="SemiBold" />
+            <Border x:Name="ChangelogPanel" Padding="10" BorderThickness="1" CornerRadius="5" Opacity="0.9">
+                <ScrollViewer MaxHeight="220" HorizontalScrollBarVisibility="Disabled">
+                    <TextBlock x:Name="ChangelogTextBlock" TextWrapping="Wrap" />
+                </ScrollViewer>
+            </Border>
+            <TextBlock x:Name="NoChangelogTextBlock" Opacity="0.7" TextWrapping="Wrap" IsVisible="False" />
+        </StackPanel>
+
+        <TextBlock x:Name="HomepageTextBlock" Grid.Row="3" TextWrapping="Wrap" />
+
+        <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+            <TextBlock x:Name="DownloadHintTextBlock" VerticalAlignment="Center" Opacity="0.7" TextWrapping="Wrap" />
+            <Button x:Name="UpdateButton" Grid.Column="1" Classes="ModUpdateButton" MinWidth="76" Click="OnUpdateClick" IsVisible="False" />
+            <Button x:Name="OpenHomepageButton" Grid.Column="2" MinWidth="116" Click="OnOpenHomepageClick" />
+            <Button x:Name="CloseButton" Grid.Column="3" MinWidth="76" Click="OnCloseClick" />
+        </Grid>
+    </Grid>
+</Window>

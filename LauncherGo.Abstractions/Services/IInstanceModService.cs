@@ -16,6 +16,12 @@ public interface IInstanceModService
         string zipPath,
         CancellationToken cancellationToken = default);
 
+    Task<ModEntry> UpdateModAsync(
+        InstanceProfile profile,
+        ModEntry installedMod,
+        string downloadUrl,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     ///     导入一个或多个 Mod ZIP 文件。
     /// </summary>

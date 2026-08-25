@@ -94,6 +94,7 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             DefaultLaunchSaveFile = NormalizeFilePathOrEmpty(source.DefaultLaunchSaveFile),
             QuickCommands = NormalizeQuickCommands(source.QuickCommands),
             ConsoleLogFilters = ConsoleLogFilterRuleRules.NormalizeMany(source.ConsoleLogFilters),
+            ModUpdateChecks = NormalizeModUpdateChecks(source.ModUpdateChecks),
             StartWithWindows = source.StartWithWindows,
             CloseToTrayOnExit = source.CloseToTrayOnExit,
             StartHiddenOnLaunch = source.StartHiddenOnLaunch,
@@ -508,6 +509,38 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             BlockListText = NormalizeIpRules(source.BlockListText),
             Backends = backends
         };
+    }
+
+    private static Dictionary<string, ModUpdateCheckCacheEntry> NormalizeModUpdateChecks(
+        IDictionary<string, ModUpdateCheckCacheEntry>? source)
+    {
+        var result = new Dictionary<string, ModUpdateCheckCacheEntry>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in source ?? new Dictionary<string, ModUpdateCheckCacheEntry>())
+        {
+            var key = pair.Key?.Trim() ?? string.Empty;
+            var entry = pair.Value;
+            if (string.IsNullOrWhiteSpace(key) ||
+                entry is null ||
+                string.IsNullOrWhiteSpace(entry.ProfileId) ||
+                string.IsNullOrWhiteSpace(entry.ModId) ||
+                string.IsNullOrWhiteSpace(entry.CurrentVersion) ||
+                string.IsNullOrWhiteSpace(entry.Status))
+            {
+                continue;
+            }
+
+            result[key] = new ModUpdateCheckCacheEntry
+            {
+                ProfileId = entry.ProfileId.Trim(),
+                ModId = entry.ModId.Trim(),
+                CurrentVersion = entry.CurrentVersion.Trim(),
+                Status = entry.Status.Trim(),
+                Result = entry.Result,
+                CheckedAtUtc = entry.CheckedAtUtc
+            };
+        }
+
+        return result;
     }
 
     private static string NormalizeIpRules(string? value)

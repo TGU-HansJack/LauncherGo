@@ -49,6 +49,8 @@ public class LauncherPreferences
 
     public List<ConsoleLogFilterRule> ConsoleLogFilters { get; set; } = [];
 
+    public Dictionary<string, ModUpdateCheckCacheEntry> ModUpdateChecks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     public bool StartWithWindows { get; set; }
 
     public bool CloseToTrayOnExit { get; set; }

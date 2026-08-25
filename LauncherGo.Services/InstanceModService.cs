@@ -11,6 +11,8 @@ namespace LauncherGo.Services;
 /// </summary>
 public class InstanceModService(IInstanceServerConfigService serverConfigService) : IInstanceModService
 {
+    private static readonly HttpClient UpdateHttpClient = CreateUpdateHttpClient();
+
     private static readonly HashSet<string> BuiltInDependencyIds = new(StringComparer.OrdinalIgnoreCase)
     {
         "game",
@@ -104,6 +106,101 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
     }
 
     /// <inheritdoc />
+    public async Task<ModEntry> UpdateModAsync(
+        InstanceProfile profile,
+        ModEntry installedMod,
+        string downloadUrl,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(installedMod);
+        if (!Uri.TryCreate(downloadUrl?.Trim(), UriKind.Absolute, out var downloadUri) ||
+            downloadUri.Scheme is not ("http" or "https"))
+        {
+            throw new InvalidOperationException("模组下载地址无效。");
+        }
+
+        var modsPath = WorkspacePathHelper.GetProfileModsPath(profile.DirectoryPath);
+        Directory.CreateDirectory(modsPath);
+        var modsRoot = EnsureDirectoryPrefix(modsPath);
+        var existingPath = Path.GetFullPath(installedMod.FilePath);
+        if (!IsWithinDirectory(existingPath, modsRoot) ||
+            (!File.Exists(existingPath) && !Directory.Exists(existingPath)))
+        {
+            throw new InvalidOperationException("旧模组文件不存在或路径无效。");
+        }
+
+        var modConfigPath = Path.Combine(WorkspacePathHelper.ResolveProfileDataPath(profile.DirectoryPath), "ModConfig");
+        var disabledSet = await LoadDisabledModSetAsync(profile, cancellationToken);
+        var tempPath = Path.Combine(modsPath, $".launchergoupdate-{Guid.NewGuid():N}.zip");
+        var backupPath = existingPath + $".launchergobak-{Guid.NewGuid():N}";
+
+        try
+        {
+            using var response = await UpdateHttpClient.GetAsync(downloadUri, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            await using (var source = await response.Content.ReadAsStreamAsync(cancellationToken))
+            await using (var target = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                await source.CopyToAsync(target, cancellationToken);
+            }
+
+            var downloadedMod = ReadModFromZip(tempPath, disabledSet, modConfigPath);
+            if (downloadedMod.Status.Equals("InvalidMetadata", StringComparison.OrdinalIgnoreCase) ||
+                !downloadedMod.ModId.Equals(installedMod.ModId, StringComparison.OrdinalIgnoreCase) ||
+                string.IsNullOrWhiteSpace(downloadedMod.Version) ||
+                downloadedMod.Version.Equals("unknown", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("下载的模组包与当前模组不匹配。");
+            }
+
+            var destinationPath = File.Exists(existingPath) &&
+                                  Path.GetExtension(existingPath).Equals(".zip", StringComparison.OrdinalIgnoreCase)
+                ? existingPath
+                : Path.Combine(
+                    modsPath,
+                    WorkspacePathHelper.SanitizeFileName($"{downloadedMod.ModId}-{downloadedMod.Version}.zip"));
+            if (!PathsEqual(destinationPath, existingPath) &&
+                (File.Exists(destinationPath) || Directory.Exists(destinationPath)))
+            {
+                throw new InvalidOperationException("更新目标文件已存在。");
+            }
+
+            MoveToBackup(existingPath, backupPath);
+            try
+            {
+                File.Move(tempPath, destinationPath);
+                await SetModEnabledAsync(profile, downloadedMod.ModId, downloadedMod.Version, !installedMod.IsDisabled, cancellationToken);
+            }
+            catch
+            {
+                TryDeletePath(destinationPath);
+                TryRestoreBackup(backupPath, existingPath);
+                throw;
+            }
+
+            TryDeletePath(backupPath);
+            return new ModEntry
+            {
+                Name = downloadedMod.Name,
+                ModId = downloadedMod.ModId,
+                Version = downloadedMod.Version,
+                Side = downloadedMod.Side,
+                FilePath = destinationPath,
+                ConfigPath = downloadedMod.ConfigPath,
+                Status = downloadedMod.Status,
+                IsDisabled = installedMod.IsDisabled,
+                Dependencies = downloadedMod.Dependencies,
+                DependencyIssues = downloadedMod.DependencyIssues
+            };
+        }
+        finally
+        {
+            TryDeletePath(tempPath);
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<ModEntry>> ImportModsAsync(
         InstanceProfile profile,
         IReadOnlyCollection<string> sourcePaths,
@@ -155,7 +252,8 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
             .ToList();
         values.RemoveAll(value =>
             value.Equals(modId, StringComparison.OrdinalIgnoreCase) ||
-            value.Equals(modVersionKey, StringComparison.OrdinalIgnoreCase));
+            value.Equals(modVersionKey, StringComparison.OrdinalIgnoreCase) ||
+            value.StartsWith(modId + "@", StringComparison.OrdinalIgnoreCase));
 
         if (!enabled) values.Add(modVersionKey);
 
@@ -609,6 +707,54 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
     {
         var fullCandidate = Path.GetFullPath(candidatePath);
         return fullCandidate.StartsWith(directoryPrefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void MoveToBackup(string sourcePath, string backupPath)
+    {
+        if (File.Exists(sourcePath))
+        {
+            File.Move(sourcePath, backupPath);
+            return;
+        }
+
+        Directory.Move(sourcePath, backupPath);
+    }
+
+    private static void TryRestoreBackup(string backupPath, string destinationPath)
+    {
+        try
+        {
+            if (File.Exists(backupPath))
+                File.Move(backupPath, destinationPath);
+            else if (Directory.Exists(backupPath))
+                Directory.Move(backupPath, destinationPath);
+        }
+        catch
+        {
+            // Preserve the original update error; a leftover backup is preferable to data loss.
+        }
+    }
+
+    private static void TryDeletePath(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+            else if (Directory.Exists(path))
+                Directory.Delete(path, recursive: true);
+        }
+        catch
+        {
+            // Cleanup is best effort and must not hide the update result.
+        }
+    }
+
+    private static HttpClient CreateUpdateHttpClient()
+    {
+        var client = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("LauncherGo/1.0");
+        return client;
     }
 }
 
