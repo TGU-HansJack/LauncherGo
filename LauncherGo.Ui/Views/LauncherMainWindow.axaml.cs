@@ -30,6 +30,7 @@ using LauncherGo.Domains.Models;
 using LauncherGo.Ui;
 using LauncherGo.Ui.Converters;
 using LauncherGo.Ui.Platform;
+using LauncherGo.Ui.Services;
 using LauncherGo.Ui.Services.I18n;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -8258,9 +8259,7 @@ public partial class LauncherMainWindow : Window
             .Where(static path => !string.IsNullOrWhiteSpace(path))
             .Select(static path => path.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase));
-        ModZipPathTextBox.Text = _modImportPaths.Count == 1
-            ? _modImportPaths[0]
-            : string.Join(" ", _modImportPaths.Select(QuoteModPath));
+        ModZipPathTextBox.Text = string.Join(" ", _modImportPaths.Select(ModImportPathParser.Quote));
     }
 
     private IReadOnlyList<string> GetModImportPaths()
@@ -8269,59 +8268,7 @@ public partial class LauncherMainWindow : Window
         if (string.IsNullOrWhiteSpace(raw))
             return [];
 
-        return ParseModImportPaths(raw);
-    }
-
-    private static string QuoteModPath(string path) =>
-        $"\"{path.Replace("\"", "\"\"")}\"";
-
-    private static IReadOnlyList<string> ParseModImportPaths(string raw)
-    {
-        var paths = new List<string>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var index = 0;
-
-        while (index < raw.Length)
-        {
-            while (index < raw.Length && (char.IsWhiteSpace(raw[index]) || raw[index] is ';' or '|'))
-                index++;
-            if (index >= raw.Length)
-                break;
-
-            var value = new System.Text.StringBuilder();
-            if (raw[index] == '\"')
-            {
-                index++;
-                while (index < raw.Length)
-                {
-                    if (raw[index] == '\"')
-                    {
-                        if (index + 1 < raw.Length && raw[index + 1] == '\"')
-                        {
-                            value.Append('\"');
-                            index += 2;
-                            continue;
-                        }
-
-                        index++;
-                        break;
-                    }
-
-                    value.Append(raw[index++]);
-                }
-            }
-            else
-            {
-                while (index < raw.Length && !char.IsWhiteSpace(raw[index]) && raw[index] is not (';' or '|'))
-                    value.Append(raw[index++]);
-            }
-
-            var path = value.ToString().Trim();
-            if (path.Length > 0 && seen.Add(path))
-                paths.Add(path);
-        }
-
-        return paths;
+        return ModImportPathParser.Parse(raw);
     }
 
     private async void OnDeleteSelectedModsClick(object? sender, RoutedEventArgs e)
