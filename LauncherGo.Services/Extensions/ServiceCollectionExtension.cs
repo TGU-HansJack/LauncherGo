@@ -25,6 +25,7 @@ public static class ServiceCollectionExtension
         services.AddSingleton<ITcpGatewayService, TcpGatewayService>();
         services.AddSingleton<IGatewayRedirectModService, GatewayRedirectModService>();
         services.AddSingleton<IInstanceModService, InstanceModService>();
+        services.AddSingleton<IModFileArchiveService, ModFileArchiveService>();
         services.AddSingleton<IModListExportService, ModListExportService>();
         services.AddSingleton<IModUpdateService, ModUpdateService>();
         services.AddSingleton<IServerAuthService, ServerAuthService>();

@@ -48,6 +48,7 @@ public sealed class Vs2QQProcessService
     private readonly IInstanceSaveService _instanceSaveService;
     private readonly IInstanceServerConfigService _instanceServerConfigService;
     private readonly IInstanceModService _instanceModService;
+    private readonly IModFileArchiveService _modFileArchiveService;
     private readonly IModListExportService _modListExportService;
     private readonly ILauncherPreferencesService _launcherPreferencesService;
     private readonly IOsqSnapshotCacheService _osqSnapshotCacheService;
@@ -68,6 +69,7 @@ public sealed class Vs2QQProcessService
         IInstanceSaveService instanceSaveService,
         IInstanceServerConfigService instanceServerConfigService,
         IInstanceModService instanceModService,
+        IModFileArchiveService modFileArchiveService,
         IModListExportService modListExportService,
         ILauncherPreferencesService launcherPreferencesService,
         IOsqSnapshotCacheService osqSnapshotCacheService)
@@ -78,6 +80,7 @@ public sealed class Vs2QQProcessService
         _instanceSaveService = instanceSaveService;
         _instanceServerConfigService = instanceServerConfigService;
         _instanceModService = instanceModService;
+        _modFileArchiveService = modFileArchiveService;
         _modListExportService = modListExportService;
         _launcherPreferencesService = launcherPreferencesService;
         _osqSnapshotCacheService = osqSnapshotCacheService;
@@ -364,6 +367,9 @@ public sealed class Vs2QQProcessService
             case "/modslist":
                 await HandleModsListCommandAsync(runtime, eventPayload, args, cancellationToken);
                 return;
+            case "/modfile":
+                await HandleModFileCommandAsync(runtime, eventPayload, args, cancellationToken);
+                return;
             default:
                 if (runtime.CustomCommands.TryGetValue(command, out var customCommand))
                 {
@@ -442,10 +448,11 @@ public sealed class Vs2QQProcessService
         var mods = await _instanceModService.GetModsAsync(profile, cancellationToken);
         if (format == ModListExportFormat.Txt)
         {
-            await using var content = new MemoryStream();
-            await _modListExportService.ExportAsync(profile, mods, format, content, cancellationToken);
-            var text = Encoding.UTF8.GetString(content.ToArray()).Trim();
-            foreach (var message in SplitOneBotMessages(text.Split('\n').Select(static line => line.TrimEnd('\r')).ToList()))
+            var lines = mods
+                .OrderBy(static mod => mod.ModId, StringComparer.OrdinalIgnoreCase)
+                .Select(static mod => $"{(string.IsNullOrWhiteSpace(mod.Name) ? mod.ModId : mod.Name).Trim()} {mod.Version.Trim()}")
+                .ToList();
+            foreach (var message in SplitOneBotMessages(lines))
             {
                 await ReplyAsync(runtime, eventPayload, message, cancellationToken);
             }
@@ -482,6 +489,73 @@ public sealed class Vs2QQProcessService
             }
 
             await ReplyAsync(runtime, eventPayload, $"已输出模组清单：{fileName}", cancellationToken);
+        }
+        finally
+        {
+            TryDeleteFile(outputPath);
+        }
+    }
+
+    private async Task HandleModFileCommandAsync(
+        Vs2QQRuntimeContext runtime,
+        JsonObject eventPayload,
+        string args,
+        CancellationToken cancellationToken)
+    {
+        if (!HasAdminPermission(runtime, eventPayload))
+        {
+            await ReplyAsync(runtime, eventPayload, "Permission denied. Super admin only.", cancellationToken);
+            return;
+        }
+
+        if (!IsGroupMessage(eventPayload))
+        {
+            await ReplyAsync(runtime, eventPayload, "Use /modfile in a group chat.", cancellationToken);
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(args))
+        {
+            await ReplyAsync(runtime, eventPayload, "Usage: /modfile", cancellationToken);
+            return;
+        }
+
+        var groupId = GetInt64(eventPayload, "group_id");
+        if (groupId <= 0)
+        {
+            await ReplyAsync(runtime, eventPayload, "Unable to identify the group.", cancellationToken);
+            return;
+        }
+
+        var targetResolution = ResolveServerCommandProfile(runtime, eventPayload, string.Empty);
+        if (!string.IsNullOrWhiteSpace(targetResolution.ErrorMessage) || targetResolution.Profile is null)
+        {
+            await ReplyAsync(runtime, eventPayload, targetResolution.ErrorMessage, cancellationToken);
+            return;
+        }
+
+        var profile = targetResolution.Profile;
+        var mods = await _instanceModService.GetModsAsync(profile, cancellationToken);
+        var includedCount = mods.Count(static mod => !ModFileArchiveService.IsClientOnly(mod));
+        if (includedCount == 0)
+        {
+            await ReplyAsync(runtime, eventPayload, "当前档案没有可发送的服务端或通用模组。", cancellationToken);
+            return;
+        }
+
+        var exportDirectory = Path.Combine(WorkspacePathHelper.RobotRoot, "exports");
+        Directory.CreateDirectory(exportDirectory);
+        var fileName = $"mods-{SanitizeFileName(profile.Name)}-{DateTimeOffset.Now:yyyyMMdd-HHmmss}.zip";
+        var outputPath = Path.Combine(exportDirectory, fileName);
+        try
+        {
+            await using (var output = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.Read))
+            {
+                await _modFileArchiveService.CreateServerModArchiveAsync(profile, mods, output, cancellationToken);
+            }
+
+            await runtime.OneBot.UploadGroupFileAsync(groupId, outputPath, fileName, cancellationToken);
+            await ReplyAsync(runtime, eventPayload, $"已发送模组压缩包：{fileName}（{includedCount} 个模组，已排除客户端模组）", cancellationToken);
         }
         finally
         {
@@ -1327,6 +1401,7 @@ public sealed class Vs2QQProcessService
             /help - 帮助
             /send <server_command> - 发送服务端指令（仅超级管理员）
             /modslist txt|pdf|md|xlsx|csv - 输出已绑定服务器档案的模组清单（仅超级管理员）
+            /modfile - 打包并发送已绑定服务器档案的服务端/通用模组（仅群聊超级管理员）
             /server status [n] - 获取最近第 n 次服务器状态（默认1）
             /server players [n] - 获取最近第 n 次在线玩家列表（默认1）
             /server start [档案名或ID] - 启动指定或唯一绑定的服务器档案（仅超级管理员）
