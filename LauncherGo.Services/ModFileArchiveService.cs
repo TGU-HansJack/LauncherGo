@@ -1,17 +1,19 @@
 using System.IO.Compression;
 using LauncherGo.Abstractions.Services;
+using LauncherGo.Domains.Enums;
 using LauncherGo.Domains.Models;
 
 namespace LauncherGo.Services;
 
 /// <summary>
-///     Packages installed server and universal mods while excluding client-only mods.
+///     Packages installed mods according to the requested side scope.
 /// </summary>
 public sealed class ModFileArchiveService : IModFileArchiveService
 {
-    public async Task CreateServerModArchiveAsync(
+    public async Task CreateModArchiveAsync(
         InstanceProfile profile,
         IReadOnlyCollection<ModEntry> mods,
+        ModFileArchiveScope scope,
         Stream destination,
         CancellationToken cancellationToken = default)
     {
@@ -21,7 +23,7 @@ public sealed class ModFileArchiveService : IModFileArchiveService
 
         using var archive = new ZipArchive(destination, ZipArchiveMode.Create, leaveOpen: true);
         var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var mod in mods.Where(static mod => !IsClientOnly(mod)))
+        foreach (var mod in mods.Where(mod => ShouldInclude(mod, scope)))
         {
             cancellationToken.ThrowIfCancellationRequested();
             var sourcePath = mod.FilePath?.Trim() ?? string.Empty;
@@ -58,13 +60,15 @@ public sealed class ModFileArchiveService : IModFileArchiveService
         await destination.FlushAsync(cancellationToken);
     }
 
-    internal static bool IsClientOnly(ModEntry mod)
+    internal static bool ShouldInclude(ModEntry mod, ModFileArchiveScope scope)
     {
+        if (scope == ModFileArchiveScope.All)
+            return true;
+
         var side = mod.Side?.Trim() ?? string.Empty;
-        return side.Equals("client", StringComparison.OrdinalIgnoreCase) ||
-               side.Equals("client-only", StringComparison.OrdinalIgnoreCase) ||
-               side.Equals("clientonly", StringComparison.OrdinalIgnoreCase) ||
-               side.Equals("客户端", StringComparison.OrdinalIgnoreCase);
+        return side.Equals("universal", StringComparison.OrdinalIgnoreCase) ||
+               side.Equals("both", StringComparison.OrdinalIgnoreCase) ||
+               side.Equals("通用", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string GetUniqueName(HashSet<string> usedNames, string candidate)
