@@ -281,6 +281,7 @@ public partial class LauncherMainWindow : Window
     private readonly ITcpGatewayService _tcpGatewayService;
     private readonly IGatewayRedirectModService _gatewayRedirectModService;
     private readonly IInstanceModService _instanceModService;
+    private readonly IModListExportService _modListExportService;
     private readonly IModUpdateService _modUpdateService;
     private readonly IServerAuthService _serverAuthService;
     private readonly ICommandBridgeService _commandBridgeService;
@@ -443,6 +444,7 @@ public partial class LauncherMainWindow : Window
             ServiceLocator.GetRequiredService<ITcpGatewayService>(),
             ServiceLocator.GetRequiredService<IGatewayRedirectModService>(),
             ServiceLocator.GetRequiredService<IInstanceModService>(),
+            ServiceLocator.GetRequiredService<IModListExportService>(),
             ServiceLocator.GetRequiredService<IModUpdateService>(),
             ServiceLocator.GetRequiredService<IServerAuthService>(),
             ServiceLocator.GetRequiredService<ICommandBridgeService>(),
@@ -470,6 +472,7 @@ public partial class LauncherMainWindow : Window
         ITcpGatewayService tcpGatewayService,
         IGatewayRedirectModService gatewayRedirectModService,
         IInstanceModService instanceModService,
+        IModListExportService modListExportService,
         IModUpdateService modUpdateService,
         IServerAuthService serverAuthService,
         ICommandBridgeService commandBridgeService,
@@ -494,6 +497,7 @@ public partial class LauncherMainWindow : Window
         _tcpGatewayService = tcpGatewayService;
         _gatewayRedirectModService = gatewayRedirectModService;
         _instanceModService = instanceModService;
+        _modListExportService = modListExportService;
         _modUpdateService = modUpdateService;
         _serverAuthService = serverAuthService;
         _commandBridgeService = commandBridgeService;
@@ -1048,6 +1052,7 @@ public partial class LauncherMainWindow : Window
         ImportModZipButton.Content = T("导入", "Import");
         DeleteSelectedModsButton.Content = T("删除", "Delete");
         RefreshModsButton.Content = T("刷新", "Refresh");
+        ExportModsButton.Content = T("导出", "Export");
         UpdateCheckModButtonText();
         ModNameHeaderTextBlock.Text = T("名称", "Name");
         ModSideHeaderTextBlock.Text = T("端", "Side");
@@ -8423,6 +8428,47 @@ public partial class LauncherMainWindow : Window
         await CheckModUpdatesAsync();
     }
 
+    private async void OnExportModsClick(object? sender, RoutedEventArgs e)
+    {
+        if (ModProfileComboBox.SelectedItem is not InstanceProfile profile)
+        {
+            SetModStatus(T("请先选择档案。", "Select a profile first."));
+            return;
+        }
+
+        var dialogResult = await new ModListExportWindow(_isChinese).ShowDialog<ModListExportDialogResult?>(this);
+        if (dialogResult is null)
+            return;
+
+        var extension = _modListExportService.GetFileExtension(dialogResult.Format);
+        var selectedFile = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = T("导出模组清单", "Export mod list"),
+            SuggestedFileName = $"mods-{SanitizeFileName(profile.Name)}-{DateTime.Now:yyyyMMdd-HHmmss}.{extension}",
+            DefaultExtension = extension,
+            ShowOverwritePrompt = true,
+            FileTypeChoices =
+            [
+                new FilePickerFileType(extension.ToUpperInvariant()) { Patterns = [$"*.{extension}"] }
+            ]
+        });
+        var path = TryGetLocalPath(selectedFile);
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        try
+        {
+            var mods = _modItems.Select(ModListItem.ToModel).ToList();
+            await using var output = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read);
+            await _modListExportService.ExportAsync(profile, mods, dialogResult.Format, output, options: dialogResult.Options);
+            SetModStatus(T($"模组清单已导出：{path}", $"Mod list exported: {path}"));
+        }
+        catch (Exception ex)
+        {
+            SetModStatus(T($"导出模组清单失败：{ex.Message}", $"Failed to export mod list: {ex.Message}"));
+        }
+    }
+
     private async Task CheckModUpdatesAsync()
     {
         if (_isCheckingModUpdates)
@@ -13302,6 +13348,16 @@ public partial class LauncherMainWindow : Window
             OnPropertyChanged(propertyName);
             return true;
         }
+    }
+
+    private static string SanitizeFileName(string value)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var result = new string((value ?? string.Empty)
+            .Select(character => invalid.Contains(character) ? '_' : character)
+            .ToArray())
+            .Trim();
+        return string.IsNullOrWhiteSpace(result) ? "profile" : result;
     }
 
     public sealed class AutomationTimeItem : INotifyPropertyChanged

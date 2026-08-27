@@ -1,0 +1,44 @@
+<Window
+    x:Class="LauncherGo.Ui.Views.ModListExportWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Width="560"
+    SizeToContent="Height"
+    CanResize="False"
+    WindowStartupLocation="CenterOwner"
+    Icon="avares://LauncherGo.Ui/Assets/app-icon.ico">
+    <Grid Margin="22" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="16">
+        <StackPanel Spacing="4">
+            <TextBlock x:Name="TitleTextBlock" FontSize="20" FontWeight="SemiBold" />
+            <TextBlock x:Name="HintTextBlock" Opacity="0.76" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+            <TextBlock x:Name="FormatLabelTextBlock" VerticalAlignment="Center" FontWeight="SemiBold" />
+            <ComboBox x:Name="FormatComboBox" Grid.Column="1" MinWidth="180" HorizontalAlignment="Left" />
+        </Grid>
+
+        <Border Grid.Row="2" Padding="14" BorderThickness="1" CornerRadius="6">
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="*,*" RowSpacing="10" ColumnSpacing="18">
+                <TextBlock x:Name="ColumnsLabelTextBlock" Grid.ColumnSpan="2" FontWeight="SemiBold" />
+                <CheckBox x:Name="NameColumnCheckBox" Grid.Row="1" IsChecked="True" />
+                <CheckBox x:Name="ModIdColumnCheckBox" Grid.Row="1" Grid.Column="1" IsChecked="True" />
+                <CheckBox x:Name="VersionColumnCheckBox" Grid.Row="2" IsChecked="True" />
+                <CheckBox x:Name="SideColumnCheckBox" Grid.Row="2" Grid.Column="1" IsChecked="True" />
+                <CheckBox x:Name="DependenciesColumnCheckBox" Grid.Row="3" IsChecked="True" />
+                <CheckBox x:Name="IssuesColumnCheckBox" Grid.Row="3" Grid.Column="1" IsChecked="True" />
+                <CheckBox x:Name="ConfigPathColumnCheckBox" Grid.Row="4" IsChecked="False" />
+                <CheckBox x:Name="FilePathColumnCheckBox" Grid.Row="4" Grid.Column="1" IsChecked="False" />
+                <CheckBox x:Name="EnabledColumnCheckBox" Grid.Row="5" IsChecked="True" />
+                <CheckBox x:Name="StatusColumnCheckBox" Grid.Row="5" Grid.Column="1" IsChecked="True" />
+                <CheckBox x:Name="WebsiteColumnCheckBox" Grid.Row="6" IsChecked="True" />
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+            <TextBlock x:Name="ErrorTextBlock" VerticalAlignment="Center" Foreground="IndianRed" TextWrapping="Wrap" />
+            <Button x:Name="CancelButton" Grid.Column="1" MinWidth="76" Click="OnCancelClick" />
+            <Button x:Name="ExportButton" Grid.Column="2" MinWidth="76" Click="OnExportClick" />
+        </Grid>
+    </Grid>
+</Window>

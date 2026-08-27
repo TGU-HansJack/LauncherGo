@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using System.Text.Json.Serialization;
 using Microsoft.Data.Sqlite;
 using LauncherGo.Abstractions.Services;
+using LauncherGo.Domains.Enums;
 using LauncherGo.Domains.Models;
 
 namespace LauncherGo.Services;
@@ -46,6 +47,8 @@ public sealed class Vs2QQProcessService
     private readonly IInstanceProfileService _instanceProfileService;
     private readonly IInstanceSaveService _instanceSaveService;
     private readonly IInstanceServerConfigService _instanceServerConfigService;
+    private readonly IInstanceModService _instanceModService;
+    private readonly IModListExportService _modListExportService;
     private readonly ILauncherPreferencesService _launcherPreferencesService;
     private readonly IOsqSnapshotCacheService _osqSnapshotCacheService;
     private CancellationTokenSource? _runCts;
@@ -64,6 +67,8 @@ public sealed class Vs2QQProcessService
         IInstanceProfileService instanceProfileService,
         IInstanceSaveService instanceSaveService,
         IInstanceServerConfigService instanceServerConfigService,
+        IInstanceModService instanceModService,
+        IModListExportService modListExportService,
         ILauncherPreferencesService launcherPreferencesService,
         IOsqSnapshotCacheService osqSnapshotCacheService)
     {
@@ -72,6 +77,8 @@ public sealed class Vs2QQProcessService
         _instanceProfileService = instanceProfileService;
         _instanceSaveService = instanceSaveService;
         _instanceServerConfigService = instanceServerConfigService;
+        _instanceModService = instanceModService;
+        _modListExportService = modListExportService;
         _launcherPreferencesService = launcherPreferencesService;
         _osqSnapshotCacheService = osqSnapshotCacheService;
         if (Interlocked.Exchange(ref _encodingProviderRegistered, 1) == 0)
@@ -354,6 +361,9 @@ public sealed class Vs2QQProcessService
             case "/server":
                 await HandleServerCommandAsync(runtime, eventPayload, args, cancellationToken);
                 return;
+            case "/modslist":
+                await HandleModsListCommandAsync(runtime, eventPayload, args, cancellationToken);
+                return;
             default:
                 if (runtime.CustomCommands.TryGetValue(command, out var customCommand))
                 {
@@ -401,6 +411,121 @@ public sealed class Vs2QQProcessService
             commandText,
             cancellationToken);
         await ReplyAsync(runtime, eventPayload, $"已发送服务端指令：{commandText}", cancellationToken);
+    }
+
+    private async Task HandleModsListCommandAsync(
+        Vs2QQRuntimeContext runtime,
+        JsonObject eventPayload,
+        string args,
+        CancellationToken cancellationToken)
+    {
+        if (!HasAdminPermission(runtime, eventPayload))
+        {
+            await ReplyAsync(runtime, eventPayload, "Permission denied. Super admin only.", cancellationToken);
+            return;
+        }
+
+        if (!TryParseModListExportFormat(args, out var format))
+        {
+            await ReplyAsync(runtime, eventPayload, "Usage: /modslist txt|pdf|md|xlsx|csv", cancellationToken);
+            return;
+        }
+
+        var targetResolution = ResolveServerCommandProfile(runtime, eventPayload, string.Empty);
+        if (!string.IsNullOrWhiteSpace(targetResolution.ErrorMessage) || targetResolution.Profile is null)
+        {
+            await ReplyAsync(runtime, eventPayload, targetResolution.ErrorMessage, cancellationToken);
+            return;
+        }
+
+        var profile = targetResolution.Profile;
+        var mods = await _instanceModService.GetModsAsync(profile, cancellationToken);
+        if (format == ModListExportFormat.Txt)
+        {
+            await using var content = new MemoryStream();
+            await _modListExportService.ExportAsync(profile, mods, format, content, cancellationToken);
+            var text = Encoding.UTF8.GetString(content.ToArray()).Trim();
+            foreach (var message in SplitOneBotMessages(text.Split('\n').Select(static line => line.TrimEnd('\r')).ToList()))
+            {
+                await ReplyAsync(runtime, eventPayload, message, cancellationToken);
+            }
+
+            return;
+        }
+
+        var exportDirectory = Path.Combine(WorkspacePathHelper.RobotRoot, "exports");
+        Directory.CreateDirectory(exportDirectory);
+        var extension = _modListExportService.GetFileExtension(format);
+        var fileName = $"mods-{SanitizeFileName(profile.Name)}-{DateTimeOffset.Now:yyyyMMdd-HHmmss}.{extension}";
+        var outputPath = Path.Combine(exportDirectory, fileName);
+
+        await using (var output = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.Read))
+        {
+            await _modListExportService.ExportAsync(profile, mods, format, output, cancellationToken);
+        }
+
+        try
+        {
+            if (IsGroupMessage(eventPayload))
+            {
+                var groupId = GetInt64(eventPayload, "group_id");
+                if (groupId <= 0)
+                    throw new InvalidOperationException("Unable to identify the group.");
+                await runtime.OneBot.UploadGroupFileAsync(groupId, outputPath, fileName, cancellationToken);
+            }
+            else
+            {
+                var userId = GetInt64(eventPayload, "user_id");
+                if (userId <= 0)
+                    throw new InvalidOperationException("Unable to identify the user.");
+                await runtime.OneBot.UploadPrivateFileAsync(userId, outputPath, fileName, cancellationToken);
+            }
+
+            await ReplyAsync(runtime, eventPayload, $"已输出模组清单：{fileName}", cancellationToken);
+        }
+        finally
+        {
+            TryDeleteFile(outputPath);
+        }
+    }
+
+    private static bool TryParseModListExportFormat(string args, out ModListExportFormat format)
+    {
+        format = default;
+        var value = (args ?? string.Empty).Trim().ToLowerInvariant();
+        if (value.Contains(' ') || value.Contains('\t'))
+            return false;
+
+        switch (value)
+        {
+            case "txt": format = ModListExportFormat.Txt; return true;
+            case "pdf": format = ModListExportFormat.Pdf; return true;
+            case "md":
+            case "markdown": format = ModListExportFormat.Markdown; return true;
+            case "xlsx": format = ModListExportFormat.Xlsx; return true;
+            case "csv": format = ModListExportFormat.Csv; return true;
+            default: return false;
+        }
+    }
+
+    private static string SanitizeFileName(string value)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var sanitized = new string((value ?? string.Empty).Select(character => invalid.Contains(character) ? '_' : character).ToArray()).Trim();
+        return string.IsNullOrWhiteSpace(sanitized) ? "profile" : sanitized;
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch
+        {
+            // Upload completion is authoritative; failed cleanup is harmless and will be retried by later exports.
+        }
     }
 
     private async Task HandleServerCommandAsync(Vs2QQRuntimeContext runtime, JsonObject eventPayload, string args, CancellationToken cancellationToken)
@@ -1201,6 +1326,7 @@ public sealed class Vs2QQProcessService
             VS2QQ Commands
             /help - 帮助
             /send <server_command> - 发送服务端指令（仅超级管理员）
+            /modslist txt|pdf|md|xlsx|csv - 输出已绑定服务器档案的模组清单（仅超级管理员）
             /server status [n] - 获取最近第 n 次服务器状态（默认1）
             /server players [n] - 获取最近第 n 次在线玩家列表（默认1）
             /server start [档案名或ID] - 启动指定或唯一绑定的服务器档案（仅超级管理员）
@@ -2570,6 +2696,28 @@ public sealed class Vs2QQProcessService
             };
 
             await CallActionAsync("send_private_msg", parameters, TimeSpan.FromSeconds(20), cancellationToken);
+        }
+
+        public async Task UploadGroupFileAsync(long groupId, string path, string name, CancellationToken cancellationToken)
+        {
+            var parameters = new JsonObject
+            {
+                ["group_id"] = groupId,
+                ["file"] = path,
+                ["name"] = name
+            };
+            await CallActionAsync("upload_group_file", parameters, TimeSpan.FromSeconds(30), cancellationToken);
+        }
+
+        public async Task UploadPrivateFileAsync(long userId, string path, string name, CancellationToken cancellationToken)
+        {
+            var parameters = new JsonObject
+            {
+                ["user_id"] = userId,
+                ["file"] = path,
+                ["name"] = name
+            };
+            await CallActionAsync("upload_private_file", parameters, TimeSpan.FromSeconds(30), cancellationToken);
         }
 
         public async Task<string> GetGroupMemberDisplayNameAsync(

@@ -2184,7 +2184,7 @@
                                     </Grid>
 
                                     <Grid x:Name="ModsPanel" RowDefinitions="Auto,Auto,*" RowSpacing="8" IsVisible="False">
-                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
                                             <ComboBox x:Name="ModProfileComboBox" Grid.Column="0" Classes="CompactCombo" SelectionChanged="OnModProfileSelectionChanged">
                                                 <ComboBox.ItemTemplate>
                                                     <DataTemplate>
@@ -2198,6 +2198,7 @@
                                             <Button x:Name="DeleteSelectedModsButton" Grid.Column="4" Classes="SecondaryActionButton DangerButton" Content="删除" Click="OnDeleteSelectedModsClick" />
                                             <Button x:Name="RefreshModsButton" Grid.Column="5" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshModsClick" />
                                             <Button x:Name="CheckModUpdatesButton" Grid.Column="6" Classes="SecondaryActionButton" Content="检查更新" Click="OnCheckModUpdatesClick" />
+                                            <Button x:Name="ExportModsButton" Grid.Column="7" Classes="SecondaryActionButton" Content="导出" Click="OnExportModsClick" />
                                         </Grid>
                                         <TextBlock x:Name="ModStatusTextBlock" Grid.Row="1" Classes="ConfigHintText" TextWrapping="Wrap" />
                                         <Grid Grid.Row="2" RowDefinitions="Auto,*">
