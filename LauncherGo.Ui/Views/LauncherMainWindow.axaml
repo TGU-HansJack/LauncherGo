@@ -2640,7 +2640,32 @@
                                         </StackPanel>
                                     </ScrollViewer>
                                     <Border x:Name="SettingsAboutPanel" Classes="ConfigCard" IsVisible="False">
-                                        <ContentControl x:Name="SettingsAboutContentHost" />
+                                        <Grid RowDefinitions="Auto,*" RowSpacing="14">
+                                            <Border BorderBrush="{DynamicResource SplitLineBrush}" BorderThickness="0,0,0,1" Padding="0,0,0,14">
+                                                <StackPanel Spacing="12">
+                                                    <Grid ColumnDefinitions="52,*" ColumnSpacing="12">
+                                                        <Image Width="44" Height="44" Source="avares://LauncherGo.Ui/Assets/app-icon.ico" HorizontalAlignment="Left" VerticalAlignment="Top" />
+                                                        <StackPanel Grid.Column="1" Spacing="3">
+                                                            <TextBlock Text="LauncherGo" Classes="AboutHeading1" Margin="0" />
+                                                            <WrapPanel Orientation="Horizontal">
+                                                                <TextBlock x:Name="AboutVersionTextBlock" Classes="AboutParagraph" FontWeight="SemiBold" Margin="0,0,12,0" />
+                                                                <TextBlock x:Name="AboutPackageKindTextBlock" Classes="AboutSubText" />
+                                                            </WrapPanel>
+                                                            <TextBlock x:Name="AboutCopyrightTextBlock" Classes="AboutSubText" />
+                                                            <TextBlock x:Name="AboutLicenseTextBlock" Classes="AboutSubText" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <WrapPanel Orientation="Horizontal">
+                                                        <Button x:Name="AboutRepositoryButton" Classes="SecondaryActionButton" Content="源码仓库" Click="OnRepositoryClick" Margin="0,0,8,8" />
+                                                        <Button x:Name="AboutLicenseButton" Classes="SecondaryActionButton" Content="GPLv3 许可证" Tag="LICENSE" Click="OnAboutDocumentClick" Margin="0,0,8,8" />
+                                                        <Button x:Name="AboutNoticeButton" Classes="SecondaryActionButton" Content="版权声明" Tag="NOTICE" Click="OnAboutDocumentClick" Margin="0,0,8,8" />
+                                                        <Button x:Name="AboutThirdPartyButton" Classes="SecondaryActionButton" Content="第三方声明" Tag="THIRD-PARTY-NOTICES.md" Click="OnAboutDocumentClick" Margin="0,0,8,8" />
+                                                    </WrapPanel>
+                                                    <TextBlock x:Name="AboutActionStatusTextBlock" Classes="ConfigHintText" IsVisible="False" />
+                                                </StackPanel>
+                                            </Border>
+                                            <ContentControl x:Name="SettingsAboutContentHost" Grid.Row="1" />
+                                        </Grid>
                                     </Border>
                                     <ScrollViewer x:Name="SettingsSponsorsPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
                                         <StackPanel Spacing="10">

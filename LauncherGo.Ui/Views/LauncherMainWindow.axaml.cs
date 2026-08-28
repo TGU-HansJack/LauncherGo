@@ -1193,7 +1193,32 @@ public partial class LauncherMainWindow : Window
 
     private void InitializeAboutSettingsStaticTexts()
     {
+        AboutVersionTextBlock.Text = T(
+            $"版本 {_launcherUpdateService.CurrentVersion}",
+            $"Version {_launcherUpdateService.CurrentVersion}");
+        AboutPackageKindTextBlock.Text = T(
+            $"安装类型：{GetPackageKindDisplayName(_launcherUpdateService.PackageKind)}",
+            $"Package: {GetPackageKindDisplayName(_launcherUpdateService.PackageKind)}");
+        AboutCopyrightTextBlock.Text = "Copyright (C) 2026 Vintage Story CN Studio (VSCN)";
+        AboutLicenseTextBlock.Text = T("许可证：GNU GPL v3.0 only", "License: GNU GPL v3.0 only");
+        AboutRepositoryButton.Content = T("源码仓库", "Source Repository");
+        AboutLicenseButton.Content = T("GPLv3 许可证", "GPLv3 License");
+        AboutNoticeButton.Content = T("版权声明", "Copyright Notice");
+        AboutThirdPartyButton.Content = T("第三方声明", "Third-Party Notices");
+        AboutActionStatusTextBlock.IsVisible = false;
         SetAboutFallbackText(T("正在加载项目介绍 ...", "Loading project introduction ..."));
+    }
+
+    private string GetPackageKindDisplayName(LauncherPackageKind packageKind)
+    {
+        return packageKind switch
+        {
+            LauncherPackageKind.Installer => T("安装版", "Installer"),
+            LauncherPackageKind.SmallInstaller => T("精简安装版", "Small Installer"),
+            LauncherPackageKind.Portable => T("便携版", "Portable"),
+            LauncherPackageKind.SmallPackage => T("精简包", "Small Package"),
+            _ => T("本地构建", "Local Build")
+        };
     }
 
     private void InitializeSponsorSettingsStaticTexts()
@@ -7345,6 +7370,48 @@ public partial class LauncherMainWindow : Window
         {
             OpenUrl(url);
         }
+    }
+
+    private void OnAboutDocumentClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string fileName } || string.IsNullOrWhiteSpace(fileName))
+        {
+            return;
+        }
+
+        var path = FindBundledContentPath(fileName);
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            SetAboutActionStatus(T($"未找到 {fileName}。", $"{fileName} was not found."));
+            return;
+        }
+
+        try
+        {
+            var startInfo = new ProcessStartInfo { UseShellExecute = true };
+            if (OperatingSystem.IsWindows())
+            {
+                startInfo.FileName = "notepad.exe";
+                startInfo.ArgumentList.Add(path);
+            }
+            else
+            {
+                startInfo.FileName = path;
+            }
+
+            Process.Start(startInfo);
+            AboutActionStatusTextBlock.IsVisible = false;
+        }
+        catch (Exception ex)
+        {
+            SetAboutActionStatus(T($"打开 {fileName} 失败：{ex.Message}", $"Failed to open {fileName}: {ex.Message}"));
+        }
+    }
+
+    private void SetAboutActionStatus(string text)
+    {
+        AboutActionStatusTextBlock.Text = text;
+        AboutActionStatusTextBlock.IsVisible = true;
     }
 
     private void OnConnectionFrpTabClick(object? sender, RoutedEventArgs e)
