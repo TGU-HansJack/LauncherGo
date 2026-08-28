@@ -1,0 +1,18 @@
+LauncherGo
+
+Copyright (C) 2026 Vintage Story CN Studio (VSCN)
+
+LauncherGo is licensed under the GNU General Public License version 3.0
+only. See LICENSE for the complete license text.
+
+Corresponding source code is available from:
+https://github.com/vscn-studio/LauncherGo
+
+This repository and its release packages include third-party components.
+Those components remain under their own copyright notices and license terms.
+See THIRD-PARTY-NOTICES.md for the dependency notice inventory and release
+audit notes.
+
+LauncherGo is a community tool for Vintage Story server administration. It is
+not affiliated with, sponsored by, or endorsed by Vintage Story's developers
+or publishers unless separately stated.

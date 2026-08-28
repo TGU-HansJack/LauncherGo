@@ -29,7 +29,7 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 
 | 项目 | 当前情况 |
 | --- | --- |
-| 软件版本 | 本地开发默认显示 `2.6.4`；Windows 打包和 Release 发布由 `.github/workflows/windows-packages.yml`、`.github/workflows/publish-release.yml` 的版本输入或 `v*` 标签覆盖 `Version` 与 `InformationalVersion` |
+| 软件版本 | 本地开发默认显示 `2.6.5`；Windows 打包和 Release 发布由 `.github/workflows/windows-packages.yml`、`.github/workflows/publish-release.yml` 的版本输入或 `v*` 标签覆盖 `Version` 与 `InformationalVersion` |
 | 产品阶段 | 第二代开服器，持续开发中 |
 | 目标框架 | `.NET net10.0` |
 | 桌面 UI | `Avalonia 12.0.1` 与 `Semi.Avalonia 12.0.1` |
@@ -177,3 +177,6 @@ dotnet build .\LauncherGo.Services\EmbeddedMods\VsslAuthMod\VsslAuthMod.csproj -
 ## 许可证
 
 LauncherGo 使用 `GNU General Public License v3.0`。许可证全文见 [LICENSE](./LICENSE)。
+
+版权声明见 [NOTICE](./NOTICE)，第三方依赖与发布审计说明见
+[THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md)。发布二进制、安装包或嵌入模组包时应一并携带这些文件。

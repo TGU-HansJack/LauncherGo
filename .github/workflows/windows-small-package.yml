@@ -6,7 +6,7 @@ on:
       version:
         description: "Version number (for example: 1.2.3)"
         required: true
-        default: "2.6.4"
+        default: "2.6.5"
         type: string
       vintage_story_version:
         description: "Vintage Story server version used to build embedded mods"
@@ -200,6 +200,7 @@ jobs:
             foreach ($fileName in $mod.Files) {
               Copy-Item -LiteralPath (Join-Path $mod.SourceRoot $fileName) -Destination (Join-Path $targetRoot $fileName) -Force
             }
+            Copy-Item -LiteralPath "LICENSE" -Destination (Join-Path $targetRoot "LICENSE.txt") -Force
           }
 
           Set-Content -LiteralPath "artifacts/publish/small-package/launchergo-package-kind.txt" -Value "SmallPackage" -NoNewline
@@ -211,6 +212,9 @@ jobs:
             "artifacts/publish/small-package/LauncherGo.App.exe",
             "artifacts/publish/small-package/LauncherGo.App.deps.json",
             "artifacts/publish/small-package/LauncherGo.App.runtimeconfig.json",
+            "artifacts/publish/small-package/LICENSE",
+            "artifacts/publish/small-package/NOTICE",
+            "artifacts/publish/small-package/THIRD-PARTY-NOTICES.md",
             "artifacts/publish/small-package/LauncherGo.ServerHost.exe",
             "artifacts/publish/small-package/coreclr.dll",
             "artifacts/publish/small-package/hostfxr.dll",
@@ -218,12 +222,15 @@ jobs:
             "artifacts/publish/small-package/EmbeddedMods/launchergoauth/serverauth.dll",
             "artifacts/publish/small-package/EmbeddedMods/launchergoauth/modinfo.json",
             "artifacts/publish/small-package/EmbeddedMods/launchergoauth/README.txt",
+            "artifacts/publish/small-package/EmbeddedMods/launchergoauth/LICENSE.txt",
             "artifacts/publish/small-package/EmbeddedMods/launchergoredirect/launchergoredirect.dll",
             "artifacts/publish/small-package/EmbeddedMods/launchergoredirect/modinfo.json",
             "artifacts/publish/small-package/EmbeddedMods/launchergoredirect/README.txt",
+            "artifacts/publish/small-package/EmbeddedMods/launchergoredirect/LICENSE.txt",
             "artifacts/publish/small-package/EmbeddedMods/launchergocommandbridge/commandbridge.dll",
             "artifacts/publish/small-package/EmbeddedMods/launchergocommandbridge/modinfo.json",
-            "artifacts/publish/small-package/EmbeddedMods/launchergocommandbridge/README.txt"
+            "artifacts/publish/small-package/EmbeddedMods/launchergocommandbridge/README.txt",
+            "artifacts/publish/small-package/EmbeddedMods/launchergocommandbridge/LICENSE.txt"
           )
 
           foreach ($path in $requiredPaths) {

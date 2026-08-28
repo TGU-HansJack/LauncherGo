@@ -29,7 +29,7 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 
 | Item | Current Status |
 | --- | --- |
-| Application version | Local development builds default to `2.6.4`; Windows packaging and Release publishing override `Version` and `InformationalVersion` through `.github/workflows/windows-packages.yml`, `.github/workflows/publish-release.yml`, or `v*` tags |
+| Application version | Local development builds default to `2.6.5`; Windows packaging and Release publishing override `Version` and `InformationalVersion` through `.github/workflows/windows-packages.yml`, `.github/workflows/publish-release.yml`, or `v*` tags |
 | Product stage | Second-generation server launcher, under active development |
 | Target framework | `.NET net10.0` |
 | Desktop UI | `Avalonia 12.0.1` and `Semi.Avalonia 12.0.1` |
@@ -176,3 +176,8 @@ The directory referenced by `VINTAGE_STORY` must contain `VintagestoryAPI.dll`, 
 ## License
 
 LauncherGo is licensed under `GNU General Public License v3.0`. See [LICENSE](./LICENSE) for the full license text.
+
+See [NOTICE](./NOTICE) for the project copyright notice and
+[THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md) for dependency notices and
+release audit notes. Binary, installer, and embedded mod releases should ship
+these files.

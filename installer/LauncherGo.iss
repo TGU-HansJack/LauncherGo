@@ -14,7 +14,7 @@
 AppId={{26FFCC71-304F-4FF1-AC1A-3E244C276414}
 AppName=LauncherGo
 AppVersion={#MyAppVersion}
-AppPublisher=LauncherGo
+AppPublisher=Vintage Story CN Studio
 DefaultDirName={autopf}\LauncherGo
 DefaultGroupName=LauncherGo
 OutputDir={#OutputDir}
@@ -31,6 +31,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 DisableProgramGroupPage=yes
 UninstallDisplayIcon={app}\LauncherGo.App.exe
+LicenseFile=..\LICENSE
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

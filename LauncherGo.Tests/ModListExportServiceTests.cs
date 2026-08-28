@@ -68,7 +68,7 @@ public sealed class ModListExportServiceTests
 
         var content = output.ToArray();
         Assert.True(content.Length > 100);
-        Assert.Equal("%PDF-1.4", Encoding.ASCII.GetString(content, 0, 8));
+        Assert.Equal("%PDF-", Encoding.ASCII.GetString(content, 0, 5));
         Assert.Contains(Encoding.ASCII.GetBytes("%%EOF"), content);
     }
 

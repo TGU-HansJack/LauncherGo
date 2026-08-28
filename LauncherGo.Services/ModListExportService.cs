@@ -6,9 +6,10 @@ using System.Xml.Linq;
 using LauncherGo.Abstractions.Services;
 using LauncherGo.Domains.Enums;
 using LauncherGo.Domains.Models;
-using QuestPDF.Fluent;
-using QuestPDF.Helpers;
-using QuestPDF.Infrastructure;
+using MigraDoc.DocumentObjectModel;
+using MigraDoc.DocumentObjectModel.Fields;
+using MigraDoc.Rendering;
+using PdfSharp.Fonts;
 
 namespace LauncherGo.Services;
 
@@ -21,7 +22,7 @@ public sealed class ModListExportService : IModListExportService
     private const string RelationshipNamespace = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     private const string PackageRelationshipNamespace = "http://schemas.openxmlformats.org/package/2006/relationships";
     private const string ContentTypeNamespace = "http://schemas.openxmlformats.org/package/2006/content-types";
-    private static int _questPdfConfigured;
+    private static readonly Lazy<bool> PdfSharpConfiguration = new(ConfigurePdfSharp);
     private static readonly HttpClient WebsiteHttpClient = CreateWebsiteHttpClient();
     private static readonly ConcurrentDictionary<string, string> WebsiteUrlCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly IReadOnlyList<ExportColumn> ExportColumns =
@@ -387,45 +388,60 @@ public sealed class ModListExportService : IModListExportService
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (Interlocked.Exchange(ref _questPdfConfigured, 1) == 0)
-            QuestPDF.Settings.License = LicenseType.Community;
+        _ = PdfSharpConfiguration.Value;
 
-        Document.Create(container =>
+        var document = new Document();
+        document.Info.Title = "Vintage Story Mod List";
+        var normalStyle = document.Styles[StyleNames.Normal]
+            ?? throw new InvalidOperationException("The PDF document has no normal text style.");
+        normalStyle.Font.Name = WindowsPdfFontResolver.FamilyName;
+        normalStyle.Font.Size = Unit.FromPoint(8);
+
+        var section = document.AddSection();
+        section.PageSetup.PageFormat = PageFormat.A4;
+        section.PageSetup.TopMargin = Unit.FromPoint(52);
+        section.PageSetup.RightMargin = Unit.FromPoint(28);
+        section.PageSetup.BottomMargin = Unit.FromPoint(28);
+        section.PageSetup.LeftMargin = Unit.FromPoint(28);
+        section.PageSetup.HeaderDistance = Unit.FromPoint(12);
+        section.PageSetup.FooterDistance = Unit.FromPoint(12);
+
+        var header = section.Headers.Primary.AddParagraph("Vintage Story Mod List");
+        header.Format.Font.Size = Unit.FromPoint(16);
+        header.Format.Font.Bold = true;
+
+        section.AddParagraph($"Profile: {profile.Name}");
+        section.AddParagraph($"Exported: {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}");
+        section.AddParagraph($"Mods: {rows.Count}");
+
+        foreach (var row in rows)
         {
-            container.Page(page =>
+            foreach (var (exportColumn, index) in columns.Select((exportColumn, index) => (exportColumn, index)))
             {
-                page.Size(PageSizes.A4);
-                page.Margin(28);
-                page.DefaultTextStyle(style => style.FontFamily("Microsoft YaHei").FontSize(8));
-                page.Header().Text("Vintage Story Mod List").FontSize(16).Bold();
-                page.Content().Column(column =>
-                {
-                    column.Spacing(3);
-                    column.Item().Text($"Profile: {profile.Name}");
-                    column.Item().Text($"Exported: {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}");
-                    column.Item().Text($"Mods: {rows.Count}");
+                var paragraph = section.AddParagraph($"{exportColumn.Header}: {exportColumn.Value(row)}");
+                paragraph.Format.SpaceBefore = Unit.FromPoint(index == 0 ? 7 : 3);
+                paragraph.Format.KeepWithNext = index == 0 && columns.Count > 1;
+                paragraph.Format.Font.Bold = index == 0;
+            }
+        }
 
-                    foreach (var row in rows)
-                    {
-                        foreach (var (exportColumn, index) in columns.Select((exportColumn, index) => (exportColumn, index)))
-                        {
-                            var item = column.Item();
-                            if (index == 0)
-                                item = item.PaddingTop(7);
-                            item.Text($"{exportColumn.Header}: {exportColumn.Value(row)}").Style(
-                                index == 0 ? TextStyle.Default.Bold() : TextStyle.Default);
-                        }
-                    }
-                });
-                page.Footer().AlignCenter().Text(text =>
-                {
-                    text.Span("Page ");
-                    text.CurrentPageNumber();
-                });
-            });
-        }).GeneratePdf(destination);
+        var footer = section.Footers.Primary.AddParagraph();
+        footer.Format.Alignment = ParagraphAlignment.Center;
+        footer.AddText("Page ");
+        footer.Add(new PageField());
+
+        var renderer = new PdfDocumentRenderer { Document = document };
+        renderer.RenderDocument();
+        renderer.PdfDocument.Save(destination, closeStream: false);
 
         await destination.FlushAsync(cancellationToken);
+    }
+
+    private static bool ConfigurePdfSharp()
+    {
+        GlobalFontSettings.UseWindowsFontsUnderWindows = true;
+        GlobalFontSettings.FontResolver = new WindowsPdfFontResolver();
+        return true;
     }
 
     private static string EscapeCsv(string value)

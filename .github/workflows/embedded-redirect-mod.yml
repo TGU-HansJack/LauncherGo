@@ -90,11 +90,13 @@ jobs:
             $path = Join-Path $metadataDir $file
             if (!(Test-Path $path)) { throw "Missing redirect mod metadata: $path" }
           }
+          if (!(Test-Path "LICENSE")) { throw "Missing repository LICENSE file." }
 
           New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
           Copy-Item -LiteralPath $dllPath -Destination (Join-Path $outputDir "launchergoredirect.dll") -Force
           Copy-Item -LiteralPath (Join-Path $metadataDir "modinfo.json") -Destination $outputDir -Force
           Copy-Item -LiteralPath (Join-Path $metadataDir "README.txt") -Destination $outputDir -Force
+          Copy-Item -LiteralPath "LICENSE" -Destination (Join-Path $outputDir "LICENSE.txt") -Force
           Compress-Archive -Path (Join-Path $outputDir "*") -DestinationPath $zipPath -Force
 
       - name: Upload redirect mod artifact
