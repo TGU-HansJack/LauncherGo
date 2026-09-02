@@ -178,5 +178,9 @@ dotnet build .\LauncherGo.Services\EmbeddedMods\VsslAuthMod\VsslAuthMod.csproj -
 
 LauncherGo 使用 `GNU General Public License v3.0`。许可证全文见 [LICENSE](./LICENSE)。
 
+项目所有者：HansJack，隶属于 VSCN-Studio 团队。
+
 版权声明见 [NOTICE](./NOTICE)，第三方依赖与发布审计说明见
 [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md)。发布二进制、安装包或嵌入模组包时应一并携带这些文件。
+完整的第三方许可证正文位于
+[THIRD-PARTY-LICENSES](./THIRD-PARTY-LICENSES)。

@@ -36,12 +36,15 @@
   <ItemGroup>
     <None Update="EmbeddedMods\launchergoauth\modinfo.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\launchergoauth\README.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="EmbeddedMods\launchergoauth\LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\launchergoauth\serverauth.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('EmbeddedMods\launchergoauth\serverauth.dll')" />
     <None Update="EmbeddedMods\launchergoredirect\modinfo.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\launchergoredirect\README.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="EmbeddedMods\launchergoredirect\LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\launchergoredirect\launchergoredirect.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('EmbeddedMods\launchergoredirect\launchergoredirect.dll')" />
     <None Update="EmbeddedMods\launchergocommandbridge\modinfo.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\launchergocommandbridge\README.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="EmbeddedMods\launchergocommandbridge\LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\launchergocommandbridge\commandbridge.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('EmbeddedMods\launchergocommandbridge\commandbridge.dll')" />
   </ItemGroup>
 

@@ -177,7 +177,10 @@ The directory referenced by `VINTAGE_STORY` must contain `VintagestoryAPI.dll`, 
 
 LauncherGo is licensed under `GNU General Public License v3.0`. See [LICENSE](./LICENSE) for the full license text.
 
+Project owner: HansJack, a member of the VSCN-Studio team.
+
 See [NOTICE](./NOTICE) for the project copyright notice and
 [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md) for dependency notices and
-release audit notes. Binary, installer, and embedded mod releases should ship
-these files.
+release audit notes. Complete license texts are in
+[THIRD-PARTY-LICENSES](./THIRD-PARTY-LICENSES). Binary, installer, and embedded
+mod releases should ship these files.

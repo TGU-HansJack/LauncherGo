@@ -1199,7 +1199,7 @@ public partial class LauncherMainWindow : Window
         AboutPackageKindTextBlock.Text = T(
             $"安装类型：{GetPackageKindDisplayName(_launcherUpdateService.PackageKind)}",
             $"Package: {GetPackageKindDisplayName(_launcherUpdateService.PackageKind)}");
-        AboutCopyrightTextBlock.Text = "Copyright (C) 2026 Vintage Story CN Studio (VSCN)";
+        AboutCopyrightTextBlock.Text = "Copyright (C) 2026 HansJack, LauncherGo project owner (VSCN-Studio team)";
         AboutLicenseTextBlock.Text = T("许可证：GNU GPL v3.0 only", "License: GNU GPL v3.0 only");
         AboutRepositoryButton.Content = T("源码仓库", "Source Repository");
         AboutLicenseButton.Content = T("GPLv3 许可证", "GPLv3 License");

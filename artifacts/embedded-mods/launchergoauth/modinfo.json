@@ -4,7 +4,7 @@
   "name": "ServerAuth",
   "description": "服务器认证模组，提供注册登录、会话记住、Discourse SSO 与 OAuth2/OIDC 认证能力。",
   "authors": [
-    "HansJack"
+    "VSCN-Studio"
   ],
   "version": "1.0.0",
   "side": "universal",

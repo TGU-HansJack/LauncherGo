@@ -181,6 +181,23 @@ jobs:
       - name: Publish portable single-file
         run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o artifacts/publish/portable
 
+      - name: Copy .NET runtime license files
+        shell: pwsh
+        run: |
+          $dotnetRoot = Split-Path -Parent (Get-Command dotnet).Source
+          foreach ($publishRoot in @("artifacts/publish/win-x64", "artifacts/publish/portable")) {
+            Copy-Item -LiteralPath (Join-Path $dotnetRoot "LICENSE.txt") -Destination (Join-Path $publishRoot "LICENSE.txt") -Force
+            Copy-Item -LiteralPath (Join-Path $dotnetRoot "ThirdPartyNotices.txt") -Destination (Join-Path $publishRoot "ThirdPartyNotices.txt") -Force
+          }
+
+          foreach ($publishRoot in @("artifacts/publish/win-x64", "artifacts/publish/portable")) {
+            foreach ($officialAssembly in @("VintagestoryAPI.dll", "VintagestoryLib.dll", "VSSurvivalMod.dll")) {
+              if (Get-ChildItem -LiteralPath $publishRoot -Recurse -File -Filter $officialAssembly -ErrorAction SilentlyContinue) {
+                throw "Official Vintage Story assembly must not be redistributed: $officialAssembly"
+              }
+            }
+          }
+
       - name: Copy embedded mod payloads to publish outputs
         shell: pwsh
         run: |
@@ -217,8 +234,16 @@ jobs:
         run: |
           $requiredPaths = @(
             "artifacts/publish/win-x64/LICENSE",
+            "artifacts/publish/win-x64/LICENSE.txt",
             "artifacts/publish/win-x64/NOTICE",
             "artifacts/publish/win-x64/THIRD-PARTY-NOTICES.md",
+            "artifacts/publish/win-x64/ThirdPartyNotices.txt",
+            "artifacts/publish/win-x64/THIRD-PARTY-LICENSES/README.md",
+            "artifacts/publish/win-x64/THIRD-PARTY-LICENSES/MIT.txt",
+            "artifacts/publish/win-x64/THIRD-PARTY-LICENSES/Apache-2.0.txt",
+            "artifacts/publish/win-x64/THIRD-PARTY-LICENSES/MPL-2.0.txt",
+            "artifacts/publish/win-x64/THIRD-PARTY-LICENSES/LGPL-3.0.txt",
+            "artifacts/publish/win-x64/THIRD-PARTY-LICENSES/CC-BY-4.0.txt",
             "artifacts/publish/win-x64/LauncherGo.ServerHost.exe",
             "artifacts/publish/win-x64/EmbeddedMods/launchergoauth/serverauth.dll",
             "artifacts/publish/win-x64/EmbeddedMods/launchergoauth/modinfo.json",
@@ -245,8 +270,16 @@ jobs:
             "artifacts/publish/portable/EmbeddedMods/launchergocommandbridge/README.txt",
             "artifacts/publish/portable/EmbeddedMods/launchergocommandbridge/LICENSE.txt",
             "artifacts/publish/portable/LICENSE",
+            "artifacts/publish/portable/LICENSE.txt",
             "artifacts/publish/portable/NOTICE",
             "artifacts/publish/portable/THIRD-PARTY-NOTICES.md",
+            "artifacts/publish/portable/ThirdPartyNotices.txt",
+            "artifacts/publish/portable/THIRD-PARTY-LICENSES/README.md",
+            "artifacts/publish/portable/THIRD-PARTY-LICENSES/MIT.txt",
+            "artifacts/publish/portable/THIRD-PARTY-LICENSES/Apache-2.0.txt",
+            "artifacts/publish/portable/THIRD-PARTY-LICENSES/MPL-2.0.txt",
+            "artifacts/publish/portable/THIRD-PARTY-LICENSES/LGPL-3.0.txt",
+            "artifacts/publish/portable/THIRD-PARTY-LICENSES/CC-BY-4.0.txt",
             "artifacts/publish/portable/LauncherGo.ServerHost.exe"
           )
 

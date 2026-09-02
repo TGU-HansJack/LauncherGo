@@ -35,7 +35,7 @@ public partial class FirstLaunchGuideWindow : Window
         "Hello",
         "Wellcome",
         "LauncherGo",
-        "Author: HansJack",
+        "Author: HansJack (VSCN-Studio team)",
         "Team: VSCN"
     ];
 

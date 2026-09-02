@@ -1,8 +1,9 @@
 # Third-Party Notices
 
-This file is an audit snapshot for LauncherGo release packages. It is not a
-replacement for the license text shipped by each upstream package. When making
-a release, keep this file, `NOTICE`, and `LICENSE` in the distributed package.
+This file is an audit snapshot for LauncherGo release packages. Complete
+license texts are shipped in `THIRD-PARTY-LICENSES/`; this file provides the
+package mapping and release checks. When making a release, keep this file,
+`NOTICE`, `LICENSE`, and `THIRD-PARTY-LICENSES/` in the distributed package.
 
 Audit date: 2026-08-28
 
@@ -29,6 +30,7 @@ LauncherGo.slnx package --include-transitive` and local `.nuspec` metadata.
 | Avalonia.Win32 | 12.0.1 | MIT | https://github.com/AvaloniaUI/Avalonia |
 | Avalonia.X11 | 12.0.1 | MIT | https://github.com/AvaloniaUI/Avalonia |
 | Avalonia.AvaloniaEdit | 12.0.0 | MIT | https://github.com/AvaloniaUI/AvaloniaEdit |
+| Avalonia.BuildServices | 11.3.2 | MIT | https://github.com/AvaloniaUI/Avalonia |
 | Avalonia.Angle.Windows.Natives | 2.1.25547.20250602 | LICENSE file in NuGet package | https://github.com/AvaloniaUI/angle |
 | HarfBuzzSharp and native asset packages | 8.3.1.3 | MIT | https://github.com/mono/SkiaSharp |
 | Irihi.Avalonia.Shared | 0.4.0 | MIT | https://github.com/irihitech |
@@ -47,7 +49,7 @@ LauncherGo.slnx package --include-transitive` and local `.nuspec` metadata.
 | Semi.Avalonia | 12.0.1 | MIT | https://github.com/irihitech/Semi.Avalonia |
 | Serilog, Serilog.Enrichers.Thread, Serilog.Extensions.Logging, Serilog.Sinks.File | 4.0.0-10.0.0 | Apache-2.0 | https://github.com/serilog |
 | protobuf-net and protobuf-net.Core | 3.2.56 | Apache-2.0 | https://github.com/protobuf-net/protobuf-net |
-| SQLitePCLRaw.bundle_e_sqlite3, SQLitePCLRaw.core, SQLitePCLRaw.lib.e_sqlite3, SQLitePCLRaw.provider.e_sqlite3 | 2.1.11 | Apache-2.0 | https://github.com/ericsink/SQLitePCL.raw |
+| SQLitePCLRaw.bundle_e_sqlite3, SQLitePCLRaw.batteries_v2, SQLitePCLRaw.core, SQLitePCLRaw.lib.e_sqlite3, SQLitePCLRaw.provider.e_sqlite3 | 2.1.11 | Apache-2.0 | https://github.com/ericsink/SQLitePCL.raw |
 | Nerdbank.MessagePack | 1.3.29-beta | MIT | https://github.com/AArnott/Nerdbank.MessagePack |
 | PolyType | 1.4.1 | MIT | https://github.com/eiriktsarpalis/PolyType |
 | SkiaSharp and native asset packages | 3.119.3-preview.1.1 | MIT | https://github.com/mono/SkiaSharp |
@@ -56,6 +58,27 @@ LauncherGo.slnx package --include-transitive` and local `.nuspec` metadata.
 | AsyncIO | 0.1.69 | Upstream LICENSE.md is MPL-2.0; NuGet metadata does not declare a license field | https://github.com/somdoron/AsyncIO |
 | NetMQ | 4.0.4.2 | NuGet license URL points to COPYING.LESSER | https://github.com/zeromq/netmq/blob/master/COPYING.LESSER |
 | PDFsharp and PDFsharp-MigraDoc | 6.2.4 | MIT | https://github.com/empira/PDFsharp |
+
+Complete license texts for the table above are in `THIRD-PARTY-LICENSES/`.
+Package-specific copyright notices remain the responsibility of the upstream
+projects and are preserved by retaining the published package notice files.
+
+## Font Awesome
+
+The UI uses Font Awesome Free 7.2.0 icon paths. Copyright 2026 Fonticons, Inc.
+Icons are licensed under CC BY 4.0. The complete license text is in
+`THIRD-PARTY-LICENSES/CC-BY-4.0.txt` and the source/license page is
+https://fontawesome.com/license/free.
+
+## Vintage Story API references
+
+The CI build downloads the official Vintage Story server archive only as a
+temporary build reference for the embedded mods. LauncherGo does not sell or
+redistribute the Vintage Story API itself or the official API assemblies.
+Release verification rejects those official assemblies if they appear in a
+LauncherGo publish directory. The embedded mods are the project code built
+against the API and are distributed under their own GPL-3.0-only project
+license.
 
 ## Development-Only Dependencies
 
@@ -82,6 +105,11 @@ LauncherGo components:
 Each standalone embedded mod ZIP should include `LICENSE.txt` copied from the
 repository `LICENSE` file.
 
+The embedded mods list `VSCN-Studio` as their author. Copyright in these
+first-party mods belongs to HansJack, the LauncherGo project owner, who is a
+member of the VSCN-Studio team. The project distributes them under
+GPL-3.0-only.
+
 ## Release Audit Notes
 
 PDF export reads DengXian or SimHei from the Windows fonts directory at runtime;
@@ -96,9 +124,14 @@ rights normally expected for LGPL-covered libraries, such as notice retention
 and a practical way to relink or replace the library where required.
 
 Self-contained .NET releases include Microsoft .NET runtime components in
-addition to NuGet assemblies. Keep any license or third-party notice files
-emitted by `dotnet publish`, and do not overwrite them with project notices.
+addition to NuGet assemblies. Release workflows copy the SDK-provided
+`LICENSE.txt` and `ThirdPartyNotices.txt` into every publish root and verify
+their presence. They must not be overwritten with project notices.
 
-The repository contains `guidance_interface.gif` without a nearby provenance
-note. Confirm that this media is first-party content or add attribution and
-license permission before distributing it outside the repository.
+`guidance_interface.gif` is first-party LauncherGo project content, not a
+third-party component. Copyright belongs to HansJack, the LauncherGo project
+owner. Keep this notice with repository and release packages that include the
+image.
+
+The application icons (`app-icon.svg` and `app-icon.ico`) are also first-party
+LauncherGo project content owned by HansJack, the project owner.

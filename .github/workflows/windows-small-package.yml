@@ -178,6 +178,19 @@ jobs:
       - name: Publish self-contained small package
         run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.resolve_version.outputs.value }} -p:InformationalVersion=${{ steps.resolve_version.outputs.value }} -p:DebugType=None -p:DebugSymbols=false -p:StripPublishSymbols=true -o artifacts/publish/small-package
 
+      - name: Copy .NET runtime license files
+        shell: pwsh
+        run: |
+          $dotnetRoot = Split-Path -Parent (Get-Command dotnet).Source
+          $publishRoot = "artifacts/publish/small-package"
+          Copy-Item -LiteralPath (Join-Path $dotnetRoot "LICENSE.txt") -Destination (Join-Path $publishRoot "LICENSE.txt") -Force
+          Copy-Item -LiteralPath (Join-Path $dotnetRoot "ThirdPartyNotices.txt") -Destination (Join-Path $publishRoot "ThirdPartyNotices.txt") -Force
+          foreach ($officialAssembly in @("VintagestoryAPI.dll", "VintagestoryLib.dll", "VSSurvivalMod.dll")) {
+            if (Get-ChildItem -LiteralPath $publishRoot -Recurse -File -Filter $officialAssembly -ErrorAction SilentlyContinue) {
+              throw "Official Vintage Story assembly must not be redistributed: $officialAssembly"
+            }
+          }
+
       - name: Copy embedded mod payloads to publish output
         shell: pwsh
         run: |
@@ -213,8 +226,16 @@ jobs:
             "artifacts/publish/small-package/LauncherGo.App.deps.json",
             "artifacts/publish/small-package/LauncherGo.App.runtimeconfig.json",
             "artifacts/publish/small-package/LICENSE",
+            "artifacts/publish/small-package/LICENSE.txt",
             "artifacts/publish/small-package/NOTICE",
             "artifacts/publish/small-package/THIRD-PARTY-NOTICES.md",
+            "artifacts/publish/small-package/ThirdPartyNotices.txt",
+            "artifacts/publish/small-package/THIRD-PARTY-LICENSES/README.md",
+            "artifacts/publish/small-package/THIRD-PARTY-LICENSES/MIT.txt",
+            "artifacts/publish/small-package/THIRD-PARTY-LICENSES/Apache-2.0.txt",
+            "artifacts/publish/small-package/THIRD-PARTY-LICENSES/MPL-2.0.txt",
+            "artifacts/publish/small-package/THIRD-PARTY-LICENSES/LGPL-3.0.txt",
+            "artifacts/publish/small-package/THIRD-PARTY-LICENSES/CC-BY-4.0.txt",
             "artifacts/publish/small-package/LauncherGo.ServerHost.exe",
             "artifacts/publish/small-package/coreclr.dll",
             "artifacts/publish/small-package/hostfxr.dll",

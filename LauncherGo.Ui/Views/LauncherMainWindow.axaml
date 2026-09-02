@@ -1108,6 +1108,7 @@
                                     <TextBlock Text="LauncherGo" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource HeaderIconBrush}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
+                            <!-- Font Awesome Free 7.2.0 icons; attribution and CC BY 4.0 text are in THIRD-PARTY-LICENSES. -->
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                 <Button x:Name="RepositoryButton" Classes="HeaderIconButton" Click="OnRepositoryClick" ToolTip.Tip="仓库">
                                     <Viewbox Width="17" Height="17">

@@ -1,6 +1,9 @@
 LauncherGo
 
-Copyright (C) 2026 Vintage Story CN Studio (VSCN)
+Copyright (C) 2026 HansJack
+
+HansJack is the owner and maintainer of LauncherGo and is a member of the
+VSCN-Studio team.
 
 LauncherGo is licensed under the GNU General Public License version 3.0
 only. See LICENSE for the complete license text.
@@ -12,6 +15,18 @@ This repository and its release packages include third-party components.
 Those components remain under their own copyright notices and license terms.
 See THIRD-PARTY-NOTICES.md for the dependency notice inventory and release
 audit notes.
+
+Project-owned materials
+
+The first-party embedded mods, application icons, and `guidance_interface.gif`
+are owned by HansJack for the LauncherGo project. Embedded mods are authored by
+VSCN-Studio and are licensed under GPL-3.0-only together with the project
+source.
+
+Copyright (C) 2026 HansJack, LauncherGo project owner
+
+Font Awesome Free 7.2.0 icons used by the UI remain copyright 2026 Fonticons,
+Inc. and are licensed under CC BY 4.0. See THIRD-PARTY-LICENSES/CC-BY-4.0.txt.
 
 LauncherGo is a community tool for Vintage Story server administration. It is
 not affiliated with, sponsored by, or endorsed by Vintage Story's developers
