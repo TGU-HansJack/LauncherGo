@@ -23,6 +23,16 @@ public interface IInstanceModService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Downloads an official ModDB package, validates its metadata, and installs or replaces it.
+    /// </summary>
+    Task<ModEntry> DownloadAndInstallOfficialModAsync(
+        InstanceProfile profile,
+        string downloadUrl,
+        string expectedModId,
+        string expectedVersion,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     导入一个或多个 Mod ZIP 文件。
     /// </summary>
     Task<IReadOnlyList<ModEntry>> ImportModsAsync(

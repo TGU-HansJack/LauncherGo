@@ -151,6 +151,7 @@ public partial class LauncherMainWindow : Window
         ("日志", "Logs"),
         ("实例", "Instance"),
         ("模组", "Mods"),
+        ("Probe", "Probe"),
         ("自动化", "Automation"),
         ("安全", "Security"),
         ("开放API", "Open API"),
@@ -285,6 +286,7 @@ public partial class LauncherMainWindow : Window
     private readonly IModUpdateService _modUpdateService;
     private readonly IServerAuthService _serverAuthService;
     private readonly ICommandBridgeService _commandBridgeService;
+    private readonly ILithosProbeService _lithosProbeService;
     private readonly ILauncherUpdateService _launcherUpdateService;
     private readonly ILocalizationService _localizationService;
     private readonly ILogger<LauncherMainWindow> _logger;
@@ -331,6 +333,7 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<InstanceProfile> _authProfileItems = [];
     private readonly ObservableCollection<ProfileConfigListItem> _authConfigItems = [];
     private readonly ObservableCollection<InstanceProfile> _commandBridgeProfileItems = [];
+    private readonly ObservableCollection<LithosProbeListItem> _lithosProbeItems = [];
     private readonly ObservableCollection<ProfileConfigListItem> _commandBridgeConfigItems = [];
     private readonly List<AuthPlayerListItem> _authPlayerSourceItems = [];
     private readonly ObservableCollection<AuthPlayerListItem> _authPlayerItems = [];
@@ -409,6 +412,8 @@ public partial class LauncherMainWindow : Window
     private readonly List<string> _modImportPaths = [];
     private bool _isRefreshingAuth;
     private bool _isRefreshingCommandBridge;
+    private bool _isRefreshingLithosProbe;
+    private IReadOnlyList<LithosProbeRelease> _lithosProbeReleases = [];
     private bool _toastPointerOver;
     private string _editingConfigProfileId = string.Empty;
     private string _pendingConfigLoadProfileId = string.Empty;
@@ -448,6 +453,7 @@ public partial class LauncherMainWindow : Window
             ServiceLocator.GetRequiredService<IModUpdateService>(),
             ServiceLocator.GetRequiredService<IServerAuthService>(),
             ServiceLocator.GetRequiredService<ICommandBridgeService>(),
+            ServiceLocator.GetRequiredService<ILithosProbeService>(),
             ServiceLocator.GetRequiredService<ILauncherUpdateService>(),
             ServiceLocator.GetRequiredService<ILogger<LauncherMainWindow>>(),
             ServiceLocator.GetRequiredService<ILocalizationService>())
@@ -476,6 +482,7 @@ public partial class LauncherMainWindow : Window
         IModUpdateService modUpdateService,
         IServerAuthService serverAuthService,
         ICommandBridgeService commandBridgeService,
+        ILithosProbeService lithosProbeService,
         ILauncherUpdateService launcherUpdateService,
         ILogger<LauncherMainWindow>? logger = null,
         ILocalizationService? localizationService = null)
@@ -501,6 +508,7 @@ public partial class LauncherMainWindow : Window
         _modUpdateService = modUpdateService;
         _serverAuthService = serverAuthService;
         _commandBridgeService = commandBridgeService;
+        _lithosProbeService = lithosProbeService;
         _launcherUpdateService = launcherUpdateService;
         _localizationService = localizationService ?? new LocalizationService();
         _logger = logger ?? NullLogger<LauncherMainWindow>.Instance;
@@ -1375,6 +1383,9 @@ public partial class LauncherMainWindow : Window
         CommandBridgeDeployButton.Content = T("部署命令桥接模组", "Deploy Command Bridge");
         CommandBridgeTestButton.Content = T("测试连接", "Test Connection");
         CommandBridgeRegenerateTokenButton.Content = T("轮换令牌", "Rotate Token");
+        LithosProbeNavButton.Content = T("Probe", "Probe");
+        LithosProbeRefreshButton.Content = T("刷新", "Refresh");
+        LithosProbeTitleTextBlock.Text = T("Lithos Probe", "Lithos Probe");
         CommandBridgeEnabledLabelTextBlock.Text = T("启用命令桥接", "Enable Command Bridge");
         CommandBridgePortLabelTextBlock.Text = T("本机端口", "Local Port");
         CommandBridgeTimeoutLabelTextBlock.Text = T("命令超时毫秒", "Command Timeout ms");
@@ -1438,6 +1449,7 @@ public partial class LauncherMainWindow : Window
         AuthPlayersListBox.ItemsSource = _authPlayerItems;
         CommandBridgeConfigItemsControl.ItemsSource = _commandBridgeConfigItems;
         CommandBridgeProfileComboBox.ItemsSource = _commandBridgeProfileItems;
+        LithosProbeItemsControl.ItemsSource = _lithosProbeItems;
         DashboardServersItemsControl.ItemsSource = _dashboardServerItems;
         DashboardOnlinePlayersItemsControl.ItemsSource = _dashboardOnlinePlayerItems;
         DashboardUptimeItemsControl.ItemsSource = _dashboardUptimeItems;
@@ -1473,6 +1485,7 @@ public partial class LauncherMainWindow : Window
             _authConfigItems,
             _authPlayerItems,
             _commandBridgeConfigItems,
+            _lithosProbeItems,
             _robotBindingItems,
             _robotCustomCommandItems,
             _openInfoConfigItems,
@@ -2395,6 +2408,10 @@ public partial class LauncherMainWindow : Window
         _ = RefreshModsAsync();
         _ = RefreshAuthProfilesAsync();
         _ = RefreshCommandBridgeProfilesAsync();
+        if (_selectedInstanceManageTab == InstanceManageTab.LithosProbe)
+        {
+            _ = RefreshLithosProbeAsync(forceReload: false);
+        }
     }
 
     private void RefreshLogItems(IReadOnlyList<InstanceProfile>? profiles = null)
@@ -3611,6 +3628,7 @@ public partial class LauncherMainWindow : Window
         DownloadVersionsPanel.IsVisible = tab == InstanceManageTab.DownloadVersions;
         LogsPanel.IsVisible = tab == InstanceManageTab.Logs;
         CommandBridgePanel.IsVisible = tab == InstanceManageTab.CommandBridge;
+        LithosProbePanel.IsVisible = tab == InstanceManageTab.LithosProbe;
         RefreshSidebarSelection();
 
         if (tab == InstanceManageTab.Config)
@@ -3641,6 +3659,10 @@ public partial class LauncherMainWindow : Window
         {
             ShowCommandBridgeList();
             _ = RefreshCommandBridgeProfilesAsync();
+        }
+        else if (tab == InstanceManageTab.LithosProbe)
+        {
+            _ = RefreshLithosProbeAsync(forceReload: false);
         }
 
         RequestStaticUiTranslations();
@@ -3752,6 +3774,7 @@ public partial class LauncherMainWindow : Window
         SetSelectedClass(DownloadVersionsNavButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.DownloadVersions);
         SetSelectedClass(ConnectionAuthTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Auth);
         SetSelectedClass(CommandBridgeTabButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.CommandBridge);
+        SetSelectedClass(LithosProbeNavButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.LithosProbe);
         SetSelectedClass(LogsNavButton, _logsNavSelected);
         SetSelectedClass(ConnectionFrpTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Frp);
         SetSelectedClass(ConnectionEasyTierTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.EasyTier);
@@ -7448,6 +7471,126 @@ public partial class LauncherMainWindow : Window
     {
         SelectTab(MainTab.InstanceManage);
         SelectInstanceManageTab(InstanceManageTab.CommandBridge);
+    }
+
+    private async Task RefreshLithosProbeAsync(bool forceReload)
+    {
+        if (_isRefreshingLithosProbe)
+            return;
+
+        _isRefreshingLithosProbe = true;
+        LithosProbeRefreshButton.IsEnabled = false;
+        try
+        {
+            if (forceReload || _lithosProbeReleases.Count == 0)
+            {
+                _lithosProbeReleases = await _lithosProbeService.GetReleasesAsync();
+            }
+
+            var profiles = _profileService.GetProfiles();
+            var snapshots = await Task.WhenAll(profiles.Select(profile =>
+                _lithosProbeService.GetProfileSnapshotAsync(profile, _lithosProbeReleases)));
+            _lithosProbeItems.Clear();
+            foreach (var snapshot in snapshots.OrderBy(static snapshot => snapshot.Profile.Name, StringComparer.CurrentCultureIgnoreCase))
+            {
+                _lithosProbeItems.Add(LithosProbeListItem.FromSnapshot(
+                    snapshot,
+                    _serverProcessService.GetCachedStatuses().Any(status =>
+                        status.IsRunning && status.ProfileId?.Equals(snapshot.Profile.Id, StringComparison.OrdinalIgnoreCase) == true),
+                    _isChinese));
+            }
+
+            SetLithosProbeStatus(_lithosProbeItems.Count == 0
+                ? T("暂无档案，请先创建档案。", "No profile found. Create a profile first.")
+                : T($"已加载 {_lithosProbeItems.Count} 个档案和 {_lithosProbeReleases.Count} 个官方发布。", $"Loaded {_lithosProbeItems.Count} profiles and {_lithosProbeReleases.Count} official releases."),
+                notify: false);
+        }
+        catch (Exception ex)
+        {
+            SetLithosProbeStatus(T($"Probe 加载失败：{ex.Message}", $"Probe load failed: {ex.Message}"));
+        }
+        finally
+        {
+            _isRefreshingLithosProbe = false;
+            LithosProbeRefreshButton.IsEnabled = true;
+        }
+    }
+
+    private async void OnLithosProbeDeployClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: LithosProbeListItem item })
+            return;
+
+        var release = item.ExactCompatibleRelease;
+        if (release is null)
+        {
+            var selector = new LithosProbeReleaseSelectionWindow(item.ProfileName, item.GameVersion, _lithosProbeReleases, _isChinese);
+            release = await selector.ShowDialog<LithosProbeRelease?>(this);
+        }
+
+        if (release is null)
+            return;
+
+        try
+        {
+            await _instanceModService.DownloadAndInstallOfficialModAsync(
+                item.Profile,
+                release.DownloadUrl,
+                "lithosprobe",
+                release.Version);
+            var restartHint = item.IsServerRunning
+                ? T("服务端正在运行，重启服务器后生效。", "The server is running; restart it for the change to take effect.")
+                : T("已部署并启用。", "Deployed and enabled.");
+            SetLithosProbeStatus(T($"Lithos Probe {release.Version} {restartHint}", $"Lithos Probe {release.Version}: {restartHint}"));
+            await RefreshLithosProbeAsync(forceReload: false);
+        }
+        catch (Exception ex)
+        {
+            SetLithosProbeStatus(T($"部署失败：{ex.Message}", $"Deployment failed: {ex.Message}"));
+        }
+    }
+
+    private void OnLithosProbeViewClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: LithosProbeListItem item } || !item.CanViewReport)
+            return;
+
+        var report = item.Reports.FirstOrDefault(static file => file.Report is not null)?.Report;
+        if (report is null)
+        {
+            SetLithosProbeStatus(T("没有可用的 Probe 报告。", "No usable Probe report is available."));
+            return;
+        }
+
+        try
+        {
+            LithosProbeWebPreview.OpenInBrowser(report, _isChinese);
+            SetLithosProbeStatus(T("已在浏览器中打开 Probe 报告。", "Probe report opened in your browser."), notify: false);
+        }
+        catch (Exception ex)
+        {
+            SetLithosProbeStatus(T($"无法打开 Probe 报告：{ex.Message}", $"Could not open Probe report: {ex.Message}"));
+        }
+    }
+
+    private void SetLithosProbeStatus(string message, bool notify = true)
+    {
+        LithosProbeStatusTextBlock.Text = message;
+        if (notify)
+        {
+            ShowToast(message);
+        }
+    }
+
+    private void OnLithosProbeNavClick(object? sender, RoutedEventArgs e)
+    {
+        SelectTab(MainTab.InstanceManage);
+        SelectInstanceManageTab(InstanceManageTab.LithosProbe);
+    }
+
+    private async void OnLithosProbeRefreshClick(object? sender, RoutedEventArgs e)
+    {
+        await RefreshLithosProbeAsync(forceReload: true);
     }
 
     private void OnConnectionGatewayTabClick(object? sender, RoutedEventArgs e)
@@ -12097,7 +12240,8 @@ public partial class LauncherMainWindow : Window
         Logs,
         Mods,
         DownloadVersions,
-        CommandBridge
+        CommandBridge,
+        LithosProbe
     }
 
     private enum SettingsTab
@@ -12368,6 +12512,80 @@ public partial class LauncherMainWindow : Window
         public string DownloadedText { get; } = downloadedText;
 
         public string ActionText { get; } = actionText;
+    }
+
+    public sealed class LithosProbeListItem
+    {
+        public required InstanceProfile Profile { get; init; }
+
+        public required string ProfileName { get; init; }
+
+        public required string GameVersion { get; init; }
+
+        public required string ProbeVersion { get; init; }
+
+        public required string DeploymentText { get; init; }
+
+        public required string DeploymentActionText { get; init; }
+
+        public bool HasDeploymentAction => !string.IsNullOrWhiteSpace(DeploymentActionText);
+
+        public required string LatestReportText { get; init; }
+
+        public required IReadOnlyList<LithosProbeReportFile> Reports { get; init; }
+
+        public LithosProbeRelease? ExactCompatibleRelease { get; init; }
+
+        public bool CanViewReport => Reports.Any(static report => report.IsValid);
+
+        public bool IsServerRunning { get; init; }
+
+        public static LithosProbeListItem FromSnapshot(
+            LithosProbeProfileSnapshot snapshot,
+            bool isServerRunning,
+            bool isChinese)
+        {
+            var installed = snapshot.InstalledMod;
+            var release = snapshot.ExactCompatibleRelease;
+            var installedVersion = installed?.Version ?? string.Empty;
+            var isCurrent = installed is not null && release is not null &&
+                            installed.Version.Equals(release.Version, StringComparison.OrdinalIgnoreCase);
+            var deploymentText = installed is null
+                ? (release is null
+                    ? (isChinese ? "未安装，未找到精确兼容版本" : "Not installed; no exact compatible release")
+                    : (isChinese ? "未安装" : "Not installed"))
+                : isCurrent
+                    ? (installed.IsDisabled ? (isChinese ? "已安装，已禁用" : "Installed, disabled") : (isChinese ? "已安装" : "Installed"))
+                    : release is null
+                        ? (isChinese ? "已安装，未找到精确兼容版本" : "Installed; no exact compatible release")
+                        : (isChinese ? "可更新" : "Update available");
+            var action = release is null
+                ? (isChinese ? "选择版本" : "Choose version")
+                : installed is null
+                    ? (isChinese ? "部署" : "Deploy")
+                    : isCurrent
+                        ? string.Empty
+                        : (isChinese ? "更新" : "Update");
+            var latest = snapshot.LatestReport;
+            var latestText = latest?.Report is not null
+                ? latest.Report.GeneratedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+                : snapshot.Reports.FirstOrDefault(report => !string.IsNullOrWhiteSpace(report.Error)) is { } invalid
+                    ? (isChinese ? $"报告错误：{invalid.Error}" : $"Report error: {invalid.Error}")
+                    : (isChinese ? "无报告" : "No report");
+            return new LithosProbeListItem
+            {
+                Profile = snapshot.Profile,
+                ProfileName = snapshot.Profile.Name,
+                GameVersion = snapshot.Profile.Version,
+                ProbeVersion = string.IsNullOrWhiteSpace(installedVersion) ? "-" : installedVersion,
+                DeploymentText = deploymentText,
+                DeploymentActionText = action,
+                LatestReportText = latestText,
+                Reports = snapshot.Reports,
+                ExactCompatibleRelease = release,
+                IsServerRunning = isServerRunning
+            };
+        }
     }
 
     public sealed class ProfileConfigListItem : INotifyPropertyChanged

@@ -28,6 +28,7 @@ public static class ServiceCollectionExtension
         services.AddSingleton<IModFileArchiveService, ModFileArchiveService>();
         services.AddSingleton<IModListExportService, ModListExportService>();
         services.AddSingleton<IModUpdateService, ModUpdateService>();
+        services.AddSingleton<ILithosProbeService, LithosProbeService>();
         services.AddSingleton<IServerAuthService, ServerAuthService>();
         services.AddSingleton<ICommandBridgeService, CommandBridgeService>();
         services.AddSingleton<IOsqSnapshotCacheService, OsqSnapshotCacheService>();

@@ -9,9 +9,10 @@ namespace LauncherGo.Services;
 /// <summary>
 ///     实例模组服务默认实现
 /// </summary>
-public class InstanceModService(IInstanceServerConfigService serverConfigService) : IInstanceModService
+public class InstanceModService : IInstanceModService
 {
-    private static readonly HttpClient UpdateHttpClient = CreateUpdateHttpClient();
+    private readonly IInstanceServerConfigService _serverConfigService;
+    private readonly HttpClient _updateHttpClient;
 
     private static readonly HashSet<string> BuiltInDependencyIds = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -27,6 +28,17 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
         ["launchergoauth"] = ["serverauth"]
     };
 
+    public InstanceModService(IInstanceServerConfigService serverConfigService)
+        : this(serverConfigService, CreateUpdateHttpClient())
+    {
+    }
+
+    internal InstanceModService(IInstanceServerConfigService serverConfigService, HttpClient updateHttpClient)
+    {
+        _serverConfigService = serverConfigService;
+        _updateHttpClient = updateHttpClient;
+    }
+
     /// <inheritdoc />
     public async Task<IReadOnlyList<ModEntry>> GetModsAsync(
         InstanceProfile profile,
@@ -39,7 +51,8 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
         var disabledSet = await LoadDisabledModSetAsync(profile, cancellationToken);
         var entries = new List<ModEntry>();
 
-        foreach (var file in Directory.EnumerateFiles(modsPath, "*.zip", SearchOption.TopDirectoryOnly))
+        foreach (var file in Directory.EnumerateFiles(modsPath, "*.zip", SearchOption.TopDirectoryOnly)
+                     .Where(static path => !IsLauncherGoTemporaryModPackage(path)))
             entries.Add(ReadModFromZip(file, disabledSet, modConfigPath));
 
         foreach (var directory in Directory.EnumerateDirectories(modsPath, "*", SearchOption.TopDirectoryOnly))
@@ -137,7 +150,7 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
 
         try
         {
-            using var response = await UpdateHttpClient.GetAsync(downloadUri, cancellationToken);
+            using var response = await _updateHttpClient.GetAsync(downloadUri, cancellationToken);
             response.EnsureSuccessStatusCode();
             await using (var source = await response.Content.ReadAsStreamAsync(cancellationToken))
             await using (var target = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
@@ -201,6 +214,147 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
     }
 
     /// <inheritdoc />
+    public async Task<ModEntry> DownloadAndInstallOfficialModAsync(
+        InstanceProfile profile,
+        string downloadUrl,
+        string expectedModId,
+        string expectedVersion,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        if (!Uri.TryCreate(downloadUrl?.Trim(), UriKind.Absolute, out var downloadUri) ||
+            downloadUri.Scheme is not ("http" or "https"))
+        {
+            throw new InvalidOperationException("模组下载地址无效。");
+        }
+
+        expectedModId = expectedModId?.Trim() ?? string.Empty;
+        expectedVersion = expectedVersion?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(expectedModId) || string.IsNullOrWhiteSpace(expectedVersion))
+            throw new InvalidOperationException("模组验证信息无效。");
+
+        var modsPath = WorkspacePathHelper.GetProfileModsPath(profile.DirectoryPath);
+        Directory.CreateDirectory(modsPath);
+        var modConfigPath = Path.Combine(WorkspacePathHelper.ResolveProfileDataPath(profile.DirectoryPath), "ModConfig");
+        var disabledSet = await LoadDisabledModSetAsync(profile, cancellationToken);
+        var tempPath = Path.Combine(modsPath, $".launchergodownload-{Guid.NewGuid():N}.zip");
+
+        try
+        {
+            using var response = await _updateHttpClient.GetAsync(downloadUri, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            await using (var source = await response.Content.ReadAsStreamAsync(cancellationToken))
+            await using (var target = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                await source.CopyToAsync(target, cancellationToken);
+            }
+
+            var downloadedMod = ReadModFromZip(tempPath, disabledSet, modConfigPath);
+            if (downloadedMod.Status.Equals("InvalidMetadata", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("下载内容不是含有效 modinfo.json 的模组 ZIP 文件。");
+            if (!downloadedMod.ModId.Equals(expectedModId, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"下载的模组 ID 不匹配：预期 {expectedModId}，实际 {downloadedMod.ModId}。 ");
+            if (!downloadedMod.Version.Equals(expectedVersion, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"下载的模组版本不匹配：预期 {expectedVersion}，实际 {downloadedMod.Version}。 ");
+
+            var installed = (await GetModsAsync(profile, cancellationToken))
+                .FirstOrDefault(mod =>
+                    !PathsEqual(mod.FilePath, tempPath) &&
+                    mod.ModId.Equals(expectedModId, StringComparison.OrdinalIgnoreCase));
+            if (installed is not null)
+                return await ReplaceOfficialModAsync(profile, installed, downloadedMod, tempPath, cancellationToken);
+
+            var destination = Path.Combine(
+                modsPath,
+                WorkspacePathHelper.SanitizeFileName($"{downloadedMod.ModId}-{downloadedMod.Version}.zip"));
+            if (File.Exists(destination) || Directory.Exists(destination))
+                throw new InvalidOperationException("安装目标文件已存在。");
+
+            File.Move(tempPath, destination);
+            try
+            {
+                await SetModEnabledAsync(profile, downloadedMod.ModId, downloadedMod.Version, enabled: true, cancellationToken);
+            }
+            catch
+            {
+                TryDeletePath(destination);
+                throw;
+            }
+
+            return new ModEntry
+            {
+                Name = downloadedMod.Name,
+                ModId = downloadedMod.ModId,
+                Version = downloadedMod.Version,
+                Side = downloadedMod.Side,
+                FilePath = destination,
+                ConfigPath = downloadedMod.ConfigPath,
+                Status = downloadedMod.Status,
+                IsDisabled = false,
+                Dependencies = downloadedMod.Dependencies,
+                DependencyIssues = downloadedMod.DependencyIssues
+            };
+        }
+        finally
+        {
+            TryDeletePath(tempPath);
+        }
+    }
+
+    private async Task<ModEntry> ReplaceOfficialModAsync(
+        InstanceProfile profile,
+        ModEntry installedMod,
+        ModEntry downloadedMod,
+        string tempPath,
+        CancellationToken cancellationToken)
+    {
+        var modsPath = WorkspacePathHelper.GetProfileModsPath(profile.DirectoryPath);
+        var modsRoot = EnsureDirectoryPrefix(modsPath);
+        var existingPath = Path.GetFullPath(installedMod.FilePath);
+        if (!IsWithinDirectory(existingPath, modsRoot) ||
+            (!File.Exists(existingPath) && !Directory.Exists(existingPath)))
+        {
+            throw new InvalidOperationException("旧模组文件不存在或路径无效。");
+        }
+
+        var destinationPath = File.Exists(existingPath) &&
+                              Path.GetExtension(existingPath).Equals(".zip", StringComparison.OrdinalIgnoreCase)
+            ? existingPath
+            : Path.Combine(modsPath, WorkspacePathHelper.SanitizeFileName($"{downloadedMod.ModId}-{downloadedMod.Version}.zip"));
+        if (!PathsEqual(destinationPath, existingPath) && (File.Exists(destinationPath) || Directory.Exists(destinationPath)))
+            throw new InvalidOperationException("更新目标文件已存在。");
+
+        var backupPath = existingPath + $".launchergobak-{Guid.NewGuid():N}";
+        MoveToBackup(existingPath, backupPath);
+        try
+        {
+            File.Move(tempPath, destinationPath);
+            await SetModEnabledAsync(profile, downloadedMod.ModId, downloadedMod.Version, !installedMod.IsDisabled, cancellationToken);
+        }
+        catch
+        {
+            TryDeletePath(destinationPath);
+            TryRestoreBackup(backupPath, existingPath);
+            throw;
+        }
+
+        TryDeletePath(backupPath);
+        return new ModEntry
+        {
+            Name = downloadedMod.Name,
+            ModId = downloadedMod.ModId,
+            Version = downloadedMod.Version,
+            Side = downloadedMod.Side,
+            FilePath = destinationPath,
+            ConfigPath = downloadedMod.ConfigPath,
+            Status = downloadedMod.Status,
+            IsDisabled = installedMod.IsDisabled,
+            Dependencies = downloadedMod.Dependencies,
+            DependencyIssues = downloadedMod.DependencyIssues
+        };
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<ModEntry>> ImportModsAsync(
         InstanceProfile profile,
         IReadOnlyCollection<string> sourcePaths,
@@ -239,7 +393,7 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
         bool enabled,
         CancellationToken cancellationToken = default)
     {
-        var rawJson = await serverConfigService.LoadRawJsonAsync(profile, cancellationToken);
+        var rawJson = await _serverConfigService.LoadRawJsonAsync(profile, cancellationToken);
         var root = JsonNode.Parse(rawJson) as JsonObject
                    ?? throw new InvalidOperationException("配置格式错误。");
 
@@ -261,7 +415,7 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
         foreach (var value in values.Distinct(StringComparer.OrdinalIgnoreCase))
             disabledArray.Add(value);
 
-        await serverConfigService.SaveRawJsonAsync(
+        await _serverConfigService.SaveRawJsonAsync(
             profile,
             root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }),
             cancellationToken);
@@ -511,6 +665,13 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
         }
     }
 
+    private static bool IsLauncherGoTemporaryModPackage(string path)
+    {
+        var fileName = Path.GetFileName(path);
+        return fileName.StartsWith(".launchergoupdate-", StringComparison.OrdinalIgnoreCase) ||
+               fileName.StartsWith(".launchergodownload-", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static void AddCandidate(string path, List<string> candidates, HashSet<string> seen)
     {
         var fullPath = Path.GetFullPath(path);
@@ -620,7 +781,7 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
     {
         try
         {
-            var rawJson = await serverConfigService.LoadRawJsonAsync(profile, cancellationToken);
+            var rawJson = await _serverConfigService.LoadRawJsonAsync(profile, cancellationToken);
             var root = JsonNode.Parse(rawJson) as JsonObject;
             var disabledArray = root?["WorldConfig"]?["DisabledMods"] as JsonArray;
             if (disabledArray is null) return [];
@@ -661,7 +822,7 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
 
         try
         {
-            var rawJson = await serverConfigService.LoadRawJsonAsync(profile, cancellationToken);
+            var rawJson = await _serverConfigService.LoadRawJsonAsync(profile, cancellationToken);
             var root = JsonNode.Parse(rawJson) as JsonObject
                        ?? throw new InvalidOperationException("配置格式错误。");
 
@@ -686,7 +847,7 @@ public class InstanceModService(IInstanceServerConfigService serverConfigService
             foreach (var value in cleaned)
                 disabledArray.Add(value);
 
-            await serverConfigService.SaveRawJsonAsync(
+            await _serverConfigService.SaveRawJsonAsync(
                 profile,
                 root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }),
                 cancellationToken);

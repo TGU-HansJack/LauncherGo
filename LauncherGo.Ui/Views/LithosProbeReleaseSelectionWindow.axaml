@@ -1,0 +1,34 @@
+<Window
+    x:Class="LauncherGo.Ui.Views.LithosProbeReleaseSelectionWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    x:CompileBindings="False"
+    Width="660"
+    Height="440"
+    MinWidth="540"
+    MinHeight="340"
+    WindowStartupLocation="CenterOwner"
+    Icon="avares://LauncherGo.Ui/Assets/app-icon.ico">
+    <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
+        <TextBlock x:Name="TitleTextBlock" FontSize="18" FontWeight="SemiBold" />
+        <TextBlock x:Name="HintTextBlock" Grid.Row="1" Opacity="0.76" TextWrapping="Wrap" />
+        <ListBox x:Name="ReleaseListBox" Grid.Row="2" SelectionChanged="OnReleaseSelectionChanged">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Border Padding="10" BorderThickness="0,0,0,1">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="{Binding Version}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding CompatibilityText}" FontSize="12" Opacity="0.74" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding ReleaseDateText}" FontSize="12" Opacity="0.62" />
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+            <TextBlock x:Name="SelectionHintTextBlock" VerticalAlignment="Center" Opacity="0.7" TextWrapping="Wrap" />
+            <Button x:Name="InstallButton" Grid.Column="1" MinWidth="84" Click="OnInstallClick" />
+            <Button x:Name="CancelButton" Grid.Column="2" MinWidth="84" Click="OnCancelClick" />
+        </Grid>
+    </Grid>
+</Window>

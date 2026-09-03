@@ -1158,6 +1158,7 @@
                                 <StackPanel Margin="14,10,14,14" Spacing="4">
                                     <TextBlock x:Name="ServerNavSectionTitleTextBlock" Classes="SidebarSectionTitle" Text="服务器" Margin="0,0,0,2" />
                                     <Button x:Name="MonitorNavButton" Classes="SidebarNavButton" Click="OnMonitorNavClick" />
+                                    <Button x:Name="LithosProbeNavButton" Classes="SidebarNavButton" Content="Probe" Click="OnLithosProbeNavClick" />
                                     <Button x:Name="ConsoleNavButton" Classes="SidebarNavButton" Click="OnConsoleNavClick" />
 
                                     <TextBlock x:Name="ManageNavSectionTitleTextBlock" Classes="SidebarSectionTitle" Text="管理" />
@@ -2370,6 +2371,51 @@
                                             </Grid>
                                         </StackPanel>
                                     </ScrollViewer>
+
+                                    <Grid x:Name="LithosProbePanel" RowDefinitions="Auto,Auto,*" RowSpacing="10" IsVisible="False">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                            <TextBlock x:Name="LithosProbeTitleTextBlock" Classes="ConfigSectionTitle" Text="Lithos Probe" VerticalAlignment="Center" />
+                                            <Button x:Name="LithosProbeRefreshButton" Grid.Column="1" Classes="SecondaryActionButton" Content="刷新" Click="OnLithosProbeRefreshClick" />
+                                        </Grid>
+                                        <TextBlock x:Name="LithosProbeStatusTextBlock" Grid.Row="1" Classes="ConfigHintText" TextWrapping="Wrap" />
+                                        <Grid Grid.Row="2" RowDefinitions="Auto,*">
+                                            <Border Grid.Row="0" Classes="TableHeader">
+                                                <Grid ColumnDefinitions="1.2*,.8*,1*,1.15*,1.5*,Auto" ColumnSpacing="8">
+                                                    <TextBlock Classes="TableHeaderText" Text="服务器名称" />
+                                                    <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="游戏版本" />
+                                                    <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="Probe 版本" />
+                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="部署状态" />
+                                                    <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="最新报告" />
+                                                    <TextBlock Grid.Column="5" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                </Grid>
+                                            </Border>
+                                            <Border Grid.Row="1" Classes="TableBody">
+                                                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                                                    <ItemsControl x:Name="LithosProbeItemsControl">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border Classes="TableRow">
+                                                                    <Grid ColumnDefinitions="1.2*,.8*,1*,1.15*,1.5*,Auto" ColumnSpacing="8" MinHeight="42">
+                                                                        <TextBlock Classes="TableCellText" Text="{Binding ProfileName}" FontWeight="SemiBold" />
+                                                                        <TextBlock Grid.Column="1" Classes="TableCellText" Text="{Binding GameVersion}" />
+                                                                        <TextBlock Grid.Column="2" Classes="TableCellText" Text="{Binding ProbeVersion}" />
+                                                                        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                                            <TextBlock Classes="TableCellText" Text="{Binding DeploymentText}" TextTrimming="CharacterEllipsis" />
+                                                                            <Button Classes="DownloadTextButton" Tag="{Binding}" Content="{Binding DeploymentActionText}" IsVisible="{Binding HasDeploymentAction}" Click="OnLithosProbeDeployClick" />
+                                                                        </StackPanel>
+                                                                        <TextBlock Grid.Column="4" Classes="TableCellText" Text="{Binding LatestReportText}" TextTrimming="CharacterEllipsis" />
+                                                                        <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                                            <Button Classes="SecondaryActionButton" Tag="{Binding}" Content="查看" IsEnabled="{Binding CanViewReport}" Click="OnLithosProbeViewClick" />
+                                                                        </StackPanel>
+                                                                    </Grid>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </ScrollViewer>
+                                            </Border>
+                                        </Grid>
+                                    </Grid>
                                 </Grid>
                             </Grid>
 
