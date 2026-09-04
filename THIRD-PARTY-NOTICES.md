@@ -63,14 +63,6 @@ Complete license texts for the table above are in `THIRD-PARTY-LICENSES/`.
 Package-specific copyright notices remain the responsibility of the upstream
 projects and are preserved by retaining the published package notice files.
 
-## uPlot
-
-The Lithos Probe interactive chart viewer bundles uPlot 1.6.32 by Leon
-Sorokin, from https://github.com/leeoniya/uPlot. It is MIT licensed; the
-exact upstream license text is retained in
-`THIRD-PARTY-LICENSES/uPlot-MIT.txt`. The JavaScript and CSS are local
-application resources and do not require a CDN or other network request.
-
 ## Font Awesome
 
 The UI uses Font Awesome Free 7.2.0 icon paths. Copyright 2026 Fonticons, Inc.
@@ -87,17 +79,6 @@ Release verification rejects those official assemblies if they appear in a
 LauncherGo publish directory. The embedded mods are the project code built
 against the API and are distributed under their own GPL-3.0-only project
 license.
-
-## Lithos Probe
-
-Lithos Probe is an optional, user-requested server profiling mod by
-imtsubaki (tsu), available at https://github.com/trevorftp/LithosProbe and
-licensed under the MIT License. LauncherGo does not embed, package, or
-redistribute its source, ZIP archives, or DLLs. When the user requests a
-deployment, LauncherGo downloads the selected release directly from the
-official Vintage Story ModDB entry at
-https://mods.vintagestory.at/api/mod/lithosprobe. The MIT license text is in
-`THIRD-PARTY-LICENSES/LithosProbe-MIT.txt`.
 
 ## Development-Only Dependencies
 

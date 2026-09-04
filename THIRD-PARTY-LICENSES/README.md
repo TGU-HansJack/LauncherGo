@@ -8,10 +8,6 @@ License files:
 
 - `MIT.txt`: MIT-licensed dependencies, including Avalonia, Microsoft runtime
   libraries, PDFsharp, SkiaSharp, and ZstdSharp.
-- `LithosProbe-MIT.txt`: upstream MIT license text for the optional Lithos
-  Probe mod, downloaded directly from official ModDB only on user request.
-- `uPlot-MIT.txt`: upstream MIT license text for uPlot 1.6.32, bundled for
-  Lithos Probe interactive charts.
 - `Apache-2.0.txt`: Apache-2.0 dependencies, including Serilog, protobuf-net,
   and SQLitePCLRaw.
 - `MPL-2.0.txt`: MPL-2.0 dependencies, including AsyncIO and NaCl.Net.
