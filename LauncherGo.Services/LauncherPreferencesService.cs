@@ -102,13 +102,11 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             AutoRestartServerAfterCrash = source.AutoRestartServerAfterCrash,
             AutoStartServerProfileId = string.Join(';', autoStartServerProfileIds),
             AutoStartServerProfileIds = autoStartServerProfileIds,
-            AutoStartOpenServerQueryOnLaunch = source.AutoStartOpenServerQueryOnLaunch,
             AutoStartRobotOnLaunch = source.AutoStartRobotOnLaunch,
             AutoStartFrpOnLaunch = source.AutoStartFrpOnLaunch,
             AutoStartThirdPartyFrpcOnLaunch = source.AutoStartThirdPartyFrpcOnLaunch,
             AutoStartEasyTierOnLaunch = source.AutoStartEasyTierOnLaunch,
             AutoStartGatewayOnLaunch = source.AutoStartGatewayOnLaunch,
-            OpenServerQuery = NormalizeOpenServerQuery(source.OpenServerQuery),
             Robot = NormalizeRobot(source.Robot, qqBotDirectory),
             Frp = NormalizeFrp(source.Frp),
             EasyTier = NormalizeEasyTier(source.EasyTier),
@@ -155,72 +153,6 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
         }
 
         return commands;
-    }
-
-    private static OpenServerQuerySettings NormalizeOpenServerQuery(OpenServerQuerySettings? source)
-    {
-        source ??= new OpenServerQuerySettings();
-        var endpoints = NormalizeOpenServerQueryEndpoints(source.Endpoints);
-        if (endpoints.Count == 0 &&
-            (!string.IsNullOrWhiteSpace(source.EndpointHost) || !string.IsNullOrWhiteSpace(source.EndpointToken)))
-        {
-            endpoints.Add(new OpenServerQueryEndpointConfig
-            {
-                ServerHost = source.EndpointHost.Trim(),
-                Token = source.EndpointToken.Trim(),
-                Enabled = true
-            });
-        }
-
-        var firstEndpoint = endpoints.FirstOrDefault();
-        return new OpenServerQuerySettings
-        {
-            Enabled = source.Enabled,
-            ListenPrefix = NormalizeListenPrefix(source.ListenPrefix),
-            AllowInsecureHttp = source.AllowInsecureHttp,
-            RequestTimeoutSec = Math.Clamp(source.RequestTimeoutSec, 3, 60),
-            IncludeServerInfo = source.IncludeServerInfo,
-            IncludePlayers = source.IncludePlayers,
-            IncludePlayerEvents = source.IncludePlayerEvents,
-            IncludeChats = source.IncludeChats,
-            IncludeNotifications = source.IncludeNotifications,
-            Endpoints = endpoints,
-            EndpointHost = firstEndpoint?.ServerHost ?? string.Empty,
-            EndpointToken = firstEndpoint?.Token ?? string.Empty
-        };
-    }
-
-    private static List<OpenServerQueryEndpointConfig> NormalizeOpenServerQueryEndpoints(IEnumerable<OpenServerQueryEndpointConfig>? endpoints)
-    {
-        var result = new List<OpenServerQueryEndpointConfig>();
-        foreach (var endpoint in endpoints ?? [])
-        {
-            var profileId = endpoint.ProfileId?.Trim() ?? string.Empty;
-            var host = endpoint.ServerHost?.Trim() ?? string.Empty;
-            var token = endpoint.Token?.Trim() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(profileId) &&
-                string.IsNullOrWhiteSpace(host) &&
-                string.IsNullOrWhiteSpace(token))
-            {
-                continue;
-            }
-
-            result.Add(new OpenServerQueryEndpointConfig
-            {
-                ProfileId = profileId,
-                ServerHost = host,
-                Token = token,
-                Enabled = endpoint.Enabled,
-                AllowInsecureHttp = endpoint.AllowInsecureHttp,
-                IncludeServerInfo = endpoint.IncludeServerInfo,
-                IncludePlayers = endpoint.IncludePlayers,
-                IncludePlayerEvents = endpoint.IncludePlayerEvents,
-                IncludeChats = endpoint.IncludeChats,
-                IncludeNotifications = endpoint.IncludeNotifications
-            });
-        }
-
-        return result;
     }
 
     private static RobotIntegrationSettings NormalizeRobot(RobotIntegrationSettings? source, string defaultQqBotDirectory)
@@ -270,14 +202,11 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             BoundGroupIdsText = boundGroupsText,
             ReconnectIntervalSec = Math.Clamp(source.ReconnectIntervalSec, 1, 120),
             DatabasePath = dbPath,
-            PollIntervalSec = Math.Clamp(source.PollIntervalSec, 0.2, 30),
             DefaultEncoding = string.IsNullOrWhiteSpace(source.DefaultEncoding) ? "utf-8" : source.DefaultEncoding.Trim(),
             FallbackEncoding = string.IsNullOrWhiteSpace(source.FallbackEncoding) ? "gbk" : source.FallbackEncoding.Trim(),
             SuperUsersText = superUsersText,
             ProfileBindings = bindings,
-            CustomCommands = RobotCustomCommandRules.NormalizeMany(source.CustomCommands),
-            OsqPollIntervalSec = Math.Clamp(source.OsqPollIntervalSec, 3, 300),
-            OsqRequestTimeoutSec = Math.Clamp(source.OsqRequestTimeoutSec, 3, 60)
+            CustomCommands = RobotCustomCommandRules.NormalizeMany(source.CustomCommands)
         };
     }
 

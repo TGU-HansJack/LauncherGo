@@ -17,14 +17,7 @@ namespace LauncherGo.Services;
 public sealed class Vs2QQProcessService
 {
     private static int _encodingProviderRegistered;
-    private static readonly JsonSerializerOptions OsqJsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
 
-    private const string LocalServerSnapshotHost = "local";
-    private const string LocalProfileSnapshotHostPrefix = "local:";
-    private const int MaxOsqStatusHistoryPerHost = 30;
     private const int MaxServerStatusQueryCount = 10;
     private const int MaxOneBotMessageLength = 1800;
     private static readonly TimeSpan RecentRelaySignatureWindow = TimeSpan.FromMinutes(10);
@@ -51,7 +44,8 @@ public sealed class Vs2QQProcessService
     private readonly IModFileArchiveService _modFileArchiveService;
     private readonly IModListExportService _modListExportService;
     private readonly ILauncherPreferencesService _launcherPreferencesService;
-    private readonly IOsqSnapshotCacheService _osqSnapshotCacheService;
+    private readonly IServerBridgeService? _serverBridgeService;
+    private readonly ServerBridgeStateStore? _serverBridgeStateStore;
     private CancellationTokenSource? _runCts;
     private Task? _runTask;
     private Vs2QQRuntimeContext? _runtime;
@@ -72,7 +66,8 @@ public sealed class Vs2QQProcessService
         IModFileArchiveService modFileArchiveService,
         IModListExportService modListExportService,
         ILauncherPreferencesService launcherPreferencesService,
-        IOsqSnapshotCacheService osqSnapshotCacheService)
+        IServerBridgeService? serverBridgeService = null,
+        ServerBridgeStateStore? serverBridgeStateStore = null)
     {
         _serverProcessService = serverProcessService;
         _serverTransport = serverTransport;
@@ -83,7 +78,8 @@ public sealed class Vs2QQProcessService
         _modFileArchiveService = modFileArchiveService;
         _modListExportService = modListExportService;
         _launcherPreferencesService = launcherPreferencesService;
-        _osqSnapshotCacheService = osqSnapshotCacheService;
+        _serverBridgeService = serverBridgeService;
+        _serverBridgeStateStore = serverBridgeStateStore;
         if (Interlocked.Exchange(ref _encodingProviderRegistered, 1) == 0)
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -116,11 +112,19 @@ public sealed class Vs2QQProcessService
                 EmitOutput,
                 (eventPayload, token) => HandleOneBotEventAsync(runtime, eventPayload, token));
             runtime.OneBot = oneBot;
-            runtime.OsqSnapshotHandler = (_, args) => OnSharedOsqSnapshotReceived(runtime, args);
-            _osqSnapshotCacheService.SnapshotReceived += runtime.OsqSnapshotHandler;
-            TryImportLatestSharedOsqSnapshot(runtime, LocalServerSnapshotHost);
-
             _runCts = new CancellationTokenSource();
+            if (_serverBridgeService is not null)
+            {
+                foreach (var profileId in normalized.ProfileBindings.Select(x => x.ProfileId).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    var profile = _instanceProfileService.GetProfileById(profileId);
+                    if (profile is null) continue;
+                    runtime.BridgeConnectionTasks.Add(Task.Run(
+                        () => MaintainBridgeSubscriptionAsync(runtime, profile, _runCts.Token),
+                        CancellationToken.None));
+                }
+            }
+
             _runtime = runtime;
             _runTask = Task.Run(() => RunRuntimeAsync(runtime, _runCts.Token), CancellationToken.None);
 
@@ -248,10 +252,12 @@ public sealed class Vs2QQProcessService
         }
 
         ctsToDispose?.Dispose();
-        if (runtime.OsqSnapshotHandler is not null)
+        try { await Task.WhenAll(runtime.BridgeConnectionTasks).ConfigureAwait(false); } catch { }
+        foreach (var subscription in runtime.BridgeSubscriptions)
         {
-            _osqSnapshotCacheService.SnapshotReceived -= runtime.OsqSnapshotHandler;
+            try { await subscription.DisposeAsync().ConfigureAwait(false); } catch { }
         }
+        runtime.BridgeSubscriptions.Clear();
         await runtime.DisposeAsync();
 
         if (shouldNotifyStopped)
@@ -259,36 +265,6 @@ public sealed class Vs2QQProcessService
             StatusChanged?.Invoke(this, CurrentStatus);
             EmitOutput("[system] VS2QQ 已停止。");
         }
-    }
-
-    private void OnSharedOsqSnapshotReceived(Vs2QQRuntimeContext runtime, OsqSnapshotReceivedEventArgs args)
-    {
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                var host = ResolveBoundServerHostForSnapshot(runtime, args.ServerHost);
-                if (string.IsNullOrWhiteSpace(host) || !runtime.HasBoundGroupsForSnapshotHost(host))
-                {
-                    return;
-                }
-
-                var payload = JsonSerializer.Deserialize<OsqSnapshotEnvelope>(
-                    args.Payload.ToJsonString(),
-                    OsqJsonOptions);
-                if (payload?.Server is null)
-                {
-                    return;
-                }
-
-                runtime.Storage.AddOsqSnapshot(host, payload);
-                await ForwardOsqSnapshotAsync(runtime, host, payload, CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                EmitOutput($"[warn] 共享 OSQ 快照处理失败 host={args.ServerHost}: {ex.Message}");
-            }
-        });
     }
 
     private async Task HandleOneBotEventAsync(Vs2QQRuntimeContext runtime, JsonObject eventPayload, CancellationToken cancellationToken)
@@ -701,26 +677,22 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        var snapshotHost = ResolveBoundSnapshotHostForGroup(runtime, groupId);
-        if (string.IsNullOrWhiteSpace(snapshotHost))
+        var bridgeStatus = await QueryBridgeForGroupAsync(runtime, groupId, "server.status", cancellationToken);
+        if (bridgeStatus?.Success == true && bridgeStatus.Data is not null)
         {
-            await ReplyAsync(runtime, eventPayload, "This group is not bound to a server profile.", cancellationToken);
+            var bridgePlayers = await QueryBridgeForGroupAsync(runtime, groupId, "players.list", cancellationToken);
+            var profileId = runtime.GetPrimaryProfileIdForGroup(groupId);
+            var events = !string.IsNullOrWhiteSpace(profileId)
+                ? _serverBridgeStateStore?.GetEvents(profileId)
+                    .Where(evt => evt.Event is "player.joined" or "player.left" or "player.died")
+                    .TakeLast(3)
+                    .ToList()
+                : null;
+            await ReplyAsync(runtime, eventPayload, BuildBridgeStatusMessage(bridgeStatus.Data, bridgePlayers?.Data, events), cancellationToken);
             return;
         }
 
-        var snapshot = runtime.Storage.GetLatestOsqSnapshot(snapshotHost, index);
-        if (snapshot is null && index == 1)
-        {
-            snapshot = TryImportLatestSharedOsqSnapshot(runtime, snapshotHost);
-        }
-
-        if (snapshot is null)
-        {
-            await ReplyAsync(runtime, eventPayload, $"No server status #{index}.", cancellationToken);
-            return;
-        }
-
-        await ReplyAsync(runtime, eventPayload, BuildOsqSummaryMessage(snapshot), cancellationToken);
+        await ReplyAsync(runtime, eventPayload, "服务器桥接不可用，无法读取服务器状态。", cancellationToken);
     }
 
     private async Task HandleServerPasswordCommandAsync(
@@ -840,26 +812,14 @@ public sealed class Vs2QQProcessService
             return;
         }
 
-        var snapshotHost = ResolveBoundSnapshotHostForGroup(runtime, groupId);
-        if (string.IsNullOrWhiteSpace(snapshotHost))
+        var bridgePlayers = await QueryBridgeForGroupAsync(runtime, groupId, "players.list", cancellationToken);
+        if (bridgePlayers?.Success == true && bridgePlayers.Data is not null)
         {
-            await ReplyAsync(runtime, eventPayload, "This group is not bound to a server profile.", cancellationToken);
+            await ReplyAsync(runtime, eventPayload, BuildBridgePlayersMessage(bridgePlayers.Data), cancellationToken);
             return;
         }
 
-        var snapshot = runtime.Storage.GetLatestOsqSnapshot(snapshotHost, index);
-        if (snapshot is null && index == 1)
-        {
-            snapshot = TryImportLatestSharedOsqSnapshot(runtime, snapshotHost);
-        }
-
-        if (snapshot is null)
-        {
-            await ReplyAsync(runtime, eventPayload, $"No server status #{index}.", cancellationToken);
-            return;
-        }
-
-        await ReplyAsync(runtime, eventPayload, BuildOsqPlayersMessage(snapshot), cancellationToken);
+        await ReplyAsync(runtime, eventPayload, "服务器桥接不可用，无法读取在线玩家。", cancellationToken);
     }
 
     private async Task HandleServerStartCommandAsync(
@@ -987,17 +947,244 @@ public sealed class Vs2QQProcessService
         return result;
     }
 
-    private static string ResolveBoundSnapshotHostForGroup(Vs2QQRuntimeContext runtime, long groupId)
+    private async Task HandleBridgeEventAsync(Vs2QQRuntimeContext runtime, string profileId, ServerBridgeEvent evt)
     {
-        var profileId = runtime.GetPrimaryProfileIdForGroup(groupId);
-        if (!string.IsNullOrWhiteSpace(profileId))
+        var name = NormalizeDisplayText(evt.Data["name"]?.GetValue<string>());
+        var content = NormalizeInboundServerText(name, evt.Data["message"]?.GetValue<string>());
+        var deathReason = evt.Event == "player.died"
+            ? NormalizeDisplayText(evt.Data["reason"]?.GetValue<string>())
+            : string.Empty;
+        // The server may echo the bridge's own /announce payload back through
+        // its notification logger. Do not send that group relay back to QQ.
+        if (IsServerRelayEchoText(content) || GroupRelayEchoRegex.IsMatch(content)) return;
+        if (ServerLogPrivacyFilter.ShouldSuppressRelayParts(name, content)) return;
+        var time = evt.TimestampUtc.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+        var message = evt.Event switch
         {
-            return BuildLocalProfileSnapshotHost(profileId);
+            "player.joined" => $"[服务器 {time}]{name} 进入服务器",
+            "player.left" => $"[服务器 {time}]{name} 离开服务器",
+            "player.died" => string.IsNullOrWhiteSpace(deathReason)
+                ? $"[服务器 {time}]{name} 死亡"
+                : $"[服务器 {time}]{name} 死亡：{deathReason}",
+            "chat" => $"[服务器 {time}]{name}：{content}",
+            "server.notification" => $"[服务器 {time}]{content}",
+            _ => string.Empty
+        };
+        if (string.IsNullOrWhiteSpace(message)) return;
+        foreach (var groupId in runtime.ProfileBindings
+                     .Where(x => string.Equals(x.ProfileId, profileId, StringComparison.OrdinalIgnoreCase) && x.GroupId > 0)
+                     .Select(x => x.GroupId).Distinct())
+        {
+            try { await runtime.OneBot.SendGroupMsgAsync(groupId, message, CancellationToken.None).ConfigureAwait(false); } catch { }
+        }
+    }
+
+    private async Task MaintainBridgeSubscriptionAsync(
+        Vs2QQRuntimeContext runtime,
+        InstanceProfile profile,
+        CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested && _serverBridgeService is not null)
+        {
+            try
+            {
+                var subscription = await _serverBridgeService.SubscribeAsync(profile,
+                    new ServerBridgeSubscriptionOptions { Events = ["player.joined", "player.left", "player.died", "chat", "server.notification"] },
+                    evt => HandleBridgeEventAsync(runtime, profile.Id, evt), cancellationToken).ConfigureAwait(false);
+                runtime.BridgeSubscriptions.Add(subscription);
+                return;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return; }
+            catch (Exception ex)
+            {
+                EmitOutput($"[warn] server bridge subscription failed ({profile.Id}): {ex.Message}");
+                try { await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false); }
+                catch (OperationCanceledException) { return; }
+            }
+        }
+    }
+
+    private async Task<ServerBridgeQueryResult?> QueryBridgeForGroupAsync(
+        Vs2QQRuntimeContext runtime,
+        long groupId,
+        string method,
+        CancellationToken cancellationToken)
+    {
+        if (_serverBridgeService is null) return null;
+        var profileId = runtime.GetPrimaryProfileIdForGroup(groupId);
+        var profile = !string.IsNullOrWhiteSpace(profileId)
+            ? _instanceProfileService.GetProfileById(profileId)
+            : _serverProcessService.GetCurrentStatuses().Where(x => x.IsRunning).Select(x => x.ProfileId).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => _instanceProfileService.GetProfileById(x!)).FirstOrDefault(x => x is not null);
+        if (profile is null) return null;
+        try { return await _serverBridgeService.QueryAsync(profile, method, cancellationToken: cancellationToken).ConfigureAwait(false); }
+        catch (Exception ex)
+        {
+            EmitOutput($"[warn] server bridge query failed ({method}): {ex.Message}");
+            return null;
+        }
+    }
+
+    private static string BuildBridgeStatusMessage(
+        JsonObject data,
+        JsonObject? playersData = null,
+        IReadOnlyList<ServerBridgeEvent>? recentEvents = null)
+    {
+        var onlinePlayers = ReadInt(data, "onlinePlayers");
+        var maxPlayers = ReadInt(data, "maxPlayers");
+        var address = Safe(ReadString(data, "address"));
+        var lines = new List<string>
+        {
+            $"服务器：{Safe(ReadString(data, "name"))}",
+            $"状态：{FormatBridgeServerStatus(ReadString(data, "status"))}",
+            $"版本：{Safe(ReadString(data, "version"))}",
+            $"API版本：{Safe(ReadString(data, "apiVersion"))}",
+            $"人数：{(onlinePlayers?.ToString(CultureInfo.InvariantCulture) ?? "-")}/{(maxPlayers?.ToString(CultureInfo.InvariantCulture) ?? "-")}",
+            $"世界：{Safe(ReadString(data, "worldName"))}",
+            $"世界时间：{Safe(ReadString(data, "worldTime"))}",
+            $"季节：{FormatSeason(ReadString(data, "season"))}",
+            $"地址：{address}",
+            $"描述：{Safe(ReadString(data, "description"))}",
+            $"欢迎语：{Safe(ReadString(data, "welcomeMessage"))}",
+            $"白名单：{FormatBoolean(data, "whitelistEnabled")}",
+            $"密码：{FormatBoolean(data, "passwordProtected")}",
+            $"运行时间：{FormatDuration(ReadDouble(data, "uptimeSeconds"))}"
+        };
+
+        if (data["performance"] is JsonObject performance && performance.Count > 0)
+        {
+            var metrics = performance.Select(item => $"{item.Key}={item.Value}").ToList();
+            lines.Add("性能：" + string.Join(", ", metrics));
         }
 
-        return runtime.BoundGroupIds.Contains(groupId) && !runtime.HasProfileBindings
-            ? LocalServerSnapshotHost
-            : string.Empty;
+        if (playersData?["players"] is JsonArray players)
+        {
+            var names = players.OfType<JsonObject>()
+                .Select(player => Safe(ReadString(player, "name")))
+                .Where(name => name != "-")
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(12)
+                .ToList();
+            if (names.Count > 0)
+                lines.Add("玩家：" + string.Join("、", names) + (onlinePlayers > names.Count ? $" 等 {onlinePlayers} 人" : string.Empty));
+        }
+
+        if (recentEvents is { Count: > 0 })
+        {
+            var eventSummary = recentEvents
+                .Select(evt =>
+                {
+                    var eventName = evt.Event switch
+                    {
+                        "player.joined" => "进入",
+                        "player.left" => "离开",
+                        "player.died" => "死亡",
+                        _ => evt.Event
+                    };
+                    var playerName = Safe(ReadString(evt.Data, "name"));
+                    var reason = evt.Event == "player.died"
+                        ? NormalizeDisplayText(ReadString(evt.Data, "reason"))
+                        : string.Empty;
+                    return string.IsNullOrWhiteSpace(reason) || reason == "-"
+                        ? $"{playerName}-{eventName}"
+                        : $"{playerName}-{eventName}：{reason}";
+                });
+            lines.Add("连接事件：" + string.Join("；", eventSummary));
+        }
+
+        var body = LimitText(string.Join('\n', lines), MaxOneBotMessageLength - 32);
+        return LimitText($"[服务器状态 {DateTime.Now:HH:mm:ss}]\n{body}", MaxOneBotMessageLength);
+    }
+
+    private static string BuildBridgePlayersMessage(JsonObject data)
+    {
+        var players = data["players"] as JsonArray;
+        var online = players?.OfType<JsonObject>()
+            .Where(player => ReadBool(player, "playing") ?? ReadBool(player, "online") == true)
+            .OrderBy(player => ReadString(player, "name"), StringComparer.OrdinalIgnoreCase)
+            .ToList() ?? [];
+        var time = DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+        var maxPlayers = ReadInt(data, "maxPlayers");
+        var header = $"[在线玩家 {time}] {online.Count}/{(maxPlayers?.ToString(CultureInfo.InvariantCulture) ?? "?")}";
+        if (online.Count == 0) return $"{header}\n当前无在线玩家。";
+
+        var lines = new List<string> { header };
+        foreach (var player in online)
+        {
+            var state = Safe(ReadString(player, "connectionState"));
+            var ping = ReadInt(player, "pingMs");
+            var latency = ping is null ? "-" : $"{ping.Value.ToString(CultureInfo.InvariantCulture)}ms";
+            lines.Add($"- {Safe(ReadString(player, "name"))} ({state}, {latency})");
+        }
+        return LimitText(string.Join('\n', lines), MaxOneBotMessageLength);
+    }
+
+    private static string ReadString(JsonObject data, string name) =>
+        data[name]?.GetValue<string>() ?? string.Empty;
+
+    private static int? ReadInt(JsonObject data, string name)
+    {
+        try { return data[name]?.GetValue<int?>(); }
+        catch (InvalidOperationException) { return null; }
+        catch (FormatException) { return null; }
+    }
+
+    private static double? ReadDouble(JsonObject data, string name)
+    {
+        try { return data[name]?.GetValue<double?>(); }
+        catch (InvalidOperationException) { return null; }
+        catch (FormatException) { return null; }
+    }
+
+    private static bool? ReadBool(JsonObject data, string name)
+    {
+        try { return data[name]?.GetValue<bool?>(); }
+        catch (InvalidOperationException) { return null; }
+        catch (FormatException) { return null; }
+    }
+
+    private static string FormatBoolean(JsonObject data, string name) =>
+        ReadBool(data, name) switch
+        {
+            true => "是",
+            false => "否",
+            _ => "-"
+        };
+
+    private static string FormatBridgeServerStatus(string? status) =>
+        Safe(status).ToLowerInvariant() switch
+        {
+            "rungame" or "running" or "run" => "运行中",
+            "standby" => "待机",
+            "starting" => "启动中",
+            "stopping" => "停止中",
+            "stopped" => "已停止",
+            "offline" => "离线",
+            var value => value
+        };
+
+    private static string FormatSeason(string? season) =>
+        Safe(season).ToLowerInvariant() switch
+        {
+            "spring" => "春季",
+            "summer" => "夏季",
+            "autumn" or "fall" => "秋季",
+            "winter" => "冬季",
+            var value => value
+        };
+
+    private static string FormatDuration(double? seconds)
+    {
+        if (seconds is null || seconds < 0) return "-";
+        var span = TimeSpan.FromSeconds(seconds.Value);
+        return span.TotalDays >= 1
+            ? $"{(int)span.TotalDays}天{span.Hours:00}时{span.Minutes:00}分"
+            : $"{span.Hours:00}时{span.Minutes:00}分{span.Seconds:00}秒";
+    }
+
+    private static string LimitText(string value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value) || value.Length <= maxLength) return value;
+        return value[..Math.Max(0, maxLength - 3)] + "...";
     }
 
     private async Task SendToGameServerAsync(Vs2QQRuntimeContext runtime, long groupId, string message, CancellationToken cancellationToken)
@@ -1577,79 +1764,6 @@ public sealed class Vs2QQProcessService
         OutputReceived?.Invoke(this, message);
     }
 
-    private async Task ForwardOsqSnapshotAsync(Vs2QQRuntimeContext runtime, string host, OsqSnapshotEnvelope payload, CancellationToken cancellationToken)
-    {
-        var forwardGate = runtime.GetOsqForwardGate(host);
-        await forwardGate.WaitAsync(cancellationToken);
-        try
-        {
-            var groups = runtime.GetBoundGroupIdsForSnapshotHost(host).ToList();
-            if (groups.Count == 0)
-            {
-                return;
-            }
-
-            var chats = payload.RecentChats ?? [];
-            var events = payload.PlayerEvents ?? [];
-            var notifications = payload.ServerNotifications ?? [];
-            foreach (var groupId in groups)
-            {
-                var forwardState = runtime.Storage.GetOsqForwardState(host, groupId);
-                var skipCurrentSnapshotWhenNoState = forwardState is null;
-
-                var newChatLines = CollectNewChatLines(
-                    runtime,
-                    groupId,
-                    chats,
-                    forwardState?.LastChatSignature,
-                    skipCurrentSnapshotWhenNoState,
-                    out var lastChatSignature);
-                var newEventLines = CollectNewEventLines(
-                    runtime,
-                    groupId,
-                    events,
-                    forwardState?.LastEventSignature,
-                    skipCurrentSnapshotWhenNoState,
-                    out var lastEventSignature);
-                var newNotificationLines = CollectNewNotificationLines(
-                    runtime,
-                    groupId,
-                    notifications,
-                    forwardState?.LastNotificationSignature,
-                    skipCurrentSnapshotWhenNoState,
-                    out var lastNotificationSignature);
-
-                if (newChatLines.Count == 0 && newEventLines.Count == 0 && newNotificationLines.Count == 0)
-                {
-                    runtime.Storage.UpsertOsqForwardState(host, groupId, lastChatSignature, lastEventSignature, lastNotificationSignature);
-                    continue;
-                }
-
-                var lines = new List<string>();
-                lines.AddRange(newEventLines);
-                lines.AddRange(newNotificationLines);
-                lines.AddRange(newChatLines);
-                var messages = SplitOneBotMessages(lines);
-                try
-                {
-                    foreach (var message in messages)
-                    {
-                        await runtime.OneBot.SendGroupMsgAsync(groupId, message, cancellationToken);
-                    }
-                    runtime.Storage.UpsertOsqForwardState(host, groupId, lastChatSignature, lastEventSignature, lastNotificationSignature);
-                }
-                catch (Exception ex)
-                {
-                    EmitOutput($"[warn] OSQ 转发失败 host={host} group={groupId}: {ex.Message}");
-                }
-            }
-        }
-        finally
-        {
-            forwardGate.Release();
-        }
-    }
-
     private static IReadOnlyList<string> SplitOneBotMessages(IReadOnlyList<string> lines)
     {
         if (lines.Count == 0)
@@ -1699,387 +1813,6 @@ public sealed class Vs2QQProcessService
         return result;
     }
 
-    private static string BuildOsqSummaryMessage(OsqSnapshotEnvelope payload)
-    {
-        var server = payload.Server ?? new OsqServerInfo();
-        var players = payload.Players ?? [];
-        var events = payload.PlayerEvents ?? [];
-        var chats = payload.RecentChats ?? [];
-        var onlinePlayers = players
-            .Where(p => p.IsOnline && !string.IsNullOrWhiteSpace(p.PlayerName))
-            .Select(p => Safe(p.PlayerName))
-            .Where(name => name != "-")
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        var onlinePlayerCount = onlinePlayers.Count > 0
-            ? onlinePlayers.Count
-            : Math.Max(0, server.OnlinePlayerCount > 0 ? server.OnlinePlayerCount : server.PlayerCount);
-        var timeLabel = FormatDisplayTime(payload.TimestampUtc);
-
-        var lines = new List<string>
-        {
-            $"服务器：{Safe(server.Name)}",
-            $"状态：{FormatOsqServerStatus(server.Status)}",
-            $"版本：{Safe(server.Version)}",
-            $"人数：{onlinePlayerCount}/{server.MaxPlayers}",
-            $"世界：{Safe(server.WorldName)}",
-            $"地址：{Safe(server.ServerIp)}:{server.ServerPort}"
-        };
-
-        if (onlinePlayers.Count > 0)
-        {
-            lines.Add("玩家：" + string.Join("、", onlinePlayers.Take(12)) +
-                      (onlinePlayers.Count > 12 ? $" 等 {onlinePlayers.Count} 人" : string.Empty));
-        }
-
-        if (events.Count > 0)
-        {
-            var topEvents = events.TakeLast(3)
-                .Select(e => $"{Safe(e.PlayerName)}-{Safe(e.EventType)}-{Safe(e.ConnectionState)}");
-            lines.Add("连接事件：" + string.Join("；", topEvents));
-        }
-
-        if (chats.Count > 0)
-        {
-            var topChats = chats
-                .Where(c => !ServerLogPrivacyFilter.ShouldSuppressRelayParts(c.SenderName, c.Message))
-                .TakeLast(3)
-                .Select(c => $"{Safe(c.SenderName)}: {Safe(NormalizeInboundServerText(c.SenderName, c.Message))}")
-                .ToList();
-            if (topChats.Count > 0)
-            {
-                lines.Add("聊天：" + string.Join(" | ", topChats));
-            }
-        }
-
-        var description = LimitText(
-            string.Join('\n', lines.Where(line => !string.IsNullOrWhiteSpace(line))),
-            MaxOneBotMessageLength);
-        var header = $"[服务器状态 {timeLabel}]";
-        return LimitText($"{header}\n{description}", MaxOneBotMessageLength);
-    }
-
-    private static string LimitText(string value, int maxLength)
-    {
-        if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
-        {
-            return value;
-        }
-
-        return value[..Math.Max(0, maxLength - 3)] + "...";
-    }
-
-    private static string BuildOsqPlayersMessage(OsqSnapshotEnvelope payload)
-    {
-        var server = payload.Server ?? new OsqServerInfo();
-        var players = payload.Players ?? [];
-        var onlinePlayers = players
-            .Where(p => p.IsOnline)
-            .OrderBy(p => p.PlayerName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var timeLabel = FormatDisplayTime(payload.TimestampUtc);
-        var lines = new List<string>
-        {
-            $"[在线玩家 {timeLabel}] {onlinePlayers.Count}/{server.MaxPlayers}"
-        };
-
-        if (onlinePlayers.Count == 0)
-        {
-            lines.Add("当前无在线玩家。");
-            return string.Join('\n', lines);
-        }
-
-        foreach (var player in onlinePlayers)
-        {
-            var latency = player.PingMs.HasValue ? $"{player.PingMs.Value}ms/{Safe(player.DelayLevel)}" : Safe(player.DelayLevel);
-            lines.Add($"- {Safe(player.PlayerName)} ({Safe(player.ConnectionState)}, {latency})");
-        }
-
-        return string.Join('\n', lines);
-    }
-
-    private static IReadOnlyList<string> CollectNewChatLines(
-        Vs2QQRuntimeContext runtime,
-        long groupId,
-        IReadOnlyList<OsqChatInfo> chats,
-        string? previousSignature,
-        bool skipWhenNoPreviousSignature,
-        out string? lastSignature)
-    {
-        var signatures = chats
-            .Select(c => BuildChatSignature(c))
-            .ToList();
-
-        lastSignature = signatures.Count == 0 ? previousSignature : signatures[^1];
-        var startIndex = ResolveNewItemsStartIndex(signatures, previousSignature, skipWhenNoPreviousSignature);
-        if (startIndex >= signatures.Count)
-        {
-            return [];
-        }
-
-        var result = new List<string>();
-        for (var i = startIndex; i < chats.Count; i++)
-        {
-            var chat = chats[i];
-            var sender = Safe(chat.SenderName);
-            var content = NormalizeInboundServerText(chat.SenderName, chat.Message);
-            if (IsGroupRelayEchoText(sender)
-                || IsGroupRelayEchoText(content)
-                || ServerLogPrivacyFilter.ShouldSuppressRelayParts(sender, content))
-            {
-                continue;
-            }
-            var timeLabel = FormatDisplayTime(chat.TimestampUtc);
-            var line = $"[服务器 {timeLabel}]{sender}：{Safe(content)}";
-            if (ShouldSkipRecentRelaySignature(runtime, groupId, BuildRelaySignature("chat", signatures[i]), chat.TimestampUtc))
-            {
-                continue;
-            }
-
-            result.Add(line);
-        }
-
-        return result;
-    }
-
-    private static IReadOnlyList<string> CollectNewEventLines(
-        Vs2QQRuntimeContext runtime,
-        long groupId,
-        IReadOnlyList<OsqPlayerEventInfo> events,
-        string? previousSignature,
-        bool skipWhenNoPreviousSignature,
-        out string? lastSignature)
-    {
-        var signatures = events
-            .Select(e => BuildEventSignature(e))
-            .ToList();
-
-        lastSignature = signatures.Count == 0 ? previousSignature : signatures[^1];
-        var startIndex = ResolveNewItemsStartIndex(signatures, previousSignature, skipWhenNoPreviousSignature);
-        if (startIndex >= signatures.Count)
-        {
-            return [];
-        }
-
-        var result = new List<string>();
-        for (var i = startIndex; i < events.Count; i++)
-        {
-            var entry = events[i];
-            var mapped = MapJoinLeaveText(entry.EventType);
-            if (mapped is null)
-            {
-                continue;
-            }
-
-            var playerName = Safe(entry.PlayerName);
-            var timeLabel = FormatDisplayTime(entry.TimestampUtc);
-            var line = $"[服务器 {timeLabel}]{playerName} {mapped}";
-            if (ShouldSkipRecentRelaySignature(runtime, groupId, BuildRelaySignature("event", signatures[i]), entry.TimestampUtc))
-            {
-                continue;
-            }
-
-            result.Add(line);
-        }
-
-        return result;
-    }
-
-    private static IReadOnlyList<string> CollectNewNotificationLines(
-        Vs2QQRuntimeContext runtime,
-        long groupId,
-        IReadOnlyList<OsqServerNotificationInfo> notifications,
-        string? previousSignature,
-        bool skipWhenNoPreviousSignature,
-        out string? lastSignature)
-    {
-        var signatures = notifications
-            .Select(n => BuildNotificationSignature(n))
-            .ToList();
-
-        lastSignature = signatures.Count == 0 ? previousSignature : signatures[^1];
-        var startIndex = ResolveNewItemsStartIndex(signatures, previousSignature, skipWhenNoPreviousSignature);
-        if (startIndex >= signatures.Count)
-        {
-            return [];
-        }
-
-        var result = new List<string>();
-        for (var i = startIndex; i < notifications.Count; i++)
-        {
-            var notification = notifications[i];
-            var content = NormalizeInboundServerText(null, notification.Message);
-            if (IsGroupRelayEchoText(content) || ServerLogPrivacyFilter.ShouldSuppressRelayParts(content))
-            {
-                continue;
-            }
-            var timeLabel = FormatDisplayTime(notification.TimestampUtc);
-            var line = $"[服务器 {timeLabel}]{Safe(content)}";
-            if (ShouldSkipRecentRelaySignature(runtime, groupId, BuildRelaySignature("notification", signatures[i]), notification.TimestampUtc))
-            {
-                continue;
-            }
-
-            result.Add(line);
-        }
-
-        return result;
-    }
-
-    private static int ResolveNewItemsStartIndex(
-        IReadOnlyList<string> signatures,
-        string? previousSignature,
-        bool skipWhenNoPreviousSignature)
-    {
-        if (signatures.Count == 0)
-        {
-            return 0;
-        }
-
-        if (string.IsNullOrWhiteSpace(previousSignature))
-        {
-            return skipWhenNoPreviousSignature ? signatures.Count : 0;
-        }
-
-        for (var i = signatures.Count - 1; i >= 0; i--)
-        {
-            if (string.Equals(signatures[i], previousSignature, StringComparison.Ordinal))
-            {
-                return i + 1;
-            }
-        }
-
-        // If the previous marker cannot be found, prefer silence over replaying
-        // stale history into QQ groups.
-        return signatures.Count;
-    }
-
-    private static string BuildChatSignature(OsqChatInfo chat)
-    {
-        return $"{Safe(chat.TimestampUtc)}|{Safe(chat.SenderName)}|{Safe(NormalizeDisplayText(chat.Message))}";
-    }
-
-    private static string BuildEventSignature(OsqPlayerEventInfo entry)
-    {
-        return $"{Safe(entry.TimestampUtc)}|{Safe(entry.EventType)}|{Safe(entry.PlayerName)}|{Safe(entry.ConnectionState)}";
-    }
-
-    private static string BuildNotificationSignature(OsqServerNotificationInfo notification)
-    {
-        return $"{Safe(notification.TimestampUtc)}|{Safe(NormalizeDisplayText(notification.Message))}";
-    }
-
-    private static string? MapJoinLeaveText(string? eventType)
-    {
-        var normalized = (eventType ?? string.Empty).Trim().ToLowerInvariant();
-        return normalized switch
-        {
-            "join" => "进入服务器",
-            "leave" => "离开服务器",
-            "disconnect" => "离开服务器",
-            "death" => "死亡",
-            "die" => "死亡",
-            "dead" => "死亡",
-            _ => null
-        };
-    }
-
-    private static string BuildRelaySignature(string category, string itemSignature)
-    {
-        return $"{category}|{itemSignature}";
-    }
-
-    private static bool ShouldSkipRecentRelaySignature(
-        Vs2QQRuntimeContext runtime,
-        long groupId,
-        string signature,
-        string? timestamp)
-    {
-        if (string.IsNullOrWhiteSpace(signature))
-        {
-            return false;
-        }
-
-        var eventTime = ParseRelayEventTime(timestamp);
-        if (!eventTime.HasValue)
-        {
-            return false;
-        }
-
-        var key = $"{groupId}|{signature}";
-        lock (runtime.RecentRelaySignatures)
-        {
-            PruneRecentRelaySignatures(runtime.RecentRelaySignatures, eventTime.Value);
-            if (runtime.RecentRelaySignatures.TryGetValue(key, out var previous)
-                && (eventTime.Value - previous).Duration() <= RecentRelaySignatureWindow)
-            {
-                if (eventTime.Value > previous)
-                {
-                    runtime.RecentRelaySignatures[key] = eventTime.Value;
-                }
-
-                return true;
-            }
-
-            runtime.RecentRelaySignatures[key] = eventTime.Value;
-            return false;
-        }
-    }
-
-    private static void PruneRecentRelaySignatures(Dictionary<string, DateTimeOffset> recentRelaySignatures, DateTimeOffset now)
-    {
-        foreach (var item in recentRelaySignatures.ToArray())
-        {
-            if ((now - item.Value).Duration() > RecentRelaySignatureWindow)
-            {
-                recentRelaySignatures.Remove(item.Key);
-            }
-        }
-    }
-
-    private static DateTimeOffset? ParseRelayEventTime(string? timestamp)
-    {
-        if (string.IsNullOrWhiteSpace(timestamp))
-        {
-            return DateTimeOffset.UtcNow;
-        }
-
-        if (DateTimeOffset.TryParse(
-                timestamp,
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.AssumeLocal,
-                out var parsed))
-        {
-            return parsed.ToUniversalTime();
-        }
-
-        if (TimeSpan.TryParseExact(
-                timestamp.Trim(),
-                @"hh\:mm\:ss",
-                CultureInfo.InvariantCulture,
-                out var timeOfDay))
-        {
-            var localDate = DateTimeOffset.Now.Date;
-            return new DateTimeOffset(localDate + timeOfDay, TimeZoneInfo.Local.GetUtcOffset(localDate + timeOfDay))
-                .ToUniversalTime();
-        }
-
-        return DateTimeOffset.UtcNow;
-    }
-
-    private static bool IsGroupRelayEchoText(string? text)
-    {
-        var normalized = NormalizeDisplayText(text);
-        if (string.IsNullOrWhiteSpace(normalized))
-        {
-            return false;
-        }
-
-        return GroupRelayEchoRegex.IsMatch(normalized);
-    }
-
     private static bool IsServerRelayEchoText(string? text)
     {
         var normalized = NormalizeDisplayText(text);
@@ -2088,177 +1821,7 @@ public sealed class Vs2QQProcessService
             return false;
         }
 
-        return ServerRelayEchoRegex.IsMatch(normalized);
-    }
-
-    private OsqSnapshotEnvelope? TryImportLatestSharedOsqSnapshot(Vs2QQRuntimeContext runtime, string boundHost)
-    {
-        foreach (var candidate in BuildServerHostCandidates(boundHost))
-        {
-            var cachedPayload = _osqSnapshotCacheService.GetLatestPayload(candidate);
-            if (cachedPayload is null)
-            {
-                continue;
-            }
-
-            var payload = DeserializeOsqSnapshot(cachedPayload);
-            if (payload?.Server is null)
-            {
-                continue;
-            }
-
-            runtime.Storage.AddOsqSnapshot(boundHost, payload);
-            return payload;
-        }
-
-        return null;
-    }
-
-    private static string ResolveBoundServerHostForSnapshot(
-        Vs2QQRuntimeContext runtime,
-        string reportedHost)
-    {
-        foreach (var candidate in BuildServerHostCandidates(reportedHost))
-        {
-            if (runtime.HasBoundGroupsForSnapshotHost(candidate))
-            {
-                return candidate;
-            }
-        }
-
-        var normalized = NormalizeServerHost(reportedHost);
-        return string.IsNullOrWhiteSpace(normalized)
-            ? (reportedHost ?? string.Empty).Trim()
-            : normalized;
-    }
-
-    private static OsqSnapshotEnvelope? DeserializeOsqSnapshot(JsonObject payload)
-    {
-        try
-        {
-            return JsonSerializer.Deserialize<OsqSnapshotEnvelope>(
-                payload.ToJsonString(),
-                OsqJsonOptions);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static IReadOnlyList<string> BuildServerHostCandidates(string? host)
-    {
-        var result = new List<string>();
-        AddServerHostCandidate(result, host);
-
-        var raw = (host ?? string.Empty).Trim();
-        if (raw.Length == 0)
-        {
-            AddServerHostCandidate(result, LocalServerSnapshotHost);
-            return result;
-        }
-
-        if (IsLocalSnapshotHost(raw))
-        {
-            AddServerHostCandidate(result, NormalizeLocalSnapshotHost(raw));
-            return result;
-        }
-
-        AddServerHostCandidate(result, NormalizeServerHost(raw));
-        if (raw.Contains("://", StringComparison.Ordinal) &&
-            Uri.TryCreate(raw.EndsWith('/') ? raw : raw + '/', UriKind.Absolute, out var uri))
-        {
-            var authority = uri.IsDefaultPort ? uri.Host.ToLowerInvariant() : $"{uri.Host.ToLowerInvariant()}:{uri.Port}";
-            AddServerHostCandidate(result, authority);
-            AddServerHostCandidate(result, $"{uri.Scheme.ToLowerInvariant()}://{authority}");
-            var path = uri.AbsolutePath.TrimEnd('/');
-            if (!string.IsNullOrWhiteSpace(path) && path != "/")
-            {
-                AddServerHostCandidate(result, $"{uri.Scheme.ToLowerInvariant()}://{authority}{path}");
-            }
-        }
-        else
-        {
-            AddServerHostCandidate(result, "https://" + raw.TrimEnd('/').ToLowerInvariant());
-            AddServerHostCandidate(result, "http://" + raw.TrimEnd('/').ToLowerInvariant());
-        }
-
-        return result;
-    }
-
-    private static void AddServerHostCandidate(List<string> candidates, string? host)
-    {
-        var value = (host ?? string.Empty).Trim().TrimEnd('/');
-        if (value.Length == 0 ||
-            candidates.Any(existing => existing.Equals(value, StringComparison.OrdinalIgnoreCase)))
-        {
-            return;
-        }
-
-        candidates.Add(value);
-    }
-
-    private static string BuildLocalProfileSnapshotHost(string profileId)
-    {
-        var normalized = (profileId ?? string.Empty).Trim();
-        return string.IsNullOrWhiteSpace(normalized)
-            ? LocalServerSnapshotHost
-            : LocalProfileSnapshotHostPrefix + normalized;
-    }
-
-    private static bool IsLocalSnapshotHost(string? host)
-    {
-        var value = (host ?? string.Empty).Trim();
-        return value.Equals(LocalServerSnapshotHost, StringComparison.OrdinalIgnoreCase)
-            || value.StartsWith(LocalProfileSnapshotHostPrefix, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string NormalizeLocalSnapshotHost(string host)
-    {
-        var value = (host ?? string.Empty).Trim().TrimEnd('/');
-        if (!value.StartsWith(LocalProfileSnapshotHostPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return LocalServerSnapshotHost;
-        }
-
-        var profileId = value[LocalProfileSnapshotHostPrefix.Length..].Trim();
-        return BuildLocalProfileSnapshotHost(profileId);
-    }
-
-    private static bool TryGetLocalSnapshotProfileId(string? host, out string profileId)
-    {
-        var value = (host ?? string.Empty).Trim();
-        if (!value.StartsWith(LocalProfileSnapshotHostPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            profileId = string.Empty;
-            return false;
-        }
-
-        profileId = value[LocalProfileSnapshotHostPrefix.Length..].Trim();
-        return !string.IsNullOrWhiteSpace(profileId);
-    }
-
-    private static string NormalizeServerHost(string input)
-    {
-        var raw = (input ?? string.Empty).Trim();
-        if (raw.Length == 0)
-        {
-            return string.Empty;
-        }
-
-        if (!raw.Contains("://", StringComparison.Ordinal))
-        {
-            raw = "https://" + raw;
-        }
-
-        if (!Uri.TryCreate(raw, UriKind.Absolute, out var uri))
-        {
-            return raw.ToLowerInvariant();
-        }
-
-        var host = uri.Host.ToLowerInvariant();
-        var port = uri.IsDefaultPort ? string.Empty : $":{uri.Port}";
-        return host + port;
+        return ServerRelayEchoRegex.IsMatch(normalized) || GroupRelayEchoRegex.IsMatch(normalized);
     }
 
     private static string NormalizeInboundServerText(string? senderName, string? rawText)
@@ -2333,23 +1896,6 @@ public sealed class Vs2QQProcessService
                || Regex.IsMatch(trimmed, @"[+-]\d{2}:?\d{2}$", RegexOptions.CultureInvariant);
     }
 
-    private static string FormatOsqServerStatus(string? status)
-    {
-        var normalized = Safe(status);
-        return normalized.ToLowerInvariant() switch
-        {
-            "rungame" => "运行中",
-            "running" => "运行中",
-            "run" => "运行中",
-            "standby" => "待机",
-            "starting" => "启动中",
-            "stopping" => "停止中",
-            "stopped" => "已停止",
-            "offline" => "离线",
-            _ => normalized
-        };
-    }
-
     private static string Safe(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
@@ -2379,11 +1925,8 @@ public sealed class Vs2QQProcessService
         dbPath = Path.GetFullPath(dbPath);
 
         var reconnectInterval = settings.ReconnectIntervalSec <= 0 ? 5 : settings.ReconnectIntervalSec;
-        var pollInterval = settings.PollIntervalSec <= 0 ? 1.0 : settings.PollIntervalSec;
         var defaultEncoding = string.IsNullOrWhiteSpace(settings.DefaultEncoding) ? "utf-8" : settings.DefaultEncoding.Trim();
-        var fallbackEncoding = string.IsNullOrWhiteSpace(settings.FallbackEncoding) ? "gbk" : settings.FallbackEncoding.Trim();
-        var osqListenPrefix = NormalizeListenPrefix(settings.OsqListenPrefix);
-        var normalizedSuperUsers = (settings.SuperUsers ?? [])
+        var fallbackEncoding = string.IsNullOrWhiteSpace(settings.FallbackEncoding) ? "gbk" : settings.FallbackEncoding.Trim();        var normalizedSuperUsers = (settings.SuperUsers ?? [])
             .Where(x => x > 0)
             .Distinct()
             .ToList();
@@ -2422,15 +1965,9 @@ public sealed class Vs2QQProcessService
             CustomCommands = normalizedCustomCommands,
             ReconnectIntervalSec = reconnectInterval,
             DatabasePath = dbPath,
-            PollIntervalSec = pollInterval,
             DefaultEncoding = defaultEncoding,
             FallbackEncoding = fallbackEncoding,
-            SuperUsers = normalizedSuperUsers,
-            OsqPollIntervalSec = settings.OsqPollIntervalSec <= 0 ? 20 : settings.OsqPollIntervalSec,
-            OsqRequestTimeoutSec = settings.OsqRequestTimeoutSec <= 0 ? 8 : settings.OsqRequestTimeoutSec,
-            OsqAllowInsecureHttp = settings.OsqAllowInsecureHttp,
-            OsqListenPrefix = osqListenPrefix,
-            EnableOsqListener = false
+            SuperUsers = normalizedSuperUsers
         });
     }
 
@@ -2582,37 +2119,8 @@ public sealed class Vs2QQProcessService
 
         public Vs2QQOneBotClient OneBot { get; set; } = null!;
 
-        public EventHandler<OsqSnapshotReceivedEventArgs>? OsqSnapshotHandler { get; set; }
-
-        public Dictionary<string, DateTimeOffset> RecentRelaySignatures { get; } = new(StringComparer.OrdinalIgnoreCase);
-
-        private readonly ConcurrentDictionary<string, SemaphoreSlim> _osqForwardGates = new(StringComparer.OrdinalIgnoreCase);
-
-        public SemaphoreSlim GetOsqForwardGate(string host)
-        {
-            var key = string.IsNullOrWhiteSpace(host) ? "local" : host.Trim();
-            return _osqForwardGates.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
-        }
-
-        public IReadOnlyList<long> GetBoundGroupIdsForSnapshotHost(string host)
-        {
-            if (TryGetLocalSnapshotProfileId(host, out var profileId))
-            {
-                return GetBoundGroupIdsForProfile(profileId);
-            }
-
-            if (!HasProfileBindings)
-            {
-                return BoundGroupIds.ToList();
-            }
-
-            return [];
-        }
-
-        public bool HasBoundGroupsForSnapshotHost(string host)
-        {
-            return GetBoundGroupIdsForSnapshotHost(host).Count > 0;
-        }
+        public List<ServerBridgeSubscription> BridgeSubscriptions { get; } = [];
+        public List<Task> BridgeConnectionTasks { get; } = [];
 
         public string GetPrimaryProfileIdForGroup(long groupId)
         {
@@ -2635,11 +2143,6 @@ public sealed class Vs2QQProcessService
             }
 
             await OneBot.DisposeAsync();
-            foreach (var gate in _osqForwardGates.Values)
-            {
-                gate.Dispose();
-            }
-
             Storage.Dispose();
         }
 
@@ -3102,11 +2605,6 @@ public sealed class Vs2QQProcessService
         private readonly object _sync = new();
         private readonly SqliteConnection _connection;
         private bool _disposed;
-        private const string LegacyOsqSnapshotsTable = "osq_snapshots";
-        private const string LegacyOsqForwardStateTable = "osq_forward_state";
-        private const string OsqSnapshotsTable = "osq_snapshots_v2";
-        private const string OsqForwardStateTable = "osq_forward_state_v2";
-
         public Vs2QQStorage(string dbPath)
         {
             var directory = Path.GetDirectoryName(dbPath);
@@ -3122,7 +2620,6 @@ public sealed class Vs2QQProcessService
                 pragma.CommandText = "PRAGMA foreign_keys = ON;";
                 pragma.ExecuteNonQuery();
             }
-            InitializeSchema();
         }
 
         public void Dispose()
@@ -3139,408 +2636,5 @@ public sealed class Vs2QQProcessService
             }
         }
 
-        public void AddOsqSnapshot(string serverHost, OsqSnapshotEnvelope payload)
-        {
-            lock (_sync)
-            {
-                using (var command = _connection.CreateCommand())
-                {
-                    command.CommandText =
-                        """
-                        INSERT INTO osq_snapshots_v2 (server_host, payload_json, created_at)
-                        VALUES ($serverHost, $payloadJson, $createdAt);
-                        """;
-                    command.Parameters.AddWithValue("$serverHost", serverHost);
-                    command.Parameters.AddWithValue("$payloadJson", JsonSerializer.Serialize(payload, OsqJsonOptions));
-                    command.Parameters.AddWithValue("$createdAt", GetUtcNowIso());
-                    command.ExecuteNonQuery();
-                }
-
-                using (var cleanup = _connection.CreateCommand())
-                {
-                    cleanup.CommandText =
-                        """
-                        DELETE FROM osq_snapshots_v2
-                        WHERE server_host = $serverHost
-                          AND snapshot_id NOT IN (
-                              SELECT snapshot_id
-                              FROM osq_snapshots_v2
-                              WHERE server_host = $serverHost
-                              ORDER BY snapshot_id DESC
-                              LIMIT $maxRows
-                          );
-                        """;
-                    cleanup.Parameters.AddWithValue("$serverHost", serverHost);
-                    cleanup.Parameters.AddWithValue("$maxRows", MaxOsqStatusHistoryPerHost);
-                    cleanup.ExecuteNonQuery();
-                }
-            }
-        }
-
-        public OsqSnapshotEnvelope? GetLatestOsqSnapshot(string serverHost, int index)
-        {
-            lock (_sync)
-            {
-                return ReadLatestOsqSnapshotLocked(serverHost, index);
-            }
-        }
-
-        private OsqSnapshotEnvelope? ReadLatestOsqSnapshotLocked(string serverHost, int index)
-        {
-            if (index <= 0)
-            {
-                return null;
-            }
-
-            using var command = _connection.CreateCommand();
-            command.CommandText =
-                """
-                SELECT payload_json
-                FROM osq_snapshots_v2
-                WHERE server_host = $serverHost
-                ORDER BY snapshot_id DESC
-                LIMIT 1 OFFSET $offset;
-                """;
-            command.Parameters.AddWithValue("$serverHost", serverHost);
-            command.Parameters.AddWithValue("$offset", index - 1);
-            var value = command.ExecuteScalar();
-            if (value is null || value == DBNull.Value)
-            {
-                return null;
-            }
-
-            try
-            {
-                return JsonSerializer.Deserialize<OsqSnapshotEnvelope>(value.ToString() ?? string.Empty, OsqJsonOptions);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        public OsqForwardState? GetOsqForwardState(string serverHost, long groupId)
-        {
-            lock (_sync)
-            {
-                using var command = _connection.CreateCommand();
-                command.CommandText =
-                    """
-                    SELECT last_chat_signature, last_event_signature, last_notification_signature
-                    FROM osq_forward_state_v2
-                    WHERE server_host = $serverHost AND group_id = $groupId
-                    LIMIT 1;
-                    """;
-                command.Parameters.AddWithValue("$serverHost", serverHost);
-                command.Parameters.AddWithValue("$groupId", groupId);
-                using var reader = command.ExecuteReader();
-                if (!reader.Read())
-                {
-                    return null;
-                }
-
-                return new OsqForwardState(
-                    reader.IsDBNull(0) ? null : reader.GetString(0),
-                    reader.IsDBNull(1) ? null : reader.GetString(1),
-                    reader.FieldCount > 2 && !reader.IsDBNull(2) ? reader.GetString(2) : null);
-            }
-        }
-
-        public void UpsertOsqForwardState(string serverHost, long groupId, string? lastChatSignature, string? lastEventSignature, string? lastNotificationSignature)
-        {
-            lock (_sync)
-            {
-                using var command = _connection.CreateCommand();
-                command.CommandText =
-                    """
-                    INSERT INTO osq_forward_state_v2 (server_host, group_id, last_chat_signature, last_event_signature, last_notification_signature, updated_at)
-                    VALUES ($serverHost, $groupId, $lastChatSignature, $lastEventSignature, $lastNotificationSignature, $updatedAt)
-                    ON CONFLICT(server_host, group_id) DO UPDATE SET
-                        last_chat_signature = excluded.last_chat_signature,
-                        last_event_signature = excluded.last_event_signature,
-                        last_notification_signature = excluded.last_notification_signature,
-                        updated_at = excluded.updated_at;
-                    """;
-                command.Parameters.AddWithValue("$serverHost", serverHost);
-                command.Parameters.AddWithValue("$groupId", groupId);
-                command.Parameters.AddWithValue("$lastChatSignature", (object?)lastChatSignature ?? DBNull.Value);
-                command.Parameters.AddWithValue("$lastEventSignature", (object?)lastEventSignature ?? DBNull.Value);
-                command.Parameters.AddWithValue("$lastNotificationSignature", (object?)lastNotificationSignature ?? DBNull.Value);
-                command.Parameters.AddWithValue("$updatedAt", GetUtcNowIso());
-                command.ExecuteNonQuery();
-            }
-        }
-
-        private void InitializeSchema()
-        {
-            lock (_sync)
-            {
-                using var command = _connection.CreateCommand();
-                command.CommandText =
-                    """
-                    CREATE TABLE IF NOT EXISTS osq_snapshots_v2 (
-                        snapshot_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        server_host TEXT NOT NULL,
-                        payload_json TEXT NOT NULL,
-                        created_at TEXT NOT NULL
-                    );
-
-                    CREATE INDEX IF NOT EXISTS idx_osq_snapshots_host_id
-                        ON osq_snapshots_v2 (server_host, snapshot_id DESC);
-
-                    CREATE TABLE IF NOT EXISTS osq_forward_state_v2 (
-                        server_host TEXT NOT NULL,
-                        group_id INTEGER NOT NULL,
-                        last_chat_signature TEXT,
-                        last_event_signature TEXT,
-                        last_notification_signature TEXT,
-                        updated_at TEXT NOT NULL,
-                        PRIMARY KEY (server_host, group_id)
-                    );
-                    """;
-                command.ExecuteNonQuery();
-            }
-
-            MigrateLegacySchema();
-        }
-
-        private static string GetUtcNowIso()
-        {
-            return DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture);
-        }
-
-        private void MigrateLegacySchema()
-        {
-            lock (_sync)
-            {
-                if (!TableExists(LegacyOsqSnapshotsTable) && !TableExists(LegacyOsqForwardStateTable))
-                {
-                    return;
-                }
-
-                using var transaction = _connection.BeginTransaction();
-
-                if (TableExists(LegacyOsqSnapshotsTable))
-                {
-                    using var copySnapshots = _connection.CreateCommand();
-                    copySnapshots.Transaction = transaction;
-                    copySnapshots.CommandText =
-                        $"""
-                        INSERT INTO {OsqSnapshotsTable} (server_host, payload_json, created_at)
-                        SELECT legacy.server_host, legacy.payload_json, legacy.created_at
-                        FROM {LegacyOsqSnapshotsTable} legacy
-                        WHERE NOT EXISTS (
-                            SELECT 1
-                            FROM {OsqSnapshotsTable} current
-                            WHERE current.server_host = legacy.server_host
-                              AND current.payload_json = legacy.payload_json
-                              AND current.created_at = legacy.created_at
-                        );
-                        """;
-                    copySnapshots.ExecuteNonQuery();
-                }
-
-                if (TableExists(LegacyOsqForwardStateTable))
-                {
-                    var columns = GetTableColumns(LegacyOsqForwardStateTable);
-                    var hasGroupId = columns.Contains("group_id");
-                    var hasLastNotificationSignature = columns.Contains("last_notification_signature");
-                    var lastNotificationProjection = hasLastNotificationSignature
-                        ? "legacy.last_notification_signature"
-                        : "NULL";
-                    var groupIdProjection = hasGroupId
-                        ? "COALESCE(legacy.group_id, 0)"
-                        : "0";
-
-                    using var copyForwardState = _connection.CreateCommand();
-                    copyForwardState.Transaction = transaction;
-                    copyForwardState.CommandText =
-                        $"""
-                        INSERT INTO {OsqForwardStateTable} (
-                            server_host,
-                            group_id,
-                            last_chat_signature,
-                            last_event_signature,
-                            last_notification_signature,
-                            updated_at
-                        )
-                        SELECT
-                            legacy.server_host,
-                            {groupIdProjection},
-                            legacy.last_chat_signature,
-                            legacy.last_event_signature,
-                            {lastNotificationProjection},
-                            legacy.updated_at
-                        FROM {LegacyOsqForwardStateTable} legacy
-                        ON CONFLICT(server_host, group_id) DO UPDATE SET
-                            last_chat_signature = excluded.last_chat_signature,
-                            last_event_signature = excluded.last_event_signature,
-                            last_notification_signature = excluded.last_notification_signature,
-                            updated_at = excluded.updated_at;
-                        """;
-                    copyForwardState.ExecuteNonQuery();
-                }
-
-                DropLegacyTable(transaction, "group_remote_servers");
-                DropLegacyTable(transaction, "osq_replay_nonce");
-                DropLegacyTable(transaction, "remote_servers");
-                DropLegacyTable(transaction, LegacyOsqSnapshotsTable);
-                DropLegacyTable(transaction, LegacyOsqForwardStateTable);
-
-                transaction.Commit();
-            }
-        }
-
-        private void DropLegacyTable(SqliteTransaction transaction, string tableName)
-        {
-            if (!TableExists(tableName))
-            {
-                return;
-            }
-
-            using var drop = _connection.CreateCommand();
-            drop.Transaction = transaction;
-            drop.CommandText = $"DROP TABLE IF EXISTS {tableName};";
-            drop.ExecuteNonQuery();
-        }
-
-        private bool TableExists(string tableName)
-        {
-            using var command = _connection.CreateCommand();
-            command.CommandText =
-                """
-                SELECT 1
-                FROM sqlite_master
-                WHERE type = 'table' AND name = $tableName
-                LIMIT 1;
-                """;
-            command.Parameters.AddWithValue("$tableName", tableName);
-            var value = command.ExecuteScalar();
-            return value is not null && value != DBNull.Value;
-        }
-
-        private HashSet<string> GetTableColumns(string tableName)
-        {
-            var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            using var command = _connection.CreateCommand();
-            command.CommandText = $"PRAGMA table_info({tableName});";
-            using var reader = command.ExecuteReader();
-            while (reader.Read())
-            {
-                columns.Add(reader.GetString(1));
-            }
-
-            return columns;
-        }
-
     }
-
-    private readonly record struct OsqForwardState(string? LastChatSignature, string? LastEventSignature, string? LastNotificationSignature);
-
-    private sealed class OsqSnapshotEnvelope
-    {
-        public string TimestampUtc { get; set; } = string.Empty;
-
-        public int SchemaVersion { get; set; }
-
-        public List<string>? Capabilities { get; set; }
-
-        public string SourceHost { get; set; } = string.Empty;
-
-        public string ReceivedAtUtc { get; set; } = string.Empty;
-
-        public OsqServerInfo? Server { get; set; }
-
-        public List<OsqPlayerInfo>? Players { get; set; }
-
-        public List<OsqPlayerEventInfo>? PlayerEvents { get; set; }
-
-        public List<OsqChatInfo>? RecentChats { get; set; }
-
-        public List<OsqServerNotificationInfo>? ServerNotifications { get; set; }
-
-        [JsonExtensionData]
-        public Dictionary<string, JsonElement>? ExtensionData { get; set; }
-    }
-
-    private sealed class OsqServerInfo
-    {
-        public string Name { get; set; } = string.Empty;
-
-        public string Version { get; set; } = string.Empty;
-
-        public string Status { get; set; } = string.Empty;
-
-        public int PlayerCount { get; set; }
-
-        public int OnlinePlayerCount { get; set; }
-
-        public int MaxPlayers { get; set; }
-
-        public string ServerIp { get; set; } = string.Empty;
-
-        public int ServerPort { get; set; }
-
-        public string WorldName { get; set; } = string.Empty;
-
-        [JsonExtensionData]
-        public Dictionary<string, JsonElement>? ExtensionData { get; set; }
-    }
-
-    private sealed class OsqPlayerInfo
-    {
-        public string PlayerUid { get; set; } = string.Empty;
-
-        public string PlayerName { get; set; } = string.Empty;
-
-        public bool IsOnline { get; set; }
-
-        public string ConnectionState { get; set; } = string.Empty;
-
-        public int? PingMs { get; set; }
-
-        public string DelayLevel { get; set; } = string.Empty;
-
-        public string LastSeenUtc { get; set; } = string.Empty;
-
-        [JsonExtensionData]
-        public Dictionary<string, JsonElement>? ExtensionData { get; set; }
-    }
-
-    private sealed class OsqPlayerEventInfo
-    {
-        public string TimestampUtc { get; set; } = string.Empty;
-
-        public string EventType { get; set; } = string.Empty;
-
-        public string PlayerName { get; set; } = string.Empty;
-
-        public string ConnectionState { get; set; } = string.Empty;
-
-        [JsonExtensionData]
-        public Dictionary<string, JsonElement>? ExtensionData { get; set; }
-    }
-
-    private sealed class OsqChatInfo
-    {
-        public string TimestampUtc { get; set; } = string.Empty;
-
-        public string SenderName { get; set; } = string.Empty;
-
-        public string Message { get; set; } = string.Empty;
-
-        [JsonExtensionData]
-        public Dictionary<string, JsonElement>? ExtensionData { get; set; }
-    }
-
-    private sealed class OsqServerNotificationInfo
-    {
-        public string TimestampUtc { get; set; } = string.Empty;
-
-        public string Message { get; set; } = string.Empty;
-
-        [JsonExtensionData]
-        public Dictionary<string, JsonElement>? ExtensionData { get; set; }
-    }
-
 }

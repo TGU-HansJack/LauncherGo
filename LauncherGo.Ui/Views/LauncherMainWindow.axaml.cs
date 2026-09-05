@@ -52,9 +52,6 @@ public partial class LauncherMainWindow : Window
     private const double ChartHeight = 248;
     private const double ThumbnailWidth = 76;
     private const double ThumbnailHeight = 50;
-    private const double OsqEndpointHostColumnWidth = 420;
-    private const double OsqEndpointTokenColumnWidth = 365;
-    private const double OsqEndpointColumnSpacing = 10;
     private const string DefaultServerDownloadCatalogUrl = "https://cdn.vintagestory.top/stable-unstable.json";
     private const string GitHubContributorsApiUrl = "https://api.github.com/repos/vscn-studio/LauncherGo/contributors?per_page=100";
     private const string SponsorApiUrl = "https://vscn.studio/api/afdian/sponsors";
@@ -153,7 +150,6 @@ public partial class LauncherMainWindow : Window
         ("模组", "Mods"),
         ("自动化", "Automation"),
         ("安全", "Security"),
-        ("开放API", "Open API"),
         ("机器人", "Robot"),
         ("网关", "Gateway"),
         ("TCP 网关", "TCP Gateway"),
@@ -270,7 +266,6 @@ public partial class LauncherMainWindow : Window
     private readonly IInstanceSaveService _saveService;
     private readonly IInstanceServerConfigService _instanceServerConfigService;
     private readonly IServerProcessService _serverProcessService;
-    private readonly IOpenServerQueryService _openServerQueryService;
     private readonly IRobotService _robotService;
     private readonly ILogTailService _logTailService;
     private readonly IAutomationService _automationService;
@@ -284,7 +279,7 @@ public partial class LauncherMainWindow : Window
     private readonly IModListExportService _modListExportService;
     private readonly IModUpdateService _modUpdateService;
     private readonly IServerAuthService _serverAuthService;
-    private readonly ICommandBridgeService _commandBridgeService;
+    private readonly IServerBridgeService _serverBridgeService;
     private readonly ILauncherUpdateService _launcherUpdateService;
     private readonly ILocalizationService _localizationService;
     private readonly ILogger<LauncherMainWindow> _logger;
@@ -330,14 +325,13 @@ public partial class LauncherMainWindow : Window
     private readonly ObservableCollection<ModListItem> _modItems = [];
     private readonly ObservableCollection<InstanceProfile> _authProfileItems = [];
     private readonly ObservableCollection<ProfileConfigListItem> _authConfigItems = [];
-    private readonly ObservableCollection<InstanceProfile> _commandBridgeProfileItems = [];
-    private readonly ObservableCollection<ProfileConfigListItem> _commandBridgeConfigItems = [];
+    private readonly ObservableCollection<InstanceProfile> _serverBridgeProfileItems = [];
+    private readonly ObservableCollection<ProfileConfigListItem> _serverBridgeConfigItems = [];
     private readonly List<AuthPlayerListItem> _authPlayerSourceItems = [];
     private readonly ObservableCollection<AuthPlayerListItem> _authPlayerItems = [];
     private readonly ObservableCollection<RobotProfileBindingItem> _robotBindingItems = [];
     private readonly ObservableCollection<RobotCustomCommandItem> _robotCustomCommandItems = [];
     private readonly ObservableCollection<InstanceProfile> _robotProfileItems = [];
-    private readonly ObservableCollection<OpenServerQueryProfileConfigItem> _openInfoConfigItems = [];
     private readonly ObservableCollection<TcpGatewayBackend> _gatewayBackendItems = [];
     private readonly ObservableCollection<GatewayBackendRuntimeItem> _gatewayBackendRuntimeItems = [];
     private readonly HashSet<GatewayBackendStatisticsWindow> _gatewayStatisticsWindows = [];
@@ -395,7 +389,6 @@ public partial class LauncherMainWindow : Window
     private bool _isTogglingEasyTier;
     private bool _isTogglingGateway;
     private bool _isRefreshingGateway;
-    private bool _isTogglingOsq;
     private bool _isTogglingRobot;
     private bool _isExitRequested;
     private bool _isExitConfirmationOpen;
@@ -408,7 +401,7 @@ public partial class LauncherMainWindow : Window
     private bool _isUpdatingModSelectAll;
     private readonly List<string> _modImportPaths = [];
     private bool _isRefreshingAuth;
-    private bool _isRefreshingCommandBridge;
+    private bool _isRefreshingServerBridge;
     private bool _toastPointerOver;
     private string _editingConfigProfileId = string.Empty;
     private string _pendingConfigLoadProfileId = string.Empty;
@@ -416,8 +409,7 @@ public partial class LauncherMainWindow : Window
     private string _selectedConsoleProfileId = string.Empty;
     private string _editingAutomationProfileId = string.Empty;
     private string _editingAuthProfileId = string.Empty;
-    private string _editingCommandBridgeProfileId = string.Empty;
-    private string _editingOpenInfoProfileId = string.Empty;
+    private string _editingServerBridgeProfileId = string.Empty;
     private long _configLoadVersion;
     private long _dashboardSettingsVersion;
     private TimeSpan _robotLastProcessorTime;
@@ -433,7 +425,6 @@ public partial class LauncherMainWindow : Window
             ServiceLocator.GetRequiredService<IInstanceSaveService>(),
             ServiceLocator.GetRequiredService<IInstanceServerConfigService>(),
             ServiceLocator.GetRequiredService<IServerProcessService>(),
-            ServiceLocator.GetRequiredService<IOpenServerQueryService>(),
             ServiceLocator.GetRequiredService<IRobotService>(),
             ServiceLocator.GetRequiredService<ILogTailService>(),
             ServiceLocator.GetRequiredService<IAutomationService>(),
@@ -447,7 +438,7 @@ public partial class LauncherMainWindow : Window
             ServiceLocator.GetRequiredService<IModListExportService>(),
             ServiceLocator.GetRequiredService<IModUpdateService>(),
             ServiceLocator.GetRequiredService<IServerAuthService>(),
-            ServiceLocator.GetRequiredService<ICommandBridgeService>(),
+            ServiceLocator.GetRequiredService<IServerBridgeService>(),
             ServiceLocator.GetRequiredService<ILauncherUpdateService>(),
             ServiceLocator.GetRequiredService<ILogger<LauncherMainWindow>>(),
             ServiceLocator.GetRequiredService<ILocalizationService>())
@@ -461,7 +452,6 @@ public partial class LauncherMainWindow : Window
         IInstanceSaveService saveService,
         IInstanceServerConfigService instanceServerConfigService,
         IServerProcessService serverProcessService,
-        IOpenServerQueryService openServerQueryService,
         IRobotService robotService,
         ILogTailService logTailService,
         IAutomationService automationService,
@@ -475,7 +465,7 @@ public partial class LauncherMainWindow : Window
         IModListExportService modListExportService,
         IModUpdateService modUpdateService,
         IServerAuthService serverAuthService,
-        ICommandBridgeService commandBridgeService,
+        IServerBridgeService serverBridgeService,
         ILauncherUpdateService launcherUpdateService,
         ILogger<LauncherMainWindow>? logger = null,
         ILocalizationService? localizationService = null)
@@ -486,7 +476,6 @@ public partial class LauncherMainWindow : Window
         _saveService = saveService;
         _instanceServerConfigService = instanceServerConfigService;
         _serverProcessService = serverProcessService;
-        _openServerQueryService = openServerQueryService;
         _robotService = robotService;
         _logTailService = logTailService;
         _automationService = automationService;
@@ -500,7 +489,7 @@ public partial class LauncherMainWindow : Window
         _modListExportService = modListExportService;
         _modUpdateService = modUpdateService;
         _serverAuthService = serverAuthService;
-        _commandBridgeService = commandBridgeService;
+        _serverBridgeService = serverBridgeService;
         _launcherUpdateService = launcherUpdateService;
         _localizationService = localizationService ?? new LocalizationService();
         _logger = logger ?? NullLogger<LauncherMainWindow>.Instance;
@@ -534,7 +523,6 @@ public partial class LauncherMainWindow : Window
         _thirdPartyFrpcService.StatusChanged += OnThirdPartyFrpcStatusChanged;
         _easyTierService.StatusChanged += OnEasyTierStatusChanged;
         _tcpGatewayService.StatusChanged += OnTcpGatewayStatusChanged;
-        _openServerQueryService.OutputReceived += OnOpenServerQueryOutputReceived;
 
         InitializeStaticTexts();
         RefreshAppearanceSettingsEditor();
@@ -573,10 +561,8 @@ public partial class LauncherMainWindow : Window
             _thirdPartyFrpcService.StatusChanged -= OnThirdPartyFrpcStatusChanged;
             _easyTierService.StatusChanged -= OnEasyTierStatusChanged;
             _tcpGatewayService.StatusChanged -= OnTcpGatewayStatusChanged;
-            _openServerQueryService.OutputReceived -= OnOpenServerQueryOutputReceived;
             _localizationService.LanguageChanged -= OnLanguageChanged;
             _ = _logTailService.StopAsync();
-            _ = _openServerQueryService.StopAsync(TimeSpan.FromSeconds(2));
             _ = _robotService.StopAsync(TimeSpan.FromSeconds(2));
             _ = _frpService.StopAsync(TimeSpan.FromSeconds(2));
             _ = _thirdPartyFrpcService.StopAsync(TimeSpan.FromSeconds(2));
@@ -716,23 +702,13 @@ public partial class LauncherMainWindow : Window
             await StartConfiguredServerAsync(preferences);
         }
 
-        if (preferences.AutoStartOpenServerQueryOnLaunch && preferences.OpenServerQuery.Enabled)
-        {
-            try
-            {
-                await _openServerQueryService.StartAsync(ToOpenServerQueryRuntimeSettings(preferences.OpenServerQuery));
-            }
-            catch (Exception ex)
-            {
-                SetConnectionStatus(T($"开放信息自启动失败：{ex.Message}", $"Open Info auto-start failed: {ex.Message}"));
-            }
-        }
+        // ServerBridge is hosted by each local server profile; there is no launcher-level HTTP listener.
 
         if (preferences.AutoStartRobotOnLaunch)
         {
             try
             {
-                await _robotService.StartAsync(ToRobotSettings(preferences.Robot, preferences.OpenServerQuery));
+                await _robotService.StartAsync(ToRobotSettings(preferences.Robot));
             }
             catch (Exception ex)
             {
@@ -915,11 +891,7 @@ public partial class LauncherMainWindow : Window
         SettingsServerRefreshButton.Content = T("刷新", "Refresh");
         ConnectionFrpSaveButton.Content = T("保存", "Save");
         ConnectionFrpRefreshButton.Content = T("刷新", "Refresh");
-        OsqSaveButton.Content = T("保存", "Save");
-        OsqRefreshButton.Content = T("刷新", "Refresh");
         RobotSaveButton.Content = T("保存", "Save");
-        OsqEndpointHostLabelTextBlock.Text = T("OSQ网址接收地址", "OSQ Receiver URL");
-        OsqEndpointTokenLabelTextBlock.Text = T("OSQ网址认证密钥", "OSQ Authentication Token");
         ApplyStaticUiTranslations();
     }
 
@@ -1160,7 +1132,6 @@ public partial class LauncherMainWindow : Window
             "Restart server after an unexpected exit");
         SettingsAutoStartServerProfileLabelTextBlock.Text = T("自启动服务器档案", "Auto-start server profile");
         SettingsAutoStartAddProfileComboBox.PlaceholderText = T("添加自启动服务器", "Add auto-start server");
-        SettingsAutoStartOsqLabelTextBlock.Text = T("启动时自动启动开放信息", "Auto-start Open Info on launch");
         SettingsAutoStartRobotLabelTextBlock.Text = T("启动时自动启动QQ机器人", "Auto-start QQ robot on launch");
         SettingsAutoStartFrpLabelTextBlock.Text = T("启动时自动开启内网穿透（常规）", "Auto-start FRP (regular) on launch");
         SettingsAutoStartThirdPartyFrpcLabelTextBlock.Text = T("启动时自动开启第三方内网穿透", "Auto-start third-party FRPC on launch");
@@ -1234,7 +1205,6 @@ public partial class LauncherMainWindow : Window
         ConfigureGatewayRoutingStateDisplay();
         ConnectionFrpTabButton.Content = T("FRP", "FRP");
         ConnectionEasyTierTabButton.Content = T("EasyTier", "EasyTier");
-        ConnectionOpenInfoTabButton.Content = T("开放API", "Open API");
         ConnectionRobotTabButton.Content = "OneBot";
         ConnectionAuthTabButton.Content = T("认证", "Authentication");
         ConnectionGatewayTabButton.Content = T("网关", "Gateway");
@@ -1290,19 +1260,6 @@ public partial class LauncherMainWindow : Window
         EasyTierGameAddressLabelTextBlock.Text = T("ET 游戏地址", "ET Game Address");
         UpdateEasyTierActionButtons();
 
-        UpdateOsqToggleButtonText();
-        OsqTitleTextBlock.Text = T("开放信息（OpenServerQuery）", "Open Info (OpenServerQuery)");
-        OsqAllowInsecureHttpLabelTextBlock.Text = T("允许 HTTP 外发", "Allow HTTP outbound");
-        OsqListenPrefixLabelTextBlock.Text = T("监听地址", "Listen Prefix");
-        OsqRequestTimeoutLabelTextBlock.Text = T("请求超时秒数", "Request Timeout Seconds");
-        OsqIncludeServerInfoLabelTextBlock.Text = T("服务器信息", "Server Info");
-        OsqIncludePlayersLabelTextBlock.Text = T("玩家列表", "Players");
-        OsqIncludeEventsLabelTextBlock.Text = T("玩家事件", "Player Events");
-        OsqIncludeChatsLabelTextBlock.Text = T("聊天", "Chats");
-        OsqIncludeNotificationsLabelTextBlock.Text = T("通知", "Notifications");
-        OsqBackButton.Content = T("返回", "Back");
-        OsqConfigSaveButton.Content = T("保存", "Save");
-        OsqConfigRefreshButton.Content = T("刷新", "Refresh");
 
         UpdateRobotToggleButtonText();
         RobotConfigTitleTextBlock.Text = T("QQ机器人配置", "QQ Robot Configuration");
@@ -1310,12 +1267,9 @@ public partial class LauncherMainWindow : Window
         RobotAccessTokenLabelTextBlock.Text = T("访问令牌", "Access Token");
         RobotBoundGroupsLabelTextBlock.Text = T("绑定群号", "Bound Group IDs");
         RobotReconnectLabelTextBlock.Text = T("重连间隔秒数", "Reconnect Interval Seconds");
-        RobotPollIntervalLabelTextBlock.Text = T("轮询间隔秒数", "Poll Interval Seconds");
         RobotDatabasePathLabelTextBlock.Text = T("数据库路径", "Database Path");
         RobotDefaultEncodingLabelTextBlock.Text = T("默认编码", "Default Encoding");
         RobotFallbackEncodingLabelTextBlock.Text = T("回退编码", "Fallback Encoding");
-        RobotOsqPollLabelTextBlock.Text = T("OSQ轮询秒数", "OSQ Poll Seconds");
-        RobotOsqTimeoutLabelTextBlock.Text = T("OSQ超时秒数", "OSQ Timeout Seconds");
         RobotSuperUsersLabelTextBlock.Text = T("超级管理员 QQ", "Super Admin QQ IDs");
         RobotCustomCommandsTitleTextBlock.Text = T("自定义指令", "Custom Commands");
         RobotCustomCommandNameHeaderTextBlock.Text = T("指令", "Command");
@@ -1330,9 +1284,9 @@ public partial class LauncherMainWindow : Window
         {
             item.SetLanguage(_isChinese);
         }
-        RobotOsqSourceHintTextBlock.Text = T(
-            "OSQ 来源由“开放信息”页面统一接收，机器人不再单独监听端口。",
-            "OSQ source is received by Open Info; the robot does not listen on its own port.");
+        RobotBridgeSourceHintTextBlock.Text = T(
+            "服务器桥接来源由“服务器桥接”页面统一接收，机器人不再单独监听端口。",
+            "Server Bridge source is received by Server Bridge; the robot does not listen on its own port.");
         RobotClearButton.Content = T("清空", "Clear");
         RobotRefreshButton.Content = T("刷新", "Refresh");
         RobotBindingAddButton.Content = T("添加", "Add");
@@ -1367,20 +1321,20 @@ public partial class LauncherMainWindow : Window
         AuthExternalAccountHeaderTextBlock.Text = T("外部账号", "External Account");
         AuthRefreshPlayersButton.Content = T("刷新玩家", "Refresh Players");
         AuthPlayerSearchTextBox.PlaceholderText = T("搜索玩家名、UID 或外部账号", "Search player name, UID, or external account");
-        CommandBridgeTabButton.Content = T("命令桥接", "Cmd Bridge");
-        CommandBridgeSaveButton.Content = T("保存", "Save");
-        CommandBridgeRefreshButton.Content = T("刷新", "Refresh");
-        CommandBridgeClearButton.Content = T("清空", "Clear");
-        CommandBridgeBackButton.Content = T("返回", "Back");
-        CommandBridgeDeployButton.Content = T("部署命令桥接模组", "Deploy Command Bridge");
-        CommandBridgeTestButton.Content = T("测试连接", "Test Connection");
-        CommandBridgeRegenerateTokenButton.Content = T("轮换令牌", "Rotate Token");
-        CommandBridgeEnabledLabelTextBlock.Text = T("启用命令桥接", "Enable Command Bridge");
-        CommandBridgePortLabelTextBlock.Text = T("本机端口", "Local Port");
-        CommandBridgeTimeoutLabelTextBlock.Text = T("命令超时毫秒", "Command Timeout ms");
-        CommandBridgeMaxLengthLabelTextBlock.Text = T("最大命令长度", "Max Command Length");
-        CommandBridgeFallbackLabelTextBlock.Text = T("桥接不可用时回退 Relay", "Fallback to Relay when bridge is unavailable");
-        CommandBridgeTokenLabelTextBlock.Text = T("访问令牌", "Access Token");
+        ServerBridgeTabButton.Content = T("服务器桥接", "Server Bridge");
+        ServerBridgeSaveButton.Content = T("保存", "Save");
+        ServerBridgeRefreshButton.Content = T("刷新", "Refresh");
+        ServerBridgeClearButton.Content = T("清空", "Clear");
+        ServerBridgeBackButton.Content = T("返回", "Back");
+        ServerBridgeDeployButton.Content = T("部署服务器桥接模组", "Deploy Server Bridge");
+        ServerBridgeTestButton.Content = T("测试连接", "Test Connection");
+        ServerBridgeRegenerateTokenButton.Content = T("轮换令牌", "Rotate Token");
+        ServerBridgeEnabledLabelTextBlock.Text = T("启用服务器桥接", "Enable Server Bridge");
+        ServerBridgePortLabelTextBlock.Text = T("本机端口", "Local Port");
+        ServerBridgeTimeoutLabelTextBlock.Text = T("查询超时毫秒", "Query Timeout ms");
+        ServerBridgeMaxLengthLabelTextBlock.Text = T("最大命令长度", "Max Command Length");
+        ServerBridgeFallbackLabelTextBlock.Text = T("桥接不可用时回退 Relay", "Fallback to Relay when bridge is unavailable");
+        ServerBridgeTokenLabelTextBlock.Text = T("访问令牌", "Access Token");
         RebuildThirdPartyFrpcModeOptions();
     }
 
@@ -1430,14 +1384,13 @@ public partial class LauncherMainWindow : Window
         ModsListBox.ItemsSource = _modItems;
         RobotBindingsItemsControl.ItemsSource = _robotBindingItems;
         RobotCustomCommandsItemsControl.ItemsSource = _robotCustomCommandItems;
-        OpenInfoConfigItemsControl.ItemsSource = _openInfoConfigItems;
         GatewayBackendsItemsControl.ItemsSource = _gatewayBackendItems;
         GatewayBackendRuntimeItemsControl.ItemsSource = _gatewayBackendRuntimeItems;
         AuthConfigItemsControl.ItemsSource = _authConfigItems;
         AuthProfileComboBox.ItemsSource = _authProfileItems;
         AuthPlayersListBox.ItemsSource = _authPlayerItems;
-        CommandBridgeConfigItemsControl.ItemsSource = _commandBridgeConfigItems;
-        CommandBridgeProfileComboBox.ItemsSource = _commandBridgeProfileItems;
+        ServerBridgeConfigItemsControl.ItemsSource = _serverBridgeConfigItems;
+        ServerBridgeProfileComboBox.ItemsSource = _serverBridgeProfileItems;
         DashboardServersItemsControl.ItemsSource = _dashboardServerItems;
         DashboardOnlinePlayersItemsControl.ItemsSource = _dashboardOnlinePlayerItems;
         DashboardUptimeItemsControl.ItemsSource = _dashboardUptimeItems;
@@ -1472,10 +1425,9 @@ public partial class LauncherMainWindow : Window
             _modItems,
             _authConfigItems,
             _authPlayerItems,
-            _commandBridgeConfigItems,
+            _serverBridgeConfigItems,
             _robotBindingItems,
             _robotCustomCommandItems,
-            _openInfoConfigItems,
             _gatewayBackendItems,
             _gatewayBackendRuntimeItems,
             _dashboardServerItems,
@@ -1523,8 +1475,7 @@ public partial class LauncherMainWindow : Window
         PushNextSample(_robotMemoryMbSamples, robotStatus.IsRunning ? BytesToMb(robotResources.MemoryBytes) : 0);
         if (DateTime.UtcNow.Second % 5 == 0)
         {
-            var networkActive = _openServerQueryService.GetRuntimeStatus().IsListening ||
-                                _frpService.GetCurrentStatus().IsRunning ||
+            var networkActive = _frpService.GetCurrentStatus().IsRunning ||
                                 _thirdPartyFrpcService.GetCurrentStatus().IsRunning ||
                                 _easyTierService.GetCurrentStatus().IsRunning ||
                                 _tcpGatewayService.GetCurrentStatus().IsRunning;
@@ -1951,13 +1902,6 @@ public partial class LauncherMainWindow : Window
         {
             Name = T("QQ机器人", "QQ Robot"),
             UptimeText = robotStatus.IsRunning ? FormatConnectionUptime(robotStatus.StartedAtUtc) : "--"
-        });
-
-        var openInfoStatus = _openServerQueryService.GetRuntimeStatus();
-        _dashboardUptimeItems.Add(new DashboardUptimeItem
-        {
-            Name = T("开放API", "Open API"),
-            UptimeText = openInfoStatus.IsListening ? FormatConnectionUptime(ParseRuntimeStartedAtUtc(openInfoStatus.StartedAtUtc)) : "--"
         });
 
         var frpStatus = _frpService.GetCurrentStatus();
@@ -2394,7 +2338,7 @@ public partial class LauncherMainWindow : Window
         _ = RefreshAutomationAsync();
         _ = RefreshModsAsync();
         _ = RefreshAuthProfilesAsync();
-        _ = RefreshCommandBridgeProfilesAsync();
+        _ = RefreshServerBridgeProfilesAsync();
     }
 
     private void RefreshLogItems(IReadOnlyList<InstanceProfile>? profiles = null)
@@ -2732,9 +2676,9 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private void SetCommandBridgeStatus(string message, bool notify = true)
+    private void SetServerBridgeStatus(string message, bool notify = true)
     {
-        CommandBridgeStatusTextBlock.Text = message;
+        ServerBridgeStatusTextBlock.Text = message;
         if (notify)
         {
             ShowToast(message);
@@ -2759,36 +2703,6 @@ public partial class LauncherMainWindow : Window
         var settings = await _automationSettingsService.LoadAsync(profile);
         ApplyAutomationSettings(settings);
         SetAutomationStatus(T($"正在编辑自动化配置：{profile.Name}", $"Editing automation: {profile.Name}"), notify: false);
-    }
-
-    private void ShowOpenInfoList()
-    {
-        _editingOpenInfoProfileId = string.Empty;
-        OpenInfoListPanel.IsVisible = true;
-        OpenInfoEditorPanel.IsVisible = false;
-        OpenInfoGlobalSettingsPanel.IsVisible = true;
-        OsqToggleButton.IsVisible = true;
-        OsqBackButton.IsVisible = false;
-        OsqConfigSaveButton.IsVisible = false;
-        OsqConfigRefreshButton.IsVisible = false;
-        UpdateOsqToggleButtonText();
-        RefreshOpenInfoConfigItems();
-    }
-
-    private void ShowOpenInfoEditor(InstanceProfile profile)
-    {
-        _editingOpenInfoProfileId = profile.Id;
-        var settings = _preferencesService.Load().OpenServerQuery;
-        var endpoint = FindOpenInfoEndpoint(settings, profile.Id) ?? BuildDefaultOpenInfoEndpoint(profile, settings);
-        OpenInfoListPanel.IsVisible = false;
-        OpenInfoEditorPanel.IsVisible = true;
-        OpenInfoGlobalSettingsPanel.IsVisible = false;
-        OsqToggleButton.IsVisible = false;
-        OsqBackButton.IsVisible = true;
-        OsqConfigSaveButton.IsVisible = true;
-        OsqConfigRefreshButton.IsVisible = true;
-        ApplyOpenInfoEndpointConfig(endpoint);
-        SetConnectionStatus(T($"正在编辑开放API配置：{profile.Name}", $"Editing Open API config: {profile.Name}"), notify: false);
     }
 
     private void ShowAuthList()
@@ -2817,119 +2731,129 @@ public partial class LauncherMainWindow : Window
         await LoadAuthForProfileAsync(profile);
     }
 
-    private void ShowCommandBridgeList()
+    private void ShowServerBridgeList()
     {
-        _editingCommandBridgeProfileId = string.Empty;
-        CommandBridgeListPanel.IsVisible = true;
-        CommandBridgeEditorPanel.IsVisible = false;
-        CommandBridgeClearButton.IsVisible = true;
-        CommandBridgeBackButton.IsVisible = false;
-        CommandBridgeSaveButton.IsVisible = false;
-        CommandBridgeDeployButton.IsVisible = false;
-        CommandBridgeTestButton.IsVisible = false;
-        CommandBridgeRegenerateTokenButton.IsVisible = false;
-        RefreshCommandBridgeConfigItems();
+        _editingServerBridgeProfileId = string.Empty;
+        ServerBridgeListPanel.IsVisible = true;
+        ServerBridgeEditorPanel.IsVisible = false;
+        ServerBridgeClearButton.IsVisible = true;
+        ServerBridgeBackButton.IsVisible = false;
+        ServerBridgeSaveButton.IsVisible = false;
+        ServerBridgeDeployButton.IsVisible = false;
+        ServerBridgeTestButton.IsVisible = false;
+        ServerBridgeRegenerateTokenButton.IsVisible = false;
+        RefreshServerBridgeConfigItems();
     }
 
-    private async Task ShowCommandBridgeEditorAsync(InstanceProfile profile)
+    private async Task ShowServerBridgeEditorAsync(InstanceProfile profile)
     {
-        _editingCommandBridgeProfileId = profile.Id;
-        CommandBridgeListPanel.IsVisible = false;
-        CommandBridgeEditorPanel.IsVisible = true;
-        CommandBridgeClearButton.IsVisible = false;
-        CommandBridgeBackButton.IsVisible = true;
-        CommandBridgeSaveButton.IsVisible = true;
-        CommandBridgeDeployButton.IsVisible = true;
-        CommandBridgeTestButton.IsVisible = true;
-        CommandBridgeRegenerateTokenButton.IsVisible = true;
-        CommandBridgeProfileComboBox.SelectedItem = _commandBridgeProfileItems.FirstOrDefault(item =>
+        _editingServerBridgeProfileId = profile.Id;
+        ServerBridgeListPanel.IsVisible = false;
+        ServerBridgeEditorPanel.IsVisible = true;
+        ServerBridgeClearButton.IsVisible = false;
+        ServerBridgeBackButton.IsVisible = true;
+        ServerBridgeSaveButton.IsVisible = true;
+        ServerBridgeDeployButton.IsVisible = true;
+        ServerBridgeTestButton.IsVisible = true;
+        ServerBridgeRegenerateTokenButton.IsVisible = true;
+        ServerBridgeProfileComboBox.SelectedItem = _serverBridgeProfileItems.FirstOrDefault(item =>
             item.Id.Equals(profile.Id, StringComparison.OrdinalIgnoreCase)) ?? profile;
-        await LoadCommandBridgeForProfileAsync(profile);
+        await LoadServerBridgeForProfileAsync(profile);
     }
 
-    private async Task RefreshCommandBridgeProfilesAsync()
+    private async Task RefreshServerBridgeProfilesAsync()
     {
-        if (_isRefreshingCommandBridge)
+        if (_isRefreshingServerBridge)
             return;
 
-        _isRefreshingCommandBridge = true;
+        _isRefreshingServerBridge = true;
         try
         {
             var profiles = _profileService.GetProfiles();
-            var selectedProfileId = !string.IsNullOrWhiteSpace(_editingCommandBridgeProfileId)
-                ? _editingCommandBridgeProfileId
-                : CommandBridgeProfileComboBox.SelectedItem is InstanceProfile selectedProfile
+            var selectedProfileId = !string.IsNullOrWhiteSpace(_editingServerBridgeProfileId)
+                ? _editingServerBridgeProfileId
+                : ServerBridgeProfileComboBox.SelectedItem is InstanceProfile selectedProfile
                     ? selectedProfile.Id
                     : string.Empty;
-            _commandBridgeProfileItems.Clear();
+            _serverBridgeProfileItems.Clear();
             foreach (var profile in profiles)
             {
-                _commandBridgeProfileItems.Add(profile);
+                _serverBridgeProfileItems.Add(profile);
             }
 
-            RefreshCommandBridgeConfigItems(profiles);
-            if (_commandBridgeProfileItems.Count == 0)
+            RefreshServerBridgeConfigItems(profiles);
+            if (_serverBridgeProfileItems.Count == 0)
             {
-                SetCommandBridgeStatus(T("暂无档案，请先创建档案。", "No profile found. Create a profile first."), notify: false);
+                SetServerBridgeStatus(T("暂无档案，请先创建档案。", "No profile found. Create a profile first."), notify: false);
                 return;
             }
 
-            var target = _commandBridgeProfileItems.FirstOrDefault(profile =>
+            var target = _serverBridgeProfileItems.FirstOrDefault(profile =>
                 !string.IsNullOrWhiteSpace(selectedProfileId) &&
                 profile.Id.Equals(selectedProfileId, StringComparison.OrdinalIgnoreCase))
-                ?? _commandBridgeProfileItems.FirstOrDefault();
-            CommandBridgeProfileComboBox.SelectedItem = target;
-            if (target is not null && CommandBridgeEditorPanel.IsVisible)
+                ?? _serverBridgeProfileItems.FirstOrDefault();
+            ServerBridgeProfileComboBox.SelectedItem = target;
+            if (target is not null && ServerBridgeEditorPanel.IsVisible)
             {
-                await LoadCommandBridgeForProfileAsync(target);
+                await LoadServerBridgeForProfileAsync(target);
             }
         }
         catch (Exception ex)
         {
-            SetCommandBridgeStatus(T($"命令桥接加载失败：{ex.Message}", $"Command bridge load failed: {ex.Message}"));
+            SetServerBridgeStatus(T($"服务器桥接加载失败：{ex.Message}", $"Server Bridge load failed: {ex.Message}"));
         }
         finally
         {
-            _isRefreshingCommandBridge = false;
+            _isRefreshingServerBridge = false;
         }
     }
 
-    private async Task LoadCommandBridgeForProfileAsync(InstanceProfile profile)
+    private async Task LoadServerBridgeForProfileAsync(InstanceProfile profile)
     {
-        var settings = await _commandBridgeService.LoadSettingsAsync(profile);
-        ApplyCommandBridgeSettings(settings);
-        var modEnabled = await _commandBridgeService.GetCommandBridgeModEnabledAsync(profile);
-        var runtime = await _commandBridgeService.GetRuntimeStatusAsync(profile);
-        SetCommandBridgeStatus(T(
-            $"已加载命令桥接配置，模组{(modEnabled ? "已启用" : "未启用或未部署")}；{runtime.Message}",
-            $"Command bridge settings loaded, mod {(modEnabled ? "enabled" : "disabled or not deployed")}; {runtime.Message}"), notify: false);
+        var settings = await _serverBridgeService.LoadSettingsAsync(profile);
+        ApplyServerBridgeSettings(settings);
+        var modEnabled = await _serverBridgeService.GetServerBridgeModEnabledAsync(profile);
+        var runtime = await _serverBridgeService.GetRuntimeStatusAsync(profile);
+        SetServerBridgeStatus(T(
+            $"已加载服务器桥接配置，模组{(modEnabled ? "已启用" : "未启用或未部署")}；{runtime.Message}",
+            $"Server Bridge settings loaded, mod {(modEnabled ? "enabled" : "disabled or not deployed")}; {runtime.Message}"), notify: false);
     }
 
-    private void ApplyCommandBridgeSettings(CommandBridgeSettings settings)
+    private void ApplyServerBridgeSettings(ServerBridgeSettings settings)
     {
-        CommandBridgeEnabledCheckBox.IsChecked = settings.Enabled;
-        CommandBridgePortNumericUpDown.Value = settings.Port;
-        CommandBridgeTimeoutNumericUpDown.Value = settings.CommandTimeoutMilliseconds;
-        CommandBridgeMaxLengthNumericUpDown.Value = settings.MaxCommandLength;
-        CommandBridgeFallbackCheckBox.IsChecked = settings.AllowRelayFallback;
-        CommandBridgeTokenTextBox.Text = settings.AccessToken;
+        ServerBridgeEnabledCheckBox.IsChecked = settings.Enabled;
+        ServerBridgePortNumericUpDown.Value = settings.Port;
+        ServerBridgeTimeoutNumericUpDown.Value = settings.QueryTimeoutMilliseconds;
+        ServerBridgeMaxLengthNumericUpDown.Value = settings.MaxCommandLength;
+        ServerBridgeFallbackCheckBox.IsChecked = settings.AllowRelayFallback;
+        ServerBridgeExtendedPlayersCheckBox.IsChecked = settings.IncludeExtendedPlayerInfo;
+        ServerBridgeWorldDetailsCheckBox.IsChecked = settings.IncludeWorldDetails;
+        ServerBridgePerformanceCheckBox.IsChecked = settings.IncludePerformanceInfo;
+        ServerBridgeSensitiveFieldsCheckBox.IsChecked = settings.IncludeSensitiveFields;
+        ServerBridgeEventTypesTextBox.Text = string.Join(", ", settings.EventTypes);
+        ServerBridgeTokenTextBox.Text = settings.AccessToken;
     }
 
-    private CommandBridgeSettings CollectCommandBridgeSettings() => new()
+    private ServerBridgeSettings CollectServerBridgeSettings() => new()
     {
-        Enabled = CommandBridgeEnabledCheckBox.IsChecked == true,
-        Port = GetNumericValue(CommandBridgePortNumericUpDown, 19090),
-        CommandTimeoutMilliseconds = GetNumericValue(CommandBridgeTimeoutNumericUpDown, 5000),
-        MaxCommandLength = GetNumericValue(CommandBridgeMaxLengthNumericUpDown, 4096),
-        AllowRelayFallback = CommandBridgeFallbackCheckBox.IsChecked != false,
-        AccessToken = CommandBridgeTokenTextBox.Text?.Trim() ?? string.Empty
+        Enabled = ServerBridgeEnabledCheckBox.IsChecked == true,
+        Port = GetNumericValue(ServerBridgePortNumericUpDown, 19090),
+        QueryTimeoutMilliseconds = GetNumericValue(ServerBridgeTimeoutNumericUpDown, 5000),
+        MaxCommandLength = GetNumericValue(ServerBridgeMaxLengthNumericUpDown, 4096),
+        AllowRelayFallback = ServerBridgeFallbackCheckBox.IsChecked != false,
+        IncludeExtendedPlayerInfo = ServerBridgeExtendedPlayersCheckBox.IsChecked == true,
+        IncludeWorldDetails = ServerBridgeWorldDetailsCheckBox.IsChecked == true,
+        IncludePerformanceInfo = ServerBridgePerformanceCheckBox.IsChecked == true,
+        IncludeSensitiveFields = ServerBridgeSensitiveFieldsCheckBox.IsChecked == true,
+        EventTypes = (ServerBridgeEventTypesTextBox.Text ?? string.Empty).Split([',', ';', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+        AccessToken = ServerBridgeTokenTextBox.Text?.Trim() ?? string.Empty
     };
 
-    private static CommandBridgeSettings BuildClearedCommandBridgeSettings() => new()
+    private static ServerBridgeSettings BuildClearedServerBridgeSettings() => new()
     {
         Enabled = false,
         Port = 0,
-        CommandTimeoutMilliseconds = 5000,
+        QueryTimeoutMilliseconds = 5000,
         MaxCommandLength = 4096,
         AllowRelayFallback = true,
         AccessToken = string.Empty
@@ -2971,13 +2895,10 @@ public partial class LauncherMainWindow : Window
             BoundGroupIdsText = string.Empty,
             ReconnectIntervalSec = 5,
             DatabasePath = string.Empty,
-            PollIntervalSec = 1.0,
             DefaultEncoding = "utf-8",
             FallbackEncoding = "gbk",
             SuperUsersText = string.Empty,
-            CustomCommands = [],
-            OsqPollIntervalSec = 20,
-            OsqRequestTimeoutSec = 8
+            CustomCommands = []
         };
     }
 
@@ -3610,7 +3531,7 @@ public partial class LauncherMainWindow : Window
         ModsPanel.IsVisible = tab == InstanceManageTab.Mods;
         DownloadVersionsPanel.IsVisible = tab == InstanceManageTab.DownloadVersions;
         LogsPanel.IsVisible = tab == InstanceManageTab.Logs;
-        CommandBridgePanel.IsVisible = tab == InstanceManageTab.CommandBridge;
+        ServerBridgePanel.IsVisible = tab == InstanceManageTab.ServerBridge;
         RefreshSidebarSelection();
 
         if (tab == InstanceManageTab.Config)
@@ -3637,10 +3558,10 @@ public partial class LauncherMainWindow : Window
         {
             RefreshLogItems();
         }
-        else if (tab == InstanceManageTab.CommandBridge)
+        else if (tab == InstanceManageTab.ServerBridge)
         {
-            ShowCommandBridgeList();
-            _ = RefreshCommandBridgeProfilesAsync();
+            ShowServerBridgeList();
+            _ = RefreshServerBridgeProfilesAsync();
         }
 
         RequestStaticUiTranslations();
@@ -3708,18 +3629,12 @@ public partial class LauncherMainWindow : Window
         _selectedConnectionTab = tab;
         ConnectionFrpPanel.IsVisible = tab == ConnectionTab.Frp;
         ConnectionEasyTierPanel.IsVisible = tab == ConnectionTab.EasyTier;
-        ConnectionOpenInfoPanel.IsVisible = tab == ConnectionTab.OpenInfo;
         ConnectionRobotPanel.IsVisible = tab == ConnectionTab.Robot;
         ConnectionGatewayPanel.IsVisible = tab == ConnectionTab.Gateway;
         ConnectionAuthPanel.IsVisible = tab == ConnectionTab.Auth;
         RefreshSidebarSelection();
         RefreshConnectionSettingsEditor();
         RefreshConnectionRuntimeStatus();
-        if (tab == ConnectionTab.OpenInfo)
-        {
-            ShowOpenInfoList();
-        }
-
         if (tab == ConnectionTab.Robot)
         {
             RefreshRobotProfileItems();
@@ -3751,12 +3666,11 @@ public partial class LauncherMainWindow : Window
         SetSelectedClass(DownloadVersionsTabButton, false);
         SetSelectedClass(DownloadVersionsNavButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.DownloadVersions);
         SetSelectedClass(ConnectionAuthTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Auth);
-        SetSelectedClass(CommandBridgeTabButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.CommandBridge);
+        SetSelectedClass(ServerBridgeTabButton, !_logsNavSelected && _selectedTab == MainTab.InstanceManage && _selectedInstanceManageTab == InstanceManageTab.ServerBridge);
         SetSelectedClass(LogsNavButton, _logsNavSelected);
         SetSelectedClass(ConnectionFrpTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Frp);
         SetSelectedClass(ConnectionEasyTierTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.EasyTier);
         SetSelectedClass(ConnectionGatewayTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Gateway);
-        SetSelectedClass(ConnectionOpenInfoTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.OpenInfo);
         SetSelectedClass(ConnectionRobotTabButton, !_logsNavSelected && _selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.Robot);
         SetSelectedClass(ServerSettingsTabButton, !_logsNavSelected && _selectedTab == MainTab.Settings && _selectedSettingsTab == SettingsTab.Server);
         SetSelectedClass(AppearanceSettingsTabButton, !_logsNavSelected && _selectedTab == MainTab.Settings && _selectedSettingsTab == SettingsTab.Appearance);
@@ -3781,7 +3695,6 @@ public partial class LauncherMainWindow : Window
                      SettingsStartHiddenCheckBox,
                      SettingsAutoStartServerCheckBox,
                      SettingsAutoRestartServerAfterCrashCheckBox,
-                     SettingsAutoStartOsqCheckBox,
                      SettingsAutoStartRobotCheckBox,
                      SettingsAutoStartFrpCheckBox,
                      SettingsAutoStartThirdPartyFrpcCheckBox,
@@ -3821,16 +3734,6 @@ public partial class LauncherMainWindow : Window
             check.IsCheckedChanged += OnEasyTierAutoSaveChanged;
         }
 
-        OsqListenPrefixTextBox.LostFocus += OnOpenInfoAutoSaveChanged;
-        OsqRequestTimeoutNumericUpDown.LostFocus += OnOpenInfoAutoSaveChanged;
-        foreach (var check in new[]
-                 {
-                     OsqEnabledCheckBox
-                 })
-        {
-            check.IsCheckedChanged += OnOpenInfoAutoSaveChanged;
-        }
-
         RobotOneBotTextBox.LostFocus += OnRobotAutoSaveChanged;
         RobotAccessTokenTextBox.LostFocus += OnRobotAutoSaveChanged;
         RobotBoundGroupsTextBox.LostFocus += OnRobotAutoSaveChanged;
@@ -3839,9 +3742,6 @@ public partial class LauncherMainWindow : Window
         RobotFallbackEncodingTextBox.LostFocus += OnRobotAutoSaveChanged;
         RobotSuperUsersTextBox.LostFocus += OnRobotAutoSaveChanged;
         RobotReconnectNumericUpDown.LostFocus += OnRobotAutoSaveChanged;
-        RobotPollIntervalNumericUpDown.LostFocus += OnRobotAutoSaveChanged;
-        RobotOsqPollNumericUpDown.LostFocus += OnRobotAutoSaveChanged;
-        RobotOsqTimeoutNumericUpDown.LostFocus += OnRobotAutoSaveChanged;
     }
 
     private void OnServerSettingsAutoSaveChanged(object? sender, RoutedEventArgs e)
@@ -3960,16 +3860,6 @@ public partial class LauncherMainWindow : Window
         SaveEasyTierSettings(updateStatus: false, refreshEditor: false);
     }
 
-    private void OnOpenInfoAutoSaveChanged(object? sender, RoutedEventArgs e)
-    {
-        if (_isApplyingConnectionSettings)
-        {
-            return;
-        }
-
-        SaveOpenServerQuerySettings(updateStatus: false, refreshEditor: false);
-    }
-
     private void OnRobotAutoSaveChanged(object? sender, RoutedEventArgs e)
     {
         if (_isApplyingConnectionSettings)
@@ -4056,7 +3946,6 @@ public partial class LauncherMainWindow : Window
             SettingsStartHiddenCheckBox.IsChecked = preferences.StartHiddenOnLaunch;
             SettingsAutoStartServerCheckBox.IsChecked = preferences.AutoStartServerOnLaunch;
             SettingsAutoRestartServerAfterCrashCheckBox.IsChecked = preferences.AutoRestartServerAfterCrash;
-            SettingsAutoStartOsqCheckBox.IsChecked = preferences.AutoStartOpenServerQueryOnLaunch;
             SettingsAutoStartRobotCheckBox.IsChecked = preferences.AutoStartRobotOnLaunch;
             SettingsAutoStartFrpCheckBox.IsChecked = preferences.AutoStartFrpOnLaunch;
             SettingsAutoStartThirdPartyFrpcCheckBox.IsChecked = preferences.AutoStartThirdPartyFrpcOnLaunch;
@@ -4101,7 +3990,6 @@ public partial class LauncherMainWindow : Window
         preferences.AutoRestartServerAfterCrash = SettingsAutoRestartServerAfterCrashCheckBox.IsChecked == true;
         preferences.AutoStartServerProfileIds = autoStartIds;
         preferences.AutoStartServerProfileId = string.Join(';', autoStartIds);
-        preferences.AutoStartOpenServerQueryOnLaunch = SettingsAutoStartOsqCheckBox.IsChecked == true;
         preferences.AutoStartRobotOnLaunch = SettingsAutoStartRobotCheckBox.IsChecked == true;
         preferences.AutoStartFrpOnLaunch = SettingsAutoStartFrpCheckBox.IsChecked == true;
         preferences.AutoStartThirdPartyFrpcOnLaunch = SettingsAutoStartThirdPartyFrpcCheckBox.IsChecked == true;
@@ -4688,13 +4576,11 @@ public partial class LauncherMainWindow : Window
             var preferences = _preferencesService.Load();
             ApplyFrpSettings(preferences.Frp);
             ApplyEasyTierSettings(preferences.EasyTier);
-            ApplyOpenServerQuerySettings(preferences.OpenServerQuery);
             ApplyRobotSettings(preferences.Robot);
             ApplyGatewaySettings(preferences.TcpGateway);
             RefreshRobotProfileItems();
-            RefreshOpenInfoConfigItems();
             RefreshAuthConfigItems();
-            RefreshCommandBridgeConfigItems();
+            RefreshServerBridgeConfigItems();
         }
         finally
         {
@@ -4721,19 +4607,6 @@ public partial class LauncherMainWindow : Window
             item.ProfileOptions = _robotProfileItems;
             item.SelectedProfile = _robotProfileItems.FirstOrDefault(profile =>
                 profile.Id.Equals(selectedId, StringComparison.OrdinalIgnoreCase));
-        }
-    }
-
-    private void RefreshOpenInfoConfigItems(IReadOnlyList<InstanceProfile>? profiles = null)
-    {
-        var profileList = profiles ?? _profileService.GetProfiles();
-        var settings = _preferencesService.Load().OpenServerQuery;
-        _openInfoConfigItems.Clear();
-        foreach (var profile in profileList.OrderBy(static profile => profile.Name, StringComparer.OrdinalIgnoreCase))
-        {
-            var endpoint = FindOpenInfoEndpoint(settings, profile.Id) ?? BuildDefaultOpenInfoEndpoint(profile, settings);
-            EnsureOpenInfoProfileConfigFile(profile, endpoint);
-            _openInfoConfigItems.Add(OpenServerQueryProfileConfigItem.FromProfile(profile, endpoint, GetOpenInfoSettingsPath(profile)));
         }
     }
 
@@ -4795,31 +4668,15 @@ public partial class LauncherMainWindow : Window
         ApplyGatewayRuntimeStatus(_tcpGatewayService.GetCurrentStatus());
     }
 
-    private void ApplyOpenServerQuerySettings(OpenServerQuerySettings settings)
-    {
-        OsqEnabledCheckBox.IsChecked = settings.Enabled;
-        OsqAllowInsecureHttpCheckBox.IsChecked = settings.AllowInsecureHttp;
-        OsqListenPrefixTextBox.Text = settings.ListenPrefix;
-        SetNumericValue(OsqRequestTimeoutNumericUpDown, settings.RequestTimeoutSec);
-        OsqIncludeServerInfoCheckBox.IsChecked = settings.IncludeServerInfo;
-        OsqIncludePlayersCheckBox.IsChecked = settings.IncludePlayers;
-        OsqIncludeEventsCheckBox.IsChecked = settings.IncludePlayerEvents;
-        OsqIncludeChatsCheckBox.IsChecked = settings.IncludeChats;
-        OsqIncludeNotificationsCheckBox.IsChecked = settings.IncludeNotifications;
-    }
-
     private void ApplyRobotSettings(RobotIntegrationSettings settings)
     {
         RobotOneBotTextBox.Text = settings.OneBotWsUrl;
         RobotAccessTokenTextBox.Text = settings.AccessToken;
         RobotBoundGroupsTextBox.Text = settings.BoundGroupIdsText;
         SetNumericValue(RobotReconnectNumericUpDown, settings.ReconnectIntervalSec);
-        SetNumericValue(RobotPollIntervalNumericUpDown, settings.PollIntervalSec);
         RobotDatabasePathTextBox.Text = settings.DatabasePath;
         RobotDefaultEncodingTextBox.Text = settings.DefaultEncoding;
         RobotFallbackEncodingTextBox.Text = settings.FallbackEncoding;
-        SetNumericValue(RobotOsqPollNumericUpDown, settings.OsqPollIntervalSec);
-        SetNumericValue(RobotOsqTimeoutNumericUpDown, settings.OsqRequestTimeoutSec);
         RobotSuperUsersTextBox.Text = settings.SuperUsersText;
         RebuildRobotBindingItems(settings);
         RebuildRobotCustomCommandItems(settings);
@@ -4918,15 +4775,15 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private void RefreshCommandBridgeConfigItems(IReadOnlyList<InstanceProfile>? profiles = null)
+    private void RefreshServerBridgeConfigItems(IReadOnlyList<InstanceProfile>? profiles = null)
     {
         var profileList = profiles ?? _profileService.GetProfiles();
-        _commandBridgeConfigItems.Clear();
+        _serverBridgeConfigItems.Clear();
         foreach (var profile in profileList)
         {
-            _commandBridgeConfigItems.Add(ProfileConfigListItem.FromPath(
+            _serverBridgeConfigItems.Add(ProfileConfigListItem.FromPath(
                 profile,
-                GetCommandBridgeSettingsPath(profile)));
+                GetServerBridgeSettingsPath(profile)));
         }
     }
 
@@ -4946,23 +4803,6 @@ public partial class LauncherMainWindow : Window
                 _tcpGatewayService.GetCurrentStatus().IsRunning
                     ? T("TCP 网关配置已保存，重启网关后生效。", "TCP gateway configuration saved. Restart the gateway to apply it.")
                     : T("TCP 网关配置已保存。", "TCP gateway configuration saved."));
-        }
-    }
-
-    private void SaveOpenServerQuerySettings(bool updateStatus = true, bool refreshEditor = true)
-    {
-        var preferences = _preferencesService.Load();
-        preferences.OpenServerQuery = CollectOpenServerQuerySettings();
-        _preferencesService.Save(preferences);
-        SaveOpenInfoProfileConfigFiles(preferences.OpenServerQuery);
-        if (refreshEditor)
-        {
-            RefreshConnectionSettingsEditor();
-        }
-
-        if (updateStatus)
-        {
-            SetConnectionStatus(T("开放信息配置已保存。", "Open Info configuration saved."));
         }
     }
 
@@ -4997,7 +4837,7 @@ public partial class LauncherMainWindow : Window
             return;
         }
         var preferences = _preferencesService.Load();
-        await _robotService.SaveSettingsAsync(ToRobotSettings(preferences.Robot, preferences.OpenServerQuery));
+        await _robotService.SaveSettingsAsync(ToRobotSettings(preferences.Robot));
 
         if (!_robotService.GetCurrentStatus().IsRunning)
         {
@@ -5007,7 +4847,7 @@ public partial class LauncherMainWindow : Window
         try
         {
             await _robotService.StopAsync(TimeSpan.FromSeconds(5));
-            await _robotService.StartAsync(ToRobotSettings(preferences.Robot, preferences.OpenServerQuery));
+            await _robotService.StartAsync(ToRobotSettings(preferences.Robot));
             SetConnectionStatus(T("QQ机器人配置已保存，并已重新加载。", "QQ robot configuration saved and reloaded."));
         }
         catch (Exception ex)
@@ -5094,77 +4934,6 @@ public partial class LauncherMainWindow : Window
         };
     }
 
-    private OpenServerQuerySettings CollectOpenServerQuerySettings()
-    {
-        var current = _preferencesService.Load().OpenServerQuery;
-        var endpoints = CollectOpenServerQueryEndpoints(current);
-        var firstEndpoint = endpoints.FirstOrDefault();
-        return new OpenServerQuerySettings
-        {
-            Enabled = OsqEnabledCheckBox.IsChecked == true,
-            ListenPrefix = string.IsNullOrWhiteSpace(OsqListenPrefixTextBox.Text)
-                ? "http://127.0.0.1:18089/"
-                : OsqListenPrefixTextBox.Text.Trim(),
-            AllowInsecureHttp = current.AllowInsecureHttp,
-            RequestTimeoutSec = GetNumericValue(OsqRequestTimeoutNumericUpDown, 8),
-            IncludeServerInfo = current.IncludeServerInfo,
-            IncludePlayers = current.IncludePlayers,
-            IncludePlayerEvents = current.IncludePlayerEvents,
-            IncludeChats = current.IncludeChats,
-            IncludeNotifications = current.IncludeNotifications,
-            Endpoints = endpoints,
-            EndpointHost = firstEndpoint?.ServerHost ?? string.Empty,
-            EndpointToken = firstEndpoint?.Token ?? string.Empty
-        };
-    }
-
-    private List<OpenServerQueryEndpointConfig> CollectOpenServerQueryEndpoints(OpenServerQuerySettings currentSettings)
-    {
-        var byProfile = currentSettings.Endpoints
-            .Where(static endpoint => !string.IsNullOrWhiteSpace(endpoint.ProfileId))
-            .ToDictionary(static endpoint => endpoint.ProfileId, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var item in _openInfoConfigItems)
-        {
-            if (!byProfile.TryGetValue(item.ProfileId, out var endpoint))
-            {
-                endpoint = BuildDefaultOpenInfoEndpoint(item.ProfileId, currentSettings);
-            }
-
-            endpoint.Enabled = item.Enabled;
-            byProfile[item.ProfileId] = endpoint;
-        }
-
-        if (!string.IsNullOrWhiteSpace(_editingOpenInfoProfileId))
-        {
-            var profile = _profileService.GetProfileById(_editingOpenInfoProfileId);
-            if (profile is not null)
-            {
-                var edited = CollectOpenInfoEndpointConfig(profile);
-                byProfile[profile.Id] = edited;
-            }
-        }
-
-        if (byProfile.Count == 0)
-        {
-            foreach (var endpoint in currentSettings.Endpoints ?? [])
-            {
-                if (!string.IsNullOrWhiteSpace(endpoint.ServerHost) || !string.IsNullOrWhiteSpace(endpoint.Token))
-                {
-                    byProfile[endpoint.ProfileId] = endpoint;
-                }
-            }
-        }
-
-        return byProfile.Values
-            .Where(static endpoint =>
-                !string.IsNullOrWhiteSpace(endpoint.ProfileId) ||
-                !string.IsNullOrWhiteSpace(endpoint.ServerHost) ||
-                !string.IsNullOrWhiteSpace(endpoint.Token))
-            .OrderBy(static endpoint => endpoint.ProfileId, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-    }
-
     private RobotIntegrationSettings CollectRobotSettings()
     {
         var bindings = CollectRobotProfileBindings();
@@ -5177,7 +4946,6 @@ public partial class LauncherMainWindow : Window
             BoundGroupIdsText = FormatQqIdText(bindings.Select(static binding => binding.GroupId)),
             ReconnectIntervalSec = GetNumericValue(RobotReconnectNumericUpDown, 5),
             DatabasePath = RobotDatabasePathTextBox.Text?.Trim() ?? string.Empty,
-            PollIntervalSec = GetNumericDoubleValue(RobotPollIntervalNumericUpDown, 1.0),
             DefaultEncoding = string.IsNullOrWhiteSpace(RobotDefaultEncodingTextBox.Text)
                 ? "utf-8"
                 : RobotDefaultEncodingTextBox.Text.Trim(),
@@ -5186,9 +4954,7 @@ public partial class LauncherMainWindow : Window
                 : RobotFallbackEncodingTextBox.Text.Trim(),
             SuperUsersText = FormatQqIdText(bindings.Select(static binding => binding.SuperUserId)),
             ProfileBindings = bindings,
-            CustomCommands = CollectRobotCustomCommands(),
-            OsqPollIntervalSec = GetNumericValue(RobotOsqPollNumericUpDown, 20),
-            OsqRequestTimeoutSec = GetNumericValue(RobotOsqTimeoutNumericUpDown, 8)
+            CustomCommands = CollectRobotCustomCommands()
         };
     }
 
@@ -5301,172 +5067,7 @@ public partial class LauncherMainWindow : Window
             : string.Empty;
     }
 
-    private OpenServerQueryEndpointConfig CollectOpenInfoEndpointConfig(InstanceProfile profile)
-    {
-        var preferences = _preferencesService.Load();
-        var existing = FindOpenInfoEndpoint(preferences.OpenServerQuery, profile.Id) ??
-                       BuildDefaultOpenInfoEndpoint(profile, preferences.OpenServerQuery);
-
-        return new OpenServerQueryEndpointConfig
-        {
-            ProfileId = profile.Id,
-            ServerHost = OsqEndpointHostTextBox.Text?.Trim() ?? existing.ServerHost,
-            Token = OsqEndpointTokenTextBox.Text?.Trim() ?? existing.Token,
-            Enabled = existing.Enabled,
-            AllowInsecureHttp = OsqAllowInsecureHttpCheckBox.IsChecked == true,
-            IncludeServerInfo = OsqIncludeServerInfoCheckBox.IsChecked == true,
-            IncludePlayers = OsqIncludePlayersCheckBox.IsChecked == true,
-            IncludePlayerEvents = OsqIncludeEventsCheckBox.IsChecked == true,
-            IncludeChats = OsqIncludeChatsCheckBox.IsChecked == true,
-            IncludeNotifications = OsqIncludeNotificationsCheckBox.IsChecked == true
-        };
-    }
-
-    private void ApplyOpenInfoEndpointConfig(OpenServerQueryEndpointConfig endpoint)
-    {
-        OsqEndpointHostTextBox.Text = endpoint.ServerHost;
-        OsqEndpointTokenTextBox.Text = endpoint.Token;
-        OsqAllowInsecureHttpCheckBox.IsChecked = endpoint.AllowInsecureHttp;
-        OsqIncludeServerInfoCheckBox.IsChecked = endpoint.IncludeServerInfo;
-        OsqIncludePlayersCheckBox.IsChecked = endpoint.IncludePlayers;
-        OsqIncludeEventsCheckBox.IsChecked = endpoint.IncludePlayerEvents;
-        OsqIncludeChatsCheckBox.IsChecked = endpoint.IncludeChats;
-        OsqIncludeNotificationsCheckBox.IsChecked = endpoint.IncludeNotifications;
-    }
-
-    private static OpenServerQueryEndpointConfig? FindOpenInfoEndpoint(OpenServerQuerySettings settings, string profileId)
-    {
-        return (settings.Endpoints ?? [])
-            .FirstOrDefault(endpoint => endpoint.ProfileId.Equals(profileId, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private OpenServerQueryEndpointConfig BuildDefaultOpenInfoEndpoint(InstanceProfile profile, OpenServerQuerySettings settings)
-    {
-        return BuildDefaultOpenInfoEndpoint(profile.Id, settings);
-    }
-
-    private OpenServerQueryEndpointConfig BuildDefaultOpenInfoEndpoint(string profileId, OpenServerQuerySettings settings)
-    {
-        var legacy = (settings.Endpoints ?? []).FirstOrDefault(endpoint => string.IsNullOrWhiteSpace(endpoint.ProfileId));
-        return new OpenServerQueryEndpointConfig
-        {
-            ProfileId = profileId,
-            ServerHost = legacy?.ServerHost ?? settings.EndpointHost ?? string.Empty,
-            Token = legacy?.Token ?? settings.EndpointToken ?? string.Empty,
-            Enabled = legacy?.Enabled ?? false,
-            AllowInsecureHttp = settings.AllowInsecureHttp,
-            IncludeServerInfo = settings.IncludeServerInfo,
-            IncludePlayers = settings.IncludePlayers,
-            IncludePlayerEvents = settings.IncludePlayerEvents,
-            IncludeChats = settings.IncludeChats,
-            IncludeNotifications = settings.IncludeNotifications
-        };
-    }
-
-    private void EnsureOpenInfoProfileConfigFile(InstanceProfile profile, OpenServerQueryEndpointConfig endpoint)
-    {
-        var path = GetOpenInfoSettingsPath(profile);
-        if (File.Exists(path))
-        {
-            return;
-        }
-
-        SaveOpenInfoProfileConfigFile(profile, endpoint);
-    }
-
-    private void SaveOpenInfoProfileConfigFile(InstanceProfile profile, OpenServerQueryEndpointConfig endpoint)
-    {
-        var path = GetOpenInfoSettingsPath(profile);
-        var directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        var json = JsonSerializer.Serialize(endpoint, new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(path, json);
-    }
-
-    private void SaveOpenInfoProfileConfigFiles(OpenServerQuerySettings settings)
-    {
-        foreach (var endpoint in settings.Endpoints ?? [])
-        {
-            if (string.IsNullOrWhiteSpace(endpoint.ProfileId))
-            {
-                continue;
-            }
-
-            var profile = _profileService.GetProfileById(endpoint.ProfileId);
-            if (profile is null)
-            {
-                continue;
-            }
-
-            SaveOpenInfoProfileConfigFile(profile, endpoint);
-        }
-    }
-
-    private static OpenServerQueryRuntimeSettings ToOpenServerQueryRuntimeSettings(OpenServerQuerySettings settings)
-    {
-        var endpoints = new List<OpenServerQueryEndpointSettings>();
-        foreach (var endpoint in settings.Endpoints ?? [])
-        {
-            var host = endpoint.ServerHost?.Trim() ?? string.Empty;
-            var token = endpoint.Token?.Trim() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(token))
-            {
-                continue;
-            }
-
-            endpoints.Add(new OpenServerQueryEndpointSettings
-            {
-                ProfileId = endpoint.ProfileId?.Trim() ?? string.Empty,
-                ServerHost = host,
-                Token = token,
-                Enabled = endpoint.Enabled,
-                AllowInsecureHttp = endpoint.AllowInsecureHttp,
-                IncludeServerInfo = endpoint.IncludeServerInfo,
-                IncludePlayers = endpoint.IncludePlayers,
-                IncludePlayerEvents = endpoint.IncludePlayerEvents,
-                IncludeChats = endpoint.IncludeChats,
-                IncludeNotifications = endpoint.IncludeNotifications
-            });
-        }
-
-        if (endpoints.Count == 0 &&
-            !string.IsNullOrWhiteSpace(settings.EndpointHost) &&
-            !string.IsNullOrWhiteSpace(settings.EndpointToken))
-        {
-            endpoints.Add(new OpenServerQueryEndpointSettings
-            {
-                ServerHost = settings.EndpointHost.Trim(),
-                Token = settings.EndpointToken.Trim(),
-                Enabled = true,
-                AllowInsecureHttp = settings.AllowInsecureHttp,
-                IncludeServerInfo = settings.IncludeServerInfo,
-                IncludePlayers = settings.IncludePlayers,
-                IncludePlayerEvents = settings.IncludePlayerEvents,
-                IncludeChats = settings.IncludeChats,
-                IncludeNotifications = settings.IncludeNotifications
-            });
-        }
-
-        return new OpenServerQueryRuntimeSettings
-        {
-            Enabled = settings.Enabled,
-            ListenPrefix = settings.ListenPrefix,
-            AllowInsecureHttp = settings.AllowInsecureHttp,
-            RequestTimeoutSec = settings.RequestTimeoutSec,
-            IncludeServerInfo = settings.IncludeServerInfo,
-            IncludePlayers = settings.IncludePlayers,
-            IncludePlayerEvents = settings.IncludePlayerEvents,
-            IncludeChats = settings.IncludeChats,
-            IncludeNotifications = settings.IncludeNotifications,
-            Endpoints = endpoints
-        };
-    }
-
-    private static RobotSettings ToRobotSettings(RobotIntegrationSettings settings, OpenServerQuerySettings osqSettings)
+    private static RobotSettings ToRobotSettings(RobotIntegrationSettings settings)
     {
         return new RobotSettings
         {
@@ -5476,16 +5077,10 @@ public partial class LauncherMainWindow : Window
             ProfileBindings = settings.ProfileBindings ?? [],
             ReconnectIntervalSec = settings.ReconnectIntervalSec,
             DatabasePath = settings.DatabasePath,
-            PollIntervalSec = settings.PollIntervalSec,
             DefaultEncoding = settings.DefaultEncoding,
             FallbackEncoding = settings.FallbackEncoding,
             SuperUsers = ParseQqIds(settings.SuperUsersText),
-            CustomCommands = settings.CustomCommands ?? [],
-            OsqPollIntervalSec = settings.OsqPollIntervalSec,
-            OsqRequestTimeoutSec = settings.OsqRequestTimeoutSec,
-            OsqAllowInsecureHttp = osqSettings.AllowInsecureHttp,
-            OsqListenPrefix = osqSettings.ListenPrefix,
-            EnableOsqListener = false
+            CustomCommands = settings.CustomCommands ?? []
         };
     }
 
@@ -5640,12 +5235,6 @@ public partial class LauncherMainWindow : Window
             : T("启动第三方", "Start Third-party");
     }
 
-    private void UpdateOsqToggleButtonText()
-    {
-        var isRunning = _openServerQueryService.GetRuntimeStatus().IsListening;
-        OsqToggleButton.Content = isRunning ? T("停止", "Stop") : T("启动", "Start");
-    }
-
     private void UpdateRobotToggleButtonText()
     {
         var isRunning = _robotService.GetCurrentStatus().IsRunning;
@@ -5656,14 +5245,12 @@ public partial class LauncherMainWindow : Window
     {
         UpdateConnectionFrpActionButtons();
         UpdateEasyTierActionButtons();
-        UpdateOsqToggleButtonText();
         UpdateRobotToggleButtonText();
         UpdateGatewayToggleButtonText();
         var currentStatus = _selectedConnectionTab switch
         {
             ConnectionTab.Frp => BuildFrpRuntimeStatusText(),
             ConnectionTab.EasyTier => BuildEasyTierRuntimeStatusText(),
-            ConnectionTab.OpenInfo => BuildOpenInfoRuntimeStatusText(),
             ConnectionTab.Robot => BuildRobotRuntimeStatusText(),
             ConnectionTab.Gateway => BuildGatewayRuntimeStatusText(_tcpGatewayService.GetCurrentStatus()),
             ConnectionTab.Auth => AuthStatusTextBlock.Text ?? string.Empty,
@@ -5716,20 +5303,6 @@ public partial class LauncherMainWindow : Window
         return T(
             $"EasyTier：运行中 PID={status.ProcessId?.ToString(CultureInfo.InvariantCulture) ?? "--"}  {gameAddress}  {FormatConnectionUptime(status.StartedAtUtc)}",
             $"EasyTier: running PID={status.ProcessId?.ToString(CultureInfo.InvariantCulture) ?? "--"}  {gameAddress}  {FormatConnectionUptime(status.StartedAtUtc)}");
-    }
-
-    private string BuildOpenInfoRuntimeStatusText()
-    {
-        var status = _openServerQueryService.GetRuntimeStatus();
-        if (!status.IsListening)
-        {
-            return T("开放信息：未启动", "Open Info: stopped");
-        }
-
-        var lastReceived = string.IsNullOrWhiteSpace(status.LastReceivedUtc) ? "--" : status.LastReceivedUtc;
-        return T(
-            $"开放信息：运行中 {status.ListenPrefix}  接收 {status.AcceptedRequests}/{status.TotalRequests}  最近 {lastReceived}",
-            $"Open Info: running {status.ListenPrefix}  accepted {status.AcceptedRequests}/{status.TotalRequests}  last {lastReceived}");
     }
 
     private string BuildRobotRuntimeStatusText()
@@ -6246,9 +5819,9 @@ public partial class LauncherMainWindow : Window
                 _ = RefreshAuthProfilesAsync();
             }
 
-            if (_selectedInstanceManageTab == InstanceManageTab.CommandBridge)
+            if (_selectedInstanceManageTab == InstanceManageTab.ServerBridge)
             {
-                _ = RefreshCommandBridgeProfilesAsync();
+                _ = RefreshServerBridgeProfilesAsync();
             }
 
             RefreshAppearanceSettingsEditor();
@@ -6345,22 +5918,6 @@ public partial class LauncherMainWindow : Window
             if (_selectedTab == MainTab.Monitor)
             {
                 RenderSelectedMetricChart(status);
-            }
-        });
-    }
-
-    private void OnOpenServerQueryOutputReceived(object? sender, string line)
-    {
-        if (string.IsNullOrWhiteSpace(line))
-        {
-            return;
-        }
-
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (_selectedTab == MainTab.Connection && _selectedConnectionTab == ConnectionTab.OpenInfo)
-            {
-                SetConnectionStatus(line, notify: false);
             }
         });
     }
@@ -7426,12 +6983,6 @@ public partial class LauncherMainWindow : Window
         SelectConnectionTab(ConnectionTab.EasyTier);
     }
 
-    private void OnConnectionOpenInfoTabClick(object? sender, RoutedEventArgs e)
-    {
-        SelectTab(MainTab.Connection);
-        SelectConnectionTab(ConnectionTab.OpenInfo);
-    }
-
     private void OnConnectionRobotTabClick(object? sender, RoutedEventArgs e)
     {
         SelectTab(MainTab.Connection);
@@ -7444,10 +6995,10 @@ public partial class LauncherMainWindow : Window
         SelectConnectionTab(ConnectionTab.Auth);
     }
 
-    private void OnCommandBridgeSubTabClick(object? sender, RoutedEventArgs e)
+    private void OnServerBridgeSubTabClick(object? sender, RoutedEventArgs e)
     {
         SelectTab(MainTab.InstanceManage);
-        SelectInstanceManageTab(InstanceManageTab.CommandBridge);
+        SelectInstanceManageTab(InstanceManageTab.ServerBridge);
     }
 
     private void OnConnectionGatewayTabClick(object? sender, RoutedEventArgs e)
@@ -8079,11 +7630,6 @@ public partial class LauncherMainWindow : Window
     {
         RefreshConnectionSettingsEditor();
         RefreshConnectionRuntimeStatus();
-        if (_selectedConnectionTab == ConnectionTab.OpenInfo)
-        {
-            RefreshOpenInfoConfigItems();
-        }
-
         if (_selectedConnectionTab == ConnectionTab.Robot)
         {
             RefreshRobotProfileItems();
@@ -8882,83 +8428,83 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private async void OnCommandBridgeProfileSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    private async void OnServerBridgeProfileSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_isRefreshingCommandBridge)
+        if (_isRefreshingServerBridge)
             return;
 
-        if (CommandBridgeEditorPanel.IsVisible &&
-            CommandBridgeProfileComboBox.SelectedItem is InstanceProfile profile)
+        if (ServerBridgeEditorPanel.IsVisible &&
+            ServerBridgeProfileComboBox.SelectedItem is InstanceProfile profile)
         {
-            await LoadCommandBridgeForProfileAsync(profile);
+            await LoadServerBridgeForProfileAsync(profile);
         }
     }
 
-    private async void OnCommandBridgeSaveClick(object? sender, RoutedEventArgs e)
+    private async void OnServerBridgeSaveClick(object? sender, RoutedEventArgs e)
     {
-        if (CommandBridgeProfileComboBox.SelectedItem is not InstanceProfile profile)
+        if (ServerBridgeProfileComboBox.SelectedItem is not InstanceProfile profile)
         {
-            SetCommandBridgeStatus(T("请先选择档案。", "Select a profile first."));
+            SetServerBridgeStatus(T("请先选择档案。", "Select a profile first."));
             return;
         }
 
         try
         {
-            var settings = CollectCommandBridgeSettings();
-            await _commandBridgeService.SaveSettingsAsync(profile, settings);
+            var settings = CollectServerBridgeSettings();
+            await _serverBridgeService.SaveSettingsAsync(profile, settings);
             if (settings.Enabled)
             {
-                await _commandBridgeService.EnsureCommandBridgeModDeployedAsync(profile, enableMod: true);
+                await _serverBridgeService.EnsureServerBridgeModDeployedAsync(profile, enableMod: true);
             }
             else
             {
-                await _commandBridgeService.SetCommandBridgeModEnabledAsync(profile, enabled: false);
+                await _serverBridgeService.SetServerBridgeModEnabledAsync(profile, enabled: false);
             }
 
-            await LoadCommandBridgeForProfileAsync(profile);
-            SetCommandBridgeStatus(T(
-                "命令桥接配置已保存。配置和模组将在服务端下次启动时加载。",
-                "Command bridge settings saved. The configuration and mod load on the next server start."));
+            await LoadServerBridgeForProfileAsync(profile);
+            SetServerBridgeStatus(T(
+                "服务器桥接配置已保存。配置和模组将在服务端下次启动时加载。",
+                "Server Bridge settings saved. The configuration and mod load on the next server start."));
         }
         catch (Exception ex)
         {
-            SetCommandBridgeStatus(T($"保存失败：{ex.Message}", $"Save failed: {ex.Message}"));
+            SetServerBridgeStatus(T($"保存失败：{ex.Message}", $"Save failed: {ex.Message}"));
         }
     }
 
-    private async void OnCommandBridgeRefreshClick(object? sender, RoutedEventArgs e)
+    private async void OnServerBridgeRefreshClick(object? sender, RoutedEventArgs e)
     {
-        if (CommandBridgeEditorPanel.IsVisible &&
-            CommandBridgeProfileComboBox.SelectedItem is InstanceProfile profile)
+        if (ServerBridgeEditorPanel.IsVisible &&
+            ServerBridgeProfileComboBox.SelectedItem is InstanceProfile profile)
         {
-            await LoadCommandBridgeForProfileAsync(profile);
+            await LoadServerBridgeForProfileAsync(profile);
             return;
         }
 
-        await RefreshCommandBridgeProfilesAsync();
+        await RefreshServerBridgeProfilesAsync();
     }
 
-    private async void OnCommandBridgeEditConfigClick(object? sender, RoutedEventArgs e)
+    private async void OnServerBridgeEditConfigClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: ProfileConfigListItem item })
             return;
 
         var profile = _profileService.GetProfileById(item.ProfileId);
         if (profile is not null)
-            await ShowCommandBridgeEditorAsync(profile);
+            await ShowServerBridgeEditorAsync(profile);
     }
 
-    private void OnCommandBridgeBackClick(object? sender, RoutedEventArgs e)
+    private void OnServerBridgeBackClick(object? sender, RoutedEventArgs e)
     {
-        ShowCommandBridgeList();
+        ShowServerBridgeList();
     }
 
-    private async void OnCommandBridgeClearClick(object? sender, RoutedEventArgs e)
+    private async void OnServerBridgeClearClick(object? sender, RoutedEventArgs e)
     {
-        var selected = _commandBridgeConfigItems.Where(static item => item.IsSelected).ToList();
+        var selected = _serverBridgeConfigItems.Where(static item => item.IsSelected).ToList();
         if (selected.Count == 0)
         {
-            SetCommandBridgeStatus(T("请先选择命令桥接配置。", "Select command bridge configurations first."));
+            SetServerBridgeStatus(T("请先选择服务器桥接配置。", "Select server bridge configurations first."));
             return;
         }
 
@@ -8968,78 +8514,78 @@ public partial class LauncherMainWindow : Window
             if (profile is null)
                 continue;
 
-            await _commandBridgeService.SaveSettingsAsync(profile, BuildClearedCommandBridgeSettings());
-            await _commandBridgeService.SetCommandBridgeModEnabledAsync(profile, enabled: false);
+            await _serverBridgeService.SaveSettingsAsync(profile, BuildClearedServerBridgeSettings());
+            await _serverBridgeService.SetServerBridgeModEnabledAsync(profile, enabled: false);
         }
 
-        RefreshCommandBridgeConfigItems();
-        SetCommandBridgeStatus(T($"已清空 {selected.Count} 个命令桥接配置。", $"Cleared {selected.Count} command bridge configurations."));
+        RefreshServerBridgeConfigItems();
+        SetServerBridgeStatus(T($"已清空 {selected.Count} 个服务器桥接配置。", $"Cleared {selected.Count} server bridge configurations."));
     }
 
-    private async void OnCommandBridgeDeployClick(object? sender, RoutedEventArgs e)
+    private async void OnServerBridgeDeployClick(object? sender, RoutedEventArgs e)
     {
-        if (CommandBridgeProfileComboBox.SelectedItem is not InstanceProfile profile)
+        if (ServerBridgeProfileComboBox.SelectedItem is not InstanceProfile profile)
         {
-            SetCommandBridgeStatus(T("请先选择档案。", "Select a profile first."));
+            SetServerBridgeStatus(T("请先选择档案。", "Select a profile first."));
             return;
         }
 
         try
         {
-            var settings = CollectCommandBridgeSettings();
-            await _commandBridgeService.SaveSettingsAsync(profile, settings);
-            await _commandBridgeService.EnsureCommandBridgeModDeployedAsync(profile, enableMod: settings.Enabled);
-            await LoadCommandBridgeForProfileAsync(profile);
-            SetCommandBridgeStatus(settings.Enabled
-                ? T("命令桥接模组已部署并启用；将在服务端下次启动时监听。", "Command bridge mod deployed and enabled; it listens on the next server start.")
-                : T("命令桥接模组已部署，但当前配置未启用。", "Command bridge mod deployed, but the current configuration is disabled."));
+            var settings = CollectServerBridgeSettings();
+            await _serverBridgeService.SaveSettingsAsync(profile, settings);
+            await _serverBridgeService.EnsureServerBridgeModDeployedAsync(profile, enableMod: settings.Enabled);
+            await LoadServerBridgeForProfileAsync(profile);
+            SetServerBridgeStatus(settings.Enabled
+                ? T("服务器桥接模组已部署并启用；将在服务端下次启动时监听。", "Server Bridge mod deployed and enabled; it listens on the next server start.")
+                : T("服务器桥接模组已部署，但当前配置未启用。", "Server Bridge mod deployed, but the current configuration is disabled."));
         }
         catch (Exception ex)
         {
-            SetCommandBridgeStatus(T($"部署失败：{ex.Message}", $"Deployment failed: {ex.Message}"));
+            SetServerBridgeStatus(T($"部署失败：{ex.Message}", $"Deployment failed: {ex.Message}"));
         }
     }
 
-    private async void OnCommandBridgeTestClick(object? sender, RoutedEventArgs e)
+    private async void OnServerBridgeTestClick(object? sender, RoutedEventArgs e)
     {
-        if (CommandBridgeProfileComboBox.SelectedItem is not InstanceProfile profile)
+        if (ServerBridgeProfileComboBox.SelectedItem is not InstanceProfile profile)
         {
-            SetCommandBridgeStatus(T("请先选择档案。", "Select a profile first."));
+            SetServerBridgeStatus(T("请先选择档案。", "Select a profile first."));
             return;
         }
 
-        var status = await _commandBridgeService.GetRuntimeStatusAsync(profile);
-        SetCommandBridgeStatus(T(
-            $"命令桥接状态：{status.Message}（127.0.0.1:{status.Port}）",
-            $"Command bridge status: {status.Message} (127.0.0.1:{status.Port})"));
+        var status = await _serverBridgeService.GetRuntimeStatusAsync(profile);
+        SetServerBridgeStatus(T(
+            $"服务器桥接状态：{status.Message}（127.0.0.1:{status.Port}）",
+            $"Server Bridge status: {status.Message} (127.0.0.1:{status.Port})"));
     }
 
-    private async void OnCommandBridgeRegenerateTokenClick(object? sender, RoutedEventArgs e)
+    private async void OnServerBridgeRegenerateTokenClick(object? sender, RoutedEventArgs e)
     {
-        if (CommandBridgeProfileComboBox.SelectedItem is not InstanceProfile profile)
+        if (ServerBridgeProfileComboBox.SelectedItem is not InstanceProfile profile)
         {
-            SetCommandBridgeStatus(T("请先选择档案。", "Select a profile first."));
+            SetServerBridgeStatus(T("请先选择档案。", "Select a profile first."));
             return;
         }
 
         try
         {
-            CommandBridgeRegenerateTokenButton.IsEnabled = false;
-            await _commandBridgeService.RotateAccessTokenAsync(profile);
-            await LoadCommandBridgeForProfileAsync(profile);
-            SetCommandBridgeStatus(T(
+            ServerBridgeRegenerateTokenButton.IsEnabled = false;
+            await _serverBridgeService.RotateAccessTokenAsync(profile);
+            await LoadServerBridgeForProfileAsync(profile);
+            SetServerBridgeStatus(T(
                 "访问令牌已热轮换并自动保存，无需点击保存或重启服务端。",
                 "Access token rotated live and saved automatically; no Save click or server restart is required."));
         }
         catch (Exception ex)
         {
-            SetCommandBridgeStatus(T(
+            SetServerBridgeStatus(T(
                 $"令牌热轮换失败：{ex.Message}",
                 $"Live access-token rotation failed: {ex.Message}"));
         }
         finally
         {
-            CommandBridgeRegenerateTokenButton.IsEnabled = true;
+            ServerBridgeRegenerateTokenButton.IsEnabled = true;
         }
     }
 
@@ -9107,230 +8653,6 @@ public partial class LauncherMainWindow : Window
         }
 
         SaveFrpSettings(updateStatus: false, refreshEditor: false);
-    }
-
-    private void OnOsqSaveClick(object? sender, RoutedEventArgs e) => SaveOpenServerQuerySettings();
-
-    private void OnOsqBackClick(object? sender, RoutedEventArgs e)
-    {
-        ShowOpenInfoList();
-    }
-
-    private async void OnOsqToggleClick(object? sender, RoutedEventArgs e)
-    {
-        if (_isTogglingOsq)
-            return;
-
-        _isTogglingOsq = true;
-        OsqToggleButton.IsEnabled = false;
-        try
-        {
-            if (_openServerQueryService.GetRuntimeStatus().IsListening)
-            {
-                OsqEnabledCheckBox.IsChecked = false;
-                SaveOpenServerQuerySettings(updateStatus: false, refreshEditor: false);
-                await StopOpenInfoAsync();
-                return;
-            }
-
-            OsqEnabledCheckBox.IsChecked = true;
-            SaveOpenServerQuerySettings(updateStatus: false, refreshEditor: false);
-            await StartOpenInfoAsync();
-
-            if (!_openServerQueryService.GetRuntimeStatus().IsListening)
-            {
-                OsqEnabledCheckBox.IsChecked = false;
-                SaveOpenServerQuerySettings(updateStatus: false, refreshEditor: false);
-            }
-        }
-        finally
-        {
-            _isTogglingOsq = false;
-            OsqToggleButton.IsEnabled = true;
-            UpdateOsqToggleButtonText();
-        }
-    }
-
-    private async void OnOsqConfigSaveClick(object? sender, RoutedEventArgs e)
-    {
-        await SaveOpenInfoEditorAsync();
-    }
-
-    private void OnOsqConfigRefreshClick(object? sender, RoutedEventArgs e)
-    {
-        if (string.IsNullOrWhiteSpace(_editingOpenInfoProfileId))
-        {
-            ShowOpenInfoList();
-            return;
-        }
-
-        var profile = _profileService.GetProfileById(_editingOpenInfoProfileId);
-        if (profile is not null)
-        {
-            ShowOpenInfoEditor(profile);
-        }
-    }
-
-    private void OnOsqEditConfigClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: OpenServerQueryProfileConfigItem item })
-        {
-            return;
-        }
-
-        var profile = _profileService.GetProfileById(item.ProfileId);
-        if (profile is not null)
-        {
-            ShowOpenInfoEditor(profile);
-        }
-    }
-
-    private async void OnOsqEndpointSwitchClick(object? sender, RoutedEventArgs e)
-    {
-        if (_isApplyingConnectionSettings)
-        {
-            return;
-        }
-
-        if (sender is not ToggleSwitch { Tag: OpenServerQueryProfileConfigItem item } toggleSwitch)
-        {
-            return;
-        }
-
-        item.Enabled = toggleSwitch.IsChecked == true;
-
-        await SaveOpenInfoSettingsAndReloadIfRunningAsync(updateStatus: false, refreshEditor: false);
-        SetConnectionStatus(BuildOpenInfoRuntimeStatusText());
-    }
-
-    private async Task StartOpenInfoAsync()
-    {
-        SaveOpenServerQuerySettings(updateStatus: false, refreshEditor: false);
-        try
-        {
-            var settings = _preferencesService.Load().OpenServerQuery;
-            if (!settings.Enabled)
-            {
-                SetConnectionStatus(T("开放信息未启用。", "Open Info is disabled."));
-                return;
-            }
-
-            await _openServerQueryService.StartAsync(ToOpenServerQueryRuntimeSettings(settings));
-            var status = await WaitForOpenInfoListeningAsync(TimeSpan.FromSeconds(2));
-            SetConnectionStatus(status.IsListening
-                ? BuildOpenInfoRuntimeStatusText()
-                : T(
-                    $"开放信息正在启动：{settings.ListenPrefix}",
-                    $"Open Info is starting: {settings.ListenPrefix}"));
-        }
-        catch (Exception ex)
-        {
-            SetConnectionStatus(T($"开放信息启动失败：{ex.Message}", $"Open Info start failed: {ex.Message}"));
-        }
-        finally
-        {
-            UpdateOsqToggleButtonText();
-            UpdateCardValues(_serverProcessService.GetCachedStatus());
-        }
-    }
-
-    private async Task SaveOpenInfoEditorAsync()
-    {
-        if (string.IsNullOrWhiteSpace(_editingOpenInfoProfileId))
-        {
-            SaveOpenServerQuerySettings();
-            return;
-        }
-
-        var profile = _profileService.GetProfileById(_editingOpenInfoProfileId);
-        if (profile is null)
-        {
-            SetConnectionStatus(T("请先选择档案。", "Select a profile first."));
-            return;
-        }
-
-        var preferences = _preferencesService.Load();
-        var endpoint = CollectOpenInfoEndpointConfig(profile);
-        var endpoints = preferences.OpenServerQuery.Endpoints
-            .Where(existing => !existing.ProfileId.Equals(profile.Id, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-        endpoints.Add(endpoint);
-        preferences.OpenServerQuery.Endpoints = endpoints;
-        preferences.OpenServerQuery.AllowInsecureHttp = OsqAllowInsecureHttpCheckBox.IsChecked == true;
-        preferences.OpenServerQuery.IncludeServerInfo = OsqIncludeServerInfoCheckBox.IsChecked == true;
-        preferences.OpenServerQuery.IncludePlayers = OsqIncludePlayersCheckBox.IsChecked == true;
-        preferences.OpenServerQuery.IncludePlayerEvents = OsqIncludeEventsCheckBox.IsChecked == true;
-        preferences.OpenServerQuery.IncludeChats = OsqIncludeChatsCheckBox.IsChecked == true;
-        preferences.OpenServerQuery.IncludeNotifications = OsqIncludeNotificationsCheckBox.IsChecked == true;
-        _preferencesService.Save(preferences);
-        SaveOpenInfoProfileConfigFile(profile, endpoint);
-        await ReloadOpenInfoIfRunningAsync();
-        RefreshOpenInfoConfigItems();
-        SetConnectionStatus(T("开放API配置已保存。", "Open API config saved."));
-    }
-
-    private async Task SaveOpenInfoSettingsAndReloadIfRunningAsync(bool updateStatus = true, bool refreshEditor = true)
-    {
-        SaveOpenServerQuerySettings(updateStatus: false, refreshEditor);
-        await ReloadOpenInfoIfRunningAsync();
-
-        if (updateStatus)
-        {
-            SetConnectionStatus(T("开放API配置已保存。", "Open API config saved."));
-        }
-    }
-
-    private async Task ReloadOpenInfoIfRunningAsync()
-    {
-        var wasListening = _openServerQueryService.GetRuntimeStatus().IsListening;
-        if (wasListening)
-        {
-            await _openServerQueryService.StopAsync(TimeSpan.FromSeconds(5));
-        }
-
-        var settings = _preferencesService.Load().OpenServerQuery;
-        if (settings.Enabled)
-        {
-            await _openServerQueryService.StartAsync(ToOpenServerQueryRuntimeSettings(settings));
-            await WaitForOpenInfoListeningAsync(TimeSpan.FromSeconds(2));
-        }
-
-        UpdateOsqToggleButtonText();
-        UpdateCardValues(_serverProcessService.GetCachedStatus());
-    }
-
-    private async Task<OpenServerQueryRuntimeStatus> WaitForOpenInfoListeningAsync(TimeSpan timeout)
-    {
-        var deadline = DateTimeOffset.UtcNow + timeout;
-        OpenServerQueryRuntimeStatus status;
-        do
-        {
-            status = _openServerQueryService.GetRuntimeStatus();
-            if (status.IsListening)
-                return status;
-
-            await Task.Delay(100);
-        } while (DateTimeOffset.UtcNow < deadline);
-
-        return _openServerQueryService.GetRuntimeStatus();
-    }
-
-    private async Task StopOpenInfoAsync()
-    {
-        try
-        {
-            await _openServerQueryService.StopAsync(TimeSpan.FromSeconds(5));
-            SetConnectionStatus(T("开放信息已停止。", "Open Info stopped."));
-        }
-        catch (Exception ex)
-        {
-            SetConnectionStatus(T($"开放信息停止失败：{ex.Message}", $"Open Info stop failed: {ex.Message}"));
-        }
-        finally
-        {
-            UpdateOsqToggleButtonText();
-            UpdateCardValues(_serverProcessService.GetCachedStatus());
-        }
     }
 
     private async void OnRobotSaveClick(object? sender, RoutedEventArgs e) => await SaveRobotSettingsAndReloadIfRunningAsync();
@@ -9458,7 +8780,7 @@ public partial class LauncherMainWindow : Window
         try
         {
             var preferences = _preferencesService.Load();
-            await _robotService.StartAsync(ToRobotSettings(preferences.Robot, preferences.OpenServerQuery));
+            await _robotService.StartAsync(ToRobotSettings(preferences.Robot));
             SetConnectionStatus(BuildRobotRuntimeStatusText());
         }
         catch (Exception ex)
@@ -11042,19 +10364,6 @@ public partial class LauncherMainWindow : Window
         return Path.Combine(GetWorkspaceRootForUi(), "qqbot", "vs2qq-settings.json");
     }
 
-    private static string GetOpenInfoSettingsPath(InstanceProfile profile)
-    {
-        var configPath = Path.Combine(profile.DirectoryPath, "ModConfig", "openserverquery.json");
-        try
-        {
-            return Path.GetFullPath(configPath);
-        }
-        catch
-        {
-            return configPath;
-        }
-    }
-
     private static string GetAuthSettingsPath(InstanceProfile profile)
     {
         var configPath = Path.Combine(profile.DirectoryPath, "ModConfig", "serverauth.json");
@@ -11068,9 +10377,9 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private static string GetCommandBridgeSettingsPath(InstanceProfile profile)
+    private static string GetServerBridgeSettingsPath(InstanceProfile profile)
     {
-        var configPath = Path.Combine(profile.DirectoryPath, "ModConfig", "launchergocommandbridge.json");
+        var configPath = Path.Combine(profile.DirectoryPath, "ModConfig", "launchergoserverbridge.json");
         try
         {
             return Path.GetFullPath(configPath);
@@ -11263,13 +10572,6 @@ public partial class LauncherMainWindow : Window
     {
         return control.Value.HasValue
             ? decimal.ToInt32(control.Value.Value)
-            : fallback;
-    }
-
-    private static double GetNumericDoubleValue(NumericUpDown control, double fallback)
-    {
-        return control.Value.HasValue
-            ? decimal.ToDouble(control.Value.Value)
             : fallback;
     }
 
@@ -12097,7 +11399,7 @@ public partial class LauncherMainWindow : Window
         Logs,
         Mods,
         DownloadVersions,
-        CommandBridge
+        ServerBridge
     }
 
     private enum SettingsTab
@@ -12115,7 +11417,6 @@ public partial class LauncherMainWindow : Window
     {
         Frp,
         EasyTier,
-        OpenInfo,
         Robot,
         Gateway,
         Auth
@@ -12627,88 +11928,6 @@ public partial class LauncherMainWindow : Window
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
-
-        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
-    }
-
-    public sealed class OpenServerQueryProfileConfigItem : INotifyPropertyChanged
-    {
-        private bool _isSelected;
-        private bool _enabled;
-
-        public string ProfileId { get; init; } = string.Empty;
-
-        public string ProfileName { get; init; } = string.Empty;
-
-        public string Version { get; init; } = string.Empty;
-
-        public string ConfigPath { get; init; } = string.Empty;
-
-        public string ModifiedText { get; init; } = string.Empty;
-
-        public bool IsSelected
-        {
-            get => _isSelected;
-            set
-            {
-                if (_isSelected == value)
-                {
-                    return;
-                }
-
-                _isSelected = value;
-                OnPropertyChanged();
-            }
-        }
-
-        public bool Enabled
-        {
-            get => _enabled;
-            set
-            {
-                if (_enabled == value)
-                {
-                    return;
-                }
-
-                _enabled = value;
-                OnPropertyChanged();
-            }
-        }
-
-        public event PropertyChangedEventHandler? PropertyChanged;
-
-        public static OpenServerQueryProfileConfigItem FromProfile(
-            InstanceProfile profile,
-            OpenServerQueryEndpointConfig endpoint,
-            string path)
-        {
-            var modifiedText = "-";
-            try
-            {
-                if (File.Exists(path))
-                {
-                    modifiedText = File.GetLastWriteTime(path).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
-                }
-            }
-            catch
-            {
-                modifiedText = "-";
-            }
-
-            return new OpenServerQueryProfileConfigItem
-            {
-                ProfileId = profile.Id,
-                ProfileName = profile.Name,
-                Version = profile.Version,
-                ConfigPath = path,
-                ModifiedText = modifiedText,
-                Enabled = endpoint.Enabled
-            };
-        }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {

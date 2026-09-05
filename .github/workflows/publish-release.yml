@@ -35,7 +35,7 @@ jobs:
       PROJECT_PATH: LauncherGo.App/LauncherGo.App.csproj
       EMBEDDED_AUTH_PROJECT: LauncherGo.Services/EmbeddedMods/VsslAuthMod/VsslAuthMod.csproj
       EMBEDDED_REDIRECT_PROJECT: LauncherGo.Services/EmbeddedMods/LauncherGoRedirectMod/LauncherGoRedirectMod.csproj
-      EMBEDDED_COMMAND_BRIDGE_PROJECT: LauncherGo.Services/EmbeddedMods/LauncherGoCommandBridgeMod/LauncherGoCommandBridgeMod.csproj
+      EMBEDDED_SERVER_BRIDGE_PROJECT: LauncherGo.Services/EmbeddedMods/LauncherGoServerBridgeMod/LauncherGoServerBridgeMod.csproj
       CONFIGURATION: Release
       RUNTIME: win-x64
       VINTAGE_STORY_VERSION: 1.22.2
@@ -211,7 +211,7 @@ jobs:
         run: |
           dotnet restore $env:EMBEDDED_AUTH_PROJECT
           dotnet restore $env:EMBEDDED_REDIRECT_PROJECT
-          dotnet restore $env:EMBEDDED_COMMAND_BRIDGE_PROJECT
+          dotnet restore $env:EMBEDDED_SERVER_BRIDGE_PROJECT
 
       - name: Build embedded mods
         shell: pwsh
@@ -248,10 +248,10 @@ jobs:
             -TargetPath "LauncherGo.Services/EmbeddedMods/launchergoredirect/launchergoredirect.dll" `
             -Name "Gateway Redirect"
           Build-EmbeddedMod `
-            -Project $env:EMBEDDED_COMMAND_BRIDGE_PROJECT `
-            -DllPath "LauncherGo.Services/EmbeddedMods/LauncherGoCommandBridgeMod/bin/$env:CONFIGURATION/net10.0/commandbridge.dll" `
-            -TargetPath "LauncherGo.Services/EmbeddedMods/launchergocommandbridge/commandbridge.dll" `
-            -Name "Command Bridge"
+            -Project $env:EMBEDDED_SERVER_BRIDGE_PROJECT `
+            -DllPath "LauncherGo.Services/EmbeddedMods/LauncherGoServerBridgeMod/bin/$env:CONFIGURATION/net10.0/serverbridge.dll" `
+            -TargetPath "LauncherGo.Services/EmbeddedMods/launchergoserverbridge/serverbridge.dll" `
+            -Name "Server Bridge"
 
       - name: Publish installer payload
         run: dotnet publish $env:PROJECT_PATH -c $env:CONFIGURATION -r $env:RUNTIME --self-contained true -p:Version=${{ steps.meta.outputs.version }} -p:InformationalVersion=${{ steps.meta.outputs.version }} -o artifacts/publish/win-x64
@@ -282,7 +282,7 @@ jobs:
           $mods = @(
             @{ Id = "launchergoauth"; SourceRoot = "LauncherGo.Services/EmbeddedMods/launchergoauth"; Files = @("serverauth.dll", "modinfo.json", "README.txt") },
             @{ Id = "launchergoredirect"; SourceRoot = "LauncherGo.Services/EmbeddedMods/launchergoredirect"; Files = @("launchergoredirect.dll", "modinfo.json", "README.txt") },
-            @{ Id = "launchergocommandbridge"; SourceRoot = "LauncherGo.Services/EmbeddedMods/launchergocommandbridge"; Files = @("commandbridge.dll", "modinfo.json", "README.txt") }
+            @{ Id = "launchergoserverbridge"; SourceRoot = "LauncherGo.Services/EmbeddedMods/launchergoserverbridge"; Files = @("serverbridge.dll", "modinfo.json", "README.txt") }
           )
 
           foreach ($mod in $mods) {
@@ -332,10 +332,10 @@ jobs:
             "artifacts/publish/win-x64/EmbeddedMods/launchergoredirect/modinfo.json",
             "artifacts/publish/win-x64/EmbeddedMods/launchergoredirect/README.txt",
             "artifacts/publish/win-x64/EmbeddedMods/launchergoredirect/LICENSE.txt",
-            "artifacts/publish/win-x64/EmbeddedMods/launchergocommandbridge/commandbridge.dll",
-            "artifacts/publish/win-x64/EmbeddedMods/launchergocommandbridge/modinfo.json",
-            "artifacts/publish/win-x64/EmbeddedMods/launchergocommandbridge/README.txt",
-            "artifacts/publish/win-x64/EmbeddedMods/launchergocommandbridge/LICENSE.txt",
+            "artifacts/publish/win-x64/EmbeddedMods/launchergoserverbridge/serverbridge.dll",
+            "artifacts/publish/win-x64/EmbeddedMods/launchergoserverbridge/modinfo.json",
+            "artifacts/publish/win-x64/EmbeddedMods/launchergoserverbridge/README.txt",
+            "artifacts/publish/win-x64/EmbeddedMods/launchergoserverbridge/LICENSE.txt",
             "artifacts/publish/portable/EmbeddedMods/launchergoauth/serverauth.dll",
             "artifacts/publish/portable/EmbeddedMods/launchergoauth/modinfo.json",
             "artifacts/publish/portable/EmbeddedMods/launchergoauth/README.txt",
@@ -344,10 +344,10 @@ jobs:
             "artifacts/publish/portable/EmbeddedMods/launchergoredirect/modinfo.json",
             "artifacts/publish/portable/EmbeddedMods/launchergoredirect/README.txt",
             "artifacts/publish/portable/EmbeddedMods/launchergoredirect/LICENSE.txt",
-            "artifacts/publish/portable/EmbeddedMods/launchergocommandbridge/commandbridge.dll",
-            "artifacts/publish/portable/EmbeddedMods/launchergocommandbridge/modinfo.json",
-            "artifacts/publish/portable/EmbeddedMods/launchergocommandbridge/README.txt",
-            "artifacts/publish/portable/EmbeddedMods/launchergocommandbridge/LICENSE.txt",
+            "artifacts/publish/portable/EmbeddedMods/launchergoserverbridge/serverbridge.dll",
+            "artifacts/publish/portable/EmbeddedMods/launchergoserverbridge/modinfo.json",
+            "artifacts/publish/portable/EmbeddedMods/launchergoserverbridge/README.txt",
+            "artifacts/publish/portable/EmbeddedMods/launchergoserverbridge/LICENSE.txt",
             "artifacts/publish/portable/LICENSE",
             "artifacts/publish/portable/LICENSE.txt",
             "artifacts/publish/portable/NOTICE",
@@ -379,10 +379,10 @@ jobs:
             "artifacts/publish/small-package/EmbeddedMods/launchergoredirect/modinfo.json",
             "artifacts/publish/small-package/EmbeddedMods/launchergoredirect/README.txt",
             "artifacts/publish/small-package/EmbeddedMods/launchergoredirect/LICENSE.txt",
-            "artifacts/publish/small-package/EmbeddedMods/launchergocommandbridge/commandbridge.dll",
-            "artifacts/publish/small-package/EmbeddedMods/launchergocommandbridge/modinfo.json",
-            "artifacts/publish/small-package/EmbeddedMods/launchergocommandbridge/README.txt",
-            "artifacts/publish/small-package/EmbeddedMods/launchergocommandbridge/LICENSE.txt",
+            "artifacts/publish/small-package/EmbeddedMods/launchergoserverbridge/serverbridge.dll",
+            "artifacts/publish/small-package/EmbeddedMods/launchergoserverbridge/modinfo.json",
+            "artifacts/publish/small-package/EmbeddedMods/launchergoserverbridge/README.txt",
+            "artifacts/publish/small-package/EmbeddedMods/launchergoserverbridge/LICENSE.txt",
             "artifacts/publish/small-package/LauncherGo.ServerHost.exe",
             "artifacts/publish/small-package/coreclr.dll",
             "artifacts/publish/small-package/hostfxr.dll",
@@ -410,7 +410,7 @@ jobs:
           $mods = @(
             @{ Id = "launchergoauth"; Files = @("serverauth.dll", "modinfo.json", "README.txt", "LICENSE.txt") },
             @{ Id = "launchergoredirect"; Files = @("launchergoredirect.dll", "modinfo.json", "README.txt", "LICENSE.txt") },
-            @{ Id = "launchergocommandbridge"; Files = @("commandbridge.dll", "modinfo.json", "README.txt", "LICENSE.txt") }
+            @{ Id = "launchergoserverbridge"; Files = @("serverbridge.dll", "modinfo.json", "README.txt", "LICENSE.txt") }
           )
 
           foreach ($mod in $mods) {

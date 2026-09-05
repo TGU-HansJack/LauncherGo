@@ -100,7 +100,7 @@ LauncherGo components:
 | --- | --- | --- |
 | launchergoauth | serverauth.dll | GPL-3.0-only |
 | launchergoredirect | launchergoredirect.dll | GPL-3.0-only |
-| launchergocommandbridge | commandbridge.dll | GPL-3.0-only |
+| launchergoserverbridge | serverbridge.dll | GPL-3.0-only |
 
 Each standalone embedded mod ZIP should include `LICENSE.txt` copied from the
 repository `LICENSE` file.

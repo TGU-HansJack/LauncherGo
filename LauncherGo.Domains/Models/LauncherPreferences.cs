@@ -65,8 +65,6 @@ public class LauncherPreferences
 
     public List<string> AutoStartServerProfileIds { get; set; } = [];
 
-    public bool AutoStartOpenServerQueryOnLaunch { get; set; }
-
     public bool AutoStartRobotOnLaunch { get; set; }
 
     public bool AutoStartFrpOnLaunch { get; set; }
@@ -76,8 +74,6 @@ public class LauncherPreferences
     public bool AutoStartEasyTierOnLaunch { get; set; }
 
     public bool AutoStartGatewayOnLaunch { get; set; }
-
-    public OpenServerQuerySettings OpenServerQuery { get; set; } = new();
 
     public RobotIntegrationSettings Robot { get; set; } = new();
 

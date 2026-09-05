@@ -23,13 +23,13 @@
 
 ## 项目定位
 
-LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标是把服务端下载、档案管理、存档管理、配置编辑、进程控制、自动化任务、模组管理、认证模组、开放信息传输、QQ 机器人和内网穿透整合到同一个桌面应用中。
+LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标是把服务端下载、档案管理、存档管理、配置编辑、进程控制、自动化任务、模组管理、认证模组、服务器桥接传输、QQ 机器人和内网穿透整合到同一个桌面应用中。
 
 ## 版本信息
 
 | 项目 | 当前情况 |
 | --- | --- |
-| 软件版本 | 本地开发默认显示 `2.6.5`；Windows 打包和 Release 发布由 `.github/workflows/windows-packages.yml`、`.github/workflows/publish-release.yml` 的版本输入或 `v*` 标签覆盖 `Version` 与 `InformationalVersion` |
+| 软件版本 | 本地开发默认显示 `2.6.6`；Windows 打包和 Release 发布由 `.github/workflows/windows-packages.yml`、`.github/workflows/publish-release.yml` 的版本输入或 `v*` 标签覆盖 `Version` 与 `InformationalVersion` |
 | 产品阶段 | 第二代开服器，持续开发中 |
 | 目标框架 | `.NET net10.0` |
 | 桌面 UI | `Avalonia 12.0.1` 与 `Semi.Avalonia 12.0.1` |
@@ -52,7 +52,7 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | 自动化 | 定时开关服、定时备份、关服前备份、定时广播、日志导出 |
 | 模组管理 | 模组扫描、启用与禁用、依赖与问题展示、文件状态展示 |
 | 下载版本 | 服务端版本列表、搜索、下载、导入服务端压缩包、下载缓存清理 |
-| 连接功能 | 常规内网穿透、第三方 FRPC、OpenServerQuery 开放信息、QQ 机器人、ServerAuth 密码、Discourse SSO 与 OAuth2/OIDC 认证配置 |
+| 连接功能 | 常规内网穿透、第三方 FRPC、Server Bridge 服务器桥接、QQ 机器人、ServerAuth 密码、Discourse SSO 与 OAuth2/OIDC 认证配置 |
 | 设置 | 服务器设置、外观、网络、高级、关于、赞助者、贡献者，以及 GitHub 代理和 LauncherGo 自动或手动更新检查 |
 | LauncherGo 更新 | 支持完整安装版、精简安装版、单文件便携版和 Small 目录版，包含安装方式识别、SHA-256 校验和 Markdown 更新日志 |
 | 日志 | 软件日志文件、控制台日志、自动化运行日志、服务端日志导出，以及直接打开每个档案的 `Logs` 文件夹 |
@@ -74,7 +74,7 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | --- | --- |
 | LauncherGo | 第二代 Vintage Story 开服器 |
 | ServerAuth | 服务器认证模组 |
-| OpenServerQuery | 服务器信息传输与开放信息联结 |
+| Server Bridge | 服务器信息传输与服务器桥接联结 |
 
 ## 工作室维护内容
 
@@ -91,12 +91,15 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | `LauncherGo.App` | Avalonia 应用入口、宿主、主题与全局资源 |
 | `LauncherGo.ServerHost` | 独立服务端进程宿主、可恢复控制通道与异常退出清理 |
 | `LauncherGo.Ui` | 主窗口、指导窗口、UI 资源、平台窗口效果与界面逻辑 |
-| `LauncherGo.Services` | 服务端下载、档案、存档、进程、日志、自动化、FRP、OpenServerQuery、QQ 机器人与认证服务实现 |
+| `LauncherGo.Services` | 服务端下载、档案、存档、进程、日志、自动化、FRP、Server Bridge、QQ 机器人与认证服务实现 |
 | `LauncherGo.Abstractions` | 服务接口与跨层抽象 |
 | `LauncherGo.Domains` | 领域模型、配置模型、枚举与数据结构 |
 | `LauncherGo.Services/EmbeddedMods/VsslAuthMod` | 嵌入式 ServerAuth 模组源码 |
+
 | `installer` | Inno Setup Windows 安装包脚本 |
 | `.github/workflows` | Windows 打包、小体积分发打包、Release 发布与嵌入认证模组构建工作流 |
+
+服务器桥接仅绑定本机 `127.0.0.1`，使用协议版本 2 的 NDJSON 查询、命令和事件订阅。旧 OpenServerQuery HTTP 客户端不再兼容；首次启动会迁移并清理旧 OSQ 配置与快照数据。
 
 ServerAuth 的 OAuth2/OIDC 配置与 Vintage Story Connect 接入示例见
 [`docs/serverauth-oauth2.md`](docs/serverauth-oauth2.md)。

@@ -29,9 +29,9 @@ public static class ServiceCollectionExtension
         services.AddSingleton<IModListExportService, ModListExportService>();
         services.AddSingleton<IModUpdateService, ModUpdateService>();
         services.AddSingleton<IServerAuthService, ServerAuthService>();
-        services.AddSingleton<ICommandBridgeService, CommandBridgeService>();
-        services.AddSingleton<IOsqSnapshotCacheService, OsqSnapshotCacheService>();
-        services.AddSingleton<IOpenServerQueryService, OpenServerQueryService>();
+        services.AddSingleton<IServerBridgeService, ServerBridgeService>();
+        services.AddSingleton<ServerBridgeStateStore>();
+        services.AddSingleton<IServerBridgeMigrationService, ServerBridgeMigrationService>();
         services.AddSingleton<Vs2QQProcessService>();
         services.AddSingleton<IRobotService, RobotService>();
         return services;

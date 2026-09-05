@@ -760,9 +760,6 @@
   <data name="RobotDatabasePathLabel" xml:space="preserve">
     <value>Datenbankpfad</value>
   </data>
-  <data name="RobotPollingIntervalLabel" xml:space="preserve">
-    <value>Abfrageintervall (e)</value>
-  </data>
   <data name="RobotDefaultEncodingLabel" xml:space="preserve">
     <value>Standardkodierung</value>
   </data>
@@ -774,18 +771,6 @@
   </data>
   <data name="RobotOwnersLabel" xml:space="preserve">
     <value>Besitzerbindungen (eine pro Zeile: host/ip QQ)</value>
-  </data>
-  <data name="RobotOsqPollIntervalLabel" xml:space="preserve">
-    <value>OSQ-Abfrageintervall (s)</value>
-  </data>
-  <data name="RobotOsqRequestTimeoutLabel" xml:space="preserve">
-    <value>OSQ-Anfrage-Timeout (s)</value>
-  </data>
-  <data name="RobotOsqAllowInsecureHttpLabel" xml:space="preserve">
-    <value>HTTP OSQ zulassen</value>
-  </data>
-  <data name="RobotOsqListenPrefixLabel" xml:space="preserve">
-    <value>OSQ-Listen-Präfix</value>
   </data>
   <data name="RobotConfigStatusLoaded" xml:space="preserve">
     <value>Roboterkonfiguration geladen.</value>

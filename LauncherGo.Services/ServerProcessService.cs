@@ -27,7 +27,8 @@ public sealed partial class ServerProcessService : IServerProcessService
     private readonly IInstanceProfileService? _profileService;
     private readonly ILauncherPreferencesService? _preferencesService;
     private readonly IServerAuthService? _serverAuthService;
-    private readonly ICommandBridgeService? _commandBridgeService;
+    private readonly IServerBridgeService? _serverBridgeService;
+    private readonly ServerBridgeStateStore? _serverBridgeStateStore;
     private readonly IAutomationLifecycleService? _automationLifecycleService;
     private readonly ILogger<ServerProcessService> _logger;
     private string _activeProfileId = string.Empty;
@@ -42,13 +43,15 @@ public sealed partial class ServerProcessService : IServerProcessService
         IServerAuthService? serverAuthService = null,
         ILogger<ServerProcessService>? logger = null,
         ILauncherPreferencesService? preferencesService = null,
-        ICommandBridgeService? commandBridgeService = null,
-        IAutomationLifecycleService? automationLifecycleService = null)
+        IServerBridgeService? serverBridgeService = null,
+        IAutomationLifecycleService? automationLifecycleService = null,
+        ServerBridgeStateStore? serverBridgeStateStore = null)
     {
         _profileService = profileService;
         _preferencesService = preferencesService;
         _serverAuthService = serverAuthService;
-        _commandBridgeService = commandBridgeService;
+        _serverBridgeService = serverBridgeService;
+        _serverBridgeStateStore = serverBridgeStateStore;
         _automationLifecycleService = automationLifecycleService;
         _logger = logger ?? NullLogger<ServerProcessService>.Instance;
     }
@@ -107,10 +110,13 @@ public sealed partial class ServerProcessService : IServerProcessService
             return GetCurrentStatus(normalizedProfileId);
 
         var controller = GetOrCreateController(profile);
-        return await Task.Run(
+        var status = await Task.Run(
                 () => controller.RefreshStatusAsync(profile, cancellationToken),
                 cancellationToken)
             .ConfigureAwait(false);
+        return status.IsRunning
+            ? await RefreshBridgeStatusAsync(profile, status, cancellationToken).ConfigureAwait(false)
+            : status;
     }
 
     public async Task<IReadOnlyList<ServerRuntimeStatus>> RefreshStatusesAsync(
@@ -163,11 +169,63 @@ public sealed partial class ServerProcessService : IServerProcessService
             return [];
         }
 
-        lock (_gate)
+        return GetCurrentStatus(profileId).OnlinePlayerNames;
+    }
+
+    private async Task<ServerRuntimeStatus> RefreshBridgeStatusAsync(
+        InstanceProfile profile,
+        ServerRuntimeStatus localStatus,
+        CancellationToken cancellationToken)
+    {
+        if (_serverBridgeService is null) return localStatus;
+        try
         {
-            return _controllers.TryGetValue(profileId.Trim(), out var controller)
-                ? controller.GetOnlinePlayerNames()
-                : [];
+            var server = _serverBridgeStateStore?.GetState(profile.Id, "server.status");
+            var players = _serverBridgeStateStore?.GetState(profile.Id, "players.list");
+            if (server is null)
+            {
+                var result = await _serverBridgeService.QueryAsync(profile, "server.status", cancellationToken: cancellationToken).ConfigureAwait(false);
+                if (result.Success) server = result.Data;
+            }
+            if (players is null)
+            {
+                var result = await _serverBridgeService.QueryAsync(profile, "players.list", cancellationToken: cancellationToken).ConfigureAwait(false);
+                if (result.Success) players = result.Data;
+            }
+            if (server is null && players is null) return localStatus;
+
+            var names = players?["players"] is JsonArray array
+                ? array.OfType<JsonObject>().Select(x => x["name"]?.GetValue<string>()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray()
+                : localStatus.OnlinePlayerNames;
+            var online = server?["onlinePlayers"]?.GetValue<int?>() ?? names.Count;
+            var merged = new ServerRuntimeStatus
+            {
+                IsRunning = localStatus.IsRunning,
+                ProcessId = localStatus.ProcessId,
+                StartedAtUtc = localStatus.StartedAtUtc,
+                ProfileId = localStatus.ProfileId,
+                CpuPercent = localStatus.CpuPercent,
+                MemoryBytes = localStatus.MemoryBytes,
+                OnlinePlayers = online,
+                OnlinePlayerNames = names,
+                PeakOnlinePlayers = Math.Max(localStatus.PeakOnlinePlayers, online),
+                CanSendCommands = localStatus.CanSendCommands,
+                ControlMode = localStatus.ControlMode,
+                Message = localStatus.Message
+            };
+            lock (_gate)
+            {
+                _statuses[profile.Id] = merged;
+                UpdateJoinedPlayers(profile.Id, merged);
+            }
+            StatusChanged?.Invoke(this, merged);
+            return merged;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Server bridge status refresh failed. ProfileId={ProfileId}", profile.Id);
+            return localStatus;
         }
     }
 
@@ -291,7 +349,7 @@ public sealed partial class ServerProcessService : IServerProcessService
                 _serverAuthService,
                 _logger,
                 _preferencesService,
-                _commandBridgeService,
+                _serverBridgeService,
                 _automationLifecycleService);
             _controllers[profile.Id] = controller;
             _controllerProfiles[profile.Id] = profile;
@@ -397,7 +455,7 @@ internal sealed partial class SingleServerProcessController
     private readonly IInstanceProfileService? _profileService;
     private readonly ILauncherPreferencesService? _preferencesService;
     private readonly IServerAuthService? _serverAuthService;
-    private readonly ICommandBridgeService? _commandBridgeService;
+    private readonly IServerBridgeService? _serverBridgeService;
     private readonly IAutomationLifecycleService? _automationLifecycleService;
     private readonly ILogger<ServerProcessService> _logger;
     private Process? _process;
@@ -430,13 +488,13 @@ internal sealed partial class SingleServerProcessController
         IServerAuthService? serverAuthService = null,
         ILogger<ServerProcessService>? logger = null,
         ILauncherPreferencesService? preferencesService = null,
-        ICommandBridgeService? commandBridgeService = null,
+        IServerBridgeService? serverBridgeService = null,
         IAutomationLifecycleService? automationLifecycleService = null)
     {
         _profileService = profileService;
         _preferencesService = preferencesService;
         _serverAuthService = serverAuthService;
-        _commandBridgeService = commandBridgeService;
+        _serverBridgeService = serverBridgeService;
         _automationLifecycleService = automationLifecycleService;
         _logger = logger ?? NullLogger<ServerProcessService>.Instance;
     }
@@ -855,17 +913,18 @@ internal sealed partial class SingleServerProcessController
         if (GetCommandName(normalized).Equals("/stop", StringComparison.OrdinalIgnoreCase))
             _manualStopRequested = true;
 
-        if (_commandBridgeService is not null && _currentProfile is { } bridgeProfile)
+        var serverBridgeService = _serverBridgeService;
+        if (serverBridgeService is not null && _currentProfile is { } bridgeProfile)
         {
-            var bridgeSettings = await _commandBridgeService
+            var bridgeSettings = await serverBridgeService
                 .LoadSettingsAsync(bridgeProfile, cancellationToken)
                 .ConfigureAwait(false);
             if (bridgeSettings.Enabled)
             {
                 try
                 {
-                    await _commandBridgeService
-                        .SendCommandAsync(bridgeProfile, normalized, cancellationToken)
+                    await serverBridgeService
+                        .ExecuteCommandAsync(bridgeProfile, normalized, cancellationToken)
                         .ConfigureAwait(false);
                     OutputReceived?.Invoke(this, $"[cmd:bridge] {normalized}");
                     return;
@@ -878,16 +937,22 @@ internal sealed partial class SingleServerProcessController
                 {
                     _logger.LogWarning(
                         ex,
-                        "Command bridge failed. ProfileId={ProfileId}, AllowRelayFallback={AllowRelayFallback}.",
+                        "Server bridge failed. ProfileId={ProfileId}, AllowRelayFallback={AllowRelayFallback}.",
                         bridgeProfile.Id,
                         bridgeSettings.AllowRelayFallback);
                     if (!bridgeSettings.AllowRelayFallback)
                     {
                         throw new InvalidOperationException(
-                            $"命令桥接不可用，且已关闭 Relay 回退：{ex.Message}",
+                            $"服务器桥接不可用，且已关闭 Relay 回退：{ex.Message}",
                             ex);
                     }
                 }
+            }
+
+            if (!bridgeSettings.AllowRelayFallback)
+            {
+                throw new InvalidOperationException(
+                    "服务器桥接未启用，且已关闭 Relay 回退。请启用服务器桥接后重试。");
             }
         }
 
@@ -913,7 +978,7 @@ internal sealed partial class SingleServerProcessController
             if (_relayState.CommandChannelAvailable == false)
             {
                 throw new InvalidOperationException(
-                    "Relay 仍可连接，但其 stdin 命令写入正在阻塞。请启用 LauncherGo Command Bridge，或等待当前写入恢复后重试。");
+                    "Relay 仍可连接，但其 stdin 命令写入正在阻塞。请启用 LauncherGo Server Bridge，或等待当前写入恢复后重试。");
             }
 
             var response = await ServerRelayClient.SendCommandAsync(

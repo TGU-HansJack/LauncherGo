@@ -1,9 +1,9 @@
 namespace LauncherGo.Domains.Models;
 
 /// <summary>
-///     LauncherGo Command Bridge settings stored with an instance profile.
+///     LauncherGo Server Bridge settings stored with an instance profile.
 /// </summary>
-public sealed class CommandBridgeSettings
+public sealed class ServerBridgeSettings
 {
     public bool Enabled { get; init; }
 
@@ -17,7 +17,7 @@ public sealed class CommandBridgeSettings
     /// </summary>
     public string AccessToken { get; init; } = string.Empty;
 
-    public int CommandTimeoutMilliseconds { get; init; } = 5000;
+    public int QueryTimeoutMilliseconds { get; init; } = 5000;
 
     public int MaxCommandLength { get; init; } = 4096;
 
@@ -25,9 +25,16 @@ public sealed class CommandBridgeSettings
     ///     Retain the legacy ServerHost relay as a compatibility fallback when the bridge is unavailable.
     /// </summary>
     public bool AllowRelayFallback { get; init; } = true;
+
+    public bool IncludeExtendedPlayerInfo { get; init; }
+    public bool IncludeWorldDetails { get; init; }
+    public bool IncludePerformanceInfo { get; init; }
+    public bool IncludeSensitiveFields { get; init; }
+    public IReadOnlyCollection<string> EventTypes { get; init; } =
+        ["player.joined", "player.left", "player.died", "chat", "server.notification"];
 }
 
-public enum CommandBridgeRuntimeState
+public enum ServerBridgeRuntimeState
 {
     Disabled,
     NotDeployed,
@@ -35,9 +42,9 @@ public enum CommandBridgeRuntimeState
     Ready
 }
 
-public sealed class CommandBridgeRuntimeStatus
+public sealed class ServerBridgeRuntimeStatus
 {
-    public CommandBridgeRuntimeState State { get; init; }
+    public ServerBridgeRuntimeState State { get; init; }
 
     public string Message { get; init; } = string.Empty;
 
@@ -45,5 +52,5 @@ public sealed class CommandBridgeRuntimeStatus
 
     public string Version { get; init; } = string.Empty;
 
-    public bool IsReady => State == CommandBridgeRuntimeState.Ready;
+    public bool IsReady => State == ServerBridgeRuntimeState.Ready;
 }

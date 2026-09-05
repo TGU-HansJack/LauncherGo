@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -759,9 +759,6 @@
   <data name="RobotDatabasePathLabel" xml:space="preserve">
     <value>Database Path</value>
   </data>
-  <data name="RobotPollingIntervalLabel" xml:space="preserve">
-    <value>Polling Interval (s)</value>
-  </data>
   <data name="RobotDefaultEncodingLabel" xml:space="preserve">
     <value>Default Encoding</value>
   </data>
@@ -773,18 +770,6 @@
   </data>
   <data name="RobotOwnersLabel" xml:space="preserve">
     <value>Owner Bindings (one per line: host/ip QQ)</value>
-  </data>
-  <data name="RobotOsqPollIntervalLabel" xml:space="preserve">
-    <value>OSQ Poll Interval (s)</value>
-  </data>
-  <data name="RobotOsqRequestTimeoutLabel" xml:space="preserve">
-    <value>OSQ Request Timeout (s)</value>
-  </data>
-  <data name="RobotOsqAllowInsecureHttpLabel" xml:space="preserve">
-    <value>Allow HTTP OSQ</value>
-  </data>
-  <data name="RobotOsqListenPrefixLabel" xml:space="preserve">
-    <value>OSQ Listen Prefix</value>
   </data>
   <data name="RobotConfigStatusLoaded" xml:space="preserve">
     <value>Robot configuration loaded.</value>

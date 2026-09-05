@@ -126,15 +126,9 @@ public class RobotService : IRobotService
             CustomCommands = [],
             ReconnectIntervalSec = 5,
             DatabasePath = Path.Combine(WorkspacePathHelper.RobotRoot, "vs2qq.db"),
-            PollIntervalSec = 1.0,
             DefaultEncoding = "utf-8",
             FallbackEncoding = "gbk",
             SuperUsers = [],
-            OsqPollIntervalSec = 20,
-            OsqRequestTimeoutSec = 8,
-            OsqAllowInsecureHttp = false,
-            OsqListenPrefix = "http://127.0.0.1:18089/",
-            EnableOsqListener = false
         };
     }
 
@@ -157,8 +151,6 @@ public class RobotService : IRobotService
             Directory.CreateDirectory(dbDirectory);
 
         var reconnect = settings.ReconnectIntervalSec <= 0 ? 5 : settings.ReconnectIntervalSec;
-        var poll = settings.PollIntervalSec <= 0 ? 1.0 : settings.PollIntervalSec;
-
         var defaultEncoding = string.IsNullOrWhiteSpace(settings.DefaultEncoding)
             ? "utf-8"
             : settings.DefaultEncoding.Trim();
@@ -195,11 +187,6 @@ public class RobotService : IRobotService
                 superUsers.Add(superUserId);
             }
         }
-
-        var osqPollIntervalSec = settings.OsqPollIntervalSec <= 0 ? 20 : settings.OsqPollIntervalSec;
-        var osqRequestTimeoutSec = settings.OsqRequestTimeoutSec <= 0 ? 8 : settings.OsqRequestTimeoutSec;
-        var osqListenPrefix = NormalizeListenPrefix(settings.OsqListenPrefix);
-
         return new RobotSettings
         {
             OneBotWsUrl = wsUrl,
@@ -209,15 +196,9 @@ public class RobotService : IRobotService
             CustomCommands = customCommands,
             ReconnectIntervalSec = reconnect,
             DatabasePath = dbPath,
-            PollIntervalSec = poll,
             DefaultEncoding = defaultEncoding,
             FallbackEncoding = fallbackEncoding,
-            SuperUsers = superUsers,
-            OsqPollIntervalSec = osqPollIntervalSec,
-            OsqRequestTimeoutSec = osqRequestTimeoutSec,
-            OsqAllowInsecureHttp = settings.OsqAllowInsecureHttp,
-            OsqListenPrefix = osqListenPrefix,
-            EnableOsqListener = false
+            SuperUsers = superUsers
         };
     }
 

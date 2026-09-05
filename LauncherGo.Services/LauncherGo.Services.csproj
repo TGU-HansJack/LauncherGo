@@ -7,9 +7,9 @@
     <EmbeddedRedirectModProject>$(MSBuildThisFileDirectory)EmbeddedMods\LauncherGoRedirectMod\LauncherGoRedirectMod.csproj</EmbeddedRedirectModProject>
     <EmbeddedRedirectModBuildOutput>$(MSBuildThisFileDirectory)EmbeddedMods\LauncherGoRedirectMod\bin\$(Configuration)\net10.0\</EmbeddedRedirectModBuildOutput>
     <EmbeddedRedirectRoot>$(MSBuildThisFileDirectory)EmbeddedMods\launchergoredirect\</EmbeddedRedirectRoot>
-    <EmbeddedCommandBridgeModProject>$(MSBuildThisFileDirectory)EmbeddedMods\LauncherGoCommandBridgeMod\LauncherGoCommandBridgeMod.csproj</EmbeddedCommandBridgeModProject>
-    <EmbeddedCommandBridgeModBuildOutput>$(MSBuildThisFileDirectory)EmbeddedMods\LauncherGoCommandBridgeMod\bin\$(Configuration)\net10.0\</EmbeddedCommandBridgeModBuildOutput>
-    <EmbeddedCommandBridgeRoot>$(MSBuildThisFileDirectory)EmbeddedMods\launchergocommandbridge\</EmbeddedCommandBridgeRoot>
+    <EmbeddedServerBridgeModProject>$(MSBuildThisFileDirectory)EmbeddedMods\LauncherGoServerBridgeMod\LauncherGoServerBridgeMod.csproj</EmbeddedServerBridgeModProject>
+    <EmbeddedServerBridgeModBuildOutput>$(MSBuildThisFileDirectory)EmbeddedMods\LauncherGoServerBridgeMod\bin\$(Configuration)\net10.0\</EmbeddedServerBridgeModBuildOutput>
+    <EmbeddedServerBridgeRoot>$(MSBuildThisFileDirectory)EmbeddedMods\launchergoserverbridge\</EmbeddedServerBridgeRoot>
   </PropertyGroup>
 
   <ItemGroup>
@@ -42,10 +42,10 @@
     <None Update="EmbeddedMods\launchergoredirect\README.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\launchergoredirect\LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EmbeddedMods\launchergoredirect\launchergoredirect.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('EmbeddedMods\launchergoredirect\launchergoredirect.dll')" />
-    <None Update="EmbeddedMods\launchergocommandbridge\modinfo.json" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="EmbeddedMods\launchergocommandbridge\README.txt" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="EmbeddedMods\launchergocommandbridge\LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="EmbeddedMods\launchergocommandbridge\commandbridge.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('EmbeddedMods\launchergocommandbridge\commandbridge.dll')" />
+    <None Update="EmbeddedMods\launchergoserverbridge\modinfo.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="EmbeddedMods\launchergoserverbridge\README.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="EmbeddedMods\launchergoserverbridge\LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="EmbeddedMods\launchergoserverbridge\serverbridge.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('EmbeddedMods\launchergoserverbridge\serverbridge.dll')" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -72,11 +72,11 @@
              Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY);NoRestore=true" />
   </Target>
 
-  <Target Name="BuildEmbeddedCommandBridgeMod" BeforeTargets="BeforeBuild" Condition="'$(BuildEmbeddedCommandBridgeMod)' == 'true'">
-    <MSBuild Projects="$(EmbeddedCommandBridgeModProject)"
+  <Target Name="BuildEmbeddedServerBridgeMod" BeforeTargets="BeforeBuild" Condition="'$(BuildEmbeddedServerBridgeMod)' == 'true'">
+    <MSBuild Projects="$(EmbeddedServerBridgeModProject)"
              Targets="Restore"
              Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY)" />
-    <MSBuild Projects="$(EmbeddedCommandBridgeModProject)"
+    <MSBuild Projects="$(EmbeddedServerBridgeModProject)"
              Targets="Build"
              Properties="Configuration=$(Configuration);VINTAGE_STORY=$(VINTAGE_STORY);NoRestore=true" />
   </Target>
@@ -107,16 +107,17 @@
           SkipUnchangedFiles="true" />
   </Target>
 
-  <Target Name="CopyBuiltEmbeddedCommandBridgeModToOutput" AfterTargets="Build" Condition="'$(BuildEmbeddedCommandBridgeMod)' == 'true' and Exists('$(EmbeddedCommandBridgeModBuildOutput)commandbridge.dll')">
+  <Target Name="CopyBuiltEmbeddedServerBridgeModToOutput" AfterTargets="Build" Condition="'$(BuildEmbeddedServerBridgeMod)' == 'true' and Exists('$(EmbeddedServerBridgeModBuildOutput)serverbridge.dll')">
     <PropertyGroup>
-      <_EmbeddedCommandBridgeOutputDir>$(TargetDir)EmbeddedMods\launchergocommandbridge\</_EmbeddedCommandBridgeOutputDir>
+      <_EmbeddedServerBridgeOutputDir>$(TargetDir)EmbeddedMods\launchergoserverbridge\</_EmbeddedServerBridgeOutputDir>
     </PropertyGroup>
-    <MakeDir Directories="$(_EmbeddedCommandBridgeOutputDir)" />
-    <Copy SourceFiles="$(EmbeddedCommandBridgeModBuildOutput)commandbridge.dll"
-          DestinationFiles="$(_EmbeddedCommandBridgeOutputDir)commandbridge.dll"
+    <RemoveDir Directories="$(_EmbeddedServerBridgeOutputDir)" />
+    <MakeDir Directories="$(_EmbeddedServerBridgeOutputDir)" />
+    <Copy SourceFiles="$(EmbeddedServerBridgeModBuildOutput)serverbridge.dll"
+          DestinationFiles="$(_EmbeddedServerBridgeOutputDir)serverbridge.dll"
           SkipUnchangedFiles="true" />
-    <Copy SourceFiles="$(EmbeddedCommandBridgeRoot)modinfo.json;$(EmbeddedCommandBridgeRoot)README.txt"
-          DestinationFolder="$(_EmbeddedCommandBridgeOutputDir)"
+    <Copy SourceFiles="$(EmbeddedServerBridgeRoot)modinfo.json;$(EmbeddedServerBridgeRoot)README.txt"
+          DestinationFolder="$(_EmbeddedServerBridgeOutputDir)"
           SkipUnchangedFiles="true" />
   </Target>
 

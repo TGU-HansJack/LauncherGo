@@ -29,7 +29,7 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 
 | Item | Current Status |
 | --- | --- |
-| Application version | Local development builds default to `2.6.5`; Windows packaging and Release publishing override `Version` and `InformationalVersion` through `.github/workflows/windows-packages.yml`, `.github/workflows/publish-release.yml`, or `v*` tags |
+| Application version | Local development builds default to `2.6.6`; Windows packaging and Release publishing override `Version` and `InformationalVersion` through `.github/workflows/windows-packages.yml`, `.github/workflows/publish-release.yml`, or `v*` tags |
 | Product stage | Second-generation server launcher, under active development |
 | Target framework | `.NET net10.0` |
 | Desktop UI | `Avalonia 12.0.1` and `Semi.Avalonia 12.0.1` |
@@ -52,7 +52,7 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 | Automation | Scheduled start and stop, scheduled backup, backup before shutdown, scheduled broadcast, and log export |
 | Mod management | Mod scanning, enable and disable operations, dependency display, issue display, and file status display |
 | Downloads | Server version list, search, download, server package import, and download cache cleanup |
-| Connections | Regular FRP, third-party FRPC, OpenServerQuery open information, QQ bot, and ServerAuth password, Discourse SSO, and OAuth2/OIDC configuration |
+| Connections | Regular FRP, third-party FRPC, Server Bridge, QQ bot, and ServerAuth password, Discourse SSO, and OAuth2/OIDC configuration |
 | Settings | Server, appearance, network, advanced, about, sponsors, and contributors pages; GitHub proxy selection and automatic or manual LauncherGo update checks |
 | Launcher updates | Installation-aware updates for the full installer, small installer, portable single-file build, and Small directory package, with SHA-256 verification and Markdown release notes |
 | Logging | Application log files, console logs, automation runtime logs, server log export, and direct access to each profile's `Logs` directory |
@@ -74,7 +74,7 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 | --- | --- |
 | LauncherGo | Second-generation Vintage Story server launcher |
 | ServerAuth | Server authentication mod |
-| OpenServerQuery | Server information transport and open information linkage |
+| Server Bridge | Local server information, command, and event transport |
 
 ## Studio Maintenance
 
@@ -91,12 +91,15 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 | `LauncherGo.App` | Avalonia application entry point, host, theme, and global resources |
 | `LauncherGo.ServerHost` | Independent server process host, recoverable control channel, and crash cleanup |
 | `LauncherGo.Ui` | Main window, guide window, UI resources, platform window effects, and interface logic |
-| `LauncherGo.Services` | Server downloads, profiles, saves, process control, logs, automation, FRP, OpenServerQuery, QQ bot, and authentication services |
+| `LauncherGo.Services` | Server downloads, profiles, saves, process control, logs, automation, FRP, Server Bridge, QQ bot, and authentication services |
 | `LauncherGo.Abstractions` | Service interfaces and cross-layer abstractions |
 | `LauncherGo.Domains` | Domain models, configuration models, enums, and data structures |
 | `LauncherGo.Services/EmbeddedMods/VsslAuthMod` | Embedded ServerAuth mod source code |
+
 | `installer` | Inno Setup script for Windows installer packages |
 | `.github/workflows` | Windows packaging, small-package distribution, Release publishing, and embedded authentication mod build workflows |
+
+Server Bridge binds only to local `127.0.0.1` and uses protocol version 2 NDJSON for queries, commands, and event subscriptions. Legacy OpenServerQuery HTTP clients are not compatible; the first launch migrates and removes legacy OSQ configuration and snapshot data.
 
 See [`docs/serverauth-oauth2.md`](docs/serverauth-oauth2.md) for ServerAuth OAuth2/OIDC configuration and a Vintage Story Connect example.
 

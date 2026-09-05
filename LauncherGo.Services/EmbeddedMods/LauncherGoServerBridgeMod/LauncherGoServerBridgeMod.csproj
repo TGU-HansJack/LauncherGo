@@ -4,8 +4,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <AssemblyName>commandbridge</AssemblyName>
-    <RootNamespace>LauncherGoCommandBridge</RootNamespace>
+    <AssemblyName>serverbridge</AssemblyName>
+    <RootNamespace>LauncherGoServerBridge</RootNamespace>
     <VintageStoryDir Condition="'$(VINTAGE_STORY)' != ''">$(VINTAGE_STORY)</VintageStoryDir>
     <VintageStoryDir Condition="'$(VintageStoryDir)' == '' and Exists('$(MSBuildThisFileDirectory)..\..\..\..\vs_client_linux-x64_1.22.2\vintagestory\VintagestoryAPI.dll')">$(MSBuildThisFileDirectory)..\..\..\..\vs_client_linux-x64_1.22.2\vintagestory</VintageStoryDir>
   </PropertyGroup>
@@ -28,6 +28,6 @@
   <Target Name="ValidateVintageStoryDir" BeforeTargets="BeforeBuild">
     <Error
       Condition="'$(VintageStoryDir)' == '' or !Exists('$(VintageStoryDir)\VintagestoryAPI.dll')"
-      Text="LauncherGo Command Bridge mod build failed: set VINTAGE_STORY to a Vintage Story install containing VintagestoryAPI.dll." />
+      Text="LauncherGo Server Bridge mod build failed: set VINTAGE_STORY to a Vintage Story install containing VintagestoryAPI.dll." />
   </Target>
 </Project>

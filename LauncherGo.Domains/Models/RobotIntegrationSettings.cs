@@ -12,8 +12,6 @@ public sealed class RobotIntegrationSettings
 
     public string DatabasePath { get; set; } = string.Empty;
 
-    public double PollIntervalSec { get; set; } = 1.0;
-
     public string DefaultEncoding { get; set; } = "utf-8";
 
     public string FallbackEncoding { get; set; } = "gbk";
@@ -24,9 +22,6 @@ public sealed class RobotIntegrationSettings
 
     public List<RobotCustomCommand> CustomCommands { get; set; } = [];
 
-    public int OsqPollIntervalSec { get; set; } = 20;
-
-    public int OsqRequestTimeoutSec { get; set; } = 8;
 }
 
 public sealed class RobotProfileBinding

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
@@ -55,9 +56,27 @@ public partial class App : Application
             desktop.MainWindow = preferences.IsOnboardingCompleted
                 ? ServiceLocator.GetRequiredService<LauncherMainWindow>()
                 : ServiceLocator.GetRequiredService<FirstLaunchGuideWindow>();
+
+            // Migration may touch a locked SQLite database. Run it after the
+            // window is assigned so startup never blocks the desktop lifetime.
+            _ = RunServerBridgeMigrationAsync();
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private static async Task RunServerBridgeMigrationAsync()
+    {
+        try
+        {
+            await ServiceLocator.GetRequiredService<IServerBridgeMigrationService>()
+                .MigrateAsync()
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Server bridge legacy migration failed.");
+        }
     }
 
     private void ApplyTheme(ThemeMode mode)

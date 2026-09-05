@@ -1,4 +1,4 @@
-name: Build Embedded Command Bridge Mod
+name: Build Embedded Server Bridge Mod
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ on:
         type: string
 
 jobs:
-  build-launchergocommandbridge:
+  build-launchergoserverbridge:
     runs-on: windows-latest
 
     env:
@@ -70,38 +70,38 @@ jobs:
 
           "VINTAGE_STORY=$vsRoot" >> $env:GITHUB_ENV
 
-      - name: Restore command bridge mod
-        run: dotnet restore LauncherGo.Services/EmbeddedMods/LauncherGoCommandBridgeMod/LauncherGoCommandBridgeMod.csproj
+      - name: Restore server bridge mod
+        run: dotnet restore LauncherGo.Services/EmbeddedMods/LauncherGoServerBridgeMod/LauncherGoServerBridgeMod.csproj
 
-      - name: Build command bridge mod
-        run: dotnet build LauncherGo.Services/EmbeddedMods/LauncherGoCommandBridgeMod/LauncherGoCommandBridgeMod.csproj -c $env:CONFIGURATION --no-restore
+      - name: Build server bridge mod
+        run: dotnet build LauncherGo.Services/EmbeddedMods/LauncherGoServerBridgeMod/LauncherGoServerBridgeMod.csproj -c $env:CONFIGURATION --no-restore
 
-      - name: Package command bridge mod
+      - name: Package server bridge mod
         shell: pwsh
         run: |
-          $projectDir = "LauncherGo.Services/EmbeddedMods/LauncherGoCommandBridgeMod"
-          $metadataDir = "LauncherGo.Services/EmbeddedMods/launchergocommandbridge"
-          $outputDir = "artifacts/embedded-mods/launchergocommandbridge"
-          $zipPath = "artifacts/embedded-mods/launchergocommandbridge.zip"
-          $dllPath = Join-Path $projectDir "bin/$env:CONFIGURATION/net10.0/commandbridge.dll"
+          $projectDir = "LauncherGo.Services/EmbeddedMods/LauncherGoServerBridgeMod"
+          $metadataDir = "LauncherGo.Services/EmbeddedMods/launchergoserverbridge"
+          $outputDir = "artifacts/embedded-mods/launchergoserverbridge"
+          $zipPath = "artifacts/embedded-mods/launchergoserverbridge.zip"
+          $dllPath = Join-Path $projectDir "bin/$env:CONFIGURATION/net10.0/serverbridge.dll"
 
           if (!(Test-Path $dllPath)) { throw "Missing built DLL: $dllPath" }
           foreach ($file in @("modinfo.json", "README.txt")) {
             $path = Join-Path $metadataDir $file
-            if (!(Test-Path $path)) { throw "Missing command bridge metadata: $path" }
+            if (!(Test-Path $path)) { throw "Missing server bridge metadata: $path" }
           }
           if (!(Test-Path "LICENSE")) { throw "Missing repository LICENSE file." }
 
           New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
-          Copy-Item -LiteralPath $dllPath -Destination (Join-Path $outputDir "commandbridge.dll") -Force
+          Copy-Item -LiteralPath $dllPath -Destination (Join-Path $outputDir "serverbridge.dll") -Force
           Copy-Item -LiteralPath (Join-Path $metadataDir "modinfo.json") -Destination $outputDir -Force
           Copy-Item -LiteralPath (Join-Path $metadataDir "README.txt") -Destination $outputDir -Force
           Copy-Item -LiteralPath "LICENSE" -Destination (Join-Path $outputDir "LICENSE.txt") -Force
           Compress-Archive -Path (Join-Path $outputDir "*") -DestinationPath $zipPath -Force
 
-      - name: Upload command bridge mod artifact
+      - name: Upload server bridge mod artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LauncherGo-launchergocommandbridge
-          path: artifacts/embedded-mods/launchergocommandbridge.zip
+          name: LauncherGo-launchergoserverbridge
+          path: artifacts/embedded-mods/launchergoserverbridge.zip
           if-no-files-found: error

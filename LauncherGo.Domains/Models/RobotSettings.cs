@@ -19,21 +19,10 @@ public class RobotSettings
 
     public string DatabasePath { get; init; } = string.Empty;
 
-    public double PollIntervalSec { get; init; } = 1.0;
-
     public string DefaultEncoding { get; init; } = "utf-8";
 
     public string FallbackEncoding { get; init; } = "gbk";
 
     public IReadOnlyList<long> SuperUsers { get; init; } = [];
 
-    public int OsqPollIntervalSec { get; init; } = 20;
-
-    public int OsqRequestTimeoutSec { get; init; } = 8;
-
-    public bool OsqAllowInsecureHttp { get; init; }
-
-    public string OsqListenPrefix { get; init; } = "http://127.0.0.1:18089/";
-
-    public bool EnableOsqListener { get; init; }
 }
