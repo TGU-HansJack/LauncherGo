@@ -13,6 +13,8 @@ public sealed class RobotCustomCommandTests
     [InlineData("/he")]
     [InlineData("/send_more")]
     [InlineData("/server2")]
+    [InlineData("/bind-player")]
+    [InlineData("/myinfo2")]
     public void NormalizeCommand_RejectsBuiltInPrefixConflicts(string command)
     {
         Assert.False(RobotCustomCommandRules.TryNormalizeCommand(command, out _));

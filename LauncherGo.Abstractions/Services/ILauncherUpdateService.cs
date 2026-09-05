@@ -11,6 +11,7 @@ public interface ILauncherUpdateService
 
     Task<LauncherUpdateCheckResult> CheckLatestAsync(
         GitHubProxyKind proxy,
+        bool includePrerelease = false,
         CancellationToken cancellationToken = default);
 
     Task PrepareAndLaunchUpdateAsync(

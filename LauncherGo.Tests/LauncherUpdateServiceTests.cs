@@ -47,4 +47,31 @@ public sealed class LauncherUpdateServiceTests
         Assert.Equal(0, LauncherUpdateService.CompareVersions("2.5.4", "2.5.4"));
     }
 
+    [Fact]
+    public void SelectNewestRelease_IncludesPrereleaseButSkipsDrafts()
+    {
+        var tag = LauncherUpdateService.SelectNewestReleaseTag(
+        [
+            new LauncherReleaseCandidate
+            {
+                TagName = "v2.6.6",
+                PublishedAtUtc = new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero)
+            },
+            new LauncherReleaseCandidate
+            {
+                TagName = "v2.6.7-preview.1",
+                IsPrerelease = true,
+                PublishedAtUtc = new DateTimeOffset(2026, 9, 2, 0, 0, 0, TimeSpan.Zero)
+            },
+            new LauncherReleaseCandidate
+            {
+                TagName = "v9.0.0-draft",
+                IsDraft = true,
+                PublishedAtUtc = new DateTimeOffset(2026, 9, 3, 0, 0, 0, TimeSpan.Zero)
+            }
+        ]);
+
+        Assert.Equal("v2.6.7-preview.1", tag);
+    }
+
 }

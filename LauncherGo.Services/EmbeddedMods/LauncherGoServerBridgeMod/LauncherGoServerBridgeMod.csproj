@@ -11,6 +11,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\..\Shared\ServerDeathLogParser.cs" Link="Shared\ServerDeathLogParser.cs" />
+    <Compile Include="..\..\Shared\ServerBroadcastLogParser.cs" Link="Shared\ServerBroadcastLogParser.cs" />
     <Reference Include="VintagestoryAPI">
       <HintPath>$(VintageStoryDir)\VintagestoryAPI.dll</HintPath>
       <Private>false</Private>

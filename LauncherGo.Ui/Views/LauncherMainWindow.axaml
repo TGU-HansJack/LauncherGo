@@ -2640,7 +2640,7 @@
                                                         </StackPanel>
                                                     </WrapPanel>
                                                     <WrapPanel Orientation="Horizontal">
-                                                        <Button x:Name="SettingsCheckUpdatesButton" Classes="SecondaryActionButton" Content="检查最新版本" Click="OnSettingsCheckUpdatesClick" Margin="0,0,8,0" />
+                                                        <Button x:Name="SettingsCheckUpdatesButton" Classes="SecondaryActionButton" Content="检查更新（含预发布）" Click="OnSettingsCheckUpdatesClick" Margin="0,0,8,0" />
                                                         <TextBlock x:Name="SettingsUpdateStatusTextBlock" Classes="ConfigHintText" VerticalAlignment="Center" TextWrapping="Wrap" />
                                                     </WrapPanel>
                                                 </StackPanel>

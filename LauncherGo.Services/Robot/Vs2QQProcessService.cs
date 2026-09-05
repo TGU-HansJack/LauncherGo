@@ -340,6 +340,12 @@ public sealed class Vs2QQProcessService
             case "/server":
                 await HandleServerCommandAsync(runtime, eventPayload, args, cancellationToken);
                 return;
+            case "/bind":
+                await HandleBindCommandAsync(runtime, eventPayload, args, cancellationToken);
+                return;
+            case "/myinfo":
+                await HandleMyInfoCommandAsync(runtime, eventPayload, args, cancellationToken);
+                return;
             case "/modslist":
                 await HandleModsListCommandAsync(runtime, eventPayload, args, cancellationToken);
                 return;
@@ -406,6 +412,135 @@ public sealed class Vs2QQProcessService
             commandText,
             cancellationToken);
         await ReplyAsync(runtime, eventPayload, $"已发送服务端指令：{commandText}", cancellationToken);
+    }
+
+    private async Task HandleBindCommandAsync(
+        Vs2QQRuntimeContext runtime,
+        JsonObject eventPayload,
+        string playerName,
+        CancellationToken cancellationToken)
+    {
+        if (!IsGroupMessage(eventPayload))
+        {
+            await ReplyAsync(runtime, eventPayload, "请在已绑定服务器的 QQ 群中使用 /bind <游戏玩家名>。", cancellationToken);
+            return;
+        }
+
+        var groupId = GetInt64(eventPayload, "group_id");
+        var qqUserId = GetInt64(eventPayload, "user_id");
+        var normalizedName = NormalizeDisplayText(playerName);
+        if (groupId <= 0 || !runtime.BoundGroupIds.Contains(groupId))
+        {
+            await ReplyAsync(runtime, eventPayload, "当前群未绑定服务器档案。", cancellationToken);
+            return;
+        }
+        if (qqUserId <= 0)
+        {
+            await ReplyAsync(runtime, eventPayload, "无法识别当前 QQ 用户。", cancellationToken);
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(normalizedName) || normalizedName.Length > 64 || normalizedName.Any(char.IsWhiteSpace))
+        {
+            await ReplyAsync(runtime, eventPayload, "用法：/bind <游戏玩家名>", cancellationToken);
+            return;
+        }
+
+        var profileId = runtime.GetPrimaryProfileIdForGroup(groupId);
+        if (string.IsNullOrWhiteSpace(profileId))
+        {
+            await ReplyAsync(runtime, eventPayload, "当前群绑定了多个服务器档案，无法确定玩家所在服务器。", cancellationToken);
+            return;
+        }
+        var profile = _instanceProfileService.GetProfileById(profileId);
+        if (profile is null)
+        {
+            await ReplyAsync(runtime, eventPayload, "绑定的服务器档案不存在。", cancellationToken);
+            return;
+        }
+
+        var result = await QueryBridgeForProfileAsync(profile, "players.list", cancellationToken);
+        if (result?.Success != true || result.Data is null)
+        {
+            await ReplyAsync(runtime, eventPayload, "服务器桥接不可用，暂时无法发起绑定验证。", cancellationToken);
+            return;
+        }
+        var player = result.Data["players"] is JsonArray players
+            ? players.OfType<JsonObject>().FirstOrDefault(item =>
+                string.Equals(ReadString(item, "name"), normalizedName, StringComparison.OrdinalIgnoreCase) &&
+                (ReadBool(item, "playing") ?? ReadBool(item, "online") is not false))
+            : null;
+        if (player is null)
+        {
+            await ReplyAsync(runtime, eventPayload, $"未在服务器 {profile.Name} 找到在线玩家：{normalizedName}", cancellationToken);
+            return;
+        }
+
+        var canonicalName = Safe(ReadString(player, "name"));
+        runtime.PlayerBindings.CreatePending(
+            qqUserId,
+            groupId,
+            profile.Id,
+            ReadString(player, "uid"),
+            canonicalName);
+        await ReplyAsync(
+            runtime,
+            eventPayload,
+            $"绑定验证已开始：请使用游戏玩家 {canonicalName} 在服务器聊天中发送 QQ 号 {qqUserId}。验证在 10 分钟内有效。",
+            cancellationToken);
+    }
+
+    private async Task HandleMyInfoCommandAsync(
+        Vs2QQRuntimeContext runtime,
+        JsonObject eventPayload,
+        string args,
+        CancellationToken cancellationToken)
+    {
+        if (IsGroupMessage(eventPayload))
+        {
+            await ReplyAsync(runtime, eventPayload, "该指令包含个人信息，请私聊机器人使用 /myinfo。", cancellationToken);
+            return;
+        }
+        if (!string.IsNullOrWhiteSpace(args))
+        {
+            await ReplyAsync(runtime, eventPayload, "用法：/myinfo", cancellationToken);
+            return;
+        }
+
+        var qqUserId = GetInt64(eventPayload, "user_id");
+        var binding = qqUserId > 0 ? runtime.PlayerBindings.GetBinding(qqUserId) : null;
+        if (binding is null)
+        {
+            await ReplyAsync(runtime, eventPayload, "尚未绑定游戏玩家，请先在服务器绑定群使用 /bind <游戏玩家名>。", cancellationToken);
+            return;
+        }
+        var profile = _instanceProfileService.GetProfileById(binding.ProfileId);
+        if (profile is null)
+        {
+            await ReplyAsync(runtime, eventPayload, "绑定的服务器档案已不存在，请重新绑定。", cancellationToken);
+            return;
+        }
+
+        var result = await QueryBridgeForProfileAsync(
+            profile,
+            "player.info",
+            cancellationToken,
+            new JsonObject { ["uid"] = binding.PlayerUid, ["name"] = binding.PlayerName });
+        var player = result?.Success == true ? result.Data : null;
+        if (player is null)
+        {
+            var message = result is null
+                ? "服务器桥接不可用，暂时无法读取玩家信息。"
+                : string.Equals(result.ErrorCode, "unsupported-capability", StringComparison.OrdinalIgnoreCase)
+                    ? "服务器桥接未启用扩展玩家信息，请由管理员启用后重试。"
+                    : string.Equals(result.ErrorCode, "player-not-online", StringComparison.OrdinalIgnoreCase)
+                        ? $"绑定玩家 {binding.PlayerName} 当前不在线，无法读取实时信息。"
+                        : $"玩家信息查询失败：{Safe(result.Error)}";
+            await ReplyAsync(runtime, eventPayload, message, cancellationToken);
+            return;
+        }
+
+        foreach (var message in SplitOneBotMessages(BuildMyInfoLines(profile.Name, player)))
+            await ReplyAsync(runtime, eventPayload, message, cancellationToken);
     }
 
     private async Task HandleModsListCommandAsync(
@@ -949,9 +1084,23 @@ public sealed class Vs2QQProcessService
     {
         var name = NormalizeDisplayText(evt.Data["name"]?.GetValue<string>());
         var content = NormalizeInboundServerText(name, evt.Data["message"]?.GetValue<string>());
-        var deathReason = evt.Event == "player.died"
-            ? NormalizeDisplayText(evt.Data["reason"]?.GetValue<string>())
-            : string.Empty;
+        if (evt.Event == "chat")
+        {
+            var completed = runtime.PlayerBindings.TryComplete(
+                profileId,
+                ReadString(evt.Data, "uid"),
+                name,
+                content);
+            if (completed is not null)
+            {
+                var profileName = _instanceProfileService.GetProfileById(profileId)?.Name ?? profileId;
+                var confirmation = $"绑定成功：QQ {completed.QqUserId} 已绑定玩家 {completed.PlayerName}（{profileName}）。";
+                try { await runtime.OneBot.SendGroupMsgAsync(completed.GroupId, confirmation, CancellationToken.None).ConfigureAwait(false); } catch { }
+                try { await runtime.OneBot.SendPrivateMsgAsync(completed.QqUserId, confirmation, CancellationToken.None).ConfigureAwait(false); } catch { }
+            }
+        }
+        var deathReason = evt.Event == "player.died" ? FormatDeathReason(evt.Data) : string.Empty;
+        var deathNotification = evt.Event == "player.died" ? FormatDeathNotification(evt.Data, name) : string.Empty;
         // The server may echo the bridge's own /announce payload back through
         // its notification logger. Do not send that group relay back to QQ.
         if (IsServerRelayEchoText(content) || GroupRelayEchoRegex.IsMatch(content)) return;
@@ -963,7 +1112,7 @@ public sealed class Vs2QQProcessService
             "player.left" => $"[服务器 {time}]{name} 离开服务器",
             "player.died" => string.IsNullOrWhiteSpace(deathReason)
                 ? $"[服务器 {time}]{name} 死亡"
-                : $"[服务器 {time}]{name} 死亡：{deathReason}",
+                : $"[服务器 {time}]{deathNotification}",
             "chat" => $"[服务器 {time}]{name}：{content}",
             "server.notification" => $"[服务器 {time}]{content}",
             _ => string.Empty
@@ -1014,7 +1163,17 @@ public sealed class Vs2QQProcessService
             ? _instanceProfileService.GetProfileById(profileId)
             : _serverProcessService.GetCurrentStatuses().Where(x => x.IsRunning).Select(x => x.ProfileId).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => _instanceProfileService.GetProfileById(x!)).FirstOrDefault(x => x is not null);
         if (profile is null) return null;
-        try { return await _serverBridgeService.QueryAsync(profile, method, cancellationToken: cancellationToken).ConfigureAwait(false); }
+        return await QueryBridgeForProfileAsync(profile, method, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<ServerBridgeQueryResult?> QueryBridgeForProfileAsync(
+        InstanceProfile profile,
+        string method,
+        CancellationToken cancellationToken,
+        JsonObject? arguments = null)
+    {
+        if (_serverBridgeService is null) return null;
+        try { return await _serverBridgeService.QueryAsync(profile, method, arguments, cancellationToken).ConfigureAwait(false); }
         catch (Exception ex)
         {
             EmitOutput($"[warn] server bridge query failed ({method}): {ex.Message}");
@@ -1083,7 +1242,7 @@ public sealed class Vs2QQProcessService
                     var playerName = Safe(ReadString(evt.Data, "name"));
                     var connectionState = Safe(ReadString(evt.Data, "connectionState"));
                     var reason = evt.Event == "player.died"
-                        ? NormalizeDisplayText(ReadString(evt.Data, "reason"))
+                        ? FormatDeathReason(evt.Data)
                         : string.Empty;
                     var entry = connectionState == "-"
                         ? $"{playerName}-{eventName}"
@@ -1138,21 +1297,110 @@ public sealed class Vs2QQProcessService
         return LimitText(string.Join('\n', lines), MaxOneBotMessageLength);
     }
 
+    internal static IReadOnlyList<string> BuildMyInfoLines(string profileName, JsonObject player)
+    {
+        var lines = new List<string>
+        {
+            $"[我的玩家信息 {DateTime.Now:HH:mm:ss}]",
+            $"服务器：{Safe(profileName)}",
+            $"玩家：{Safe(ReadString(player, "name"))}",
+            $"状态：{Safe(ReadString(player, "connectionState"))}",
+            $"延迟：{FormatNumber(ReadInt(player, "pingMs"), "ms")}",
+            $"坐标：{FormatPlayerPosition(player)}",
+            $"维度：{FormatNumber(ReadInt(player, "dimension"))}",
+            $"游戏模式：{Safe(ReadString(player, "gameMode"))}",
+            $"生命值：{FormatRange(ReadDouble(player, "health"), ReadDouble(player, "maxHealth"))}",
+            $"饱食度：{FormatRange(ReadDouble(player, "hunger"), ReadDouble(player, "maxHunger"))}",
+            $"加入时间：{FormatPlayerTimestamp(ReadString(player, "joinedAtUtc"))}",
+            $"最近活动：{FormatPlayerTimestamp(ReadString(player, "lastActivityUtc"))}"
+        };
+
+        if (player["inventory"] is not JsonArray inventory)
+        {
+            lines.Add("背包：未启用扩展玩家信息或当前版本不支持");
+            return lines;
+        }
+        if (inventory.Count == 0)
+        {
+            lines.Add("背包：空");
+            return lines;
+        }
+
+        lines.Add($"背包物品（{inventory.Count} 类）：");
+        foreach (var item in inventory.OfType<JsonObject>())
+        {
+            var quantity = ReadInt(item, "quantity") ?? 0;
+            lines.Add($"- {Safe(ReadString(item, "name"))} x{quantity.ToString(CultureInfo.InvariantCulture)}");
+        }
+        return lines;
+    }
+
+    internal static string FormatDeathReason(JsonObject data)
+    {
+        var exactMessage = NormalizeDisplayText(ReadString(data, "deathMessage"));
+        if (!string.IsNullOrWhiteSpace(exactMessage))
+        {
+            var playerName = NormalizeDisplayText(ReadString(data, "name"));
+            return !string.IsNullOrWhiteSpace(playerName) && exactMessage.StartsWith(playerName, StringComparison.OrdinalIgnoreCase)
+                ? exactMessage[playerName.Length..].TrimStart()
+                : exactMessage;
+        }
+        return string.Empty;
+    }
+
+    internal static string FormatDeathNotification(JsonObject data, string playerName)
+    {
+        var exactMessage = NormalizeDisplayText(ReadString(data, "deathMessage"));
+        if (!string.IsNullOrWhiteSpace(exactMessage))
+            return exactMessage.StartsWith(playerName, StringComparison.OrdinalIgnoreCase)
+                ? exactMessage
+                : $"{playerName}{exactMessage}";
+        return $"{playerName} 死亡";
+    }
+
+    private static string FormatPlayerPosition(JsonObject player)
+    {
+        var x = ReadDouble(player, "x");
+        var y = ReadDouble(player, "y");
+        var z = ReadDouble(player, "z");
+        if (x is null || y is null || z is null) return "-";
+        return $"X={x.Value:F1}, Y={y.Value:F1}, Z={z.Value:F1}（相对出生点）";
+    }
+
+    private static string FormatRange(double? current, double? maximum) =>
+        current is null ? "-" : maximum is null ? $"{current.Value:F1}" : $"{current.Value:F1}/{maximum.Value:F1}";
+
+    private static string FormatNumber(int? value, string suffix = "") =>
+        value is null ? "-" : $"{value.Value.ToString(CultureInfo.InvariantCulture)}{suffix}";
+
+    private static string FormatPlayerTimestamp(string rawTimestamp)
+    {
+        return DateTimeOffset.TryParse(rawTimestamp, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var timestamp)
+            ? timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            : "-";
+    }
+
     private static string ReadString(JsonObject data, string name) =>
         data[name]?.GetValue<string>() ?? string.Empty;
 
     private static int? ReadInt(JsonObject data, string name)
     {
-        try { return data[name]?.GetValue<int?>(); }
-        catch (InvalidOperationException) { return null; }
-        catch (FormatException) { return null; }
+        if (data[name] is not JsonValue value) return null;
+        if (value.TryGetValue<int>(out var integer)) return integer;
+        if (value.TryGetValue<long>(out var longInteger) && longInteger is >= int.MinValue and <= int.MaxValue)
+            return (int)longInteger;
+        if (value.TryGetValue<double>(out var number) && double.IsFinite(number) && number is >= int.MinValue and <= int.MaxValue)
+            return (int)Math.Round(number);
+        return null;
     }
 
     private static double? ReadDouble(JsonObject data, string name)
     {
-        try { return data[name]?.GetValue<double?>(); }
-        catch (InvalidOperationException) { return null; }
-        catch (FormatException) { return null; }
+        if (data[name] is not JsonValue value) return null;
+        if (value.TryGetValue<double>(out var number) && double.IsFinite(number)) return number;
+        if (value.TryGetValue<int>(out var integer)) return integer;
+        if (value.TryGetValue<long>(out var longInteger)) return longInteger;
+        return null;
     }
 
     private static bool? ReadBool(JsonObject data, string name)
@@ -1639,6 +1887,8 @@ public sealed class Vs2QQProcessService
             /server stop [档案名或ID] - 停止指定或唯一绑定的服务器档案（仅超级管理员）
             /server password get - 获取服务器密码
             /server password set <new_password> - 修改服务器密码（- 表示清空，仅超级管理员）
+            /bind <游戏玩家名> - 在群聊发起 QQ 与游戏玩家绑定
+            /myinfo - 私聊查看已绑定玩家的实时信息
             """;
 
         if (runtime.CustomCommands.Count == 0)
@@ -2119,6 +2369,7 @@ public sealed class Vs2QQProcessService
                 .ToDictionary(static command => command.Command, StringComparer.OrdinalIgnoreCase);
             ProfileBindings = BuildRuntimeProfileBindings(settings.ProfileBindings);
             GroupsByProfileId = BuildGroupsByProfileId(ProfileBindings);
+            PlayerBindings = new RobotPlayerBindingStore(settings.DatabasePath);
         }
 
         public RobotSettings Settings { get; }
@@ -2136,6 +2387,8 @@ public sealed class Vs2QQProcessService
         private IReadOnlyDictionary<string, HashSet<long>> GroupsByProfileId { get; }
 
         public Vs2QQStorage Storage { get; }
+
+        public RobotPlayerBindingStore PlayerBindings { get; }
 
         public Vs2QQOneBotClient OneBot { get; set; } = null!;
 
@@ -2163,6 +2416,7 @@ public sealed class Vs2QQProcessService
             }
 
             await OneBot.DisposeAsync();
+            PlayerBindings.Dispose();
             Storage.Dispose();
         }
 

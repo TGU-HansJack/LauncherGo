@@ -30,15 +30,31 @@ public sealed class LauncherUpdateService : ILauncherUpdateService
 
     public async Task<LauncherUpdateCheckResult> CheckLatestAsync(
         GitHubProxyKind proxy,
+        bool includePrerelease = false,
         CancellationToken cancellationToken = default)
     {
-        var apiUrl = BuildProxyUrl($"https://api.github.com/repos/{Repository}/releases/latest", proxy);
+        var endpoint = includePrerelease
+            ? $"https://api.github.com/repos/{Repository}/releases?per_page=100"
+            : $"https://api.github.com/repos/{Repository}/releases/latest";
+        var apiUrl = BuildProxyUrl(endpoint, proxy);
         using var response = await HttpClient.GetAsync(apiUrl, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        var release = await JsonSerializer.DeserializeAsync<GitHubReleaseDto>(stream, cancellationToken: cancellationToken)
-            .ConfigureAwait(false)
-            ?? throw new InvalidOperationException("GitHub 返回了空的版本信息。");
+        GitHubReleaseDto release;
+        if (includePrerelease)
+        {
+            var releases = await JsonSerializer.DeserializeAsync<List<GitHubReleaseDto>>(stream, cancellationToken: cancellationToken)
+                .ConfigureAwait(false)
+                ?? [];
+            release = SelectNewestRelease(releases)
+                ?? throw new InvalidOperationException("GitHub 未返回可用的发布版本。");
+        }
+        else
+        {
+            release = await JsonSerializer.DeserializeAsync<GitHubReleaseDto>(stream, cancellationToken: cancellationToken)
+                .ConfigureAwait(false)
+                ?? throw new InvalidOperationException("GitHub 返回了空的版本信息。");
+        }
 
         var releaseModel = new LauncherUpdateRelease
         {
@@ -74,6 +90,19 @@ public sealed class LauncherUpdateService : ILauncherUpdateService
             IsUpdateAvailable = isAvailable
         };
     }
+
+    private static GitHubReleaseDto? SelectNewestRelease(IEnumerable<GitHubReleaseDto> releases) =>
+        releases
+            .Where(static release => !release.Draft && !string.IsNullOrWhiteSpace(release.TagName))
+            .OrderByDescending(static release => release.PublishedAt ?? release.CreatedAt ?? DateTimeOffset.MinValue)
+            .FirstOrDefault();
+
+    internal static string? SelectNewestReleaseTag(IEnumerable<LauncherReleaseCandidate> releases) =>
+        releases
+            .Where(static release => !release.IsDraft && !string.IsNullOrWhiteSpace(release.TagName))
+            .OrderByDescending(static release => release.PublishedAtUtc ?? release.CreatedAtUtc ?? DateTimeOffset.MinValue)
+            .Select(static release => release.TagName)
+            .FirstOrDefault();
 
     public async Task PrepareAndLaunchUpdateAsync(
         LauncherUpdateCheckResult update,
@@ -255,7 +284,9 @@ try {
         [JsonPropertyName("body")] public string? Body { get; set; }
         [JsonPropertyName("html_url")] public string? HtmlUrl { get; set; }
         [JsonPropertyName("prerelease")] public bool Prerelease { get; set; }
+        [JsonPropertyName("draft")] public bool Draft { get; set; }
         [JsonPropertyName("published_at")] public DateTimeOffset? PublishedAt { get; set; }
+        [JsonPropertyName("created_at")] public DateTimeOffset? CreatedAt { get; set; }
         [JsonPropertyName("assets")] public List<GitHubAssetDto>? Assets { get; set; }
     }
 
@@ -266,4 +297,13 @@ try {
         [JsonPropertyName("size")] public long Size { get; set; }
         [JsonPropertyName("digest")] public string? Digest { get; set; }
     }
+}
+
+internal sealed class LauncherReleaseCandidate
+{
+    public string TagName { get; init; } = string.Empty;
+    public bool IsPrerelease { get; init; }
+    public bool IsDraft { get; init; }
+    public DateTimeOffset? PublishedAtUtc { get; init; }
+    public DateTimeOffset? CreatedAtUtc { get; init; }
 }

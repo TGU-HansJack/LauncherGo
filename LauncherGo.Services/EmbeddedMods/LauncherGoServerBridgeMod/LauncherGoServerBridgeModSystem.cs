@@ -9,7 +9,9 @@ using System.Threading.Channels;
 using Vintagestory.API.Common;
 using Vintagestory.API.Server;
 using Vintagestory.API.Util;
+using LauncherGo.Services;
 using BoolRef = Vintagestory.API.Datastructures.BoolRef;
+using ITreeAttribute = Vintagestory.API.Datastructures.ITreeAttribute;
 using Vintagestory.API.Config;
 
 namespace LauncherGoServerBridge;
@@ -38,6 +40,7 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
     private readonly Queue<ServerBridgeEventRecord> _eventHistory = new();
     private readonly ConcurrentDictionary<Guid, BridgeSubscriber> _subscribers = new();
     private readonly ConcurrentDictionary<string, long> _recentPlayerEvents = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, long> _recentExactDeathLogs = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, DateTimeOffset> _playerJoinedAtUtc = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, DateTimeOffset> _playerLastActivityUtc = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, IServerBridgeExtensionProvider> _extensionProviders = new(StringComparer.OrdinalIgnoreCase);
@@ -57,7 +60,6 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
         api.Event.PlayerNowPlaying += OnPlayerNowPlaying;
         api.Event.PlayerDisconnect += OnPlayerDisconnect;
         api.Event.PlayerChat += OnPlayerChat;
-        api.Event.PlayerDeath += OnPlayerDeath;
         api.Logger.EntryAdded += OnLoggerEntryAdded;
         _performanceListenerId = api.Event.RegisterGameTickListener(OnPerformanceTick, 0, 0);
         _performanceWindowStartedMs = Environment.TickCount64;
@@ -74,13 +76,13 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
             api.Event.PlayerNowPlaying -= OnPlayerNowPlaying;
             api.Event.PlayerDisconnect -= OnPlayerDisconnect;
             api.Event.PlayerChat -= OnPlayerChat;
-            api.Event.PlayerDeath -= OnPlayerDeath;
             api.Logger.EntryAdded -= OnLoggerEntryAdded;
             if (_performanceListenerId != 0)
                 api.Event.UnregisterGameTickListener(_performanceListenerId);
         }
         foreach (var subscriber in _subscribers.Values) subscriber.Channel.Writer.TryComplete();
         _subscribers.Clear();
+        _recentExactDeathLogs.Clear();
         _playerJoinedAtUtc.Clear();
         _playerLastActivityUtc.Clear();
         _configurationReloadTimer?.Dispose();
@@ -493,12 +495,6 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
         _playerJoinedAtUtc.TryRemove(player.PlayerUID, out _);
         _playerLastActivityUtc.TryRemove(player.PlayerUID, out _);
     }
-    private void OnPlayerDeath(IServerPlayer player, DamageSource damageSource)
-    {
-        if (!ShouldEmitPlayerEvent("player.died", player)) return;
-        _playerLastActivityUtc[player.PlayerUID] = DateTimeOffset.UtcNow;
-        EmitEvent("player.died", PlayerDeathData(player, damageSource));
-    }
     private void OnPlayerChat(IServerPlayer player, int channelId, ref string message, ref string data, BoolRef consumed)
     {
         if (consumed.value || string.IsNullOrWhiteSpace(message) || message.StartsWith('/')) return;
@@ -511,16 +507,33 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
 
     private void OnLoggerEntryAdded(EnumLogType type, string message, params object[] args)
     {
-        if (type != EnumLogType.Notification || string.IsNullOrWhiteSpace(message)) return;
+        if (string.IsNullOrWhiteSpace(message)) return;
         string formatted;
         try { formatted = args.Length == 0 ? message : string.Format(message, args); }
         catch (FormatException) { formatted = message; }
-        const string marker = "Message to all in group";
-        var markerIndex = formatted.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
-        var colonIndex = markerIndex < 0 ? -1 : formatted.IndexOf(':', markerIndex + marker.Length);
-        if (colonIndex < 0 || colonIndex + 1 >= formatted.Length) return;
-        var content = formatted[(colonIndex + 1)..].Replace('\r', ' ').Replace('\n', ' ').Trim();
-        if (content.Length > 0) EmitEvent("server.notification", new JsonObject { ["message"] = content });
+        if (TryEmitExactDeathLog(type, formatted)) return;
+        if (type != EnumLogType.Notification) return;
+        if (ServerBroadcastLogParser.TryParse(formatted, out var content))
+            EmitEvent("server.notification", new JsonObject { ["message"] = content });
+    }
+
+    private bool TryEmitExactDeathLog(EnumLogType type, string formatted)
+    {
+        if (type != EnumLogType.Audit || !ServerDeathLogParser.TryParse(formatted, out var playerName, out var deathMessage))
+            return false;
+
+        var now = Environment.TickCount64;
+        if (_recentExactDeathLogs.TryGetValue(playerName, out var previousAt) && now - previousAt < 2000)
+            return true;
+        _recentExactDeathLogs[playerName] = now;
+        foreach (var item in _recentExactDeathLogs)
+            if (now - item.Value > 10000) _recentExactDeathLogs.TryRemove(item.Key, out _);
+        var data = new JsonObject { ["name"] = playerName };
+        data["deathMessage"] = deathMessage;
+        data["reason"] = deathMessage;
+        data["reasonSource"] = "server-log";
+        EmitEvent("player.died", data);
+        return true;
     }
 
     private void EmitPlayerEvent(string eventName, IServerPlayer player)
@@ -539,25 +552,6 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
         foreach (var item in _recentPlayerEvents)
             if (now - item.Value > 10000) _recentPlayerEvents.TryRemove(item.Key, out _);
         return true;
-    }
-
-    private JsonObject PlayerDeathData(IServerPlayer player, DamageSource damageSource)
-    {
-        var data = PlayerData(player);
-        var damageType = damageSource.Type.ToString();
-        var damageSourceType = damageSource.Source.ToString();
-        if (!string.IsNullOrWhiteSpace(damageType)) data["damageType"] = damageType;
-        if (!string.IsNullOrWhiteSpace(damageSourceType)) data["damageSource"] = damageSourceType;
-
-        var cause = damageSource.GetCauseEntity();
-        var causeName = cause?.GetType().GetProperty("Code")?.GetValue(cause)?.ToString()
-                        ?? cause?.GetType().GetProperty("EntityName")?.GetValue(cause)?.ToString();
-        var blockCode = damageSource.SourceBlock?.Code?.ToString();
-        var reason = !string.IsNullOrWhiteSpace(causeName) ? causeName
-                     : !string.IsNullOrWhiteSpace(blockCode) ? blockCode
-                     : damageType;
-        if (!string.IsNullOrWhiteSpace(reason)) data["reason"] = reason;
-        return data;
     }
 
     private void OnPerformanceTick(float elapsedSeconds)
@@ -613,6 +607,19 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
                         }
                         _extensionLastQueryTicks[request.Method] = nowTicks;
                         _ = CompleteExtensionQueryAsync(provider, request, completion, cancellationToken);
+                        return;
+                    }
+                    if (string.Equals(request.Method, "player.info", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (!_configuration.IncludeExtendedPlayerInfo)
+                        {
+                            completion.TrySetResult(Failure("Extended player information is not enabled.", "unsupported-capability"));
+                            return;
+                        }
+                        var playerInfo = BuildPlayerInfo(api, request.Arguments);
+                        completion.TrySetResult(playerInfo is null
+                            ? Failure("The requested player is not online.", "player-not-online")
+                            : new ServerBridgeResponse { Version = 2, Success = true, Id = request.Id, Data = playerInfo, BridgeVersion = BridgeVersion });
                         return;
                     }
                     JsonObject? data = request.Method switch
@@ -687,34 +694,7 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
         foreach (var value in api.World.AllOnlinePlayers)
         {
             if (value is not IServerPlayer player) continue;
-            var ping = float.IsFinite(player.Ping) && player.Ping >= 0 ? (int?)Math.Round(player.Ping * 1000f) : null;
-            var joinedAt = _playerJoinedAtUtc.GetOrAdd(player.PlayerUID, static _ => DateTimeOffset.UtcNow);
-            var lastActivity = _playerLastActivityUtc.GetOrAdd(player.PlayerUID, joinedAt);
-            var item = new JsonObject
-            {
-                ["uid"] = player.PlayerUID,
-                ["name"] = player.PlayerName,
-                ["online"] = player.ConnectionState != EnumClientState.Offline,
-                ["playing"] = player.ConnectionState == EnumClientState.Playing,
-                ["connectionState"] = player.ConnectionState.ToString(),
-                ["pingMs"] = ping,
-                ["joinedAtUtc"] = joinedAt,
-                ["lastActivityUtc"] = lastActivity
-            };
-            if (_configuration.IncludeExtendedPlayerInfo)
-            {
-                item["gameMode"] = player.WorldData.CurrentGameMode.ToString();
-                item["role"] = player.Role?.Code;
-                var entity = player.Entity;
-                if (entity is not null)
-                {
-                    item["dimension"] = entity.Pos.Dimension;
-                    item["x"] = entity.Pos.X;
-                    item["y"] = entity.Pos.Y;
-                    item["z"] = entity.Pos.Z;
-                }
-            }
-            players.Add(item);
+            players.Add(BuildPlayerInfoData(api, player, includeInventory: false));
         }
         return new JsonObject
         {
@@ -723,6 +703,120 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
             ["maxPlayers"] = api.Server.Config.MaxClients
         };
     }
+
+    private JsonObject? BuildPlayerInfo(ICoreServerAPI api, JsonObject? arguments)
+    {
+        var uid = arguments?["uid"] is JsonValue uidValue && uidValue.TryGetValue<string>(out var uidText)
+            ? uidText.Trim()
+            : string.Empty;
+        var name = arguments?["name"] is JsonValue nameValue && nameValue.TryGetValue<string>(out var nameText)
+            ? nameText.Trim()
+            : string.Empty;
+        if (string.IsNullOrWhiteSpace(uid) && string.IsNullOrWhiteSpace(name)) return null;
+        var player = api.World.AllOnlinePlayers.OfType<IServerPlayer>().FirstOrDefault(candidate =>
+            (!string.IsNullOrWhiteSpace(uid) && string.Equals(candidate.PlayerUID, uid, StringComparison.Ordinal)) ||
+            (!string.IsNullOrWhiteSpace(name) && string.Equals(candidate.PlayerName, name, StringComparison.OrdinalIgnoreCase)));
+        return player is null ? null : BuildPlayerInfoData(api, player, includeInventory: true);
+    }
+
+    private JsonObject BuildPlayerInfoData(ICoreServerAPI api, IServerPlayer player, bool includeInventory)
+    {
+        var ping = float.IsFinite(player.Ping) && player.Ping >= 0 ? (int?)Math.Round(player.Ping * 1000f) : null;
+        var joinedAt = _playerJoinedAtUtc.GetOrAdd(player.PlayerUID, static _ => DateTimeOffset.UtcNow);
+        var lastActivity = _playerLastActivityUtc.GetOrAdd(player.PlayerUID, joinedAt);
+        var item = new JsonObject
+        {
+            ["uid"] = player.PlayerUID,
+            ["name"] = player.PlayerName,
+            ["online"] = player.ConnectionState != EnumClientState.Offline,
+            ["playing"] = player.ConnectionState == EnumClientState.Playing,
+            ["connectionState"] = player.ConnectionState.ToString(),
+            ["pingMs"] = ping,
+            ["joinedAtUtc"] = joinedAt,
+            ["lastActivityUtc"] = lastActivity
+        };
+        if (!_configuration.IncludeExtendedPlayerInfo) return item;
+
+        item["gameMode"] = player.WorldData.CurrentGameMode.ToString();
+        item["role"] = player.Role?.Code;
+        var entity = player.Entity;
+        if (entity is not null)
+        {
+            item["dimension"] = entity.Pos.Dimension;
+            var origin = api.World.DefaultSpawnPosition;
+            item["x"] = Math.Round(entity.Pos.X - origin.X, 2);
+            item["y"] = entity.Pos.Y;
+            item["z"] = Math.Round(entity.Pos.Z - origin.Z, 2);
+            item["coordinateSystem"] = "spawn-relative";
+            AddPlayerVitals(item, entity);
+        }
+        if (includeInventory) AddPlayerInventory(item, player);
+        return item;
+    }
+
+    private static void AddPlayerVitals(JsonObject item, EntityPlayer entity)
+    {
+        item["alive"] = entity.Alive;
+        var health = entity.WatchedAttributes.GetTreeAttribute("health");
+        AddTreeFloat(item, "health", health, "currenthealth");
+        AddTreeFloat(item, "maxHealth", health, "maxhealth");
+        var hunger = entity.WatchedAttributes.GetTreeAttribute("hunger");
+        AddTreeFloat(item, "hunger", hunger, "currentsaturation");
+        AddTreeFloat(item, "maxHunger", hunger, "maxsaturation");
+    }
+
+    private static void AddTreeFloat(JsonObject target, string outputName, ITreeAttribute? tree, string attributeName)
+    {
+        if (tree is null || !tree.HasAttribute(attributeName)) return;
+        var value = tree.GetFloat(attributeName);
+        if (float.IsFinite(value)) target[outputName] = Math.Round(value, 2);
+    }
+
+    private static void AddPlayerInventory(JsonObject item, IServerPlayer player)
+    {
+        var totals = new Dictionary<string, InventorySummaryEntry>(StringComparer.OrdinalIgnoreCase);
+        foreach (var inventory in player.InventoryManager.Inventories.Values)
+        {
+            if (!IsPlayerCarriedInventory(inventory.ClassName)) continue;
+            foreach (var slot in inventory)
+            {
+                var stack = slot.Itemstack;
+                if (stack is null || stack.StackSize <= 0) continue;
+                var code = stack.Collectible?.Code?.ToString() ?? $"{stack.Class}:{stack.Id}";
+                string name;
+                try { name = stack.GetName(); }
+                catch { name = code; }
+                if (string.IsNullOrWhiteSpace(name)) name = code;
+                if (totals.TryGetValue(code, out var existing))
+                    totals[code] = existing with { Quantity = existing.Quantity + stack.StackSize };
+                else
+                    totals[code] = new InventorySummaryEntry(code, name.Trim(), stack.StackSize);
+            }
+        }
+
+        var inventoryItems = new JsonArray();
+        foreach (var entry in totals.Values
+                     .OrderBy(static value => value.Name, StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(static value => value.Code, StringComparer.OrdinalIgnoreCase))
+        {
+            inventoryItems.Add(new JsonObject
+            {
+                ["code"] = entry.Code,
+                ["name"] = entry.Name,
+                ["quantity"] = entry.Quantity
+            });
+        }
+        item["inventory"] = inventoryItems;
+        item["inventoryItemKinds"] = inventoryItems.Count;
+        item["inventoryTotalItems"] = totals.Values.Sum(static value => value.Quantity);
+    }
+
+    private static bool IsPlayerCarriedInventory(string? className) =>
+        string.Equals(className, GlobalConstants.hotBarInvClassName, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(className, GlobalConstants.backpackInvClassName, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(className, GlobalConstants.characterInvClassName, StringComparison.OrdinalIgnoreCase);
+
+    private sealed record InventorySummaryEntry(string Code, string Name, int Quantity);
 
     private JsonObject BuildServerStatus(ICoreServerAPI api)
     {
@@ -774,6 +868,7 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
     private JsonObject BuildCapabilities()
     {
         var queries = new JsonArray("server.status", "players.list", "server.capabilities");
+        if (_configuration.IncludeExtendedPlayerInfo) queries.Add("player.info");
         if (_configuration.IncludeWorldDetails) queries.Add("world.status");
         foreach (var provider in _extensionProviders.Values)
         {

@@ -43,7 +43,7 @@ public partial class ServerPlayerDetailsWindow : Window
             AddExtended(T("游戏模式", "Game Mode"), Display(player.GameMode));
             AddExtended(T("权限组", "Role"), Display(player.Role));
             AddExtended(T("维度", "Dimension"), player.Dimension?.ToString(CultureInfo.InvariantCulture) ?? "--");
-            AddExtended(T("坐标", "Position"), FormatPosition(player));
+            AddExtended(T("坐标（相对出生点）", "Position (spawn-relative)"), FormatPosition(player));
         }
         else
         {

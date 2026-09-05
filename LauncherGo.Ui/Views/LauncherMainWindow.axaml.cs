@@ -604,7 +604,7 @@ public partial class LauncherMainWindow : Window
         await StartConfiguredConnectionServicesAsync(preferences);
         if (preferences.AutoCheckUpdates)
         {
-            _ = CheckLauncherUpdatesAsync(onlyShowWhenAvailable: true);
+            _ = CheckLauncherUpdatesAsync(onlyShowWhenAvailable: true, includePrerelease: false);
         }
     }
 
@@ -1153,7 +1153,7 @@ public partial class LauncherMainWindow : Window
         SettingsChunkedDownloadLabelTextBlock.Text = T("启用", "Enabled");
         SettingsDownloadChunkCountLabelTextBlock.Text = T("分片数量", "Chunk count");
         SettingsDownloadThreadCountLabelTextBlock.Text = T("下载线程数", "Download threads");
-        SettingsCheckUpdatesButton.Content = T("检查最新版本", "Check latest version");
+        SettingsCheckUpdatesButton.Content = T("检查更新（含预发布）", "Check updates (including prereleases)");
         EnsureGitHubProxyOptions();
     }
 
@@ -7399,9 +7399,9 @@ public partial class LauncherMainWindow : Window
     }
 
     private async void OnSettingsCheckUpdatesClick(object? sender, RoutedEventArgs e) =>
-        await CheckLauncherUpdatesAsync(onlyShowWhenAvailable: false);
+        await CheckLauncherUpdatesAsync(onlyShowWhenAvailable: false, includePrerelease: true);
 
-    private async Task CheckLauncherUpdatesAsync(bool onlyShowWhenAvailable)
+    private async Task CheckLauncherUpdatesAsync(bool onlyShowWhenAvailable, bool includePrerelease)
     {
         SettingsCheckUpdatesButton.IsEnabled = false;
         SettingsUpdateStatusTextBlock.Text = T("正在检查更新...", "Checking for updates...");
@@ -7409,7 +7409,10 @@ public partial class LauncherMainWindow : Window
         {
             var preferences = _preferencesService.Load();
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-            var result = await _launcherUpdateService.CheckLatestAsync(preferences.GitHubProxy, cts.Token);
+            var result = await _launcherUpdateService.CheckLatestAsync(
+                preferences.GitHubProxy,
+                includePrerelease,
+                cts.Token);
             SettingsUpdateStatusTextBlock.Text = result.IsUpdateAvailable
                 ? T($"发现新版本 {result.LatestVersion}", $"Version {result.LatestVersion} is available")
                 : T($"当前已是最新版本 {result.CurrentVersion}", $"Up to date: {result.CurrentVersion}");
