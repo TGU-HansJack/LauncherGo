@@ -38,6 +38,8 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
     private readonly Queue<ServerBridgeEventRecord> _eventHistory = new();
     private readonly ConcurrentDictionary<Guid, BridgeSubscriber> _subscribers = new();
     private readonly ConcurrentDictionary<string, long> _recentPlayerEvents = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _playerJoinedAtUtc = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _playerLastActivityUtc = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, IServerBridgeExtensionProvider> _extensionProviders = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, long> _extensionLastQueryTicks = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _querySlots = new(8, 8);
@@ -79,6 +81,8 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
         }
         foreach (var subscriber in _subscribers.Values) subscriber.Channel.Writer.TryComplete();
         _subscribers.Clear();
+        _playerJoinedAtUtc.Clear();
+        _playerLastActivityUtc.Clear();
         _configurationReloadTimer?.Dispose();
         _configurationReloadTimer = null;
         _configurationWatcher?.Dispose();
@@ -475,16 +479,30 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
         Data = data
     };
 
-    private void OnPlayerNowPlaying(IServerPlayer player) => EmitPlayerEvent("player.joined", player);
-    private void OnPlayerDisconnect(IServerPlayer player) => EmitPlayerEvent("player.left", player);
+    private void OnPlayerNowPlaying(IServerPlayer player)
+    {
+        var now = DateTimeOffset.UtcNow;
+        _playerJoinedAtUtc[player.PlayerUID] = now;
+        _playerLastActivityUtc[player.PlayerUID] = now;
+        EmitPlayerEvent("player.joined", player);
+    }
+
+    private void OnPlayerDisconnect(IServerPlayer player)
+    {
+        EmitPlayerEvent("player.left", player);
+        _playerJoinedAtUtc.TryRemove(player.PlayerUID, out _);
+        _playerLastActivityUtc.TryRemove(player.PlayerUID, out _);
+    }
     private void OnPlayerDeath(IServerPlayer player, DamageSource damageSource)
     {
         if (!ShouldEmitPlayerEvent("player.died", player)) return;
+        _playerLastActivityUtc[player.PlayerUID] = DateTimeOffset.UtcNow;
         EmitEvent("player.died", PlayerDeathData(player, damageSource));
     }
     private void OnPlayerChat(IServerPlayer player, int channelId, ref string message, ref string data, BoolRef consumed)
     {
         if (consumed.value || string.IsNullOrWhiteSpace(message) || message.StartsWith('/')) return;
+        _playerLastActivityUtc[player.PlayerUID] = DateTimeOffset.UtcNow;
         var payload = PlayerData(player);
         payload["message"] = message;
         payload["channelId"] = channelId;
@@ -523,7 +541,7 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
         return true;
     }
 
-    private static JsonObject PlayerDeathData(IServerPlayer player, DamageSource damageSource)
+    private JsonObject PlayerDeathData(IServerPlayer player, DamageSource damageSource)
     {
         var data = PlayerData(player);
         var damageType = damageSource.Type.ToString();
@@ -557,11 +575,19 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
         }
     }
 
-    private static JsonObject PlayerData(IServerPlayer player) => new()
+    private JsonObject PlayerData(IServerPlayer player)
     {
-        ["uid"] = player.PlayerUID,
-        ["name"] = player.PlayerName
-    };
+        var joinedAt = _playerJoinedAtUtc.GetOrAdd(player.PlayerUID, static _ => DateTimeOffset.UtcNow);
+        var lastActivity = _playerLastActivityUtc.GetOrAdd(player.PlayerUID, joinedAt);
+        return new JsonObject
+        {
+            ["uid"] = player.PlayerUID,
+            ["name"] = player.PlayerName,
+            ["connectionState"] = player.ConnectionState.ToString(),
+            ["joinedAtUtc"] = joinedAt,
+            ["lastActivityUtc"] = lastActivity
+        };
+    }
 
     private async Task<ServerBridgeResponse> ProcessQueryAsync(ServerBridgeRequest request, CancellationToken cancellationToken)
     {
@@ -662,6 +688,8 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
         {
             if (value is not IServerPlayer player) continue;
             var ping = float.IsFinite(player.Ping) && player.Ping >= 0 ? (int?)Math.Round(player.Ping * 1000f) : null;
+            var joinedAt = _playerJoinedAtUtc.GetOrAdd(player.PlayerUID, static _ => DateTimeOffset.UtcNow);
+            var lastActivity = _playerLastActivityUtc.GetOrAdd(player.PlayerUID, joinedAt);
             var item = new JsonObject
             {
                 ["uid"] = player.PlayerUID,
@@ -670,16 +698,21 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
                 ["playing"] = player.ConnectionState == EnumClientState.Playing,
                 ["connectionState"] = player.ConnectionState.ToString(),
                 ["pingMs"] = ping,
-                ["lastActivityUtc"] = DateTimeOffset.UtcNow
+                ["joinedAtUtc"] = joinedAt,
+                ["lastActivityUtc"] = lastActivity
             };
             if (_configuration.IncludeExtendedPlayerInfo)
             {
                 item["gameMode"] = player.WorldData.CurrentGameMode.ToString();
                 item["role"] = player.Role?.Code;
-                item["dimension"] = player.Entity.Pos.Dimension;
-                item["x"] = player.Entity.Pos.X;
-                item["y"] = player.Entity.Pos.Y;
-                item["z"] = player.Entity.Pos.Z;
+                var entity = player.Entity;
+                if (entity is not null)
+                {
+                    item["dimension"] = entity.Pos.Dimension;
+                    item["x"] = entity.Pos.X;
+                    item["y"] = entity.Pos.Y;
+                    item["z"] = entity.Pos.Z;
+                }
             }
             players.Add(item);
         }

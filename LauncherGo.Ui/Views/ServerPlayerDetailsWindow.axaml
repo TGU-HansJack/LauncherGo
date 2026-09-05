@@ -1,0 +1,117 @@
+<Window
+    x:Class="LauncherGo.Ui.Views.ServerPlayerDetailsWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:LauncherGo.Ui.Views"
+    Width="520"
+    Height="610"
+    MinWidth="420"
+    MinHeight="440"
+    WindowStartupLocation="CenterOwner"
+    Background="{DynamicResource PlayerDetailsSurfaceBrush}"
+    Icon="avares://LauncherGo.Ui/Assets/app-icon.ico">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="PlayerDetailsSurfaceBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="PlayerDetailsTextBrush" Color="#111111" />
+                    <SolidColorBrush x:Key="PlayerDetailsSubTextBrush" Color="#64707D" />
+                    <SolidColorBrush x:Key="PlayerDetailsBorderBrush" Color="#D8DEE6" />
+                    <SolidColorBrush x:Key="PlayerDetailsHeaderBrush" Color="#F2F4F7" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="PlayerDetailsSurfaceBrush" Color="#191919" />
+                    <SolidColorBrush x:Key="PlayerDetailsTextBrush" Color="#F5F5F5" />
+                    <SolidColorBrush x:Key="PlayerDetailsSubTextBrush" Color="#B8C0C9" />
+                    <SolidColorBrush x:Key="PlayerDetailsBorderBrush" Color="#3B4149" />
+                    <SolidColorBrush x:Key="PlayerDetailsHeaderBrush" Color="#232323" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+    <Window.Styles>
+        <Style Selector="Border.DetailsHeader">
+            <Setter Property="Background" Value="{DynamicResource PlayerDetailsHeaderBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PlayerDetailsBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4,4,0,0" />
+            <Setter Property="Padding" Value="10,8" />
+        </Style>
+        <Style Selector="Border.DetailsBody">
+            <Setter Property="BorderBrush" Value="{DynamicResource PlayerDetailsBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1,0,1,1" />
+            <Setter Property="CornerRadius" Value="0,0,4,4" />
+        </Style>
+        <Style Selector="Border.DetailsRow">
+            <Setter Property="BorderBrush" Value="{DynamicResource PlayerDetailsBorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="10,8" />
+        </Style>
+        <Style Selector="TextBlock.DetailsLabel">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource PlayerDetailsSubTextBrush}" />
+        </Style>
+        <Style Selector="TextBlock.DetailsValue">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource PlayerDetailsTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </Window.Styles>
+
+    <Grid Margin="18" RowDefinitions="Auto,*,Auto" RowSpacing="14">
+        <StackPanel Spacing="3">
+            <TextBlock x:Name="PlayerNameTextBlock" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource PlayerDetailsTextBrush}" />
+            <TextBlock x:Name="ProfileNameTextBlock" FontSize="12" Foreground="{DynamicResource PlayerDetailsSubTextBrush}" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="14">
+                <Grid RowDefinitions="Auto,*">
+                    <Border Classes="DetailsHeader">
+                        <TextBlock x:Name="BasicTitleTextBlock" FontWeight="SemiBold" Foreground="{DynamicResource PlayerDetailsTextBrush}" />
+                    </Border>
+                    <Border Grid.Row="1" Classes="DetailsBody">
+                        <ItemsControl x:Name="BasicItemsControl">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="local:ServerPlayerDetailItem">
+                                    <Border Classes="DetailsRow">
+                                        <Grid ColumnDefinitions="142,*" ColumnSpacing="12">
+                                            <TextBlock Classes="DetailsLabel" Text="{Binding Label}" />
+                                            <TextBlock Grid.Column="1" Classes="DetailsValue" Text="{Binding Value}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+                </Grid>
+
+                <Grid RowDefinitions="Auto,*">
+                    <Border Classes="DetailsHeader">
+                        <TextBlock x:Name="ExtendedTitleTextBlock" FontWeight="SemiBold" Foreground="{DynamicResource PlayerDetailsTextBrush}" />
+                    </Border>
+                    <Border Grid.Row="1" Classes="DetailsBody">
+                        <ItemsControl x:Name="ExtendedItemsControl">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="local:ServerPlayerDetailItem">
+                                    <Border Classes="DetailsRow">
+                                        <Grid ColumnDefinitions="142,*" ColumnSpacing="12">
+                                            <TextBlock Classes="DetailsLabel" Text="{Binding Label}" />
+                                            <TextBlock Grid.Column="1" Classes="DetailsValue" Text="{Binding Value}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
+            <TextBlock x:Name="SourceTextBlock" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource PlayerDetailsSubTextBrush}" />
+            <Button x:Name="CloseButton" Grid.Column="1" MinWidth="76" Height="30" CornerRadius="4" Click="OnCloseClick" />
+        </Grid>
+    </Grid>
+</Window>

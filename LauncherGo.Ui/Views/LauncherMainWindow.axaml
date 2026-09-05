@@ -635,6 +635,26 @@
             <Setter Property="BorderThickness" Value="0,0,0,1" />
             <Setter Property="Padding" Value="0,8" />
         </Style>
+        <Style Selector="Button.DashboardPlayerLink">
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryLineBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.DashboardPlayerLink:pointerover">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Opacity" Value="0.78" />
+        </Style>
+        <Style Selector="Button.DashboardPlayerLink:pressed">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Opacity" Value="0.62" />
+        </Style>
         <Style Selector="TextBlock.DashboardTitle">
             <Setter Property="FontSize" Value="16" />
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -1245,25 +1265,31 @@
                                     </Border>
 
                                     <Border Classes="DashboardCard" Grid.Row="1" Grid.Column="0" MinHeight="0">
-                                        <Grid RowDefinitions="Auto,0,*" RowSpacing="10" MinHeight="0">
+                                        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="10" MinHeight="0">
                                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                                                 <TextBlock x:Name="DashboardPlayersTitleText" Classes="DashboardTitle" Text="在线玩家" />
                                                 <TextBlock x:Name="DashboardPlayersCountText" Grid.Column="1" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" Text="0/--" />
                                             </Grid>
-                                            <Grid Grid.Row="1" ColumnDefinitions="1.1*,1.1*,Auto" ColumnSpacing="8" IsVisible="False">
+                                            <Grid Grid.Row="1" ColumnDefinitions="1.1*,1.1*,64,72" ColumnSpacing="8">
                                                 <TextBlock x:Name="DashboardPlayersHintText" Classes="DashboardLabel" Text="玩家名称" />
-                                                <TextBlock Grid.Column="1" Classes="DashboardLabel" Text="服务器" />
-                                                <TextBlock Grid.Column="2" Classes="DashboardLabel" Text="加入时间" />
+                                                <TextBlock x:Name="DashboardPlayersServerHeaderText" Grid.Column="1" Classes="DashboardLabel" Text="服务器" />
+                                                <TextBlock x:Name="DashboardPlayersLatencyHeaderText" Grid.Column="2" Classes="DashboardLabel" Text="延迟" />
+                                                <TextBlock x:Name="DashboardPlayersJoinedHeaderText" Grid.Column="3" Classes="DashboardLabel" Text="加入时间" />
                                             </Grid>
                                             <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                                 <ItemsControl x:Name="DashboardOnlinePlayersItemsControl">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
                                                             <Border Classes="DashboardPlayerRow">
-                                                                <Grid ColumnDefinitions="1.1*,1.1*,Auto" ColumnSpacing="8">
-                                                                    <TextBlock Text="{Binding PlayerName}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource MainTextBrush}" TextTrimming="CharacterEllipsis" />
+                                                                <Grid ColumnDefinitions="1.1*,1.1*,64,72" ColumnSpacing="8">
+                                                                    <Button Classes="DashboardPlayerLink"
+                                                                            Content="{Binding PlayerName}"
+                                                                            IsEnabled="{Binding CanOpenDetails}"
+                                                                            Tag="{Binding}"
+                                                                            Click="OnDashboardPlayerClick" />
                                                                     <TextBlock Grid.Column="1" Text="{Binding ProfileName}" FontSize="12" Foreground="{DynamicResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
-                                                                    <TextBlock Grid.Column="2" Text="{Binding JoinedAtText}" FontSize="12" Foreground="{DynamicResource SubTextBrush}" />
+                                                                    <TextBlock Grid.Column="2" Text="{Binding LatencyText}" FontSize="12" Foreground="{DynamicResource SubTextBrush}" />
+                                                                    <TextBlock Grid.Column="3" Text="{Binding JoinedAtText}" FontSize="12" Foreground="{DynamicResource SubTextBrush}" />
                                                                 </Grid>
                                                             </Border>
                                                         </DataTemplate>

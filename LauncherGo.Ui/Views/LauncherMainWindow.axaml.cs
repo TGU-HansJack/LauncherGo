@@ -833,7 +833,10 @@ public partial class LauncherMainWindow : Window
         SendCommandButton.Content = T("发送", "Send");
 
         DashboardPlayersTitleText.Text = T("在线玩家", "Online Players");
-        DashboardPlayersHintText.Text = T("玩家名称", "Player Names");
+        DashboardPlayersHintText.Text = T("玩家名称", "Player Name");
+        DashboardPlayersServerHeaderText.Text = T("服务器", "Server");
+        DashboardPlayersLatencyHeaderText.Text = T("延迟", "Latency");
+        DashboardPlayersJoinedHeaderText.Text = T("加入时间", "Joined");
         DashboardServerLineLegendText.Text = T("服务器", "Server");
         DashboardRobotLineLegendText.Text = T("QQ机器人", "QQ Robot");
         DashboardUptimeTitleText.Text = T("运行时间", "Uptime");
@@ -1773,6 +1776,7 @@ public partial class LauncherMainWindow : Window
             {
                 PlayerName = T("暂无在线玩家", "No online players"),
                 ProfileName = "--",
+                LatencyText = "--",
                 JoinedAtText = "--"
             });
         }
@@ -6710,6 +6714,15 @@ public partial class LauncherMainWindow : Window
     private void OnRobotStatusCardClick(object? sender, RoutedEventArgs e) => SelectMetric(HomeMetric.Robot);
 
     private void OnOnlinePlayersCardClick(object? sender, RoutedEventArgs e) => SelectMetric(HomeMetric.Players);
+
+    private async void OnDashboardPlayerClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: DashboardPlayerItem { Player: not null } item })
+            return;
+
+        var window = new ServerPlayerDetailsWindow(item.Player, _isChinese);
+        await window.ShowDialog(this);
+    }
 
     private void OnNetworkStatusCardClick(object? sender, RoutedEventArgs e) => SelectMetric(HomeMetric.Network);
 
@@ -13165,18 +13178,28 @@ public partial class LauncherMainWindow : Window
 
     public sealed class DashboardPlayerItem
     {
+        public ServerOnlinePlayerInfo? Player { get; init; }
+
         public string PlayerName { get; init; } = string.Empty;
 
         public string ProfileName { get; init; } = string.Empty;
 
+        public string LatencyText { get; init; } = string.Empty;
+
         public string JoinedAtText { get; init; } = string.Empty;
+
+        public bool CanOpenDetails => Player is not null;
 
         public static DashboardPlayerItem FromModel(ServerOnlinePlayerInfo player)
         {
             return new DashboardPlayerItem
             {
+                Player = player,
                 PlayerName = player.PlayerName,
                 ProfileName = player.ProfileName,
+                LatencyText = player.PingMilliseconds.HasValue
+                    ? $"{player.PingMilliseconds.Value.ToString(CultureInfo.InvariantCulture)} ms"
+                    : "--",
                 JoinedAtText = player.JoinedAtUtc.HasValue
                     ? player.JoinedAtUtc.Value.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture)
                     : "--"

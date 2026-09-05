@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Management;
 using System.Security.Cryptography;
 using System.Text;
@@ -23,7 +24,9 @@ public sealed partial class ServerProcessService : IServerProcessService
     private readonly Dictionary<string, SingleServerProcessController> _controllers = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, InstanceProfile> _controllerProfiles = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ServerRuntimeStatus> _statuses = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, Dictionary<string, DateTimeOffset>> _playerJoinedAtUtc = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, BridgePlayerSnapshot> _bridgePlayers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, DateTimeOffset> _bridgePlayerRefreshAttempts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _bridgePlayerRefreshes = new(StringComparer.OrdinalIgnoreCase);
     private readonly IInstanceProfileService? _profileService;
     private readonly ILauncherPreferencesService? _preferencesService;
     private readonly IServerAuthService? _serverAuthService;
@@ -32,6 +35,8 @@ public sealed partial class ServerProcessService : IServerProcessService
     private readonly IAutomationLifecycleService? _automationLifecycleService;
     private readonly ILogger<ServerProcessService> _logger;
     private string _activeProfileId = string.Empty;
+    private static readonly TimeSpan BridgePlayerRefreshInterval = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan BridgePlayerSnapshotLifetime = TimeSpan.FromSeconds(10);
 
     public ServerProcessService()
         : this(null, null, NullLogger<ServerProcessService>.Instance, null, null)
@@ -194,29 +199,14 @@ public sealed partial class ServerProcessService : IServerProcessService
             }
             if (server is null && players is null) return localStatus;
 
-            var names = players?["players"] is JsonArray array
-                ? array.OfType<JsonObject>().Select(x => x["name"]?.GetValue<string>()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray()
-                : localStatus.OnlinePlayerNames;
-            var online = server?["onlinePlayers"]?.GetValue<int?>() ?? names.Count;
-            var merged = new ServerRuntimeStatus
-            {
-                IsRunning = localStatus.IsRunning,
-                ProcessId = localStatus.ProcessId,
-                StartedAtUtc = localStatus.StartedAtUtc,
-                ProfileId = localStatus.ProfileId,
-                CpuPercent = localStatus.CpuPercent,
-                MemoryBytes = localStatus.MemoryBytes,
-                OnlinePlayers = online,
-                OnlinePlayerNames = names,
-                PeakOnlinePlayers = Math.Max(localStatus.PeakOnlinePlayers, online),
-                CanSendCommands = localStatus.CanSendCommands,
-                ControlMode = localStatus.ControlMode,
-                Message = localStatus.Message
-            };
+            var parsedPlayers = players is null ? [] : ParseBridgePlayers(profile, players);
+            var receivedAt = DateTimeOffset.UtcNow;
+            var merged = MergeBridgePlayers(localStatus, parsedPlayers);
             lock (_gate)
             {
+                if (players is not null)
+                    _bridgePlayers[profile.Id] = new BridgePlayerSnapshot(receivedAt, parsedPlayers);
                 _statuses[profile.Id] = merged;
-                UpdateJoinedPlayers(profile.Id, merged);
             }
             StatusChanged?.Invoke(this, merged);
             return merged;
@@ -233,24 +223,14 @@ public sealed partial class ServerProcessService : IServerProcessService
     {
         lock (_gate)
         {
-            return _statuses.Values
-                .Where(static status => status.IsRunning)
-                .SelectMany(status =>
-                {
-                    var profileId = status.ProfileId ?? string.Empty;
-                    var profileName = ResolveStatusProfileName(profileId);
-                    _playerJoinedAtUtc.TryGetValue(profileId, out var joinedAtByName);
-                    return status.OnlinePlayerNames.Select(name => new ServerOnlinePlayerInfo
-                    {
-                        PlayerName = name,
-                        ProfileId = profileId,
-                        ProfileName = profileName,
-                        JoinedAtUtc = joinedAtByName is not null &&
-                                      joinedAtByName.TryGetValue(name, out var joinedAt)
-                            ? joinedAt
-                            : null
-                    });
-                })
+            var runningProfileIds = _statuses.Values
+                .Where(static status => status.IsRunning && !string.IsNullOrWhiteSpace(status.ProfileId))
+                .Select(static status => status.ProfileId!)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return _bridgePlayers
+                .Where(pair => runningProfileIds.Contains(pair.Key) &&
+                               DateTimeOffset.UtcNow - pair.Value.ReceivedAtUtc <= BridgePlayerSnapshotLifetime)
+                .SelectMany(static pair => pair.Value.Players)
                 .OrderBy(static player => player.ProfileName, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(static player => player.PlayerName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -390,45 +370,211 @@ public sealed partial class ServerProcessService : IServerProcessService
     private void OnControllerStatusChanged(InstanceProfile profile, ServerRuntimeStatus status)
     {
         var profileId = string.IsNullOrWhiteSpace(status.ProfileId) ? profile.Id : status.ProfileId!;
+        ServerRuntimeStatus publishedStatus;
+        var refreshBridgePlayers = false;
         lock (_gate)
         {
-            _statuses[profileId] = status;
-            UpdateJoinedPlayers(profileId, status);
+            if (!status.IsRunning)
+            {
+                _bridgePlayers.Remove(profileId);
+                _bridgePlayerRefreshAttempts.Remove(profileId);
+                _bridgePlayerRefreshes.Remove(profileId);
+            }
+
+            var snapshot = GetCurrentBridgePlayerSnapshotUnsafe(profileId);
+            publishedStatus = MergeBridgePlayers(status, snapshot?.Players ?? []);
+            _statuses[profileId] = publishedStatus;
             if (status.IsRunning)
             {
                 _activeProfileId = profileId;
+                var now = DateTimeOffset.UtcNow;
+                if (!_bridgePlayerRefreshes.Contains(profileId) &&
+                    (!_bridgePlayerRefreshAttempts.TryGetValue(profileId, out var lastAttempt) ||
+                     now - lastAttempt >= BridgePlayerRefreshInterval))
+                {
+                    _bridgePlayerRefreshAttempts[profileId] = now;
+                    _bridgePlayerRefreshes.Add(profileId);
+                    refreshBridgePlayers = true;
+                }
             }
         }
 
-        StatusChanged?.Invoke(this, status);
+        StatusChanged?.Invoke(this, publishedStatus);
+        if (refreshBridgePlayers)
+            _ = RefreshBridgePlayersAsync(profile);
     }
 
-    private void UpdateJoinedPlayers(string profileId, ServerRuntimeStatus status)
+    private async Task RefreshBridgePlayersAsync(InstanceProfile profile)
     {
-        if (!_playerJoinedAtUtc.TryGetValue(profileId, out var joinedAtByName))
+        try
         {
-            joinedAtByName = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
-            _playerJoinedAtUtc[profileId] = joinedAtByName;
-        }
+            if (_serverBridgeService is null)
+                return;
 
-        var currentNames = status.IsRunning
-            ? status.OnlinePlayerNames
-                .Where(static name => !string.IsNullOrWhiteSpace(name))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase)
-            : [];
-        foreach (var name in currentNames)
-        {
-            joinedAtByName.TryAdd(name, DateTimeOffset.UtcNow);
-        }
-
-        foreach (var knownName in joinedAtByName.Keys.ToList())
-        {
-            if (!currentNames.Contains(knownName))
+            var result = await _serverBridgeService.QueryAsync(profile, "players.list").ConfigureAwait(false);
+            if (!result.Success || result.Data is null)
             {
-                joinedAtByName.Remove(knownName);
+                ExpireBridgePlayers(profile.Id);
+                return;
+            }
+
+            var players = ParseBridgePlayers(profile, result.Data);
+            ServerRuntimeStatus? publishedStatus = null;
+            lock (_gate)
+            {
+                if (_statuses.TryGetValue(profile.Id, out var current) && current.IsRunning)
+                {
+                    _bridgePlayers[profile.Id] = new BridgePlayerSnapshot(DateTimeOffset.UtcNow, players);
+                    publishedStatus = MergeBridgePlayers(current, players);
+                    _statuses[profile.Id] = publishedStatus;
+                }
+            }
+
+            if (publishedStatus is not null)
+                StatusChanged?.Invoke(this, publishedStatus);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Server bridge player refresh failed. ProfileId={ProfileId}", profile.Id);
+            ExpireBridgePlayers(profile.Id);
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                _bridgePlayerRefreshes.Remove(profile.Id);
             }
         }
     }
+
+    private void ExpireBridgePlayers(string profileId)
+    {
+        ServerRuntimeStatus? publishedStatus = null;
+        lock (_gate)
+        {
+            if (_bridgePlayers.TryGetValue(profileId, out var snapshot) &&
+                DateTimeOffset.UtcNow - snapshot.ReceivedAtUtc <= BridgePlayerSnapshotLifetime)
+                return;
+
+            _bridgePlayers.Remove(profileId);
+            if (_statuses.TryGetValue(profileId, out var current) && current.IsRunning)
+            {
+                publishedStatus = MergeBridgePlayers(current, []);
+                _statuses[profileId] = publishedStatus;
+            }
+        }
+
+        if (publishedStatus is not null)
+            StatusChanged?.Invoke(this, publishedStatus);
+    }
+
+    private BridgePlayerSnapshot? GetCurrentBridgePlayerSnapshotUnsafe(string profileId)
+    {
+        if (!_bridgePlayers.TryGetValue(profileId, out var snapshot))
+            return null;
+        if (DateTimeOffset.UtcNow - snapshot.ReceivedAtUtc <= BridgePlayerSnapshotLifetime)
+            return snapshot;
+        _bridgePlayers.Remove(profileId);
+        return null;
+    }
+
+    internal static ServerRuntimeStatus MergeBridgePlayers(
+        ServerRuntimeStatus status,
+        IReadOnlyList<ServerOnlinePlayerInfo> players)
+    {
+        var names = players
+            .Select(static player => player.PlayerName)
+            .Where(static name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return new ServerRuntimeStatus
+        {
+            IsRunning = status.IsRunning,
+            ProcessId = status.ProcessId,
+            StartedAtUtc = status.StartedAtUtc,
+            ProfileId = status.ProfileId,
+            CpuPercent = status.CpuPercent,
+            MemoryBytes = status.MemoryBytes,
+            OnlinePlayers = names.Length,
+            OnlinePlayerNames = names,
+            PeakOnlinePlayers = names.Length,
+            CanSendCommands = status.CanSendCommands,
+            ControlMode = status.ControlMode,
+            Message = status.Message
+        };
+    }
+
+    internal static IReadOnlyList<ServerOnlinePlayerInfo> ParseBridgePlayers(InstanceProfile profile, JsonObject data)
+    {
+        if (data["players"] is not JsonArray array)
+            return [];
+
+        return array
+            .OfType<JsonObject>()
+            .Where(static item => IsBridgePlayerOnline(item))
+            .Select(item => new ServerOnlinePlayerInfo
+            {
+                PlayerUid = ReadString(item, "uid"),
+                PlayerName = ReadString(item, "name"),
+                ProfileId = profile.Id,
+                ProfileName = string.IsNullOrWhiteSpace(profile.Name) ? profile.Id : profile.Name,
+                JoinedAtUtc = ReadDateTimeOffset(item, "joinedAtUtc"),
+                PingMilliseconds = ReadInt32(item, "pingMs"),
+                ConnectionState = ReadString(item, "connectionState"),
+                LastActivityUtc = ReadDateTimeOffset(item, "lastActivityUtc"),
+                GameMode = ReadString(item, "gameMode"),
+                Role = ReadString(item, "role"),
+                Dimension = ReadInt32(item, "dimension"),
+                X = ReadDouble(item, "x"),
+                Y = ReadDouble(item, "y"),
+                Z = ReadDouble(item, "z")
+            })
+            .Where(static player => !string.IsNullOrWhiteSpace(player.PlayerName))
+            .GroupBy(static player => string.IsNullOrWhiteSpace(player.PlayerUid) ? player.PlayerName : player.PlayerUid,
+                StringComparer.OrdinalIgnoreCase)
+            .Select(static group => group.First())
+            .ToList();
+    }
+
+    private static bool IsBridgePlayerOnline(JsonObject item)
+    {
+        if (ReadBoolean(item, "online") is false)
+            return false;
+        return !string.Equals(ReadString(item, "connectionState"), "Offline", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ReadString(JsonObject value, string propertyName) =>
+        value[propertyName] is JsonValue node && node.TryGetValue<string>(out var text) ? text : string.Empty;
+
+    private static bool? ReadBoolean(JsonObject value, string propertyName) =>
+        value[propertyName] is JsonValue node && node.TryGetValue<bool>(out var result) ? result : null;
+
+    private static int? ReadInt32(JsonObject value, string propertyName)
+    {
+        if (value[propertyName] is not JsonValue node) return null;
+        if (node.TryGetValue<int>(out var integer)) return integer;
+        if (node.TryGetValue<double>(out var number) && double.IsFinite(number)) return (int)Math.Round(number);
+        return null;
+    }
+
+    private static double? ReadDouble(JsonObject value, string propertyName)
+    {
+        if (value[propertyName] is not JsonValue node) return null;
+        if (node.TryGetValue<double>(out var number) && double.IsFinite(number)) return number;
+        if (node.TryGetValue<int>(out var integer)) return integer;
+        return null;
+    }
+
+    private static DateTimeOffset? ReadDateTimeOffset(JsonObject value, string propertyName) =>
+        DateTimeOffset.TryParse(ReadString(value, propertyName), CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var timestamp)
+            ? timestamp
+            : null;
+
+    private sealed record BridgePlayerSnapshot(
+        DateTimeOffset ReceivedAtUtc,
+        IReadOnlyList<ServerOnlinePlayerInfo> Players);
 
     private string ResolveStatusProfileName(string? profileId)
     {

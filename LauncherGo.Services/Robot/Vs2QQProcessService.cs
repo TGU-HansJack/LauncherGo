@@ -684,8 +684,6 @@ public sealed class Vs2QQProcessService
             var profileId = runtime.GetPrimaryProfileIdForGroup(groupId);
             var events = !string.IsNullOrWhiteSpace(profileId)
                 ? _serverBridgeStateStore?.GetEvents(profileId)
-                    .Where(evt => evt.Event is "player.joined" or "player.left" or "player.died")
-                    .TakeLast(3)
                     .ToList()
                 : null;
             await ReplyAsync(runtime, eventPayload, BuildBridgeStatusMessage(bridgeStatus.Data, bridgePlayers?.Data, events), cancellationToken);
@@ -1071,24 +1069,46 @@ public sealed class Vs2QQProcessService
         if (recentEvents is { Count: > 0 })
         {
             var eventSummary = recentEvents
+                .Where(evt => evt.Event is "player.joined" or "player.left" or "player.died")
+                .TakeLast(3)
                 .Select(evt =>
                 {
                     var eventName = evt.Event switch
                     {
-                        "player.joined" => "进入",
-                        "player.left" => "离开",
-                        "player.died" => "死亡",
+                        "player.joined" => "join",
+                        "player.left" => "leave",
+                        "player.died" => "death",
                         _ => evt.Event
                     };
                     var playerName = Safe(ReadString(evt.Data, "name"));
+                    var connectionState = Safe(ReadString(evt.Data, "connectionState"));
                     var reason = evt.Event == "player.died"
                         ? NormalizeDisplayText(ReadString(evt.Data, "reason"))
                         : string.Empty;
-                    return string.IsNullOrWhiteSpace(reason) || reason == "-"
+                    var entry = connectionState == "-"
                         ? $"{playerName}-{eventName}"
-                        : $"{playerName}-{eventName}：{reason}";
-                });
-            lines.Add("连接事件：" + string.Join("；", eventSummary));
+                        : $"{playerName}-{eventName}-{connectionState}";
+                    return string.IsNullOrWhiteSpace(reason) || reason == "-" ? entry : $"{entry}：{reason}";
+                })
+                .ToList();
+            if (eventSummary.Count > 0)
+                lines.Add("连接事件：" + string.Join("；", eventSummary));
+
+            var chatSummary = recentEvents
+                .Where(evt => evt.Event == "chat")
+                .TakeLast(3)
+                .Select(evt =>
+                {
+                    var name = Safe(ReadString(evt.Data, "name"));
+                    var message = NormalizeInboundServerText(name, ReadString(evt.Data, "message"));
+                    return ServerLogPrivacyFilter.ShouldSuppressRelayParts(name, message) || string.IsNullOrWhiteSpace(message)
+                        ? string.Empty
+                        : $"{name}: {message}";
+                })
+                .Where(text => !string.IsNullOrWhiteSpace(text))
+                .ToList();
+            if (chatSummary.Count > 0)
+                lines.Add("聊天：" + string.Join(" | ", chatSummary));
         }
 
         var body = LimitText(string.Join('\n', lines), MaxOneBotMessageLength - 32);
