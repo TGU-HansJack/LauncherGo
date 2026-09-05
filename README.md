@@ -99,7 +99,6 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | `LauncherGo.Services/EmbeddedMods/VsslAuthMod` | 嵌入式 ServerAuth 模组源码 |
 | `LauncherGo.Services/EmbeddedMods/LauncherGoRedirectMod` | 嵌入式 Gateway Redirect 模组源码 |
 | `LauncherGo.Services/EmbeddedMods/LauncherGoServerBridgeMod` | 嵌入式 Server Bridge 模组源码 |
-
 | `installer` | Inno Setup Windows 安装包脚本 |
 | `.github/workflows` | Windows 打包、小体积分发打包、Release 发布与嵌入认证模组构建工作流 |
 

@@ -99,7 +99,6 @@ This project is open source under the MIT License. You may use, copy, modify, di
 | `LauncherGo.Services/EmbeddedMods/VsslAuthMod` | Embedded ServerAuth mod source code |
 | `LauncherGo.Services/EmbeddedMods/LauncherGoRedirectMod` | Embedded Gateway Redirect mod source code |
 | `LauncherGo.Services/EmbeddedMods/LauncherGoServerBridgeMod` | Embedded Server Bridge mod source code |
-
 | `installer` | Inno Setup script for Windows installer packages |
 | `.github/workflows` | Windows packaging, small-package distribution, Release publishing, and embedded authentication mod build workflows |
 
