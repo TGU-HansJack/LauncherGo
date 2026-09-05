@@ -636,13 +636,17 @@
             <Setter Property="Padding" Value="0,8" />
         </Style>
         <Style Selector="Button.DashboardPlayerLink">
+            <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
             <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource PrimaryLineBrush}" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="CornerRadius" Value="0" />
             <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Cursor" Value="Hand" />
@@ -2699,7 +2703,7 @@
                                                     </Grid>
                                                     <WrapPanel Orientation="Horizontal">
                                                         <Button x:Name="AboutRepositoryButton" Classes="SecondaryActionButton" Content="源码仓库" Click="OnRepositoryClick" Margin="0,0,8,8" />
-                                                        <Button x:Name="AboutLicenseButton" Classes="SecondaryActionButton" Content="GPLv3 许可证" Tag="LICENSE" Click="OnAboutDocumentClick" Margin="0,0,8,8" />
+                                                        <Button x:Name="AboutLicenseButton" Classes="SecondaryActionButton" Content="MIT 许可证" Tag="LICENSE" Click="OnAboutDocumentClick" Margin="0,0,8,8" />
                                                         <Button x:Name="AboutNoticeButton" Classes="SecondaryActionButton" Content="版权声明" Tag="NOTICE" Click="OnAboutDocumentClick" Margin="0,0,8,8" />
                                                         <Button x:Name="AboutThirdPartyButton" Classes="SecondaryActionButton" Content="第三方声明" Tag="THIRD-PARTY-NOTICES.md" Click="OnAboutDocumentClick" Margin="0,0,8,8" />
                                                     </WrapPanel>

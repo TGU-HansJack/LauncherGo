@@ -2,7 +2,7 @@ LauncherGo Gateway Redirect
 
 Author: VSCN-Studio
 Copyright (C) 2026 HansJack, LauncherGo project owner (VSCN-Studio team)
-License: GNU General Public License version 3.0 only. See LICENSE.txt when this
+License: MIT. See LICENSE.txt when this
 mod is distributed as a standalone package, or the repository LICENSE file when
 distributed with LauncherGo.
 

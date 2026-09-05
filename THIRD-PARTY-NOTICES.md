@@ -5,11 +5,11 @@ license texts are shipped in `THIRD-PARTY-LICENSES/`; this file provides the
 package mapping and release checks. When making a release, keep this file,
 `NOTICE`, `LICENSE`, and `THIRD-PARTY-LICENSES/` in the distributed package.
 
-Audit date: 2026-08-28
+Audit date: 2026-09-05
 
 ## LauncherGo License
 
-LauncherGo source and first-party embedded mods are licensed under GPL-3.0-only.
+LauncherGo source and first-party embedded mods are licensed under MIT.
 See `LICENSE`.
 
 ## Runtime NuGet Dependencies
@@ -77,8 +77,7 @@ temporary build reference for the embedded mods. LauncherGo does not sell or
 redistribute the Vintage Story API itself or the official API assemblies.
 Release verification rejects those official assemblies if they appear in a
 LauncherGo publish directory. The embedded mods are the project code built
-against the API and are distributed under their own GPL-3.0-only project
-license.
+against the API and are distributed under the project's MIT license.
 
 ## Development-Only Dependencies
 
@@ -98,17 +97,16 @@ LauncherGo components:
 
 | Mod id | Package file | License |
 | --- | --- | --- |
-| launchergoauth | serverauth.dll | GPL-3.0-only |
-| launchergoredirect | launchergoredirect.dll | GPL-3.0-only |
-| launchergoserverbridge | serverbridge.dll | GPL-3.0-only |
+| launchergoauth | serverauth.dll | MIT |
+| launchergoredirect | launchergoredirect.dll | MIT |
+| launchergoserverbridge | serverbridge.dll | MIT |
 
 Each standalone embedded mod ZIP should include `LICENSE.txt` copied from the
 repository `LICENSE` file.
 
 The embedded mods list `VSCN-Studio` as their author. Copyright in these
 first-party mods belongs to HansJack, the LauncherGo project owner, who is a
-member of the VSCN-Studio team. The project distributes them under
-GPL-3.0-only.
+member of the VSCN-Studio team. The project distributes them under MIT.
 
 ## Release Audit Notes
 

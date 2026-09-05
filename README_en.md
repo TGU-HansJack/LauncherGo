@@ -23,7 +23,9 @@
 
 ## Project Positioning
 
-LauncherGo is a graphical server launcher for Vintage Story. Its goal is to integrate server downloads, profile management, save management, configuration editing, process control, automation, mod management, authentication, open server information transport, QQ bot integration, and FRP tunneling into one desktop application.
+LauncherGo is a graphical server launcher for Vintage Story. Its goal is to integrate server downloads, profile management, save management, configuration editing, process control, automation, mod management, authentication, Server Bridge transport, QQ bot integration, and FRP tunneling into one desktop application.
+
+This project is open source under the MIT License. You may use, copy, modify, distribute, sublicense, or sell the project and its first-party embedded mods, provided that copies or substantial portions retain the copyright notice and MIT License text. The project is provided without warranty, and third-party components continue to be governed by their own licenses.
 
 ## Version Information
 
@@ -35,8 +37,8 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 | Desktop UI | `Avalonia 12.0.1` and `Semi.Avalonia 12.0.1` |
 | Default release platform | The current release workflows package `win-x64` as a self-contained installer, portable single-file package, framework-dependent small package, and embedded ServerAuth mod package |
 | Vintage Story server version | Server versions are downloaded from the official or configured third-party server catalog, and each profile runs the selected version |
-| Embedded authentication mod | `serverauth.dll`, with the current server-side integration version constant set to `1.0.0` |
-| Auth mod build reference | GitHub Actions defaults to Vintage Story `1.22.2` server API references, and the version can be changed in workflow inputs |
+| First-party embedded mods | `serverauth.dll`, `launchergoredirect.dll`, and `serverbridge.dll`, all licensed under MIT with LauncherGo source |
+| Mod build reference | GitHub Actions defaults to Vintage Story `1.22.2` server API references, and the version can be changed in workflow inputs |
 
 ## Current Features
 
@@ -95,6 +97,8 @@ LauncherGo is a graphical server launcher for Vintage Story. Its goal is to inte
 | `LauncherGo.Abstractions` | Service interfaces and cross-layer abstractions |
 | `LauncherGo.Domains` | Domain models, configuration models, enums, and data structures |
 | `LauncherGo.Services/EmbeddedMods/VsslAuthMod` | Embedded ServerAuth mod source code |
+| `LauncherGo.Services/EmbeddedMods/LauncherGoRedirectMod` | Embedded Gateway Redirect mod source code |
+| `LauncherGo.Services/EmbeddedMods/LauncherGoServerBridgeMod` | Embedded Server Bridge mod source code |
 
 | `installer` | Inno Setup script for Windows installer packages |
 | `.github/workflows` | Windows packaging, small-package distribution, Release publishing, and embedded authentication mod build workflows |
@@ -103,7 +107,9 @@ Server Bridge binds only to local `127.0.0.1` and uses protocol version 2 NDJSON
 
 See [`docs/serverauth-oauth2.md`](docs/serverauth-oauth2.md) for ServerAuth OAuth2/OIDC configuration and a Vintage Story Connect example.
 
-## Open Source Projects Used
+## Open Source Components and Third-Party Notices
+
+LauncherGo uses the following open-source projects to build or publish the application. This list covers direct dependencies and release tooling; the complete runtime and transitive-dependency audit, license mapping, and release checks are in [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md). Third-party copyrights, trademarks, and licenses do not change because LauncherGo itself is MIT-licensed.
 
 | Project | Usage | Referenced Version |
 | --- | --- | --- |
@@ -129,7 +135,7 @@ See [`docs/serverauth-oauth2.md`](docs/serverauth-oauth2.md) for ServerAuth OAut
 | softprops/action-gh-release | GitHub Release creation and asset upload | `v2` |
 | Inno Setup | Windows installer generation | `6.x` |
 
-The copyrights and licenses of the projects above belong to their respective owners. The authoritative license text is the one declared by each upstream repository and NuGet package.
+The copyrights and licenses of the projects above belong to their respective owners. The authoritative license text is the one declared by each upstream repository and NuGet package. Binary, installer, and standalone embedded-mod releases must retain `LICENSE`, `NOTICE`, `THIRD-PARTY-NOTICES.md`, and applicable third-party license texts in [THIRD-PARTY-LICENSES](./THIRD-PARTY-LICENSES).
 
 ## Development Environment
 
@@ -155,6 +161,15 @@ dotnet watch run --project .\LauncherGo.App\LauncherGo.App.csproj
 
 If hot reload fails because assemblies are locked, stop the running `LauncherGo.App` process and run the command again.
 
+## Build and Test
+
+```powershell
+dotnet build .\LauncherGo.slnx -c Release
+dotnet test .\LauncherGo.Tests\LauncherGo.Tests.csproj -c Release --no-build
+```
+
+Building the main application also builds the Server Bridge mod. To build a first-party embedded mod independently, set `VINTAGE_STORY` to a server directory containing the required Vintage Story API assemblies. Those APIs are local build references only and are not included in LauncherGo release packages.
+
 ## Small Package Publishing
 
 ```powershell
@@ -178,9 +193,9 @@ The directory referenced by `VINTAGE_STORY` must contain `VintagestoryAPI.dll`, 
 
 ## License
 
-LauncherGo is licensed under `GNU General Public License v3.0`. See [LICENSE](./LICENSE) for the full license text.
+LauncherGo and its first-party embedded mods are licensed under the [MIT License](./LICENSE).
 
-Project owner: HansJack, a member of the VSCN-Studio team.
+Copyright `Copyright (c) 2026 HansJack`. The project owner remains HansJack, a member of the VSCN-Studio team.
 
 See [NOTICE](./NOTICE) for the project copyright notice and
 [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md) for dependency notices and

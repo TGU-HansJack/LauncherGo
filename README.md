@@ -25,6 +25,8 @@
 
 LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标是把服务端下载、档案管理、存档管理、配置编辑、进程控制、自动化任务、模组管理、认证模组、服务器桥接传输、QQ 机器人和内网穿透整合到同一个桌面应用中。
 
+本项目使用 MIT 许可证开源。你可以使用、复制、修改、分发、再授权或销售本项目及其第一方嵌入模组，但必须在副本或实质性部分中保留版权声明和 MIT 许可证文本。项目不提供任何明示或默示担保；第三方组件仍适用其各自的许可证。
+
 ## 版本信息
 
 | 项目 | 当前情况 |
@@ -35,8 +37,8 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | 桌面 UI | `Avalonia 12.0.1` 与 `Semi.Avalonia 12.0.1` |
 | 默认运行平台 | 当前发布工作流打包 `win-x64`，产出自包含安装包、便携单文件包、框架依赖小体积包和嵌入 ServerAuth 模组包 |
 | Vintage Story 服务端版本 | 由官方或第三方服务端索引下载，实例档案按选择的服务端版本运行 |
-| 嵌入认证模组 | `serverauth.dll`，当前服务端侧集成版本常量为 `1.0.0` |
-| 认证模组构建参考 | GitHub Actions 默认使用 Vintage Story `1.22.2` 的服务端 API 引用构建，可在工作流输入中修改 |
+| 第一方嵌入模组 | `serverauth.dll`、`launchergoredirect.dll`、`serverbridge.dll`，与 LauncherGo 源码同为 MIT 许可证 |
+| 模组构建参考 | GitHub Actions 默认使用 Vintage Story `1.22.2` 的服务端 API 引用构建，可在工作流输入中修改 |
 
 ## 当前功能
 
@@ -95,6 +97,8 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 | `LauncherGo.Abstractions` | 服务接口与跨层抽象 |
 | `LauncherGo.Domains` | 领域模型、配置模型、枚举与数据结构 |
 | `LauncherGo.Services/EmbeddedMods/VsslAuthMod` | 嵌入式 ServerAuth 模组源码 |
+| `LauncherGo.Services/EmbeddedMods/LauncherGoRedirectMod` | 嵌入式 Gateway Redirect 模组源码 |
+| `LauncherGo.Services/EmbeddedMods/LauncherGoServerBridgeMod` | 嵌入式 Server Bridge 模组源码 |
 
 | `installer` | Inno Setup Windows 安装包脚本 |
 | `.github/workflows` | Windows 打包、小体积分发打包、Release 发布与嵌入认证模组构建工作流 |
@@ -104,7 +108,9 @@ LauncherGo 是面向 Vintage Story 服务器的图形化开服器。项目目标
 ServerAuth 的 OAuth2/OIDC 配置与 Vintage Story Connect 接入示例见
 [`docs/serverauth-oauth2.md`](docs/serverauth-oauth2.md)。
 
-## 开源项目使用
+## 开源项目使用与第三方声明
+
+LauncherGo 使用下列开源项目构建或发布。这里列出直接依赖和发布工具；完整的运行时与传递依赖审计、许可证映射和发布检查见 [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md)。第三方项目的版权、商标和许可证不因 LauncherGo 采用 MIT 许可证而改变。
 
 | 项目 | 当前用途 | 当前引用版本 |
 | --- | --- | --- |
@@ -130,7 +136,7 @@ ServerAuth 的 OAuth2/OIDC 配置与 Vintage Story Connect 接入示例见
 | softprops/action-gh-release | GitHub Release 创建与产物上传 | `v2` |
 | Inno Setup | Windows 安装包生成 | `6.x` |
 
-以上开源项目的版权与许可归各自项目所有，实际许可证以对应项目仓库和 NuGet 包声明为准。
+以上开源项目的版权与许可归各自项目所有，实际许可证以对应项目仓库和 NuGet 包声明为准。发布二进制、安装包或独立嵌入模组时，应保留 `LICENSE`、`NOTICE`、`THIRD-PARTY-NOTICES.md` 和 [THIRD-PARTY-LICENSES](./THIRD-PARTY-LICENSES) 中适用的第三方许可证文本。
 
 ## 开发环境
 
@@ -156,6 +162,15 @@ dotnet watch run --project .\LauncherGo.App\LauncherGo.App.csproj
 
 如果热重载时程序集被占用，需要先结束正在运行的 `LauncherGo.App` 进程，再重新执行命令。
 
+## 构建与测试
+
+```powershell
+dotnet build .\LauncherGo.slnx -c Release
+dotnet test .\LauncherGo.Tests\LauncherGo.Tests.csproj -c Release --no-build
+```
+
+主应用构建会同时构建 Server Bridge 模组。若单独构建第一方嵌入模组，需要设置 `VINTAGE_STORY` 指向含有相应 Vintage Story API 程序集的服务端目录；这些 API 仅作本地编译引用，不包含在 LauncherGo 发布包中。
+
 ## 小体积分发打包
 
 ```powershell
@@ -179,9 +194,9 @@ dotnet build .\LauncherGo.Services\EmbeddedMods\VsslAuthMod\VsslAuthMod.csproj -
 
 ## 许可证
 
-LauncherGo 使用 `GNU General Public License v3.0`。许可证全文见 [LICENSE](./LICENSE)。
+LauncherGo 及第一方嵌入模组使用 [MIT License](./LICENSE)。
 
-项目所有者：HansJack，隶属于 VSCN-Studio 团队。
+版权所有 `Copyright (c) 2026 HansJack`。项目所有者仍为 HansJack，隶属于 VSCN-Studio 团队。
 
 版权声明见 [NOTICE](./NOTICE)，第三方依赖与发布审计说明见
 [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md)。发布二进制、安装包或嵌入模组包时应一并携带这些文件。

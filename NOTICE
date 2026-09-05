@@ -5,8 +5,8 @@ Copyright (C) 2026 HansJack
 HansJack is the owner and maintainer of LauncherGo and is a member of the
 VSCN-Studio team.
 
-LauncherGo is licensed under the GNU General Public License version 3.0
-only. See LICENSE for the complete license text.
+LauncherGo and its first-party embedded mods are licensed under the MIT
+License. See LICENSE for the complete license text.
 
 Corresponding source code is available from:
 https://github.com/vscn-studio/LauncherGo
@@ -20,8 +20,7 @@ Project-owned materials
 
 The first-party embedded mods, application icons, and `guidance_interface.gif`
 are owned by HansJack for the LauncherGo project. Embedded mods are authored by
-VSCN-Studio and are licensed under GPL-3.0-only together with the project
-source.
+VSCN-Studio and are licensed under MIT together with the project source.
 
 Copyright (C) 2026 HansJack, LauncherGo project owner
 

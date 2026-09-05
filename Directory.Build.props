@@ -4,7 +4,7 @@
     <Company>Vintage Story CN Studio</Company>
     <Product>LauncherGo</Product>
     <Copyright>Copyright (C) 2026 HansJack, LauncherGo project owner; member of VSCN-Studio</Copyright>
-    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/vscn-studio/LauncherGo</RepositoryUrl>
   </PropertyGroup>
