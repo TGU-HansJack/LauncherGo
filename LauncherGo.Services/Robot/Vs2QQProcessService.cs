@@ -16,6 +16,8 @@ namespace LauncherGo.Services;
 
 public sealed class Vs2QQProcessService
 {
+    private const int TemporalGearId = 1899;
+    private const string TemporalGearCode = "game:gear-temporal";
     private static int _encodingProviderRegistered;
 
     private const int MaxServerStatusQueryCount = 10;
@@ -596,6 +598,37 @@ public sealed class Vs2QQProcessService
         if (!TryBuildTeleportServerCommand(binding.PlayerName, point, out var command))
         {
             await ReplyAsync(runtime, eventPayload, "玩家绑定或设置点坐标无效，请重新绑定或联系管理员检查配置。", cancellationToken);
+            return;
+        }
+
+        var profile = _instanceProfileService.GetProfileById(binding.ProfileId);
+        if (profile is null)
+        {
+            await ReplyAsync(runtime, eventPayload, "绑定的服务器档案不存在。", cancellationToken);
+            return;
+        }
+
+        var consumeResult = await QueryBridgeForProfileAsync(
+            profile,
+            "player.consume",
+            cancellationToken,
+            new JsonObject
+            {
+                ["uid"] = binding.PlayerUid,
+                ["name"] = binding.PlayerName,
+                ["code"] = TemporalGearCode,
+                ["id"] = TemporalGearId,
+                ["quantity"] = 1
+            });
+        if (consumeResult?.Success != true || consumeResult.Data?["consumed"]?.GetValue<bool>() != true)
+        {
+            var message = consumeResult?.ErrorCode switch
+            {
+                "unsupported-capability" => "服务器桥接未启用扩展玩家信息，暂时无法验证时空齿轮。",
+                "player-not-online" => $"绑定玩家 {binding.PlayerName} 当前不在线。",
+                _ => "传送需要消耗 1 个时空齿轮，你的背包中没有该物品。"
+            };
+            await ReplyAsync(runtime, eventPayload, message, cancellationToken);
             return;
         }
 

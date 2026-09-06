@@ -622,6 +622,11 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
                             : new ServerBridgeResponse { Version = 2, Success = true, Id = request.Id, Data = playerInfo, BridgeVersion = BridgeVersion });
                         return;
                     }
+                    if (string.Equals(request.Method, "player.consume", StringComparison.OrdinalIgnoreCase))
+                    {
+                        completion.TrySetResult(TryConsumePlayerItem(api, request.Arguments));
+                        return;
+                    }
                     JsonObject? data = request.Method switch
                     {
                         "server.status" => BuildServerStatus(api),
@@ -717,6 +722,49 @@ public sealed class LauncherGoServerBridgeModSystem : ModSystem
             (!string.IsNullOrWhiteSpace(uid) && string.Equals(candidate.PlayerUID, uid, StringComparison.Ordinal)) ||
             (!string.IsNullOrWhiteSpace(name) && string.Equals(candidate.PlayerName, name, StringComparison.OrdinalIgnoreCase)));
         return player is null ? null : BuildPlayerInfoData(api, player, includeInventory: true);
+    }
+
+    private static ServerBridgeResponse TryConsumePlayerItem(ICoreServerAPI api, JsonObject? arguments)
+    {
+        var uid = arguments?["uid"]?.ToString()?.Trim() ?? string.Empty;
+        var name = arguments?["name"]?.ToString()?.Trim() ?? string.Empty;
+        var requestedCode = arguments?["code"]?.ToString()?.Trim() ?? string.Empty;
+        var requestedId = arguments?["id"] is JsonValue idValue && idValue.TryGetValue<int>(out var id) ? id : 0;
+        var requestedQuantity = arguments?["quantity"] is JsonValue quantityValue && quantityValue.TryGetValue<int>(out var quantity) ? quantity : 0;
+        if (string.IsNullOrWhiteSpace(uid) && string.IsNullOrWhiteSpace(name))
+            return Failure("A player UID or name is required.", "invalid-arguments");
+        if (!string.Equals(requestedCode, "game:gear-temporal", StringComparison.OrdinalIgnoreCase) || requestedId != 1899 || requestedQuantity != 1)
+            return Failure("Only one game:gear-temporal (item ID 1899) may be consumed.", "invalid-arguments");
+
+        var player = api.World.AllOnlinePlayers.OfType<IServerPlayer>().FirstOrDefault(candidate =>
+            (!string.IsNullOrWhiteSpace(uid) && string.Equals(candidate.PlayerUID, uid, StringComparison.Ordinal)) ||
+            (!string.IsNullOrWhiteSpace(name) && string.Equals(candidate.PlayerName, name, StringComparison.OrdinalIgnoreCase)));
+        if (player is null || player.ConnectionState != EnumClientState.Playing)
+            return Failure("The requested player is not online.", "player-not-online");
+
+        foreach (var inventory in player.InventoryManager.Inventories.Values)
+        {
+            if (!IsPlayerCarriedInventory(inventory.ClassName)) continue;
+            foreach (var slot in inventory)
+            {
+                var stack = slot.Itemstack;
+                var code = stack?.Collectible?.Code?.ToString() ?? string.Empty;
+                if (stack is null || stack.StackSize < 1 || stack.Collectible?.Id != requestedId || !string.Equals(code, requestedCode, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                slot.TakeOut(1);
+                slot.MarkDirty();
+                return new ServerBridgeResponse
+                {
+                    Version = 2,
+                    Success = true,
+                    Data = new JsonObject { ["consumed"] = true, ["code"] = requestedCode, ["id"] = requestedId, ["quantity"] = 1 },
+                    BridgeVersion = BridgeVersion
+                };
+            }
+        }
+
+        return Failure("The player does not have the required item.", "item-not-found");
     }
 
     private JsonObject BuildPlayerInfoData(ICoreServerAPI api, IServerPlayer player, bool includeInventory)
