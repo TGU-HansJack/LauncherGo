@@ -456,6 +456,14 @@
         </Style>
         <Style Selector="Button.DangerButton">
             <Setter Property="Foreground" Value="{DynamicResource DangerButtonTextBrush}" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.DangerButton /template/ ContentPresenter">
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style Selector="Button.DangerButton:pointerover">
             <Setter Property="Background" Value="{DynamicResource DangerButtonHoverBrush}" />
@@ -464,12 +472,12 @@
         <Style Selector="Button.DangerButton:pointerover /template/ ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource DangerButtonHoverBrush}" />
             <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style Selector="Button.DangerButton:pressed /template/ ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource DangerButtonPressedBrush}" />
             <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style Selector="Button.LaunchIconButton">
             <Setter Property="Width" Value="34" />
@@ -1493,7 +1501,7 @@
                                         </Grid>
                                     </Grid>
 
-                                    <Grid x:Name="ConfigPanel" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="8" IsVisible="False">
+                                    <Grid x:Name="ConfigPanel" RowDefinitions="Auto,Auto,*" RowSpacing="8" IsVisible="False">
                                         <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
                                             <Button x:Name="ConfigBackButton" Grid.Column="0" Classes="SecondaryActionButton" Content="返回" Click="OnConfigBackClick" />
                                             <ComboBox x:Name="ConfigProfileComboBox" IsVisible="False" SelectionChanged="OnConfigProfileSelectionChanged">
@@ -1509,9 +1517,8 @@
                                         </Grid>
 
                                         <TextBlock x:Name="ConfigStatusTextBlock" Grid.Row="1" FontSize="12" Foreground="{DynamicResource SubTextBrush}" TextWrapping="Wrap" />
-                                        <TextBlock x:Name="ConfigPathTextBlock" Grid.Row="2" FontSize="12" Foreground="{DynamicResource SubTextBrush}" TextWrapping="Wrap" />
 
-                                        <Grid Grid.Row="3">
+                                        <Grid Grid.Row="2">
                                             <ScrollViewer x:Name="ConfigScrollViewer" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
                                                 <StackPanel x:Name="ConfigContentHost" Spacing="10">
                                                     <Border Classes="ConfigCard">

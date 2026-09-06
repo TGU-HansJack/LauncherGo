@@ -1045,7 +1045,6 @@ public partial class LauncherMainWindow : Window
         ConfigRefreshButton.Content = T("刷新", "Refresh");
         ConfigImportButton.Content = T("导入", "Import");
         ConfigSaveButton.Content = T("保存", "Save");
-        ConfigPathTextBlock.Text = T("配置路径：未选择档案", "Config path: no profile selected");
         ConfigBasicInfoTitleTextBlock.Text = T("基础信息", "Basic Info");
         ConfigServerNameLabelTextBlock.Text = T("服务器名称", "Server Name");
         ConfigServerLanguageLabelTextBlock.Text = T("服务器语言", "Server Language");
@@ -2719,6 +2718,7 @@ public partial class LauncherMainWindow : Window
         AuthBackButton.IsVisible = false;
         AuthSaveButton.IsVisible = false;
         AuthDeployButton.IsVisible = false;
+        Grid.SetColumn(AuthRefreshButton, 1);
         RefreshAuthConfigItems();
     }
 
@@ -2731,6 +2731,7 @@ public partial class LauncherMainWindow : Window
         AuthBackButton.IsVisible = true;
         AuthSaveButton.IsVisible = true;
         AuthDeployButton.IsVisible = true;
+        Grid.SetColumn(AuthRefreshButton, 3);
         AuthProfileComboBox.SelectedItem = _authProfileItems.FirstOrDefault(item =>
             item.Id.Equals(profile.Id, StringComparison.OrdinalIgnoreCase)) ?? profile;
         await LoadAuthForProfileAsync(profile);
@@ -2747,6 +2748,7 @@ public partial class LauncherMainWindow : Window
         ServerBridgeDeployButton.IsVisible = false;
         ServerBridgeTestButton.IsVisible = false;
         ServerBridgeRegenerateTokenButton.IsVisible = false;
+        Grid.SetColumn(ServerBridgeRefreshButton, 1);
         RefreshServerBridgeConfigItems();
     }
 
@@ -2761,6 +2763,7 @@ public partial class LauncherMainWindow : Window
         ServerBridgeDeployButton.IsVisible = true;
         ServerBridgeTestButton.IsVisible = true;
         ServerBridgeRegenerateTokenButton.IsVisible = true;
+        Grid.SetColumn(ServerBridgeRefreshButton, 3);
         ServerBridgeProfileComboBox.SelectedItem = _serverBridgeProfileItems.FirstOrDefault(item =>
             item.Id.Equals(profile.Id, StringComparison.OrdinalIgnoreCase)) ?? profile;
         await LoadServerBridgeForProfileAsync(profile);
@@ -9266,7 +9269,6 @@ public partial class LauncherMainWindow : Window
         if (targetProfile is null)
         {
             ClearConfigForm();
-            SetConfigPath(null);
             ConfigContentHost.IsEnabled = false;
             ConfigSaveButton.IsEnabled = false;
             SetConfigStatus(T("暂无档案，请先创建档案。", "No profile found. Create a profile first."));
@@ -9335,7 +9337,6 @@ public partial class LauncherMainWindow : Window
         _loadedConfigProfileId = string.Empty;
         ConfigSaveButton.IsEnabled = false;
         ConfigContentHost.IsEnabled = false;
-        SetConfigPath(profile);
         try
         {
             var rawJson = await _instanceServerConfigService.LoadRawJsonAsync(profile);
@@ -9368,9 +9369,7 @@ public partial class LauncherMainWindow : Window
             _loadedConfigProfileId = profile.Id;
             ConfigSaveButton.IsEnabled = true;
             ConfigContentHost.IsEnabled = true;
-            SetConfigStatus(
-                T($"已加载配置：{profile.Name}", $"Loaded configuration: {profile.Name}") + Environment.NewLine +
-                T($"配置路径：{configPath}", $"Config path: {configPath}"));
+            ConfigStatusTextBlock.Text = string.Empty;
         }
         catch (Exception ex)
         {
@@ -9672,10 +9671,7 @@ public partial class LauncherMainWindow : Window
             await _instanceServerConfigService.ImportRawJsonAsync(profile, path);
             InvalidateDashboardSettingsCache(profile);
             await LoadConfigForProfileAsync(profile);
-            SetConfigStatus(
-                T($"已导入配置：{Path.GetFileName(path)}", $"Configuration imported: {Path.GetFileName(path)}") +
-                Environment.NewLine +
-                T($"配置路径：{GetConfigPath(profile)}", $"Config path: {GetConfigPath(profile)}"));
+            SetConfigStatus(T($"已导入配置：{Path.GetFileName(path)}", $"Configuration imported: {Path.GetFileName(path)}"));
         }
         catch (Exception ex)
         {
@@ -9726,9 +9722,7 @@ public partial class LauncherMainWindow : Window
         {
             ConfigSaveButton.IsEnabled = false;
             SetConfigStatus(
-                T("配置尚未成功加载，已禁止保存以避免覆盖原文件。", "Configuration has not loaded successfully; saving is disabled to avoid overwriting the original file.") +
-                Environment.NewLine +
-                T($"配置路径：{GetConfigPath(profile)}", $"Config path: {GetConfigPath(profile)}"));
+                T("配置尚未成功加载，已禁止保存以避免覆盖原文件。", "Configuration has not loaded successfully; saving is disabled to avoid overwriting the original file."));
             return;
         }
 
@@ -9786,9 +9780,7 @@ public partial class LauncherMainWindow : Window
             RefreshProfiles();
             _isConfigLoaded = true;
             _loadedConfigProfileId = profile.Id;
-            SetConfigStatus(
-                T("配置已保存。", "Configuration saved.") + Environment.NewLine +
-                T($"配置路径：{GetConfigPath(profile)}", $"Config path: {GetConfigPath(profile)}"));
+            SetConfigStatus(T("配置已保存。", "Configuration saved."));
         }
         catch (Exception ex)
         {
@@ -10432,16 +10424,8 @@ public partial class LauncherMainWindow : Window
         }
     }
 
-    private void SetConfigPath(InstanceProfile? profile)
-    {
-        ConfigPathTextBlock.Text = profile is null
-            ? T("配置路径：未选择档案", "Config path: no profile selected")
-            : T($"配置路径：{GetConfigPath(profile)}", $"Config path: {GetConfigPath(profile)}");
-    }
-
     private string FormatConfigLoadFailure(InstanceProfile profile, Exception exception)
     {
-        var configPath = GetConfigPath(profile);
         var status = exception switch
         {
             FileNotFoundException => T("配置状态：缺失", "Config status: missing"),
@@ -10452,7 +10436,6 @@ public partial class LauncherMainWindow : Window
         };
 
         return status + Environment.NewLine +
-               T($"配置路径：{configPath}", $"Config path: {configPath}") + Environment.NewLine +
                T($"原因：{exception.Message}", $"Reason: {exception.Message}");
     }
 

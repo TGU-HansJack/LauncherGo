@@ -35,8 +35,7 @@ public partial class FirstLaunchGuideWindow : Window
         "Hello",
         "Wellcome",
         "LauncherGo",
-        "Author: HansJack (VSCN-Studio team)",
-        "Team: VSCN"
+        "VSCN-Studio Team"
     ];
 
     private readonly ILauncherPreferencesService _preferencesService;
