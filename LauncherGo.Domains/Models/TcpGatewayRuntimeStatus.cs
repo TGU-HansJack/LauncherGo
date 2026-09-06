@@ -67,7 +67,6 @@ public sealed class TcpGatewayBackendRuntimeStatus
 
     public TcpGatewayBackendStatistics Statistics { get; set; } = new();
 
-    public string StatisticsLogPath { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -121,20 +120,4 @@ public sealed class TcpGatewayDisconnectRecord
     public string Type { get; set; } = string.Empty;
 
     public string Details { get; set; } = string.Empty;
-}
-
-/// <summary>
-///     网关按后端主机写入 JSON Lines 统计日志时使用的记录。
-/// </summary>
-public sealed class TcpGatewayBackendStatisticsLogEntry
-{
-    public DateTimeOffset RecordedAtUtc { get; set; }
-
-    public string BackendId { get; set; } = string.Empty;
-
-    public string BackendName { get; set; } = string.Empty;
-
-    public string Address { get; set; } = string.Empty;
-
-    public TcpGatewayBackendStatistics Statistics { get; set; } = new();
 }

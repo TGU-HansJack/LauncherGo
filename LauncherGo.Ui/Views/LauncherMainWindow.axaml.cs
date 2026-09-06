@@ -2656,6 +2656,7 @@ public partial class LauncherMainWindow : Window
     private void SetAutomationStatus(string message, bool notify = true)
     {
         AutomationStatusTextBlock.Text = message;
+        AutomationEditorStatusTextBlock.Text = message;
         if (notify)
         {
             ShowToast(message);

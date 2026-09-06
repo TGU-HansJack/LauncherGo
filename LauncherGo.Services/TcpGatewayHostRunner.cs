@@ -18,7 +18,7 @@ public static class TcpGatewayHostRunner
         WriteIndented = true
     };
 
-    private static readonly JsonSerializerOptions StatisticsLogJsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions RoutingHistoryJsonOptions = new(JsonSerializerDefaults.Web);
 
     public static async Task<int> RunAsync(string[] args)
     {
@@ -181,13 +181,11 @@ public static class TcpGatewayHostRunner
         private readonly string _reloadSignalPath;
         private readonly string _listenHost;
         private readonly int _listenPort;
-        private readonly string _statisticsLogRoot;
         private readonly string _routingHistoryPath;
         private readonly object _stateGate = new();
         private readonly SemaphoreSlim _stateWriteGate = new(1, 1);
         private readonly Dictionary<string, int> _connectionsByIp = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, BackendState> _backendStates = new(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, DateTimeOffset> _statisticsLastRecordedAtUtc = new(StringComparer.OrdinalIgnoreCase);
         private readonly ConcurrentDictionary<long, Task> _sessions = new();
         private readonly ConcurrentDictionary<string, DateTimeOffset> _consumedTransferTickets = new(StringComparer.Ordinal);
         private readonly CancellationTokenSource _shutdownCts = new();
@@ -221,9 +219,6 @@ public static class TcpGatewayHostRunner
             _reloadSignalPath = reloadSignalPath;
             _listenHost = settings.ListenHost.Trim();
             _listenPort = settings.ListenPort;
-            _statisticsLogRoot = Path.Combine(
-                Path.GetDirectoryName(statePath) ?? throw new InvalidOperationException("Gateway state directory is unavailable."),
-                "statistics");
             _routingHistoryPath = Path.Combine(
                 Path.GetDirectoryName(statePath) ?? throw new InvalidOperationException("Gateway state directory is unavailable."),
                 "routing-history.jsonl");
@@ -607,7 +602,20 @@ public static class TcpGatewayHostRunner
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                await WriteHostStateAsync().ConfigureAwait(false);
+                try
+                {
+                    await WriteHostStateAsync().ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch
+                {
+                    // A transient file lock or I/O failure must not stop the state loop.
+                    // TCP forwarding continues independently and the next iteration retries the snapshot.
+                }
+
                 await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
             }
         }
@@ -832,11 +840,6 @@ public static class TcpGatewayHostRunner
                     .ThenBy(static backend => backend.Definition.Host, StringComparer.OrdinalIgnoreCase)
                     .Select(backend => backend.ToRuntimeStatus(DateTimeOffset.UtcNow))
                     .ToList();
-                foreach (var backend in backends)
-                {
-                    backend.StatisticsLogPath = GetStatisticsLogPath(backend.Address);
-                }
-
                 return new TcpGatewayRuntimeStatus
                 {
                     IsRunning = _isListening,
@@ -866,7 +869,6 @@ public static class TcpGatewayHostRunner
             {
                 var status = CreateStatus();
                 await WriteStateAsync(_statePath, status).ConfigureAwait(false);
-                await WriteBackendStatisticsLogsAsync(status).ConfigureAwait(false);
             }
             finally
             {
@@ -905,7 +907,7 @@ public static class TcpGatewayHostRunner
                 };
                 await File.AppendAllTextAsync(
                         _routingHistoryPath,
-                        JsonSerializer.Serialize(entry, StatisticsLogJsonOptions) + Environment.NewLine)
+                        JsonSerializer.Serialize(entry, RoutingHistoryJsonOptions) + Environment.NewLine)
                     .ConfigureAwait(false);
             }
             catch
@@ -926,52 +928,6 @@ public static class TcpGatewayHostRunner
             var created = new BackendState(backend);
             _backendStates.Add(id, created);
             return created;
-        }
-
-        private async Task WriteBackendStatisticsLogsAsync(TcpGatewayRuntimeStatus status)
-        {
-            try
-            {
-                Directory.CreateDirectory(_statisticsLogRoot);
-                var now = DateTimeOffset.UtcNow;
-                foreach (var backend in status.Backends)
-                {
-                    if (status.IsListening &&
-                        _statisticsLastRecordedAtUtc.TryGetValue(backend.Id, out var lastRecordedAtUtc) &&
-                        now - lastRecordedAtUtc < TimeSpan.FromSeconds(5))
-                    {
-                        continue;
-                    }
-
-                    var entry = new TcpGatewayBackendStatisticsLogEntry
-                    {
-                        RecordedAtUtc = now,
-                        BackendId = backend.Id,
-                        BackendName = backend.Name,
-                        Address = backend.Address,
-                        Statistics = backend.Statistics
-                    };
-                    await File.AppendAllTextAsync(
-                            backend.StatisticsLogPath,
-                            JsonSerializer.Serialize(entry, StatisticsLogJsonOptions) + Environment.NewLine)
-                        .ConfigureAwait(false);
-                    _statisticsLastRecordedAtUtc[backend.Id] = now;
-                }
-            }
-            catch
-            {
-                // Statistics logging must not interrupt TCP forwarding when the log directory is unavailable.
-            }
-        }
-
-        private string GetStatisticsLogPath(string backendAddress) =>
-            Path.Combine(_statisticsLogRoot, $"{SanitizeFileName(backendAddress)}.jsonl");
-
-        private static string SanitizeFileName(string value)
-        {
-            var invalidChars = Path.GetInvalidFileNameChars();
-            var sanitized = string.Join('_', value.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
-            return string.IsNullOrWhiteSpace(sanitized) ? "unnamed-backend" : sanitized;
         }
 
         private async Task AwaitSessionsAsync()

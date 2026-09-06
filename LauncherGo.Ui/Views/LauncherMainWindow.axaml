@@ -1800,15 +1800,15 @@
                                         </Grid>
                                     </Grid>
 
-                                    <Grid x:Name="AutomationPanel" RowDefinitions="Auto,*" RowSpacing="8" IsVisible="False">
-                                        <TextBlock x:Name="AutomationStatusTextBlock" Grid.Row="0" Classes="ConfigHintText" TextWrapping="Wrap" />
-                                        <Grid Grid.Row="1">
-                                            <Grid x:Name="AutomationListPanel" RowDefinitions="Auto,*" RowSpacing="8">
+                                    <Grid x:Name="AutomationPanel" IsVisible="False">
+                                        <Grid>
+                                            <Grid x:Name="AutomationListPanel" RowDefinitions="Auto,Auto,*" RowSpacing="8">
                                                 <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8">
                                                     <Button x:Name="AutomationClearButton" Classes="SecondaryActionButton DangerButton" Content="清空" Click="OnAutomationClearClick" />
                                                     <Button x:Name="AutomationListRefreshButton" Grid.Column="1" Classes="SecondaryActionButton" Content="刷新" Click="OnAutomationRefreshClick" />
                                                 </Grid>
-                                                <Grid Grid.Row="1" RowDefinitions="Auto,*">
+                                                <TextBlock x:Name="AutomationStatusTextBlock" Grid.Row="1" Classes="ConfigHintText" TextWrapping="Wrap" />
+                                                <Grid Grid.Row="2" RowDefinitions="Auto,*">
                                                     <Border Grid.Row="0" Classes="TableHeader">
                                                         <Grid ColumnDefinitions="44,1.2*,2.4*,1*,Auto" ColumnSpacing="8">
                                                             <TextBlock Classes="TableHeaderText" Text="选择" HorizontalAlignment="Center" />
@@ -1841,7 +1841,7 @@
                                                     </Border>
                                                 </Grid>
                                             </Grid>
-                                            <Grid x:Name="AutomationEditorPanel" RowDefinitions="Auto,*" RowSpacing="8" IsVisible="False">
+                                            <Grid x:Name="AutomationEditorPanel" RowDefinitions="Auto,Auto,*" RowSpacing="8" IsVisible="False">
                                                 <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
                                                     <ComboBox x:Name="AutomationProfileComboBox" IsVisible="False" Classes="CompactCombo" SelectionChanged="OnAutomationProfileSelectionChanged">
                                                         <ComboBox.ItemTemplate>
@@ -1854,7 +1854,8 @@
                                                     <Button x:Name="AutomationSaveButton" Grid.Column="2" Classes="ActionButton" Content="保存" Click="OnAutomationSaveClick" />
                                                     <Button x:Name="AutomationRefreshButton" Grid.Column="3" Classes="SecondaryActionButton" Content="刷新" Click="OnAutomationRefreshClick" />
                                                 </Grid>
-                                                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden" ClipToBounds="True">
+                                                <TextBlock x:Name="AutomationEditorStatusTextBlock" Grid.Row="1" Classes="ConfigHintText" TextWrapping="Wrap" />
+                                                <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden" ClipToBounds="True">
                                             <StackPanel Spacing="10">
                                                 <Border Classes="ConfigCard">
                                                     <StackPanel Spacing="8">
@@ -2225,10 +2226,10 @@
                                             <TextBox x:Name="ModZipPathTextBox" Grid.Column="1" Classes="CompactInput" PlaceholderText="Mod ZIP" />
                                             <Button x:Name="BrowseModZipButton" Grid.Column="2" Classes="SecondaryActionButton" Content="浏览" Click="OnBrowseModZipClick" />
                                             <Button x:Name="ImportModZipButton" Grid.Column="3" Classes="SecondaryActionButton" Content="导入" Click="OnImportModZipClick" />
-                                            <Button x:Name="DeleteSelectedModsButton" Grid.Column="4" Classes="SecondaryActionButton DangerButton" Content="删除" Click="OnDeleteSelectedModsClick" />
-                                            <Button x:Name="RefreshModsButton" Grid.Column="5" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshModsClick" />
-                                            <Button x:Name="CheckModUpdatesButton" Grid.Column="6" Classes="SecondaryActionButton" Content="检查更新" Click="OnCheckModUpdatesClick" />
-                                            <Button x:Name="ExportModsButton" Grid.Column="7" Classes="SecondaryActionButton" Content="导出" Click="OnExportModsClick" />
+                                            <Button x:Name="CheckModUpdatesButton" Grid.Column="4" Classes="SecondaryActionButton" Content="检查更新" Click="OnCheckModUpdatesClick" />
+                                            <Button x:Name="ExportModsButton" Grid.Column="5" Classes="SecondaryActionButton" Content="导出" Click="OnExportModsClick" />
+                                            <Button x:Name="DeleteSelectedModsButton" Grid.Column="6" Classes="SecondaryActionButton DangerButton" Content="删除" Click="OnDeleteSelectedModsClick" />
+                                            <Button x:Name="RefreshModsButton" Grid.Column="7" Classes="SecondaryActionButton" Content="刷新" Click="OnRefreshModsClick" />
                                         </Grid>
                                         <TextBlock x:Name="ModStatusTextBlock" Grid.Row="1" Classes="ConfigHintText" TextWrapping="Wrap" />
                                         <Grid Grid.Row="2" RowDefinitions="Auto,*">
@@ -3197,7 +3198,7 @@
                                         </StackPanel>
                                     </ScrollViewer>
 
-                                    <ScrollViewer x:Name="ConnectionAuthPanel" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
+                                    <ScrollViewer x:Name="ConnectionAuthPanel" Margin="0,-8,0,0" IsVisible="False" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
                                         <StackPanel Spacing="10">
                                             <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
                                                 <ComboBox x:Name="AuthProfileComboBox" IsVisible="False" Classes="CompactCombo" SelectionChanged="OnAuthProfileSelectionChanged">

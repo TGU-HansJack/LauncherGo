@@ -92,8 +92,7 @@ public sealed class TcpGatewayHostRunnerTests
             Assert.True(backendStatus.Statistics.PeakConnections >= 1);
             Assert.True(backendStatus.Statistics.EstablishedConnections >= 1);
             Assert.Contains(backendStatus.Statistics.RecentDisconnects, record => record.Type == "GatewayStopped");
-            Assert.True(File.Exists(backendStatus.StatisticsLogPath));
-            Assert.Contains("\"clientToBackendBytes\"", await File.ReadAllTextAsync(backendStatus.StatisticsLogPath));
+            Assert.False(Directory.Exists(Path.Combine(testRoot, "statistics")));
         }
         finally
         {

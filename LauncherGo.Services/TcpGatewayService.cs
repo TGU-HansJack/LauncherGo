@@ -373,8 +373,7 @@ public sealed class TcpGatewayService : ITcpGatewayService
                 IsHealthy = backend.IsHealthy,
                 ActiveConnections = backend.ActiveConnections,
                 LastError = backend.LastError,
-                Statistics = CloneStatistics(backend.Statistics),
-                StatisticsLogPath = backend.StatisticsLogPath
+                Statistics = CloneStatistics(backend.Statistics)
             }).ToList()
         };
     }

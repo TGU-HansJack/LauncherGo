@@ -151,9 +151,6 @@
             </StackPanel>
         </ScrollViewer>
 
-        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="12">
-            <TextBlock x:Name="LogPathTextBlock" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource StatisticsSubTextBrush}" TextTrimming="CharacterEllipsis" />
-            <Button x:Name="CloseButton" Grid.Column="1" Classes="CloseButton" Click="OnCloseClick" />
-        </Grid>
+        <Button x:Name="CloseButton" Grid.Row="2" HorizontalAlignment="Right" Classes="CloseButton" Click="OnCloseClick" />
     </Grid>
 </Window>

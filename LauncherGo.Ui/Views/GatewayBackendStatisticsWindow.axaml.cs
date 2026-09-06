@@ -43,11 +43,6 @@ public partial class GatewayBackendStatisticsWindow : Window
         Title = T("后端转发统计", "Backend Relay Statistics");
         TitleTextBlock.Text = string.IsNullOrWhiteSpace(backend.Name) ? backend.Id : backend.Name;
         AddressTextBlock.Text = backend.Address;
-        LogPathTextBlock.Text = string.IsNullOrWhiteSpace(backend.StatisticsLogPath)
-            ? T("统计日志将在网关运行后创建。", "The statistics log is created while the gateway is running.")
-            : backend.StatisticsLogPath;
-        ToolTip.SetTip(LogPathTextBlock, LogPathTextBlock.Text);
-
         var statistics = backend.Statistics ?? new TcpGatewayBackendStatistics();
         _items.Clear();
         Add(T("实时上行", "Current upstream"), FormatMbps(statistics.CurrentClientToBackendMbps));
