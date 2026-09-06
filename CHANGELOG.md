@@ -1,5 +1,22 @@
 # 更新日志
 
+## 2.6.8-pre.2 - 2026-09-06
+
+### 新增
+
+- 新增独立的 Discord 机器人集成，支持 Profile、Guild 与 Channel 绑定、用户或角色管理员权限、自动启动、玩家绑定、自定义 Slash Command、模组清单及模组文件导出。
+- Discord 配置页新增“重新部署命令”，可通过 Guild Bulk Overwrite 重置命令，无需清空 Token 或服务器绑定。
+
+### 修复
+
+- Discord `/server status` 和 `/server players` 改为适合聊天阅读的 Markdown 排版，不再直接输出桥接 JSON 结构。
+- 更新弹窗保留 `2.6.8-pre.1` 一类预发行后缀，并按 SemVer 正确比较正式版、预发行版和构建元数据。
+
+### 优化
+
+- Discord 命令说明、服务器状态、季节、开关和运行时间根据绑定服务器的 `ServerLanguage` 本地化，覆盖服务端设置中的 22 种语言代码及区域回退。
+- Discord 与 OneBot 复用基础命令解析和消息分段能力，同时保持配置、运行状态和玩家绑定数据相互隔离。
+
 ## 2.6.8-pre.1 - 2026-09-06
 
 ### 优化

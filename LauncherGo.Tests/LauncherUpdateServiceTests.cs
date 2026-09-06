@@ -9,8 +9,9 @@ public sealed class LauncherUpdateServiceTests
 {
     [Theory]
     [InlineData("v2.5.4", "2.5.4")]
-    [InlineData("2.5.4-preview+abc", "2.5.4")]
-    public void NormalizeVersion_RemovesTagAndMetadata(string input, string expected)
+    [InlineData("v2.6.8-pre.1", "2.6.8-pre.1")]
+    [InlineData("2.5.4-preview.2+abc", "2.5.4-preview.2")]
+    public void NormalizeVersion_PreservesPrereleaseAndRemovesTagAndMetadata(string input, string expected)
     {
         Assert.Equal(expected, LauncherUpdateService.NormalizeVersion(input));
     }
@@ -40,11 +41,17 @@ public sealed class LauncherUpdateServiceTests
         Assert.Equal("https://gh-proxy.com/" + url, LauncherUpdateService.BuildProxyUrl(url, GitHubProxyKind.GhProxy));
     }
 
-    [Fact]
-    public void CompareVersions_ComparesNumericSegments()
+    [Theory]
+    [InlineData("2.10.0", "2.9.9", 1)]
+    [InlineData("2.5.4", "2.5.4", 0)]
+    [InlineData("2.6.8", "2.6.8-pre.1", 1)]
+    [InlineData("2.6.8-pre.2", "2.6.8-pre.1", 1)]
+    [InlineData("2.6.8-pre.1", "2.6.8-pre.1+build.9", 0)]
+    [InlineData("2.6.8-alpha", "2.6.8-alpha.1", -1)]
+    [InlineData("2.6.8-beta", "2.6.8-alpha", 1)]
+    public void CompareVersions_UsesSemanticVersionPrecedence(string left, string right, int expectedSign)
     {
-        Assert.True(LauncherUpdateService.CompareVersions("2.10.0", "2.9.9") > 0);
-        Assert.Equal(0, LauncherUpdateService.CompareVersions("2.5.4", "2.5.4"));
+        Assert.Equal(expectedSign, Math.Sign(LauncherUpdateService.CompareVersions(left, right)));
     }
 
     [Fact]

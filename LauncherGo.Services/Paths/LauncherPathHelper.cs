@@ -74,10 +74,12 @@ public static class LauncherPathHelper
             AutoRestartServerAfterCrash = false,
             AutoStartServerProfileId = string.Empty,
             AutoStartGatewayOnLaunch = false,
+            AutoStartDiscordOnLaunch = false,
             Robot = new RobotIntegrationSettings
             {
                 DatabasePath = Path.Combine(DefaultQqBotDirectory, "vs2qq.db")
             },
+            Discord = new DiscordIntegrationSettings(),
             Frp = new FrpIntegrationSettings(),
             EasyTier = new EasyTierIntegrationSettings(),
             TcpGateway = new TcpGatewaySettings()

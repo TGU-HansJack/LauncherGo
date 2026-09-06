@@ -78,7 +78,7 @@ public sealed class LauncherUpdateService : ILauncherUpdateService
 
         var current = CurrentVersion;
         var latest = NormalizeVersion(releaseModel.TagName);
-        var isAvailable = CompareVersions(latest, NormalizeVersion(current)) > 0;
+        var isAvailable = CompareVersions(latest, current) > 0;
         var packageKind = PackageKind;
         return new LauncherUpdateCheckResult
         {
@@ -240,19 +240,61 @@ public sealed class LauncherUpdateService : ILauncherUpdateService
     internal static string NormalizeVersion(string? value)
     {
         var text = (value ?? string.Empty).Trim().TrimStart('v', 'V');
-        var dash = text.IndexOf('-');
-        return dash >= 0 ? text[..dash] : text.Split('+')[0];
+        var metadata = text.IndexOf('+');
+        return metadata >= 0 ? text[..metadata] : text;
     }
 
     internal static int CompareVersions(string left, string right)
     {
-        var l = left.Split('.', StringSplitOptions.RemoveEmptyEntries);
-        var r = right.Split('.', StringSplitOptions.RemoveEmptyEntries);
-        for (var i = 0; i < Math.Max(l.Length, r.Length); i++)
+        var leftParts = SplitSemanticVersion(left);
+        var rightParts = SplitSemanticVersion(right);
+        var coreComparison = CompareNumericIdentifiers(leftParts.Core, rightParts.Core);
+        if (coreComparison != 0) return coreComparison;
+
+        if (leftParts.Prerelease.Count == 0 && rightParts.Prerelease.Count == 0) return 0;
+        if (leftParts.Prerelease.Count == 0) return 1;
+        if (rightParts.Prerelease.Count == 0) return -1;
+
+        for (var i = 0; i < Math.Max(leftParts.Prerelease.Count, rightParts.Prerelease.Count); i++)
         {
-            _ = int.TryParse(i < l.Length ? l[i] : "0", out var lv);
-            _ = int.TryParse(i < r.Length ? r[i] : "0", out var rv);
-            if (lv != rv) return lv.CompareTo(rv);
+            if (i >= leftParts.Prerelease.Count) return -1;
+            if (i >= rightParts.Prerelease.Count) return 1;
+
+            var leftIdentifier = leftParts.Prerelease[i];
+            var rightIdentifier = rightParts.Prerelease[i];
+            var leftIsNumber = long.TryParse(leftIdentifier, out var leftNumber);
+            var rightIsNumber = long.TryParse(rightIdentifier, out var rightNumber);
+            if (leftIsNumber && rightIsNumber)
+            {
+                if (leftNumber != rightNumber) return leftNumber.CompareTo(rightNumber);
+                continue;
+            }
+            if (leftIsNumber != rightIsNumber) return leftIsNumber ? -1 : 1;
+
+            var identifierComparison = string.Compare(leftIdentifier, rightIdentifier, StringComparison.Ordinal);
+            if (identifierComparison != 0) return identifierComparison;
+        }
+        return 0;
+    }
+
+    private static (IReadOnlyList<string> Core, IReadOnlyList<string> Prerelease) SplitSemanticVersion(string value)
+    {
+        var normalized = NormalizeVersion(value);
+        var separator = normalized.IndexOf('-');
+        var core = separator >= 0 ? normalized[..separator] : normalized;
+        var prerelease = separator >= 0 ? normalized[(separator + 1)..] : string.Empty;
+        return (
+            core.Split('.', StringSplitOptions.RemoveEmptyEntries),
+            prerelease.Split('.', StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    private static int CompareNumericIdentifiers(IReadOnlyList<string> left, IReadOnlyList<string> right)
+    {
+        for (var i = 0; i < Math.Max(left.Count, right.Count); i++)
+        {
+            _ = long.TryParse(i < left.Count ? left[i] : "0", out var leftNumber);
+            _ = long.TryParse(i < right.Count ? right[i] : "0", out var rightNumber);
+            if (leftNumber != rightNumber) return leftNumber.CompareTo(rightNumber);
         }
         return 0;
     }
