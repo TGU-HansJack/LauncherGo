@@ -2985,6 +2985,38 @@
                                                         <Button x:Name="RobotBindingAddButton" Classes="SecondaryActionButton" Width="120" HorizontalAlignment="Left" Content="添加" Click="OnRobotBindingAddClick" />
                                                     </StackPanel>
                                                     <StackPanel Spacing="8" Margin="0,8,0,0">
+                                                        <TextBlock x:Name="RobotTeleportPointsTitleTextBlock" Classes="ConfigSectionTitle" Text="传送设置点" />
+                                                        <Grid RowDefinitions="Auto,*">
+                                                            <Border Grid.Row="0" Classes="TableHeader">
+                                                                <Grid ColumnDefinitions="2*,1*,1*,1*,68" ColumnSpacing="10">
+                                                                    <TextBlock x:Name="RobotTeleportPointNameHeaderTextBlock" Classes="TableHeaderText" Text="设置点名称" />
+                                                                    <TextBlock Grid.Column="1" Classes="TableHeaderText" Text="X" />
+                                                                    <TextBlock Grid.Column="2" Classes="TableHeaderText" Text="Y" />
+                                                                    <TextBlock Grid.Column="3" Classes="TableHeaderText" Text="Z" />
+                                                                    <TextBlock Grid.Column="4" Classes="TableHeaderText" Text="操作" HorizontalAlignment="Center" />
+                                                                </Grid>
+                                                            </Border>
+                                                            <Border Grid.Row="1" Classes="TableBody">
+                                                                <ItemsControl x:Name="RobotTeleportPointsItemsControl">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Border Classes="TableRow">
+                                                                                <Grid ColumnDefinitions="2*,1*,1*,1*,68" ColumnSpacing="10">
+                                                                                    <TextBox Classes="CompactInput" Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                                                    <NumericUpDown Grid.Column="1" Classes="CompactNumber" Minimum="-1000000000" Maximum="1000000000" Increment="1" Value="{Binding X, Mode=TwoWay}" />
+                                                                                    <NumericUpDown Grid.Column="2" Classes="CompactNumber" Minimum="-1000000000" Maximum="1000000000" Increment="1" Value="{Binding Y, Mode=TwoWay}" />
+                                                                                    <NumericUpDown Grid.Column="3" Classes="CompactNumber" Minimum="-1000000000" Maximum="1000000000" Increment="1" Value="{Binding Z, Mode=TwoWay}" />
+                                                                                    <Button Grid.Column="4" Classes="SecondaryActionButton DangerButton" Tag="{Binding}" Content="删除" Click="OnRobotTeleportPointRemoveClick" Width="68" />
+                                                                                </Grid>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </Border>
+                                                        </Grid>
+                                                        <Button x:Name="RobotTeleportPointAddButton" Classes="SecondaryActionButton" Width="120" HorizontalAlignment="Left" Content="添加" Click="OnRobotTeleportPointAddClick" />
+                                                    </StackPanel>
+                                                    <StackPanel Spacing="8" Margin="0,8,0,0">
                                                         <TextBlock x:Name="RobotCustomCommandsTitleTextBlock" Classes="ConfigSectionTitle" Text="自定义指令" />
                                                         <TextBlock x:Name="RobotCustomCommandHintTextBlock" Classes="ConfigHintText" Text="指令以 / 开头；内置指令前缀不可用。" TextWrapping="Wrap" />
                                                         <Grid RowDefinitions="Auto,*">

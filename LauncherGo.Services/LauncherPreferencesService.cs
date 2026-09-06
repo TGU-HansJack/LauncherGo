@@ -208,7 +208,8 @@ public sealed class LauncherPreferencesService : ILauncherPreferencesService
             FallbackEncoding = string.IsNullOrWhiteSpace(source.FallbackEncoding) ? "gbk" : source.FallbackEncoding.Trim(),
             SuperUsersText = superUsersText,
             ProfileBindings = bindings,
-            CustomCommands = RobotCustomCommandRules.NormalizeMany(source.CustomCommands)
+            CustomCommands = RobotCustomCommandRules.NormalizeMany(source.CustomCommands),
+            TeleportPoints = RobotTeleportPointRules.NormalizeMany(source.TeleportPoints)
         };
     }
 

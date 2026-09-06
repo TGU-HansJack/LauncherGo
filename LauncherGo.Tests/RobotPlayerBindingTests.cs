@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using LauncherGo.Domains.Models;
 using LauncherGo.Services;
 using Xunit;
 
@@ -125,5 +126,52 @@ public sealed class RobotPlayerBindingTests
         Assert.Contains("- 黑麦面包 x3", text);
         Assert.DoesNotContain("权限", text);
         Assert.DoesNotContain("admin", text);
+    }
+
+    [Fact]
+    public void TeleportCommand_UsesBoundPlayerAndInvariantCoordinates()
+    {
+        var success = Vs2QQProcessService.TryBuildTeleportServerCommand(
+            "Alice",
+            new RobotTeleportPoint { Name = "主城", X = 12.5, Y = 110, Z = -8.25 },
+            out var command);
+
+        Assert.True(success);
+        Assert.Equal("/tp Alice 12.5 110 -8.25", command);
+    }
+
+    [Theory]
+    [InlineData("Alice Smith")]
+    [InlineData("Alice\n/op")]
+    [InlineData("")]
+    public void TeleportCommand_RejectsUnsafeBoundPlayerName(string playerName)
+    {
+        Assert.False(Vs2QQProcessService.TryBuildTeleportServerCommand(
+            playerName,
+            new RobotTeleportPoint { Name = "主城", X = 1, Y = 2, Z = 3 },
+            out _));
+    }
+
+    [Fact]
+    public void TeleportPointRules_NormalizeNamesAndDropDuplicatesOrInvalidCoordinates()
+    {
+        var points = RobotTeleportPointRules.NormalizeMany(
+        [
+            new RobotTeleportPoint { Name = " 主城 ", X = 1, Y = 2, Z = 3 },
+            new RobotTeleportPoint { Name = "主城", X = 4, Y = 5, Z = 6 },
+            new RobotTeleportPoint { Name = "越界", X = RobotTeleportPointRules.MaxCoordinateMagnitude + 1, Y = 0, Z = 0 }
+        ]);
+
+        var point = Assert.Single(points);
+        Assert.Equal("主城", point.Name);
+        Assert.Equal(1, point.X);
+    }
+
+    [Fact]
+    public void TeleportProfile_MustBelongToCurrentGroup()
+    {
+        Assert.True(Vs2QQProcessService.IsTeleportProfileBoundToGroup("profile-a", ["profile-a", "profile-b"]));
+        Assert.False(Vs2QQProcessService.IsTeleportProfileBoundToGroup("profile-a", ["profile-b"]));
+        Assert.False(Vs2QQProcessService.IsTeleportProfileBoundToGroup(string.Empty, ["profile-a"]));
     }
 }

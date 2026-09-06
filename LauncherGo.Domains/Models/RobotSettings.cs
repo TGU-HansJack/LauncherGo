@@ -15,6 +15,8 @@ public class RobotSettings
 
     public IReadOnlyList<RobotCustomCommand> CustomCommands { get; init; } = [];
 
+    public IReadOnlyList<RobotTeleportPoint> TeleportPoints { get; init; } = [];
+
     public int ReconnectIntervalSec { get; init; } = 5;
 
     public string DatabasePath { get; init; } = string.Empty;

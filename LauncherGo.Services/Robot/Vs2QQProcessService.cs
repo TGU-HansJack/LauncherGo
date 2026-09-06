@@ -346,6 +346,9 @@ public sealed class Vs2QQProcessService
             case "/myinfo":
                 await HandleMyInfoCommandAsync(runtime, eventPayload, args, cancellationToken);
                 return;
+            case "/tp":
+                await HandleTeleportCommandAsync(runtime, eventPayload, args, cancellationToken);
+                return;
             case "/modslist":
                 await HandleModsListCommandAsync(runtime, eventPayload, args, cancellationToken);
                 return;
@@ -542,6 +545,110 @@ public sealed class Vs2QQProcessService
         foreach (var message in SplitOneBotMessages(BuildMyInfoLines(profile.Name, player)))
             await ReplyAsync(runtime, eventPayload, message, cancellationToken);
     }
+
+    private async Task HandleTeleportCommandAsync(
+        Vs2QQRuntimeContext runtime,
+        JsonObject eventPayload,
+        string pointName,
+        CancellationToken cancellationToken)
+    {
+        if (!IsGroupMessage(eventPayload))
+        {
+            await ReplyAsync(runtime, eventPayload, "请在已绑定服务器的 QQ 群中使用 /tp <设置点名称>。", cancellationToken);
+            return;
+        }
+
+        var groupId = GetInt64(eventPayload, "group_id");
+        var qqUserId = GetInt64(eventPayload, "user_id");
+        var boundProfileIds = runtime.CommandScope.GetProfileIdsForGroup(groupId);
+        if (groupId <= 0 || boundProfileIds.Count == 0)
+        {
+            await ReplyAsync(runtime, eventPayload, "当前群未绑定服务器档案。", cancellationToken);
+            return;
+        }
+
+        var binding = qqUserId > 0 ? runtime.PlayerBindings.GetBinding(qqUserId) : null;
+        if (binding is null)
+        {
+            await ReplyAsync(runtime, eventPayload, "尚未绑定游戏玩家，请先使用 /bind <游戏玩家名> 完成绑定。", cancellationToken);
+            return;
+        }
+
+        if (!IsTeleportProfileBoundToGroup(binding.ProfileId, boundProfileIds))
+        {
+            await ReplyAsync(runtime, eventPayload, "当前群未绑定你所绑定玩家所在的服务器档案。", cancellationToken);
+            return;
+        }
+
+        var requestedName = pointName.Trim();
+        if (string.IsNullOrWhiteSpace(requestedName))
+        {
+            await ReplyAsync(runtime, eventPayload, BuildTeleportPointUsage(runtime), cancellationToken);
+            return;
+        }
+
+        if (!runtime.TeleportPoints.TryGetValue(requestedName, out var point))
+        {
+            await ReplyAsync(runtime, eventPayload, $"未找到设置点：{requestedName}\n{BuildTeleportPointUsage(runtime)}", cancellationToken);
+            return;
+        }
+
+        if (!TryBuildTeleportServerCommand(binding.PlayerName, point, out var command))
+        {
+            await ReplyAsync(runtime, eventPayload, "玩家绑定或设置点坐标无效，请重新绑定或联系管理员检查配置。", cancellationToken);
+            return;
+        }
+
+        await _serverProcessService.SendCommandAsync(binding.ProfileId, command, cancellationToken);
+        await ReplyAsync(
+            runtime,
+            eventPayload,
+            $"已将 {binding.PlayerName} 传送到设置点 {point.Name}（{FormatTeleportCoordinate(point.X)}, {FormatTeleportCoordinate(point.Y)}, {FormatTeleportCoordinate(point.Z)}）。",
+            cancellationToken);
+    }
+
+    private static string BuildTeleportPointUsage(Vs2QQRuntimeContext runtime)
+    {
+        var names = runtime.TeleportPoints.Values
+            .Select(static point => point.Name)
+            .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return names.Count == 0
+            ? "用法：/tp <设置点名称>。管理员尚未配置设置点。"
+            : LimitText($"用法：/tp <设置点名称>\n可用设置点：{string.Join("、", names)}", MaxOneBotMessageLength);
+    }
+
+    internal static bool TryBuildTeleportServerCommand(
+        string? playerName,
+        RobotTeleportPoint? point,
+        out string command)
+    {
+        command = string.Empty;
+        var normalizedPlayerName = playerName?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(normalizedPlayerName) ||
+            normalizedPlayerName.Length > 64 ||
+            normalizedPlayerName.Any(char.IsWhiteSpace) ||
+            normalizedPlayerName.Any(char.IsControl) ||
+            !RobotTeleportPointRules.TryNormalize(point, out var normalizedPoint))
+        {
+            return false;
+        }
+
+        command = $"/tp {normalizedPlayerName} {FormatTeleportCoordinate(normalizedPoint.X)} {FormatTeleportCoordinate(normalizedPoint.Y)} {FormatTeleportCoordinate(normalizedPoint.Z)}";
+        return true;
+    }
+
+    internal static bool IsTeleportProfileBoundToGroup(
+        string? playerProfileId,
+        IEnumerable<string>? groupProfileIds)
+    {
+        var profileId = playerProfileId?.Trim() ?? string.Empty;
+        return !string.IsNullOrWhiteSpace(profileId) &&
+               (groupProfileIds ?? []).Any(id => string.Equals(id?.Trim(), profileId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string FormatTeleportCoordinate(double value) =>
+        value.ToString("0.######", CultureInfo.InvariantCulture);
 
     private async Task HandleModsListCommandAsync(
         Vs2QQRuntimeContext runtime,
@@ -1889,6 +1996,7 @@ public sealed class Vs2QQProcessService
             /server password set <new_password> - 修改服务器密码（- 表示清空，仅超级管理员）
             /bind <游戏玩家名> - 在群聊发起 QQ 与游戏玩家绑定
             /myinfo - 私聊查看已绑定玩家的实时信息
+            /tp <设置点名称> - 将已绑定玩家传送到管理员配置的设置点（仅绑定群）
             """;
 
         if (runtime.CustomCommands.Count == 0)
@@ -2206,6 +2314,7 @@ public sealed class Vs2QQProcessService
             .ToList();
         var normalizedProfileBindings = NormalizeProfileBindings(settings.ProfileBindings);
         var normalizedCustomCommands = RobotCustomCommandRules.NormalizeMany(settings.CustomCommands);
+        var normalizedTeleportPoints = RobotTeleportPointRules.NormalizeMany(settings.TeleportPoints);
         foreach (var groupId in normalizedProfileBindings
                      .Select(static binding => ParsePositiveInt64(binding.GroupId))
                      .Where(static id => id > 0))
@@ -2233,6 +2342,7 @@ public sealed class Vs2QQProcessService
             BoundGroupIds = normalizedBoundGroupIds,
             ProfileBindings = normalizedProfileBindings,
             CustomCommands = normalizedCustomCommands,
+            TeleportPoints = normalizedTeleportPoints,
             ReconnectIntervalSec = reconnectInterval,
             DatabasePath = dbPath,
             DefaultEncoding = defaultEncoding,
@@ -2367,6 +2477,8 @@ public sealed class Vs2QQProcessService
             CommandScope = new RobotCommandScope(settings.SuperUsers, BoundGroupIds, settings.ProfileBindings);
             CustomCommands = RobotCustomCommandRules.NormalizeMany(settings.CustomCommands)
                 .ToDictionary(static command => command.Command, StringComparer.OrdinalIgnoreCase);
+            TeleportPoints = RobotTeleportPointRules.NormalizeMany(settings.TeleportPoints)
+                .ToDictionary(static point => point.Name, StringComparer.OrdinalIgnoreCase);
             ProfileBindings = BuildRuntimeProfileBindings(settings.ProfileBindings);
             GroupsByProfileId = BuildGroupsByProfileId(ProfileBindings);
             PlayerBindings = new RobotPlayerBindingStore(settings.DatabasePath);
@@ -2379,6 +2491,8 @@ public sealed class Vs2QQProcessService
         public RobotCommandScope CommandScope { get; }
 
         public IReadOnlyDictionary<string, RobotCustomCommand> CustomCommands { get; }
+
+        public IReadOnlyDictionary<string, RobotTeleportPoint> TeleportPoints { get; }
 
         public IReadOnlyList<Vs2QQProfileBinding> ProfileBindings { get; }
 

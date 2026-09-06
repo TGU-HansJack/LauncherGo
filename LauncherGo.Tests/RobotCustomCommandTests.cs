@@ -15,6 +15,8 @@ public sealed class RobotCustomCommandTests
     [InlineData("/server2")]
     [InlineData("/bind-player")]
     [InlineData("/myinfo2")]
+    [InlineData("/tp")]
+    [InlineData("/tp-home")]
     public void NormalizeCommand_RejectsBuiltInPrefixConflicts(string command)
     {
         Assert.False(RobotCustomCommandRules.TryNormalizeCommand(command, out _));

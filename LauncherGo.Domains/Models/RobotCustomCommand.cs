@@ -26,7 +26,7 @@ public static class RobotCustomCommandRules
 {
     public const int MaxCommandLength = 64;
 
-    public static readonly IReadOnlyList<string> ReservedCommands = ["/help", "/send", "/server", "/bind", "/myinfo"];
+    public static readonly IReadOnlyList<string> ReservedCommands = ["/help", "/send", "/server", "/bind", "/myinfo", "/tp"];
 
     private static readonly Regex CommandRegex = new(
         @"^/[\p{L}\p{N}_-]{1,63}$",

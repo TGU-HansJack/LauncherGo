@@ -22,6 +22,8 @@ public sealed class RobotIntegrationSettings
 
     public List<RobotCustomCommand> CustomCommands { get; set; } = [];
 
+    public List<RobotTeleportPoint> TeleportPoints { get; set; } = [];
+
 }
 
 public sealed class RobotProfileBinding
@@ -31,4 +33,61 @@ public sealed class RobotProfileBinding
     public string GroupId { get; set; } = string.Empty;
 
     public string SuperUserId { get; set; } = string.Empty;
+}
+
+public sealed class RobotTeleportPoint
+{
+    public string Name { get; set; } = string.Empty;
+
+    public double X { get; set; }
+
+    public double Y { get; set; }
+
+    public double Z { get; set; }
+}
+
+public static class RobotTeleportPointRules
+{
+    public const int MaxNameLength = 64;
+    public const double MaxCoordinateMagnitude = 1_000_000_000d;
+
+    public static bool TryNormalize(RobotTeleportPoint? source, out RobotTeleportPoint normalized)
+    {
+        normalized = new RobotTeleportPoint();
+        var name = source?.Name?.Trim() ?? string.Empty;
+        if (source is null ||
+            string.IsNullOrWhiteSpace(name) ||
+            name.Length > MaxNameLength ||
+            name.Any(char.IsControl) ||
+            !double.IsFinite(source.X) ||
+            !double.IsFinite(source.Y) ||
+            !double.IsFinite(source.Z) ||
+            Math.Abs(source.X) > MaxCoordinateMagnitude ||
+            Math.Abs(source.Y) > MaxCoordinateMagnitude ||
+            Math.Abs(source.Z) > MaxCoordinateMagnitude)
+        {
+            return false;
+        }
+
+        normalized = new RobotTeleportPoint
+        {
+            Name = name,
+            X = source.X,
+            Y = source.Y,
+            Z = source.Z
+        };
+        return true;
+    }
+
+    public static List<RobotTeleportPoint> NormalizeMany(IEnumerable<RobotTeleportPoint>? points)
+    {
+        var result = new List<RobotTeleportPoint>();
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var point in points ?? [])
+        {
+            if (TryNormalize(point, out var normalized) && names.Add(normalized.Name))
+                result.Add(normalized);
+        }
+        return result;
+    }
 }

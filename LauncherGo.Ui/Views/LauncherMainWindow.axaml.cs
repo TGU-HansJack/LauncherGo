@@ -331,6 +331,7 @@ public partial class LauncherMainWindow : Window
     private readonly List<AuthPlayerListItem> _authPlayerSourceItems = [];
     private readonly ObservableCollection<AuthPlayerListItem> _authPlayerItems = [];
     private readonly ObservableCollection<RobotProfileBindingItem> _robotBindingItems = [];
+    private readonly ObservableCollection<RobotTeleportPointItem> _robotTeleportPointItems = [];
     private readonly ObservableCollection<RobotCustomCommandItem> _robotCustomCommandItems = [];
     private readonly ObservableCollection<InstanceProfile> _robotProfileItems = [];
     private readonly ObservableCollection<DiscordProfileBindingItem> _discordBindingItems = [];
@@ -1320,6 +1321,9 @@ public partial class LauncherMainWindow : Window
         RobotDefaultEncodingLabelTextBlock.Text = T("默认编码", "Default Encoding");
         RobotFallbackEncodingLabelTextBlock.Text = T("回退编码", "Fallback Encoding");
         RobotSuperUsersLabelTextBlock.Text = T("超级管理员 QQ", "Super Admin QQ IDs");
+        RobotTeleportPointsTitleTextBlock.Text = T("传送设置点", "Teleport Points");
+        RobotTeleportPointNameHeaderTextBlock.Text = T("设置点名称", "Point Name");
+        RobotTeleportPointAddButton.Content = T("添加", "Add");
         RobotCustomCommandsTitleTextBlock.Text = T("自定义指令", "Custom Commands");
         RobotCustomCommandNameHeaderTextBlock.Text = T("指令", "Command");
         RobotCustomCommandTypeHeaderTextBlock.Text = T("类型", "Type");
@@ -1432,6 +1436,7 @@ public partial class LauncherMainWindow : Window
         ModProfileComboBox.ItemsSource = _modProfileItems;
         ModsListBox.ItemsSource = _modItems;
         RobotBindingsItemsControl.ItemsSource = _robotBindingItems;
+        RobotTeleportPointsItemsControl.ItemsSource = _robotTeleportPointItems;
         RobotCustomCommandsItemsControl.ItemsSource = _robotCustomCommandItems;
         DiscordBindingsItemsControl.ItemsSource = _discordBindingItems;
         DiscordCustomCommandsItemsControl.ItemsSource = _discordCustomCommandItems;
@@ -2957,7 +2962,8 @@ public partial class LauncherMainWindow : Window
             DefaultEncoding = "utf-8",
             FallbackEncoding = "gbk",
             SuperUsersText = string.Empty,
-            CustomCommands = []
+            CustomCommands = [],
+            TeleportPoints = []
         };
     }
 
@@ -4749,6 +4755,7 @@ public partial class LauncherMainWindow : Window
         RobotFallbackEncodingTextBox.Text = settings.FallbackEncoding;
         RobotSuperUsersTextBox.Text = settings.SuperUsersText;
         RebuildRobotBindingItems(settings);
+        RebuildRobotTeleportPointItems(settings);
         RebuildRobotCustomCommandItems(settings);
     }
 
@@ -4810,6 +4817,20 @@ public partial class LauncherMainWindow : Window
                 RobotCustomMessageType.Text,
                 string.Empty,
                 _isChinese));
+        }
+    }
+
+    private void RebuildRobotTeleportPointItems(RobotIntegrationSettings settings)
+    {
+        _robotTeleportPointItems.Clear();
+        foreach (var point in settings.TeleportPoints ?? [])
+        {
+            _robotTeleportPointItems.Add(new RobotTeleportPointItem(point.Name, point.X, point.Y, point.Z));
+        }
+
+        if (_robotTeleportPointItems.Count == 0)
+        {
+            _robotTeleportPointItems.Add(new RobotTeleportPointItem(string.Empty, 0, 0, 0));
         }
     }
 
@@ -4878,6 +4899,12 @@ public partial class LauncherMainWindow : Window
 
     private bool SaveRobotSettings(bool updateStatus = true, bool refreshEditor = true)
     {
+        if (!TryValidateRobotTeleportPoints(out var teleportValidationMessage))
+        {
+            SetConnectionStatus(teleportValidationMessage);
+            return false;
+        }
+
         if (!TryValidateRobotCustomCommands(out var validationMessage))
         {
             SetConnectionStatus(validationMessage);
@@ -5024,7 +5051,8 @@ public partial class LauncherMainWindow : Window
                 : RobotFallbackEncodingTextBox.Text.Trim(),
             SuperUsersText = FormatQqIdText(bindings.Select(static binding => binding.SuperUserId)),
             ProfileBindings = bindings,
-            CustomCommands = CollectRobotCustomCommands()
+            CustomCommands = CollectRobotCustomCommands(),
+            TeleportPoints = CollectRobotTeleportPoints()
         };
     }
 
@@ -5079,6 +5107,52 @@ public partial class LauncherMainWindow : Window
         }
 
         return RobotCustomCommandRules.NormalizeMany(commands);
+    }
+
+    private List<RobotTeleportPoint> CollectRobotTeleportPoints()
+    {
+        return RobotTeleportPointRules.NormalizeMany(_robotTeleportPointItems.Select(static item => new RobotTeleportPoint
+        {
+            Name = item.Name,
+            X = (double)item.X,
+            Y = (double)item.Y,
+            Z = (double)item.Z
+        }));
+    }
+
+    private bool TryValidateRobotTeleportPoints(out string message)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in _robotTeleportPointItems)
+        {
+            var name = item.Name.Trim();
+            if (string.IsNullOrWhiteSpace(name) && item.X == 0 && item.Y == 0 && item.Z == 0)
+                continue;
+
+            var candidate = new RobotTeleportPoint
+            {
+                Name = name,
+                X = (double)item.X,
+                Y = (double)item.Y,
+                Z = (double)item.Z
+            };
+            if (!RobotTeleportPointRules.TryNormalize(candidate, out var normalized))
+            {
+                message = T(
+                    $"传送设置点无效：{(string.IsNullOrWhiteSpace(name) ? "未命名" : name)}。名称不能为空或超过 64 个字符，坐标必须在有效范围内。",
+                    $"Invalid teleport point: {(string.IsNullOrWhiteSpace(name) ? "unnamed" : name)}. A name of up to 64 characters and valid coordinates are required.");
+                return false;
+            }
+
+            if (!names.Add(normalized.Name))
+            {
+                message = T($"传送设置点名称重复：{normalized.Name}。", $"Duplicate teleport point name: {normalized.Name}.");
+                return false;
+            }
+        }
+
+        message = string.Empty;
+        return true;
     }
 
     private bool TryValidateRobotCustomCommands(out string message)
@@ -5150,7 +5224,8 @@ public partial class LauncherMainWindow : Window
             DefaultEncoding = settings.DefaultEncoding,
             FallbackEncoding = settings.FallbackEncoding,
             SuperUsers = ParseQqIds(settings.SuperUsersText),
-            CustomCommands = settings.CustomCommands ?? []
+            CustomCommands = settings.CustomCommands ?? [],
+            TeleportPoints = settings.TeleportPoints ?? []
         };
     }
 
@@ -9073,6 +9148,24 @@ public partial class LauncherMainWindow : Window
             _isChinese));
     }
 
+    private void OnRobotTeleportPointAddClick(object? sender, RoutedEventArgs e)
+    {
+        _robotTeleportPointItems.Add(new RobotTeleportPointItem(string.Empty, 0, 0, 0));
+    }
+
+    private void OnRobotTeleportPointRemoveClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: RobotTeleportPointItem item })
+        {
+            _robotTeleportPointItems.Remove(item);
+        }
+
+        if (_robotTeleportPointItems.Count == 0)
+        {
+            OnRobotTeleportPointAddClick(sender, e);
+        }
+    }
+
     private void OnRobotCustomCommandRemoveClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: RobotCustomCommandItem item })
@@ -12073,6 +12166,73 @@ public partial class LauncherMainWindow : Window
                 ConfigPath = path,
                 ModifiedText = modifiedText
             };
+        }
+    }
+
+    public sealed class RobotTeleportPointItem : INotifyPropertyChanged
+    {
+        private string _name;
+        private decimal _x;
+        private decimal _y;
+        private decimal _z;
+
+        public RobotTeleportPointItem(string name, double x, double y, double z)
+        {
+            _name = name ?? string.Empty;
+            _x = (decimal)x;
+            _y = (decimal)y;
+            _z = (decimal)z;
+        }
+
+        public string Name
+        {
+            get => _name;
+            set
+            {
+                if (_name == value) return;
+                _name = value ?? string.Empty;
+                OnPropertyChanged();
+            }
+        }
+
+        public decimal X
+        {
+            get => _x;
+            set
+            {
+                if (_x == value) return;
+                _x = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public decimal Y
+        {
+            get => _y;
+            set
+            {
+                if (_y == value) return;
+                _y = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public decimal Z
+        {
+            get => _z;
+            set
+            {
+                if (_z == value) return;
+                _z = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 

@@ -124,6 +124,7 @@ public class RobotService : IRobotService
             BoundGroupIds = [],
             ProfileBindings = [],
             CustomCommands = [],
+            TeleportPoints = [],
             ReconnectIntervalSec = 5,
             DatabasePath = Path.Combine(WorkspacePathHelper.RobotRoot, "vs2qq.db"),
             DefaultEncoding = "utf-8",
@@ -168,6 +169,7 @@ public class RobotService : IRobotService
             .ToList();
         var profileBindings = NormalizeProfileBindings(settings.ProfileBindings);
         var customCommands = RobotCustomCommandRules.NormalizeMany(settings.CustomCommands);
+        var teleportPoints = RobotTeleportPointRules.NormalizeMany(settings.TeleportPoints);
         foreach (var groupId in profileBindings
                      .Select(static binding => ParsePositiveInt64(binding.GroupId))
                      .Where(static id => id > 0))
@@ -194,6 +196,7 @@ public class RobotService : IRobotService
             BoundGroupIds = boundGroupIds,
             ProfileBindings = profileBindings,
             CustomCommands = customCommands,
+            TeleportPoints = teleportPoints,
             ReconnectIntervalSec = reconnect,
             DatabasePath = dbPath,
             DefaultEncoding = defaultEncoding,
